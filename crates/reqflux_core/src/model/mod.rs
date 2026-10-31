@@ -10,6 +10,7 @@ mod body;
 mod documents;
 mod extensions;
 mod id;
+mod mcp;
 mod method;
 mod tree;
 mod variable;
@@ -18,6 +19,7 @@ pub use auth::{ApiKeyLocation, Auth};
 pub use body::{Body, FormPart, RawLanguage, Settings};
 pub use documents::{Collection, Environment, Folder, Request, WorkspaceManifest};
 pub use id::Id;
+pub use mcp::{McpOverride, Rule};
 pub use method::{Method, MethodError};
 pub use tree::{
     CollectionNode, EnvironmentNode, FolderNode, Item, RequestNode, Scripts, Workspace,

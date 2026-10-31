@@ -61,6 +61,7 @@ pub(crate) fn create_workspace_with_id(
         name: name.to_owned(),
         format: FORMAT,
         globals: Vec::new(),
+        mcp: None,
         extensions: toml::Table::new(),
     };
     save_manifest(dir, &manifest, None)?;

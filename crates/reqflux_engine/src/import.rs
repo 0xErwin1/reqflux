@@ -101,6 +101,7 @@ pub fn postman(
             name: node.collection.name.clone(),
             format: reqflux_store::FORMAT,
             globals: Vec::new(),
+            mcp: None,
             extensions: toml::Table::new(),
         };
         save_manifest(root, &manifest, None).map_err(|error| store_error(&manifest_path, error))?;

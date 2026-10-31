@@ -1,5 +1,6 @@
 //! The status bar: chips on the desk. It shows the last send of the window, when there is
-//! one, and the load warnings count, when there are warnings.
+//! one, the load warnings count, when there are warnings, and why the config file was not
+//! used, when it did not parse.
 
 use std::time::Instant;
 
@@ -51,6 +52,12 @@ pub(super) fn render(shell: &Shell, cx: &App) -> impl IntoElement {
                     .icon_color(colors.warning)
             }),
         )
+        .children(shell.config_warning.as_ref().map(|warning| {
+            StatusChip::new("status-config-warning", "Config not loaded")
+                .label(warning.clone())
+                .icon(IconName::TriangleAlert)
+                .icon_color(colors.warning)
+        }))
 }
 
 /// The icon of the last send: a loader in tint while sending, a check for an answer under

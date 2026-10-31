@@ -1,65 +1,119 @@
-//! The palette mode the user chose (light-theme S2, S4): kept in the app state under
-//! [`THEME_SETTING`], installed before the first window opens, and followed to the OS
-//! appearance in [`PaletteMode::System`].
+//! The palette mode the user chose (light-theme S2, S4; user-config-mcp-policy S2): kept as
+//! `theme` in the user's config file, installed before the first window opens, and followed
+//! to the OS appearance in [`PaletteMode::System`].
+//!
+//! Earlier builds kept it in the app state under [`THEME_SETTING`]; [`startup`] moves that
+//! value into the config file the first time the file has no `theme`.
+
+use std::path::Path;
 
 use bolt::PaletteMode;
 use gpui::{App, Window};
+use reqflux_engine::config::{self, ThemeMode};
 use reqflux_engine::state::AppState;
 
-/// The app state setting that holds the palette mode.
+/// The app state setting earlier builds kept the palette mode in.
 pub(crate) const THEME_SETTING: &str = "theme";
 
-/// The stored name of `mode`.
-pub(crate) fn mode_name(mode: PaletteMode) -> &'static str {
+/// What the window starts with.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Startup {
+    /// The palette mode to install.
+    pub(crate) mode: PaletteMode,
+    /// Why the config file was not used, when it does not parse; the status bar shows it.
+    pub(crate) warning: Option<String>,
+}
+
+/// The palette mode of a config file `theme`.
+pub(crate) fn palette_mode(mode: ThemeMode) -> PaletteMode {
     match mode {
-        PaletteMode::Dark => "dark",
-        PaletteMode::Light => "light",
-        PaletteMode::System => "system",
+        ThemeMode::Dark => PaletteMode::Dark,
+        ThemeMode::Light => PaletteMode::Light,
+        ThemeMode::System => PaletteMode::System,
     }
 }
 
-/// The mode stored as `name`, or `None` for a name this build does not know.
-pub(crate) fn mode_from_name(name: &str) -> Option<PaletteMode> {
-    match name {
-        "dark" => Some(PaletteMode::Dark),
-        "light" => Some(PaletteMode::Light),
-        "system" => Some(PaletteMode::System),
-        _ => None,
+/// The config file `theme` of a palette mode.
+pub(crate) fn theme_mode(mode: PaletteMode) -> ThemeMode {
+    match mode {
+        PaletteMode::Dark => ThemeMode::Dark,
+        PaletteMode::Light => ThemeMode::Light,
+        PaletteMode::System => ThemeMode::System,
     }
 }
 
-/// The mode saved in `state`; Dark when there is no state, nothing saved, an unknown name or
-/// a read failure (which is logged).
-pub(crate) fn saved_mode(state: Option<&AppState>) -> PaletteMode {
-    let Some(state) = state else {
-        return PaletteMode::default();
+/// The mode to start in, from the config file at `config` (`None` when there is no config
+/// directory). A file without `theme` takes the app state's old setting and writes it to the
+/// file once; a file that does not parse gives the defaults and a warning, and is left alone.
+pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startup {
+    let defaults = Startup {
+        mode: PaletteMode::default(),
+        warning: None,
     };
-    match state.setting(THEME_SETTING) {
-        Ok(Some(name)) => mode_from_name(&name).unwrap_or_else(|| {
-            log::warn!("unknown theme {name:?} in the app state; using the default");
-            PaletteMode::default()
-        }),
-        Ok(None) => PaletteMode::default(),
+    let Some(path) = config else {
+        return defaults;
+    };
+    let loaded = match config::load(path) {
+        Ok(loaded) => loaded,
         Err(error) => {
-            log::warn!("cannot read the theme from the app state: {error}");
-            PaletteMode::default()
+            log::warn!("{error}; using the defaults");
+            return Startup {
+                warning: Some(error.to_string()),
+                ..defaults
+            };
+        }
+    };
+    if let Some(mode) = loaded.theme {
+        return Startup {
+            mode: palette_mode(mode),
+            ..defaults
+        };
+    }
+    let Some(mode) = legacy_mode(state) else {
+        return defaults;
+    };
+    if let Err(error) = config::set_theme(path, mode) {
+        log::warn!("cannot move the theme into the config file: {error}");
+    }
+    Startup {
+        mode: palette_mode(mode),
+        ..defaults
+    }
+}
+
+/// The mode earlier builds saved in `state`; `None` when there is none, it is unknown or it
+/// cannot be read (which is logged).
+fn legacy_mode(state: Option<&AppState>) -> Option<ThemeMode> {
+    match state?.setting(THEME_SETTING) {
+        Ok(Some(name)) => {
+            let mode = ThemeMode::from_name(&name);
+            if mode.is_none() {
+                log::warn!("unknown theme {name:?} in the app state; ignoring it");
+            }
+            mode
+        }
+        Ok(None) => None,
+        Err(error) => {
+            log::warn!("cannot read the old theme from the app state: {error}");
+            None
         }
     }
 }
 
-/// Saves `mode` in `state`, logging a failure: the switch itself already happened.
-pub(crate) fn save_mode(state: Option<&mut AppState>, mode: PaletteMode) {
-    let Some(state) = state else {
+/// Saves `mode` in the config file at `config`, logging a failure: the switch itself already
+/// happened. Without a config path nothing is saved.
+pub(crate) fn save_mode(config: Option<&Path>, mode: PaletteMode) {
+    let Some(path) = config else {
         return;
     };
-    if let Err(error) = state.set_setting(THEME_SETTING, mode_name(mode)) {
-        log::warn!("cannot save the theme in the app state: {error}");
+    if let Err(error) = config::set_theme(path, theme_mode(mode)) {
+        log::warn!("cannot save the theme: {error}");
     }
 }
 
-/// Installs Bolt with ReqFlux's brand in the mode saved in `state`.
-pub(crate) fn install(state: Option<&AppState>, cx: &mut App) {
-    bolt::install(crate::brand::reqflux(), saved_mode(state), cx);
+/// Installs Bolt with ReqFlux's brand in `mode`.
+pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
+    bolt::install(crate::brand::reqflux(), mode, cx);
 }
 
 /// Resolves the installed mode against `window`'s appearance now and whenever the OS changes

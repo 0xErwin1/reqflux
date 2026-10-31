@@ -25,7 +25,7 @@ pub fn assets() -> impl gpui::AssetSource {
     bolt::assets()
 }
 
-/// Installs Bolt with ReqFlux's brand in the theme saved in the app state and opens the main
+/// Installs Bolt with ReqFlux's brand in the theme saved in the user's config file and opens the main
 /// window on the workspace at `workspace`. Without one it opens the most recent workspace
 /// that loads, else a new managed workspace named `Personal`, else the empty state
 /// (standalone-workspaces S2).
@@ -40,7 +40,15 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
             None
         }
     };
-    theme::install(state.as_ref(), cx);
+    let config_path = match reqflux_engine::config::default_path() {
+        Ok(path) => Some(path),
+        Err(error) => {
+            log::warn!("{error}; the theme is not saved");
+            None
+        }
+    };
+    let startup_theme = theme::startup(config_path.as_deref(), state.as_ref());
+    theme::install(startup_theme.mode, cx);
     shell::bind_keys(cx);
 
     let bounds = Bounds::centered(None, tokens::MAIN_WINDOW_SIZE, cx);
@@ -77,7 +85,11 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
     cx.open_window(options, |window, cx| {
         ui_automation::install(window, cx);
         theme::follow_appearance(window, cx);
-        let shell = cx.new(|cx| Shell::with_state(workspace, state, cx));
+        let shell = cx.new(|cx| {
+            let mut shell = Shell::with_state(workspace, state, cx);
+            shell.set_config(config_path, startup_theme.warning);
+            shell
+        });
         let focus = shell.read(cx).initial_focus();
         focus.focus(window, cx);
         cx.new(|cx| Root::new(shell, window, cx))

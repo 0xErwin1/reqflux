@@ -10,6 +10,7 @@ use super::auth::Auth;
 use super::body::{Body, Settings};
 use super::extensions;
 use super::id::Id;
+use super::mcp::McpOverride;
 use super::method::Method;
 use super::variable::{KeyValue, Variable, strip_secret_values};
 
@@ -26,6 +27,10 @@ pub struct WorkspaceManifest {
     /// Workspace globals, the lowest variable scope.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub globals: Vec<Variable>,
+    /// `[mcp]`: the MCP restrictions of this workspace, which can only narrow the user's
+    /// policy (user-config-mcp-policy S4).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mcp: Option<McpOverride>,
     /// Keys this version of ReqFlux does not know.
     #[serde(flatten, with = "extensions")]
     pub extensions: toml::Table,

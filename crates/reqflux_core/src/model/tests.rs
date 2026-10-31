@@ -87,6 +87,7 @@ fn workspace_manifest_serializes_in_fixed_order_with_defaults_omitted() {
             secret: false,
             enabled: true,
         }],
+        mcp: None,
         extensions: toml::Table::new(),
     };
     assert_eq!(

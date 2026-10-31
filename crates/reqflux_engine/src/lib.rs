@@ -51,7 +51,13 @@
 //! [`state::AppState`] is the per-user SQLite app state (drafts, the send history, current
 //! values and the recent workspaces), at
 //! `$XDG_STATE_HOME/reqflux/state.sqlite3`.
+//!
+//! # User configuration
+//!
+//! [`config`] reads and edits the user's config file,
+//! `$XDG_CONFIG_HOME/reqflux/config.toml`: the theme and the MCP policy.
 
+pub mod config;
 mod create;
 mod current;
 mod engine;

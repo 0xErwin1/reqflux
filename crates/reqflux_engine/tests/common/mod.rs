@@ -36,6 +36,7 @@ pub fn workspace(globals: Vec<Variable>, collections: Vec<CollectionNode>) -> Wo
             name: "W".to_owned(),
             format: 1,
             globals,
+            mcp: None,
             extensions: toml::Table::new(),
         },
         environments: Vec::new(),

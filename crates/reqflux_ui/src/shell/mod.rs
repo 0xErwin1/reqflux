@@ -138,6 +138,10 @@ pub(crate) struct Shell {
     /// The per-user app state the drafts persist in; `None` when it could not be opened,
     /// which keeps drafts in memory only.
     state: Option<AppState>,
+    /// The user's config file, where `Toggle theme` saves; `None` saves nothing.
+    config_path: Option<PathBuf>,
+    /// Why the config file was not used at startup; the status bar shows it.
+    config_warning: Option<String>,
     /// The id of the loaded workspace, the key drafts are stored under.
     workspace_id: Option<String>,
     /// The workspace's current values (variables-editor S4), read from the app state and
@@ -223,6 +227,8 @@ impl Shell {
             cell_edit: None,
             body_edit: None,
             state,
+            config_path: None,
+            config_warning: None,
             workspace_id,
             current: CurrentValues::default(),
             active_environment: None,
