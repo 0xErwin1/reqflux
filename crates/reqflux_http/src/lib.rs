@@ -7,7 +7,7 @@ mod error;
 mod request;
 mod response;
 
-pub use client::HttpClient;
+pub use client::{HttpClient, RedirectCheck};
 pub use error::HttpError;
 pub use request::{MultipartPart, MultipartValue, PreparedBody, PreparedRequest, RequestOptions};
 pub use response::Response;

@@ -47,6 +47,14 @@ pub enum HttpError {
         /// The read error.
         source: io::Error,
     },
+    /// The redirect check refused a redirect target, which was not sent anything.
+    #[error("a redirect to {url} was refused: {reason}")]
+    RedirectRefused {
+        /// The refused target.
+        url: String,
+        /// The check's refusal.
+        reason: String,
+    },
     /// The caller cancelled the request.
     #[error("request cancelled")]
     Cancelled,

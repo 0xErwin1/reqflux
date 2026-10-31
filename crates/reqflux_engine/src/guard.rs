@@ -1,14 +1,17 @@
 //! The outbound host guard of an execution (user-config-mcp-policy S3, S6): a check every
 //! request an execution sends passes first, the main request and every `pm.sendRequest` of
 //! its pre-request and test scripts. The window and `reqflux run` pass none; the MCP server
-//! passes its host policy.
+//! passes its host policy. The guard also checks every redirect target of those requests
+//! before it is followed.
 
 use std::fmt;
 use std::sync::Arc;
 
+use reqflux_http::RedirectCheck;
+
 /// The check behind a [`HostGuard`]: the method and the URL text of a request about to be
-/// sent, and the refusal text when it may not be.
-type Check = dyn Fn(&str, &str) -> Result<(), String> + Send + Sync;
+/// sent, whether it is a redirect target, and the refusal text when it may not be.
+type Check = dyn Fn(&str, &str, bool) -> Result<(), String> + Send + Sync;
 
 /// Decides whether a request may be sent, before anything reaches the network.
 ///
@@ -20,6 +23,14 @@ pub struct HostGuard(Arc<Check>);
 impl HostGuard {
     /// A guard running `check` with the method and the URL text of each request.
     pub fn new(check: impl Fn(&str, &str) -> Result<(), String> + Send + Sync + 'static) -> Self {
+        Self(Arc::new(move |method, url, _redirect| check(method, url)))
+    }
+
+    /// A guard running `check` with the method, the URL text and whether the URL is a
+    /// redirect target, so a caller can tell a refused redirect from a refused request.
+    pub fn with_redirects(
+        check: impl Fn(&str, &str, bool) -> Result<(), String> + Send + Sync + 'static,
+    ) -> Self {
         Self(Arc::new(check))
     }
 
@@ -29,7 +40,14 @@ impl HostGuard {
     ///
     /// The refusal text.
     pub fn check(&self, method: &str, url: &str) -> Result<(), String> {
-        (self.0)(method, url)
+        (self.0)(method, url, false)
+    }
+
+    /// The transport hook checking each redirect target of a request sent with `method`.
+    pub(crate) fn redirect_check(&self, method: &str) -> RedirectCheck {
+        let check = Arc::clone(&self.0);
+        let method = method.to_owned();
+        Arc::new(move |url| check(&method, url.as_str(), true))
     }
 }
 

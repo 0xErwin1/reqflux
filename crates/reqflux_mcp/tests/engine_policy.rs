@@ -612,3 +612,40 @@ fn a_write_tool_rechecks_a_manifest_deny_added_after_loading() {
     assert_eq!(lines.len(), 1);
     assert_eq!(lines[0]["decision"], "refused");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_redirect_outside_hosts_is_refused_and_audited() {
+    let landing = mock_server().await;
+    let target = format!("{}/landing", landing.uri());
+    let start = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(302).insert_header("Location", target.as_str()))
+        .mount(&start)
+        .await;
+    let url = format!("{}/start", start.uri());
+    let mut fixture = tokio::task::block_in_place(|| fixture(&url, Some(common::ALLOW_ALL)));
+    let port = start.address().port();
+    common::write_config(
+        &fixture.paths,
+        &format!("[mcp]\nexecute = \"allow\"\nhosts = [\"127.0.0.1:{port}\"]\n"),
+    );
+
+    let refused = err(tokio::task::block_in_place(|| execute(&mut fixture, None)));
+    let reason = format!(
+        "request_execute may not reach 127.0.0.1:{}: it is not in hosts = \
+         [\"127.0.0.1:{port}\"] in {} ([mcp] hosts)",
+        landing.address().port(),
+        fixture.paths.config.display()
+    );
+    let expected = format!("a redirect to {target} was refused: {reason}");
+    assert_eq!(refused, expected);
+    assert!(landing.received_requests().await.unwrap().is_empty());
+    assert_eq!(start.received_requests().await.unwrap().len(), 1);
+    let lines = audit_lines(&fixture.paths);
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert_eq!(lines[0]["decision"], "allowed");
+    assert_eq!(lines[1]["decision"], "refused");
+    assert_eq!(lines[1]["reason"], expected.as_str());
+    assert_eq!(lines[1]["method"], "GET");
+    assert_eq!(lines[1]["url"], target.as_str());
+}

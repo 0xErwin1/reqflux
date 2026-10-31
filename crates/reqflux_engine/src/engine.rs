@@ -15,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::current::CurrentValues;
 use crate::error::{ExecuteError, OpenError, SaveError};
+use crate::guard::HostGuard;
 use crate::prepare::{
     ExecuteOptions, Inspection, Prepared, StoredSecrets, inspect_stored, prepare_target, scopes,
     select_environment,
@@ -482,6 +483,11 @@ impl Engine {
     /// Spawns a task on the engine runtime that sends `prepared`.
     #[must_use]
     pub fn send(&self, prepared: Prepared) -> Execution {
+        self.send_guarded(prepared, None)
+    }
+
+    /// [`Engine::send`] with `guard` checking every redirect target before it is followed.
+    fn send_guarded(&self, prepared: Prepared, guard: Option<&HostGuard>) -> Execution {
         let sent = prepared.sent();
         let masker = prepared.masker();
         let Prepared {
@@ -492,12 +498,13 @@ impl Engine {
         } = prepared;
         let PreparedRequest { method, url, .. } = &request;
         let (method, url) = (method.clone(), url.clone());
+        let redirects = guard.map(|guard| guard.redirect_check(&method));
         let cancel = CancellationToken::new();
         let client = self.client.clone();
         let token = cancel.clone();
         let handle = self
             .runtime
-            .spawn(async move { client.send(request, token).await });
+            .spawn(async move { client.send_checked(request, token, redirects).await });
         Execution {
             method,
             url,
@@ -595,7 +602,8 @@ impl Engine {
         scripts: ScriptOutcome,
         scripted: Scripted,
     ) -> Execution {
-        let mut execution = self.send(prepared);
+        let guard = scripted.transport.guard().cloned();
+        let mut execution = self.send_guarded(prepared, guard.as_ref());
         execution.scripts = scripts;
         execution.scripted = Some(Box::new(scripted));
         execution

@@ -10,7 +10,9 @@
 //! method and the masked URL once the request is prepared; a pre-request script's refused
 //! send refuses the call, audited with that request's method and masked URL; a test
 //! script's refused send, which runs after the allowed line, adds one refused line of its
-//! own. A line that cannot be written refuses the send.
+//! own. A redirect of any of these requests passes the same check before it is followed: a
+//! refused one sends nothing to its target, fails the request it belongs to and adds one
+//! refused line naming the redirect. A line that cannot be written refuses the send.
 
 use reqflux_engine::audit::Decision;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -28,33 +30,60 @@ const TOOL: &str = "request_execute";
 /// What a refusal of a script's request starts with, in the tool error and the audit line.
 const SCRIPT_REFUSED: &str = "a script's pm.sendRequest was refused: ";
 
-/// The script requests the host guard refused during one call: method, URL and refusal, in
-/// order. The guard runs on the script thread, so the list is shared behind a mutex.
+/// What the host guard refused during one call: the method, the URL, the refusal and
+/// whether the URL was a redirect target, in order. The guard runs on the script thread and
+/// on the transport, so the list is shared behind a mutex.
 #[derive(Debug, Clone, Default)]
-struct Refused(Arc<Mutex<Vec<(String, String, String)>>>);
+struct Refused(Arc<Mutex<Vec<Refusal>>>);
+
+#[derive(Debug)]
+struct Refusal {
+    method: String,
+    url: String,
+    reason: String,
+    redirect: bool,
+}
+
+impl Refusal {
+    /// The refusal text for the tool error and the audit line, the URL masked.
+    fn text(&self, masker: &Masker) -> String {
+        if self.redirect {
+            masker.mask(&format!(
+                "a redirect to {} was refused: {}",
+                self.url, self.reason
+            ))
+        } else {
+            masker.mask(&format!("{SCRIPT_REFUSED}{}", self.reason))
+        }
+    }
+}
 
 impl Refused {
-    /// A guard checking each request against the policy's hosts and recording a refusal.
-    /// The main request is checked by the caller, with its own audit line.
+    /// A guard checking each request and redirect target against the policy's hosts and
+    /// recording a refusal. The main request is checked by the caller, with its own audit
+    /// line; its redirects are checked here.
     fn guard(&self, policy: Policy) -> HostGuard {
         let refused = self.clone();
-        HostGuard::new(move |method, url| {
+        HostGuard::with_redirects(move |method, url, redirect| {
             policy.check_host(TOOL, url).map_err(|refusal| {
                 let reason = refusal.to_string();
-                refused
-                    .lock()
-                    .push((method.to_owned(), url.to_owned(), reason.clone()));
+                refused.lock().push(Refusal {
+                    method: method.to_owned(),
+                    url: url.to_owned(),
+                    reason: reason.clone(),
+                    redirect,
+                });
                 reason
             })
         })
     }
 
     /// The refusals recorded so far, leaving none.
-    fn take(&self) -> Vec<(String, String, String)> {
+    fn take(&self) -> Vec<Refusal> {
         std::mem::take(&mut *self.lock())
     }
 
-    fn lock(&self) -> MutexGuard<'_, Vec<(String, String, String)>> {
+    fn lock(&self) -> MutexGuard<'_, Vec<Refusal>> {
         // A poisoned list still holds every refusal pushed before the panic.
         self.0.lock().unwrap_or_else(PoisonError::into_inner)
     }
@@ -109,12 +138,16 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
         }
     };
     let masker = pending.masker();
-    // A pre-request script sent to a refused host: nothing was sent, and the call is
-    // refused with the script's request in the audit line.
-    if let Some((method, url, reason)) = refused.take().into_iter().next() {
-        let url = masker.mask(&url);
-        let reason = masker.mask(&format!("{SCRIPT_REFUSED}{reason}"));
-        return Err(call.refuse(&paths, &reason, Some((method.as_str(), url.as_str()))));
+    // A pre-request script sent to a refused host, or was redirected to one: nothing was
+    // sent there, and the call is refused with that request in the audit line.
+    if let Some(refusal) = refused.take().into_iter().next() {
+        let url = masker.mask(&refusal.url);
+        let reason = refusal.text(&masker);
+        return Err(call.refuse(
+            &paths,
+            &reason,
+            Some((refusal.method.as_str(), url.as_str())),
+        ));
     }
     let method = pending.request().method.clone();
     let url = masker.mask(&pending.request().url);
@@ -127,16 +160,17 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
     let executed = engine
         .wait(execution)
         .map_err(|error| ToolError::Engine(masker.mask(&error.to_string())));
-    // A test script's send runs after the allowed line was written: each refused one gets
-    // its own refused line; the response still comes back, the refusal in its console.
-    for (method, url, reason) in refused.take() {
-        let url = masker.mask(&url);
-        let reason = masker.mask(&format!("{SCRIPT_REFUSED}{reason}"));
+    // A test script's send and a redirect of the main request run after the allowed line
+    // was written: each refused one gets its own refused line. A refused test-script send
+    // still returns the response, the refusal in its console; a refused redirect fails it.
+    for refusal in refused.take() {
+        let url = masker.mask(&refusal.url);
+        let reason = refusal.text(&masker);
         call.audit(
             &paths,
             Decision::Refused,
             Some(&reason),
-            Some((method.as_str(), url.as_str())),
+            Some((refusal.method.as_str(), url.as_str())),
         )?;
     }
     let executed = executed?;

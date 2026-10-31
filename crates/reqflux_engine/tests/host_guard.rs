@@ -219,3 +219,76 @@ fn without_a_guard_a_script_send_reaches_any_host() {
         vec![(ConsoleLevel::Log, "sent".to_owned())]
     );
 }
+
+/// A server answering `/start` with a 302 to `target`.
+fn redirecting(runtime: &Runtime, target: &str) -> MockServer {
+    runtime.block_on(async {
+        let server = MockServer::start().await;
+        Mock::given(path("/start"))
+            .respond_with(ResponseTemplate::new(302).insert_header("Location", target))
+            .mount(&server)
+            .await;
+        server
+    })
+}
+
+#[test]
+fn a_redirect_to_a_refused_host_is_not_followed() {
+    let rt = runtime();
+    let landing = server(&rt, "/landing");
+    let target = format!("{}/landing", landing.uri());
+    let start = redirecting(&rt, &target);
+    let dir = temp_dir();
+    workspace(dir.path(), &format!("{}/start", start.uri()), "pre", "");
+    let engine = match common::open_engine(dir.path()) {
+        Ok(engine) => engine,
+        Err(error) => panic!("open: {error}"),
+    };
+    match engine.execute_blocking("api/r", &options(Some(guard_refusing(&landing)))) {
+        Err(error) => assert_eq!(
+            error.to_string(),
+            format!("a redirect to {target} was refused: {REFUSAL}")
+        ),
+        Ok(executed) => panic!("expected a refusal, got {}", executed.response.status),
+    }
+    assert_eq!(received(&rt, &start), 1);
+    assert_eq!(received(&rt, &landing), 0, "the refused host saw nothing");
+}
+
+#[test]
+fn a_script_send_redirected_to_a_refused_host_is_refused() {
+    let rt = runtime();
+    let landing = server(&rt, "/landing");
+    let target = format!("{}/landing", landing.uri());
+    let start = redirecting(&rt, &target);
+    let main = server(&rt, "/main");
+    let dir = temp_dir();
+    workspace(
+        dir.path(),
+        &format!("{}/main", main.uri()),
+        "pre",
+        &probe(&format!("{}/start", start.uri())),
+    );
+    let executed = run(dir.path(), &options(Some(guard_refusing(&landing))));
+    assert_eq!(received(&rt, &landing), 0);
+    assert_eq!(
+        console(&executed),
+        vec![(
+            ConsoleLevel::Error,
+            format!("refused: a redirect to {target} was refused: {REFUSAL}")
+        )]
+    );
+}
+
+// Existing behavior: without a guard, a redirect is followed to any host.
+#[test]
+fn without_a_guard_a_redirect_is_followed() {
+    let rt = runtime();
+    let landing = server(&rt, "/landing");
+    let start = redirecting(&rt, &format!("{}/landing", landing.uri()));
+    let dir = temp_dir();
+    workspace(dir.path(), &format!("{}/start", start.uri()), "pre", "");
+    let executed = run(dir.path(), &ExecuteOptions::default());
+    assert_eq!(executed.response.status, 200);
+    assert_eq!(received(&rt, &landing), 1);
+}

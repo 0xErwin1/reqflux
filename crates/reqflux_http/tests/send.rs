@@ -433,6 +433,94 @@ async fn one_client_serves_both_redirect_settings() {
     }
 }
 
+/// A redirect check refusing every target whose path is `refused`.
+fn refusing(refused: &'static str) -> reqflux_http::RedirectCheck {
+    std::sync::Arc::new(move |url: &url::Url| {
+        if url.path() == refused {
+            Err("not that one".to_owned())
+        } else {
+            Ok(())
+        }
+    })
+}
+
+#[tokio::test]
+async fn a_refused_redirect_stops_the_chain_and_sends_nothing_to_its_target() {
+    let server = redirect_server().await;
+    let error = HttpClient::new()
+        .send_checked(
+            request("GET", format!("{}/from", server.uri())),
+            CancellationToken::new(),
+            Some(refusing("/to")),
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        format!(
+            "a redirect to {}/to was refused: not that one",
+            server.uri()
+        )
+    );
+    let paths: Vec<String> = server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .map(|request| request.url.path().to_owned())
+        .collect();
+    assert_eq!(paths, vec!["/from".to_owned()]);
+}
+
+#[tokio::test]
+async fn a_redirect_check_keeps_the_ten_redirect_limit() {
+    let server = redirect_server().await;
+    let result = HttpClient::new()
+        .send_checked(
+            request("GET", format!("{}/loop", server.uri())),
+            CancellationToken::new(),
+            Some(refusing("/never")),
+        )
+        .await;
+    assert!(matches!(result, Err(HttpError::Request(_))), "{result:?}");
+    assert_eq!(server.received_requests().await.unwrap().len(), 11);
+}
+
+#[tokio::test]
+async fn a_redirect_check_is_not_consulted_when_redirects_are_off() {
+    let server = redirect_server().await;
+    let mut no_follow = request("GET", format!("{}/from", server.uri()));
+    no_follow.options.follow_redirects = false;
+    let response = HttpClient::new()
+        .send_checked(no_follow, CancellationToken::new(), Some(refusing("/to")))
+        .await
+        .unwrap();
+    assert_eq!(response.status, 302);
+}
+
+// reqwest drops Authorization and Cookie when a redirect changes scheme, host or port; a
+// custom header such as X-Api-Key is carried along.
+#[tokio::test]
+async fn a_cross_origin_redirect_drops_authorization_but_not_custom_headers() {
+    let target = ok_server().await;
+    let start = MockServer::start().await;
+    Mock::given(path("/start"))
+        .respond_with(
+            ResponseTemplate::new(302).insert_header("Location", format!("{}/echo", target.uri())),
+        )
+        .mount(&start)
+        .await;
+    let mut sent = request("GET", format!("{}/start", start.uri()));
+    sent.headers = vec![
+        ("Authorization".to_owned(), "Bearer t".to_owned()),
+        ("X-Api-Key".to_owned(), "k".to_owned()),
+    ];
+    assert_eq!(send(sent).await.unwrap().status, 200);
+    let arrived = only_request(&target).await;
+    assert!(!arrived.headers.contains_key("authorization"));
+    assert!(arrived.headers.contains_key("x-api-key"));
+}
+
 // S2: errors.
 
 #[tokio::test]

@@ -44,6 +44,11 @@ impl Transport {
             guard,
         }
     }
+
+    /// The execution's host guard, if any.
+    pub(crate) fn guard(&self) -> Option<&HostGuard> {
+        self.guard.as_ref()
+    }
 }
 
 /// The effective pre-request script of `target`: the request's, else the innermost folder's
@@ -281,6 +286,9 @@ fn send_through(runtime: Runtime, transport: Transport) -> SendRequest {
         if let Some(guard) = &guard {
             guard.check(&request.method, &request.url)?;
         }
+        let redirects = guard
+            .as_ref()
+            .map(|guard| guard.redirect_check(&request.method));
         let prepared = PreparedRequest {
             method: request.method,
             url: request.url,
@@ -295,7 +303,7 @@ fn send_through(runtime: Runtime, transport: Transport) -> SendRequest {
             options,
         };
         runtime
-            .block_on(client.send(prepared, CancellationToken::new()))
+            .block_on(client.send_checked(prepared, CancellationToken::new(), redirects))
             .map(script_response)
             .map_err(|error| error.to_string())
     })

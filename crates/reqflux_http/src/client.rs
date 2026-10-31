@@ -19,6 +19,10 @@ use crate::response::Response;
 /// The maximum number of redirects followed for one request.
 const MAX_REDIRECTS: usize = 10;
 
+/// A check consulted for every redirect target before it is followed: the refusal text when
+/// the redirect may not be followed. The client does not interpret it.
+pub type RedirectCheck = Arc<dyn Fn(&Url) -> Result<(), String> + Send + Sync>;
+
 /// Sends requests, reusing one `reqwest` client per (verify TLS, follow redirects) pair.
 ///
 /// Cloning is cheap and clones share the cache. Requests must run inside a Tokio runtime.
@@ -47,17 +51,33 @@ impl HttpClient {
         request: PreparedRequest,
         cancel: CancellationToken,
     ) -> Result<Response, HttpError> {
+        self.send_checked(request, cancel, None).await
+    }
+
+    /// [`HttpClient::send`] with `check` consulted for every redirect target before it is
+    /// followed. A refused redirect stops the chain with [`HttpError::RedirectRefused`] and
+    /// nothing is sent to its target. Without a check this is [`HttpClient::send`].
+    pub async fn send_checked(
+        &self,
+        request: PreparedRequest,
+        cancel: CancellationToken,
+        check: Option<RedirectCheck>,
+    ) -> Result<Response, HttpError> {
         let timeout = request.options.timeout;
         tokio::select! {
             biased;
             () = cancel.cancelled() => Err(HttpError::Cancelled),
-            result = tokio::time::timeout(timeout, self.execute(request)) => {
+            result = tokio::time::timeout(timeout, self.execute(request, check)) => {
                 result.unwrap_or(Err(HttpError::Timeout(timeout.as_millis())))
             }
         }
     }
 
-    async fn execute(&self, request: PreparedRequest) -> Result<Response, HttpError> {
+    async fn execute(
+        &self,
+        request: PreparedRequest,
+        check: Option<RedirectCheck>,
+    ) -> Result<Response, HttpError> {
         let url = Url::parse(&request.url).map_err(|error| HttpError::InvalidUrl {
             url: request.url.clone(),
             reason: error.to_string(),
@@ -66,16 +86,28 @@ impl HttpClient {
             .map_err(|_| HttpError::InvalidMethod(request.method.clone()))?;
         let headers = header_map(&request.headers)?;
         let has_content_type = headers.contains_key(CONTENT_TYPE);
-        let client = self.client(request.options)?;
+        let refusal = Arc::new(Mutex::new(None));
+        let client = match check {
+            Some(check) if request.options.follow_redirects => {
+                checked_client(request.options, check, Arc::clone(&refusal))?
+            }
+            _ => self.client(request.options)?,
+        };
         let builder = client.request(method, url.clone()).headers(headers);
         let builder = with_body(builder, request.body, has_content_type).await?;
 
         let started = Instant::now();
         let timeout = request.options.timeout;
-        let response = builder
-            .send()
-            .await
-            .map_err(|error| classify(&error, &url, timeout))?;
+        let response = builder.send().await.map_err(|error| {
+            let refused = refusal
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take();
+            match refused {
+                Some((url, reason)) => HttpError::RedirectRefused { url, reason },
+                None => classify(&error, &url, timeout),
+            }
+        })?;
         let status = response.status();
         let version = version_text(response.version());
         let final_url = response.url().to_string();
@@ -127,6 +159,59 @@ impl HttpClient {
         Ok(client)
     }
 }
+
+/// A client, not cached, whose redirect policy runs `check` on each target before following
+/// it, keeping the limit of [`MAX_REDIRECTS`]. A refusal is stored in `refusal`, target and
+/// text, and stops the chain with an error.
+fn checked_client(
+    options: RequestOptions,
+    check: RedirectCheck,
+    refusal: Arc<Mutex<Option<(String, String)>>>,
+) -> Result<reqwest::Client, HttpError> {
+    let policy = redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() > MAX_REDIRECTS {
+            return attempt.error(TooManyRedirects);
+        }
+        match check(attempt.url()) {
+            Ok(()) => attempt.follow(),
+            Err(reason) => {
+                let target = attempt.url().to_string();
+                *refusal.lock().unwrap_or_else(PoisonError::into_inner) =
+                    Some((target, reason.clone()));
+                attempt.error(RedirectRefused(reason))
+            }
+        }
+    });
+    reqwest::Client::builder()
+        .redirect(policy)
+        .tls_danger_accept_invalid_certs(!options.verify_tls)
+        .build()
+        .map_err(|error| HttpError::Client(error_chain(&error)))
+}
+
+/// The error a checked policy stops on past [`MAX_REDIRECTS`], worded as `reqwest`'s own.
+#[derive(Debug)]
+struct TooManyRedirects;
+
+impl std::fmt::Display for TooManyRedirects {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("too many redirects")
+    }
+}
+
+impl std::error::Error for TooManyRedirects {}
+
+/// The error a checked policy stops on when its check refuses a target.
+#[derive(Debug)]
+struct RedirectRefused(String);
+
+impl std::fmt::Display for RedirectRefused {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for RedirectRefused {}
 
 fn header_map(headers: &[(String, String)]) -> Result<HeaderMap, HttpError> {
     let mut map = HeaderMap::with_capacity(headers.len());
