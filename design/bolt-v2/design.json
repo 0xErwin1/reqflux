@@ -1,6 +1,6 @@
 {
-  "title": "Relay on Bolt, from DBFlux's app",
-  "brief": "Relay's main window rebuilt from DBFlux's query editor artboard and real screenshots: activity rail, centered command search, sidebar tree with icons, document toolbar, selector chips with the environment, request line, response with segmented views and bottom bar, status chips. Only the accent (cobalt) and the HTTP content change.",
+  "title": "ReqFlux on Bolt, from DBFlux's app",
+  "brief": "ReqFlux's main window rebuilt from DBFlux's query editor artboard and real screenshots: activity rail, centered command search, sidebar tree with icons, document toolbar, selector chips with the environment, request line, response with segmented views and bottom bar, status chips. Only the accent (cobalt) and the HTTP content change.",
   "artboards": [
     {
       "file": "01-main.html",
@@ -61,7 +61,7 @@
     {
       "file": "09-command-palette.html",
       "title": "Command palette",
-      "tradeoff": "DBFlux palette with Relay commands",
+      "tradeoff": "DBFlux palette with ReqFlux commands",
       "width": 1440,
       "height": 900
     },

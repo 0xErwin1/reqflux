@@ -1,13 +1,13 @@
-# Relay design system: Bolt
+# ReqFlux design system: Bolt
 
-Relay uses **Bolt**, the design system of DBFlux, with its own accent. Relay and DBFlux are a
+ReqFlux uses **Bolt**, the design system of DBFlux, with its own accent. ReqFlux and DBFlux are a
 family of apps: same structure, typography, shapes and density; one accent per product.
 
 Source: `DESIGN.md` of DBFlux at commit `f0afcc771e8ab3c059d71f85e34d6074d33f48bc`
 (`~/dev/personal/Rust/dbflux-worktree/main`). Bolt is copied for now and will move to a shared
 library later. Until then, change Bolt values in both products or record the divergence here.
 
-## What Relay takes from Bolt unchanged
+## What ReqFlux takes from Bolt unchanged
 
 | Area | Values |
 |------|--------|
@@ -24,7 +24,7 @@ library later. Until then, change Bolt values in both products or record the div
 The two Bolt rules about the accent hold for any accent: the accent **fill** is never text on
 the dark ground, and accent text, icons, caret and focus ring use the accent **tint**.
 
-## What Relay sets itself
+## What ReqFlux sets itself
 
 The reference is `design/bolt-v2/`, built from DBFlux's own artboards
 (`design/redesign-islands-*` in DBFlux) and screenshots of the running app. When a value or a
@@ -55,16 +55,16 @@ State markers:
 
 ## Divergences from Bolt
 
-| Change | Bolt | Relay | Why |
+| Change | Bolt | ReqFlux | Why |
 |--------|------|-------|-----|
 | Accent | byzantine `#702963`, tint `#D48CC8` | cobalt `#2B45B8`, tint `#9DB1FF` | One accent per product in the family |
 
-Relay has no rules of its own on top of Bolt's composition: earlier "hierarchy rules" drifted
+ReqFlux has no rules of its own on top of Bolt's composition: earlier "hierarchy rules" drifted
 the design away from DBFlux and were dropped.
 
 ## Open points
 
-- Relay has no logo yet; the welcome artboard uses a placeholder mark.
+- ReqFlux has no logo yet; the welcome artboard uses a placeholder mark.
 - The focus ring does not follow the cut corners in the artboards (CSS `clip-path` removes
   outlines). In GPUI the ring is drawn as its own path, so the app can trace the cuts.
 - Light theme: Bolt's `Colors::light()` (desk `#EDECF0`, panel `#FCFBFD`, strong `#17151B`,

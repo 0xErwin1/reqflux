@@ -1,8 +1,8 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Relay - Audit log (Bolt, DBFlux fidelity)</title>
+<title>ReqFlux - Audit log (Bolt, DBFlux fidelity)</title>
 <!--
-  Relay main window rebuilt on DBFlux's islands artboard (03-isl-editor.html).
+  ReqFlux main window rebuilt on DBFlux's islands artboard (03-isl-editor.html).
   Values are copied from that artboard; only the accent changes:
   byzantine #702963 -> cobalt #2B45B8 (hover #3451C8, pressed #1F3389),
   tint #D48CC8 -> #9DB1FF, washes rgba(tint, .06 / .11 / .14 / .16).
@@ -300,7 +300,7 @@ button{font:inherit;white-space:nowrap}
         <div style="display:flex;align-items:center;gap:8px;height:44px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;border-bottom:1px solid #232128">
           <svg class="ico" style="width:16px;height:16px;color:#9DB1FF"><use href="#i-fingerprint"/></svg>
           <span style="color:#F7F4F7;font-weight:700;font-size:14px">Audit log</span>
-          <span style="color:#8E8996">every agent call through relay mcp and every decision you made</span>
+          <span style="color:#8E8996">every agent call through reqflux mcp and every decision you made</span>
           <span style="flex-grow:1"></span>
           <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-export"/></svg>Export JSONL</button>
           <button class="c6 btn" style="background:#2B45B8;color:#FFF;font-weight:700"><svg class="ico" style="width:14px;height:14px"><use href="#i-refresh"/></svg>Refresh</button>
@@ -354,7 +354,7 @@ button{font:inherit;white-space:nowrap}
         </div>
         <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
           <svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>
-          <span class="m" style="color:#C6C3CC">~/.local/state/relay/audit/billing.jsonl</span>
+          <span class="m" style="color:#C6C3CC">~/.local/state/reqflux/audit/billing.jsonl</span>
           <span>· per-user state, never in the workspace</span>
           <span style="flex-grow:1"></span>
           <span>148 events in 24h · kept 90 days</span>
