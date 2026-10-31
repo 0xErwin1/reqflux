@@ -42,12 +42,20 @@ jobs:
         env:
           REPOSITORY: ${{ github.repository }}
           EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
         run: |
           # Only the canonical repository runs the schedule; forks do not.
           if [ "$REPOSITORY" != "0xErwin1/reqflux" ]; then
             echo "Skipping nightly: not the canonical repository."
             echo "proceed=false" >> "$GITHUB_OUTPUT"
             exit 0
+          fi
+
+          # The single tag tracks main: a run from any other ref never moves it.
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::The nightly only builds main, not $REF."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 1
           fi
 
           # A manual run always builds, even with no new commits.
@@ -249,12 +257,6 @@ jobs:
             } >> release_body.md
           fi
 
-      - name: Move the nightly tag to this build
-        run: |
-          set -euo pipefail
-          git tag -f nightly HEAD
-          git push origin refs/tags/nightly --force
-
       - name: Remove the old dated nightlies and the previous assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -275,10 +277,15 @@ jobs:
 
           # The rolling release keeps its tag; clear its assets so the upload
           # below never leaves an older build attached.
-          RELEASE_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/nightly" 2>/dev/null || true)
-          if [ -z "$RELEASE_JSON" ]; then
-            echo "No existing nightly release; nothing to clear."
-            exit 0
+          # Only a 404 means there is no release yet; any other API failure
+          # fails the step instead of silently skipping the clear.
+          if ! RELEASE_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/nightly" 2>api_error.txt); then
+            if grep -q 'HTTP 404' api_error.txt; then
+              echo "No existing nightly release; nothing to clear."
+              exit 0
+            fi
+            cat api_error.txt >&2
+            exit 1
           fi
           ASSET_IDS=$(jq -r '.assets[].id' <<<"$RELEASE_JSON")
           while IFS= read -r ASSET_ID; do
@@ -298,3 +305,12 @@ jobs:
             artifacts/reqflux-linux-amd64.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Last, so the tag only moves once the build is published: if anything
+      # above fails, the tag still points at the previous nightly, the guard
+      # sees new commits and the next scheduled run retries.
+      - name: Move the nightly tag to this build
+        run: |
+          set -euo pipefail
+          git tag -f nightly HEAD
+          git push origin refs/tags/nightly --force
