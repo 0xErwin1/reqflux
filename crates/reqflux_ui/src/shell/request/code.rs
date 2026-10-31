@@ -1,8 +1,8 @@
 //! Read-only text blocks shared by the Body, Auth, Scripts and Settings panes: a code block
-//! with right-aligned line numbers, a section label, an empty state and a label/value row.
+//! with right-aligned line numbers, a section label and an empty state.
 
 use bolt::tokens::{family, space};
-use gpui::{AnyElement, App, Div, ParentElement, Stateful, Styled, div, prelude::*};
+use gpui::{AnyElement, App, Div, ParentElement, Styled, div, prelude::*};
 use reqflux_engine::Inspection;
 
 use super::pane_model::numbered_lines;
@@ -70,37 +70,4 @@ pub(super) fn empty(id: String, text: &'static str, cx: &App) -> AnyElement {
         .text_color(bolt::colors(cx).muted)
         .child(text)
         .into_any_element()
-}
-
-/// A row `id` with a muted `label` column and `value`, reported as `<label>: <shown>`.
-pub(super) fn field(
-    id: String,
-    label: &str,
-    shown: &str,
-    value: impl IntoElement,
-    cx: &App,
-) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    labeled_row(id, format!("{label}: {shown}"))
-        .flex()
-        .items_center()
-        .h(tokens::GRID_ROW)
-        .pl(space::MD)
-        .text_size(tokens::GRID_TEXT)
-        .child(
-            div()
-                .w(tokens::PANE_LABEL_COLUMN)
-                .flex_none()
-                .text_color(colors.muted)
-                .child(label.to_owned()),
-        )
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(space::SM)
-                .font_family(family::MONO)
-                .text_color(colors.foreground)
-                .child(value),
-        )
 }

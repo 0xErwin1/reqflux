@@ -1,6 +1,7 @@
 //! The editable Settings pane: the timeout row opens a field in the shell's cell field slot,
 //! so it commits, discards and gives the focus back exactly as a grid cell does, and an open
-//! field elsewhere commits first. The redirects and TLS rows cycle Default, on, off.
+//! field elsewhere commits first; its Reset puts the default back. The redirects and TLS
+//! rows pick Default, On or Off, the engine's tri-state, and reset to Default.
 
 use gpui::{AppContext as _, Context, Window};
 use gpui_component::input::InputState;
@@ -12,14 +13,22 @@ use super::cell_edit::{CellEdit, CellField};
 /// The table name the timeout field records in its [`CellEdit`], which no grid uses.
 pub(crate) const SETTINGS_TABLE: &str = "settings";
 
-/// A setting the pane cycles on click.
-#[derive(Clone, Copy)]
+/// An on/off setting the pane picks Default, On or Off for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Toggle {
     FollowRedirects,
     VerifyTls,
 }
 
 impl Toggle {
+    /// The value of this setting in `settings`, `None` for the default.
+    pub(crate) fn value(self, settings: &Settings) -> Option<bool> {
+        match self {
+            Self::FollowRedirects => settings.follow_redirects,
+            Self::VerifyTls => settings.verify_tls,
+        }
+    }
+
     fn slot(self, settings: &mut Settings) -> &mut Option<bool> {
         match self {
             Self::FollowRedirects => &mut settings.follow_redirects,
@@ -102,27 +111,50 @@ impl Shell {
         self.edit_draft(id, |request| request.settings.timeout_ms = timeout, cx);
     }
 
-    /// Cycles `toggle` of the request `id` in its draft: Default, on, off, Default. An open
-    /// field commits first, so the click never drops what was typed.
-    pub(super) fn cycle_setting(
+    /// Sets `toggle` of the request `id` to `value` in its draft, `None` for the default.
+    /// Picking the value it already has changes nothing. An open field commits first, so
+    /// the click never drops what was typed.
+    pub(super) fn set_setting(
         &mut self,
         id: &str,
         toggle: Toggle,
+        value: Option<bool>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.commit_cell_edit(window, cx);
+        let current = self.requests.get(id).map(|state| {
+            toggle.value(
+                &self
+                    .displayed_request(id, &state.inspection.request.request)
+                    .settings,
+            )
+        });
+        if current == Some(value) {
+            return;
+        }
         self.edit_draft(
             id,
-            |request| {
-                let slot = toggle.slot(&mut request.settings);
-                *slot = match *slot {
-                    None => Some(true),
-                    Some(true) => Some(false),
-                    Some(false) => None,
-                };
-            },
+            |request| *toggle.slot(&mut request.settings) = value,
             cx,
         );
+    }
+
+    /// Puts the default timeout back into the draft of the request `id`. An open timeout
+    /// field is dropped, since Reset replaces what it holds; another open field commits.
+    pub(super) fn reset_timeout(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.timeout_edit_of(id) {
+            self.discard_cell_edit(window, cx);
+        } else {
+            self.commit_cell_edit(window, cx);
+        }
+        let current = self.requests.get(id).map(|state| {
+            self.displayed_request(id, &state.inspection.request.request)
+                .settings
+                .timeout_ms
+        });
+        if current.is_some_and(|timeout| timeout.is_some()) {
+            self.edit_draft(id, |request| request.settings.timeout_ms = None, cx);
+        }
     }
 }

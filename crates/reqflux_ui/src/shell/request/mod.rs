@@ -1,6 +1,6 @@
 //! The open request under the document tabs: the request line, the sub-tab bar and the pane
 //! of the selected sub-tab: the Params and Headers grids, the Body, Auth and Settings panes, or
-//! the read-only Scripts pane.
+//! the Scripts pane.
 
 mod auth;
 mod auth_menu;
@@ -86,11 +86,14 @@ fn pane(
         )],
         SubTab::Body => body::render(id, inspection, &request.body, shell, window, cx),
         SubTab::Auth => auth::render(id, inspection, &request.auth, shell, window, cx),
-        SubTab::Scripts => scripts::render(inspection, cx),
+        SubTab::Scripts => scripts::render(id, inspection, shell, cx),
         SubTab::Settings => settings::render(id, &request.settings, shell, cx),
     };
+    // The pane takes what the split leaves and scrolls: a tall tab (Scripts, a long grid)
+    // must not run under the response.
     region("request-pane")
-        .flex_none()
+        .flex_1()
+        .min_h_0()
         .overflow_y_scroll()
         .pb(space::MD)
         .children(content)

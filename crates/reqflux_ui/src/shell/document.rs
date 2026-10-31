@@ -2,7 +2,7 @@
 //! there is none.
 //!
 //! The active request shows the action strip at its left and the request beside it, with
-//! its response under it. While the history tab is active, the island shows its read-only
+//! its response under it across the draggable split (see `split`). While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
 
 use bolt::Island;
@@ -10,7 +10,7 @@ use bolt::tokens::border;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
 
 use super::documents::locate;
-use super::{Shell, action_strip, empty_state, history, path_bar, region, request, response, tabs};
+use super::{Shell, action_strip, empty_state, history, path_bar, region, request, split, tabs};
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
     let colors = bolt::colors(cx);
@@ -48,9 +48,8 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
                     Some((id, state)) => {
                         let send = shell.sends.get(id);
                         let sending = send.is_some_and(|send| send.state.is_sending());
-                        content
-                            .children(request::render(id, state, sending, shell, window, cx))
-                            .child(response::render(id, send, cx))
+                        let request = request::render(id, state, sending, shell, window, cx);
+                        content.child(split::render(id, request, send, shell, window, cx))
                     }
                     None => content,
                 })

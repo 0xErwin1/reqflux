@@ -898,6 +898,19 @@ off the UI thread and drawn with `uniform_list` so only visible lines render, an
 with Retry, and the unresolved variables the send used. Each open request keeps its last
 response in memory, and every send is recorded in history (see "History").
 
+A 9 px gutter with a dotted grip (`request-response-split`, a splitter) divides the request
+(`request-area`) from the response (`response-area`). Dragging it sets the request's height;
+Up and Down on the focused gutter move it by 16 px; Enter or a double click collapses the
+response to a 40 px bar (`response-bar`) with its status, time and size and test count, and
+restores it, as do the bar's expand button (`response-expand`) and a drag. Each pane keeps at
+least 120 px. The position is per user, shared by every request tab, and kept across restarts
+in the app state's `settings` (`request_response_split/height` in pixels and
+`request_response_split/collapsed`); a stored value that does not parse keeps the default.
+The Params, Headers and body grids are spreadsheet cells: enable, key, value (filling the
+rest), description and delete columns with a line on every side of every cell, the key
+column's kind and, with an active environment, `resolved in <environment>` beside the value
+column's name (`request-<table>-value-hint`); an open cell is a well with a tint focus ring.
+
 An image or HTML response (by `Content-Type`, then PNG, JPEG, GIF or WebP magic bytes) adds
 `Preview` (`response-view-preview`). An image is decoded off the UI thread and drawn at its
 natural size, shrunk to fit and never enlarged, with its size and format

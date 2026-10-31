@@ -20,6 +20,21 @@ pub(crate) fn row_label(key: &str, value: &str, secret: bool) -> String {
     }
 }
 
+/// The key placeholder of the add row of a grid of `kind` entries: `header` reads `Header`.
+pub(crate) fn placeholder(kind: &str) -> String {
+    let mut chars = kind.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+/// The note beside the value column's name: `resolved in <environment>` while an
+/// environment is active, nothing for No environment.
+pub(crate) fn value_hint(environment: Option<&str>) -> Option<String> {
+    environment.map(|name| format!("resolved in {name}"))
+}
+
 /// Whether any of `spans` is a reference that does not resolve.
 pub(crate) fn has_unresolved(spans: &[Span]) -> bool {
     spans.iter().any(|span| {
@@ -89,6 +104,22 @@ mod tests {
             literal,
             reference("missing", false, false)
         ]));
+    }
+
+    #[test]
+    fn the_add_row_placeholder_names_the_kind() {
+        assert_eq!(placeholder("header"), "Header");
+        assert_eq!(placeholder("param"), "Param");
+        assert_eq!(placeholder(""), "");
+    }
+
+    #[test]
+    fn the_value_hint_names_the_active_environment() {
+        assert_eq!(
+            value_hint(Some("staging")).as_deref(),
+            Some("resolved in staging")
+        );
+        assert_eq!(value_hint(None), None);
     }
 
     #[test]

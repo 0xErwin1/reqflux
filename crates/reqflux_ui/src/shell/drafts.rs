@@ -1,12 +1,16 @@
 //! The draft of an edited request: what the shell holds in memory and how it persists in
 //! the per-user app state. An edit never touches the workspace file until save; the draft
 //! carries the whole request document, so later editable surfaces need no new storage.
+//! Edited scripts ride along in the same payload: the scripts live in sidecar files, not in
+//! the request document, so the payload adds them as the table [`SCRIPTS_KEY`], with the
+//! hashes of the sidecars they were made from. A payload without it, written before scripts
+//! were editable, loads as a draft with untouched scripts.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use gpui::{Context, Window};
-use reqflux_core::model::Request;
+use reqflux_core::model::{Request, Scripts};
 use reqflux_engine::SaveError;
 use reqflux_engine::state::Draft;
 
@@ -27,6 +31,70 @@ pub(crate) struct RequestDraft {
     pub(crate) base_hash: Option<String>,
     /// Whether the saved file is known to have changed underneath the draft.
     pub(crate) conflicted: bool,
+    /// The edited scripts, `None` while the scripts are as saved.
+    pub(crate) scripts: Option<ScriptDraft>,
+}
+
+/// The edited sidecar scripts of a draft and the content hashes, as text, of the sidecars
+/// they were made from, `None` for a sidecar that did not exist.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct ScriptDraft {
+    pub(crate) scripts: Scripts,
+    pub(crate) pre_request_base: Option<String>,
+    pub(crate) test_base: Option<String>,
+}
+
+/// The payload table that holds a draft's edited scripts, beside the request document.
+const SCRIPTS_KEY: &str = "reqflux_draft_scripts";
+
+/// The stored payload of `request` and its edited `scripts`.
+pub(crate) fn encode_payload(
+    request: &Request,
+    scripts: Option<&ScriptDraft>,
+) -> Result<String, toml::ser::Error> {
+    let mut table = toml::Table::try_from(request)?;
+    if let Some(draft) = scripts {
+        let mut stored = toml::Table::new();
+        let fields = [
+            ("pre_request", draft.scripts.pre_request.as_ref()),
+            ("test", draft.scripts.test.as_ref()),
+            ("pre_request_base", draft.pre_request_base.as_ref()),
+            ("test_base", draft.test_base.as_ref()),
+        ];
+        for (key, value) in fields {
+            if let Some(value) = value {
+                stored.insert(key.to_owned(), toml::Value::String(value.clone()));
+            }
+        }
+        table.insert(SCRIPTS_KEY.to_owned(), toml::Value::Table(stored));
+    }
+    toml::to_string(&table)
+}
+
+/// The request and edited scripts of a stored `payload`. A payload without the scripts
+/// table, as drafts were stored before scripts were editable, has untouched scripts.
+pub(crate) fn decode_payload(
+    payload: &str,
+) -> Result<(Request, Option<ScriptDraft>), toml::de::Error> {
+    let mut table: toml::Table = toml::from_str(payload)?;
+    let scripts = table.remove(SCRIPTS_KEY).map(|value| {
+        let text = |key: &str| {
+            value
+                .get(key)
+                .and_then(toml::Value::as_str)
+                .map(str::to_owned)
+        };
+        ScriptDraft {
+            scripts: Scripts {
+                pre_request: text("pre_request"),
+                test: text("test"),
+            },
+            pre_request_base: text("pre_request_base"),
+            test_base: text("test_base"),
+        }
+    });
+    let request = toml::Value::Table(table).try_into::<Request>()?;
+    Ok((request, scripts))
 }
 
 impl Shell {
@@ -48,20 +116,24 @@ impl Shell {
             }
         };
         for (entity_id, stored) in stored {
-            let request = match toml::from_str::<Request>(&stored.payload) {
-                Ok(request) => request,
+            let (request, scripts) = match decode_payload(&stored.payload) {
+                Ok(decoded) => decoded,
                 Err(error) => {
                     log::warn!("the draft of request {entity_id} did not parse: {error}");
                     continue;
                 }
             };
-            let conflicted = self.file_moved(&entity_id, stored.base_hash.as_deref());
+            let conflicted = self.file_moved(&entity_id, stored.base_hash.as_deref())
+                || scripts
+                    .as_ref()
+                    .is_some_and(|scripts| self.scripts_moved(&entity_id, scripts));
             self.drafts.insert(
                 entity_id,
                 RequestDraft {
                     request,
                     base_hash: stored.base_hash,
                     conflicted,
+                    scripts,
                 },
             );
         }
@@ -79,6 +151,25 @@ impl Shell {
             .flatten()
             .map(|hash| hash.to_string());
         current.as_deref() != base_hash
+    }
+
+    /// Whether the sidecars of the request `id` no longer have the hashes `scripts` was
+    /// made from, as the workspace was loaded.
+    fn scripts_moved(&self, id: &str, scripts: &ScriptDraft) -> bool {
+        self.script_bases(id).is_none_or(|(pre_request, test)| {
+            pre_request != scripts.pre_request_base || test != scripts.test_base
+        })
+    }
+
+    /// The hashes, as text, of the request `id`'s pre-request and test sidecars as the
+    /// workspace was loaded; `None` when the request is not in the workspace.
+    fn script_bases(&self, id: &str) -> Option<(Option<String>, Option<String>)> {
+        let OpenedWorkspace::Loaded(engine) = &self.workspace else {
+            return None;
+        };
+        let hashes = engine.script_base_hashes(id).ok()?;
+        let text = |hash: Option<reqflux_engine::ContentHash>| hash.map(|hash| hash.to_string());
+        Some((text(hashes.pre_request), text(hashes.test)))
     }
 
     /// Puts `url` into the draft of the request `id`, creating the draft from the saved
@@ -165,37 +256,71 @@ impl Shell {
         edit: impl FnOnce(&mut Request),
         cx: &mut Context<Self>,
     ) {
-        let OpenedWorkspace::Loaded(engine) = &self.workspace else {
+        let Some(draft) = self.draft_mut(id) else {
             return;
         };
-        let base_hash = engine
-            .request_base_hash(id)
-            .ok()
-            .flatten()
-            .map(|hash| hash.to_string());
-        match self.drafts.get_mut(id) {
-            Some(draft) => edit(&mut draft.request),
-            None => {
-                let Some(mut request) = self
-                    .requests
-                    .get(id)
-                    .map(|state| state.inspection.request.request.clone())
-                else {
-                    return;
-                };
-                edit(&mut request);
-                self.drafts.insert(
-                    id.to_owned(),
-                    RequestDraft {
-                        request,
-                        base_hash,
-                        conflicted: false,
-                    },
-                );
-            }
-        }
+        edit(&mut draft.request);
         self.store_draft(id);
         cx.notify();
+    }
+
+    /// Edits the scripts of the draft of the request `id` with `edit`, creating the draft
+    /// from the saved request, and its scripts from the saved sidecars, when there are
+    /// none, and persists it in the app state.
+    pub(super) fn edit_draft_scripts(
+        &mut self,
+        id: &str,
+        edit: impl FnOnce(&mut Scripts),
+        cx: &mut Context<Self>,
+    ) {
+        let saved = self
+            .requests
+            .get(id)
+            .map(|state| state.inspection.request.scripts.clone());
+        let bases = self.script_bases(id);
+        let (Some(saved), Some((pre_request_base, test_base))) = (saved, bases) else {
+            return;
+        };
+        let Some(draft) = self.draft_mut(id) else {
+            return;
+        };
+        let scripts = draft.scripts.get_or_insert(ScriptDraft {
+            scripts: saved,
+            pre_request_base,
+            test_base,
+        });
+        edit(&mut scripts.scripts);
+        self.store_draft(id);
+        cx.notify();
+    }
+
+    /// The draft of the request `id`, made from the saved request when there is none;
+    /// `None` when no workspace is loaded or the request is not open.
+    fn draft_mut(&mut self, id: &str) -> Option<&mut RequestDraft> {
+        let OpenedWorkspace::Loaded(engine) = &self.workspace else {
+            return None;
+        };
+        if !self.drafts.contains_key(id) {
+            let base_hash = engine
+                .request_base_hash(id)
+                .ok()
+                .flatten()
+                .map(|hash| hash.to_string());
+            let request = self
+                .requests
+                .get(id)
+                .map(|state| state.inspection.request.request.clone())?;
+            self.drafts.insert(
+                id.to_owned(),
+                RequestDraft {
+                    request,
+                    base_hash,
+                    conflicted: false,
+                    scripts: None,
+                },
+            );
+        }
+        self.drafts.get_mut(id)
     }
 
     /// Persists the draft of the request `id` in the app state; a failure is logged and
@@ -207,7 +332,7 @@ impl Shell {
         let Some(draft) = self.drafts.get(id).cloned() else {
             return;
         };
-        let payload = match toml::to_string(&draft.request) {
+        let payload = match encode_payload(&draft.request, draft.scripts.as_ref()) {
             Ok(payload) => payload,
             Err(error) => {
                 log::warn!("cannot serialize the draft of {id}: {error}");
@@ -251,12 +376,24 @@ impl Shell {
         self.drafts.get(id).map_or(fallback, |draft| &draft.request)
     }
 
-    /// Saves the draft of the request `id` into its file, hash-checked against the base the
-    /// draft was made from, and discards the draft. The workspace is reloaded from disk, so
-    /// the tree, the request view and later sends see the saved file.
+    /// The scripts the Scripts pane of `id` shows: the draft's edited scripts when it has
+    /// them, else `fallback`, the saved sidecars as inspected.
+    pub(super) fn displayed_scripts<'a>(&'a self, id: &str, fallback: &'a Scripts) -> &'a Scripts {
+        self.drafts
+            .get(id)
+            .and_then(|draft| draft.scripts.as_ref())
+            .map_or(fallback, |draft| &draft.scripts)
+    }
+
+    /// Saves the draft of the request `id` into its file, and its edited scripts into their
+    /// sidecars, hash-checked against the bases the draft was made from, and discards the
+    /// draft. The sidecars are written first and only when the scripts were edited; the
+    /// request file only when its document changed. The workspace is reloaded from disk, so
+    /// the tree, the request view and later sends see the saved files.
     pub(super) fn save(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.drop_url_edit_of(id);
         self.drop_body_edit_of(id);
+        self.drop_script_edit_of(id);
         // A cell field shows text the draft does not have yet: commit it, so saving never
         // silently drops what was typed.
         self.commit_cell_edit(window, cx);
@@ -277,12 +414,48 @@ impl Shell {
         // A live draft was made from the file as this workspace loaded it; when the two no
         // longer agree, the file moved underneath the draft after a restart.
         let loaded = current.as_ref().map(|hash| hash.to_string());
-        if loaded.as_deref() != draft.base_hash.as_deref() {
+        if loaded.as_deref() != draft.base_hash.as_deref()
+            || draft
+                .scripts
+                .as_ref()
+                .is_some_and(|scripts| self.scripts_moved(id, scripts))
+        {
             self.mark_conflicted(id, cx);
             return;
         }
-        match engine.save_request(id, &draft.request, current) {
-            Ok(_) => {
+        if let Some(scripts) = &draft.scripts {
+            let current = match engine.script_base_hashes(id) {
+                Ok(current) => current,
+                Err(error) => {
+                    log::warn!("cannot save the scripts of {id}: {error}");
+                    self.set_save_error(id, error.to_string(), cx);
+                    return;
+                }
+            };
+            match engine.save_scripts(id, &scripts.scripts, current) {
+                Ok(_) => {}
+                Err(SaveError::Conflict { .. }) => {
+                    self.mark_conflicted(id, cx);
+                    return;
+                }
+                Err(error) => {
+                    log::warn!("cannot save the scripts of {id}: {error}");
+                    self.set_save_error(id, error.to_string(), cx);
+                    return;
+                }
+            }
+        }
+        let unchanged = self
+            .requests
+            .get(id)
+            .is_some_and(|state| state.inspection.request.request == draft.request);
+        let result = if unchanged {
+            Ok(())
+        } else {
+            engine.save_request(id, &draft.request, current).map(|_| ())
+        };
+        match result {
+            Ok(()) => {
                 self.drafts.remove(id);
                 self.save_errors.remove(id);
                 self.delete_stored_draft(id);
@@ -319,6 +492,7 @@ impl Shell {
         self.drop_url_edit_of(id);
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);
+        self.drop_script_edit_of(id);
         if self.drafts.remove(id).is_some() {
             self.save_errors.remove(id);
             self.delete_stored_draft(id);

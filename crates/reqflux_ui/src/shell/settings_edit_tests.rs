@@ -1,5 +1,6 @@
 //! The Body, Auth and Settings panes read the draft (S1), and the Settings pane edits it
-//! (S2): the timeout field, the redirects and TLS cycles, and their persistence (S8).
+//! (S2): the timeout field and its reset, the Default / On / Off controls of redirects and
+//! TLS with their badges and resets, and their persistence (S8).
 
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use reqflux_core::model::{Auth, Body, RawLanguage, Request};
@@ -103,6 +104,7 @@ fn the_panes_show_the_drafts_body_auth_and_settings(cx: &mut TestAppContext) {
                 request,
                 base_hash: None,
                 conflicted: false,
+                scripts: None,
             },
         );
     });
@@ -192,34 +194,101 @@ fn invalid_or_unchanged_timeouts_and_escape_create_no_draft(cx: &mut TestAppCont
     );
 }
 
+/// The accessible label of element `id`, if it is shown.
+fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
+    bounds(cx, id)?;
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
+}
+
 #[gpui::test]
-fn redirects_and_tls_cycle_default_on_off(cx: &mut TestAppContext) {
+fn redirects_and_tls_pick_default_on_or_off_from_a_segmented_control(cx: &mut TestAppContext) {
     let dir = settings_workspace();
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
     open_settings(cx);
 
-    for (id, read) in [
+    for name in ["follow-redirects", "verify-tls"] {
+        for choice in ["default", "on", "off"] {
+            let id = format!("request-setting-{name}-{choice}");
+            assert!(bounds(cx, &id).is_some(), "{id} is shown");
+        }
+        let badge = format!("request-setting-{name}-badge");
+        assert_eq!(label_of(cx, &badge).as_deref(), Some("Default"));
+        assert!(bounds(cx, &format!("request-setting-{name}-reset")).is_none());
+    }
+    click(cx, "request-setting-follow-redirects-default");
+    assert!(
+        draft_request(cx, &shell).is_none(),
+        "picking the choice it has creates no draft"
+    );
+
+    for (name, read) in [
         (
-            "request-setting-redirects",
+            "follow-redirects",
             (|request: &Request| request.settings.follow_redirects) as fn(&Request) -> _,
         ),
-        ("request-setting-tls", |request: &Request| {
+        ("verify-tls", |request: &Request| {
             request.settings.verify_tls
         }),
     ] {
-        for expected in [Some(true), Some(false), None] {
-            click(cx, id);
+        for (choice, expected) in [("off", Some(false)), ("on", Some(true)), ("default", None)] {
+            click(cx, &format!("request-setting-{name}-{choice}"));
             let draft = draft_request(cx, &shell).expect("the click created the draft");
-            assert_eq!(read(&draft), expected, "{id}");
+            assert_eq!(read(&draft), expected, "{name} {choice}");
         }
     }
     assert!(marker(cx, TUNED));
 
-    click(cx, "request-setting-tls");
+    click(cx, "request-setting-verify-tls-off");
+    assert_eq!(
+        label_of(cx, "request-setting-verify-tls-badge").as_deref(),
+        Some("Overridden")
+    );
+    click(cx, "request-setting-verify-tls-reset");
+    let draft = draft_request(cx, &shell).expect("the draft");
+    assert_eq!(
+        draft.settings.verify_tls, None,
+        "Reset goes back to the default"
+    );
+    assert!(bounds(cx, "request-setting-verify-tls-reset").is_none());
+
+    click(cx, "request-setting-verify-tls-on");
     let (shell_2, cx) = render(cx, &dir, &state_path);
     let restored = draft_request(cx, &shell_2).expect("the draft was restored");
     assert_eq!(restored.settings.verify_tls, Some(true));
+}
+
+#[gpui::test]
+fn an_overridden_timeout_shows_its_badge_and_resets_to_the_default(cx: &mut TestAppContext) {
+    let dir = settings_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_settings(cx);
+
+    assert_eq!(
+        label_of(cx, "request-setting-timeout-badge").as_deref(),
+        Some("Overridden"),
+        "the file sets 5000 ms"
+    );
+    assert!(bounds(cx, "request-setting-timeout-hint").is_some());
+    click(cx, "request-setting-timeout-reset");
+    let draft = draft_request(cx, &shell).expect("the reset created the draft");
+    assert_eq!(draft.settings.timeout_ms, None);
+    assert_eq!(
+        label_of(cx, "request-setting-timeout-badge").as_deref(),
+        Some("Default")
+    );
+    assert!(bounds(cx, "request-setting-timeout-reset").is_none());
 }
 
 #[gpui::test]
@@ -230,7 +299,7 @@ fn a_toggle_click_and_ctrl_enter_commit_the_open_timeout(cx: &mut TestAppContext
     open_settings(cx);
 
     type_timeout(cx, "3000", "");
-    click(cx, "request-setting-redirects");
+    click(cx, "request-setting-follow-redirects-on");
     let draft = draft_request(cx, &shell).expect("the draft");
     assert_eq!(draft.settings.timeout_ms, Some(3000), "committed first");
     assert_eq!(draft.settings.follow_redirects, Some(true));

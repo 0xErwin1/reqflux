@@ -272,9 +272,13 @@ fn a_request_without_body_or_scripts_shows_empty_states(cx: &mut TestAppContext)
     click(cx, "request-tab-body");
     inside_pane(cx, &["request-body-mode", "request-body-empty"]);
     click(cx, "request-tab-scripts");
-    inside_pane(
-        cx,
-        &["request-script-pre-empty", "request-script-test-empty"],
+    inside_pane(cx, &["request-script-pre-empty"]);
+    // The pane scrolls; the test script's empty state sits below the pre-request one.
+    let pane = present(cx, "request-pane");
+    let test = present(cx, "request-script-test-empty");
+    assert!(
+        test.top() >= pane.top(),
+        "request-script-test-empty in the scrolled pane"
     );
 }
 
@@ -328,4 +332,76 @@ fn a_request_that_cannot_be_prepared_shows_the_problem(cx: &mut TestAppContext) 
     click(cx, &format!("tree-row-{OAUTH}"));
     assert!(bounds(cx, "request-problem").is_some());
     assert!(bounds(cx, "request-unresolved").is_none());
+}
+
+#[gpui::test]
+fn grid_cells_share_their_edges_as_drawn(cx: &mut TestAppContext) {
+    let (_shell, cx) = render(cx);
+    click(cx, &format!("tree-row-{INVOICE}"));
+    let header = present(cx, "request-headers-header");
+    assert_eq!(header.size.height, gpui::px(32.));
+    let row = present(cx, "request-headers-row-1");
+    assert_eq!(row.size.height, gpui::px(30.));
+    assert_eq!(
+        present(cx, "request-headers-enabled-1").size.width,
+        gpui::px(16.)
+    );
+
+    let key = present(cx, "request-headers-key-1");
+    let value = present(cx, "request-headers-value-1");
+    let description = present(cx, "request-headers-description-1");
+    let delete = present(cx, "request-headers-delete-1");
+    assert_eq!(key.left() - row.left(), gpui::px(36.), "the enable column");
+    assert_eq!(key.size.width, gpui::px(210.));
+    assert_eq!(value.left(), key.right());
+    assert_eq!(
+        description.left(),
+        value.right(),
+        "the value fills the rest"
+    );
+    assert_eq!(description.size.width, gpui::px(230.));
+    assert_eq!(delete.left(), description.right());
+    assert_eq!(delete.size.width, gpui::px(34.));
+    assert_eq!(delete.right(), row.right());
+    for cell in [key, value, description, delete] {
+        assert_eq!((cell.top(), cell.size.height), (row.top(), row.size.height));
+    }
+}
+
+#[gpui::test]
+fn the_add_row_is_a_grid_row_under_the_last_one(cx: &mut TestAppContext) {
+    let (_shell, cx) = render(cx);
+    click(cx, &format!("tree-row-{INVOICE}"));
+    let last = present(cx, "request-headers-row-5");
+    let add = present(cx, "request-headers-add");
+    assert_eq!(add.top(), last.bottom());
+    assert_eq!(add.size.height, gpui::px(30.));
+    assert_eq!(add.size.width, last.size.width);
+}
+
+#[gpui::test]
+fn the_open_cell_is_a_well_in_the_cells_place(cx: &mut TestAppContext) {
+    // The cell's text field reads the installed theme.
+    cx.update(|cx| bolt::install(crate::brand::reqflux(), bolt::PaletteMode::Dark, cx));
+    let (shell, cx) = render(cx);
+    click(cx, &format!("tree-row-{INVOICE}"));
+    let closed = present(cx, "request-headers-value-2");
+    click(cx, "request-headers-value-2");
+    assert!(
+        cx.update(|_, cx| shell.read(cx).cell_edit.is_some()),
+        "the cell is open"
+    );
+    assert_eq!(present(cx, "request-headers-value-2"), closed);
+}
+
+#[gpui::test]
+fn the_value_column_names_the_environment_it_resolves_in(cx: &mut TestAppContext) {
+    let (shell, cx) = render(cx);
+    click(cx, &format!("tree-row-{INVOICE}"));
+    assert!(bounds(cx, "request-headers-value-hint").is_none());
+    shell.update(cx, |shell, cx| {
+        shell.set_environment(Some("dev".to_owned()), cx)
+    });
+    cx.run_until_parked();
+    assert!(bounds(cx, "request-headers-value-hint").is_some());
 }

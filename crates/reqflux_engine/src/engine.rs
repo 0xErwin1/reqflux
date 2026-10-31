@@ -4,11 +4,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use reqflux_core::model::{Request, Workspace};
+use reqflux_core::model::{Request, Scripts, Workspace};
 use reqflux_core::template::SystemDynamicSource;
 use reqflux_http::{HttpClient, HttpError, PreparedRequest, RedirectRules, Response};
 use reqflux_script::{RequestView, ScriptContext, ScriptOutcome, ScriptStage};
-use reqflux_store::{ContentHash, Loaded, StoreError, Warning};
+use reqflux_store::{ContentHash, Loaded, ScriptHashes, ScriptOwner, StoreError, Warning};
 use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
@@ -477,6 +477,46 @@ impl Engine {
         .map_err(|error| match error {
             StoreError::Conflict { path } => SaveError::Conflict { path },
             other => SaveError::Store(other),
+        })
+    }
+
+    /// The content hashes of the request `selector`'s pre-request and test sidecars as they
+    /// were loaded, `None` for an absent one: the base [`Engine::save_scripts`] checks.
+    ///
+    /// # Errors
+    ///
+    /// No request has this id or slug path.
+    pub fn script_base_hashes(&self, selector: &str) -> Result<ScriptHashes, ExecuteError> {
+        let target = crate::select::find(self.workspace(), selector)?;
+        let owner = ScriptOwner::Request(target.parent(), target.request.slug.clone());
+        let files = owner.files(&self.root);
+        Ok(ScriptHashes {
+            pre_request: self.loaded.hash(&files.pre_request),
+            test: self.loaded.hash(&files.test),
+        })
+    }
+
+    /// Saves `scripts` as the sidecars of the request `selector`, each hash-checked against
+    /// `expected`, and returns their new hashes. An empty or absent script deletes its
+    /// sidecar; on a conflict neither sidecar is touched.
+    ///
+    /// # Errors
+    ///
+    /// As [`Engine::save_request`].
+    pub fn save_scripts(
+        &self,
+        selector: &str,
+        scripts: &Scripts,
+        expected: ScriptHashes,
+    ) -> Result<ScriptHashes, SaveError> {
+        let target = crate::select::find(self.workspace(), selector)
+            .map_err(|_| SaveError::UnknownRequest(selector.to_owned()))?;
+        let owner = ScriptOwner::Request(target.parent(), target.request.slug.clone());
+        reqflux_store::save_scripts(&self.root, &owner, scripts, expected).map_err(|error| {
+            match error {
+                StoreError::Conflict { path } => SaveError::Conflict { path },
+                other => SaveError::Store(other),
+            }
         })
     }
 

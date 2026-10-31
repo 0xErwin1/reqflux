@@ -31,6 +31,7 @@ mod request;
 mod response;
 mod row_edit;
 mod rows;
+mod scripts_edit;
 mod send;
 mod setting_edit;
 mod settings_page;
@@ -38,6 +39,7 @@ mod settings_view;
 mod sidebar;
 mod sidebar_edit;
 mod sidebar_history;
+mod split;
 mod status_bar;
 mod tabs;
 mod text;
@@ -76,6 +78,7 @@ use self::last_request::LastSend;
 use self::palette::Palette;
 use self::request::{RequestState, SubTab};
 use self::response::PreviewHost;
+use self::scripts_edit::ScriptEdit;
 use self::send::{RequestSend, SHELL_CONTEXT};
 use self::settings_page::SettingsPage;
 use self::sidebar::{OpenRequest, Sidebar};
@@ -145,8 +148,12 @@ pub(crate) struct Shell {
     /// The cell field of the Params or Headers grid, the Settings timeout field or an Auth
     /// field, under edit, while it has focus.
     cell_edit: Option<CellEdit>,
+    /// Where the request/response split sits, shared by every request tab.
+    split: split::Split,
     /// The raw body editor of the request under edit.
     body_edit: Option<BodyEdit>,
+    /// The script editor of the request under edit.
+    script_edit: Option<ScriptEdit>,
     /// The per-user app state the drafts persist in; `None` when it could not be opened,
     /// which keeps drafts in memory only.
     state: Option<AppState>,
@@ -246,7 +253,9 @@ impl Shell {
             save_errors: HashMap::new(),
             url_edit: None,
             cell_edit: None,
+            split: split::Split::new(cx.focus_handle()),
             body_edit: None,
+            script_edit: None,
             state,
             config_path: None,
             config_report: crate::theme::ConfigReport::default(),
@@ -272,6 +281,7 @@ impl Shell {
             _sidebar_events: sidebar_events,
         };
         shell.restore_active_environment();
+        shell.split.restore(shell.state.as_ref());
         shell.load_drafts();
         shell.load_current_values();
         shell.refresh_history(cx);
@@ -295,6 +305,7 @@ impl Shell {
         self.drop_stale_url_edit(id);
         self.drop_stale_cell_edit(id);
         self.drop_stale_body_edit(id);
+        self.drop_stale_script_edit(id);
         if !self.requests.contains_key(id)
             && let OpenedWorkspace::Loaded(engine) = &self.workspace
         {
@@ -409,6 +420,7 @@ impl Shell {
         self.method_menu_open = false;
         self.drop_stale_url_edit(id);
         self.drop_stale_body_edit(id);
+        self.drop_stale_script_edit(id);
         self.commit_cell_edit(window, cx);
         cx.notify();
     }
@@ -423,6 +435,7 @@ impl Shell {
         self.drop_url_edit_of(id);
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);
+        self.drop_script_edit_of(id);
         cx.notify();
     }
 }
@@ -548,6 +561,8 @@ mod response_tests;
 #[cfg(test)]
 mod row_edit_tests;
 #[cfg(test)]
+mod scripts_edit_tests;
+#[cfg(test)]
 mod send_tests;
 #[cfg(test)]
 mod settings_edit_tests;
@@ -555,6 +570,8 @@ mod settings_edit_tests;
 mod settings_page_tests;
 #[cfg(test)]
 mod sidebar_tests;
+#[cfg(test)]
+mod split_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

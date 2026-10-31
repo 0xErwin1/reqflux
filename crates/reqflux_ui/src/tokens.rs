@@ -265,9 +265,6 @@ pub(crate) const GRID_ROW: Pixels = px(29.0);
 pub(crate) const GRID_HEADER_TEXT: Pixels = px(12.0);
 pub(crate) const GRID_TEXT: Pixels = px(12.5);
 
-/// The side of the enable box at the start of a Params or Headers row.
-pub(crate) const GRID_ENABLED_BOX: Pixels = px(14.0);
-
 /// The grid columns: row number, key and value; the description fills the rest.
 pub(crate) const GRID_NUMBER_COLUMN: Pixels = px(46.0);
 pub(crate) const GRID_KEY_COLUMN: Pixels = px(200.0);
@@ -453,6 +450,43 @@ pub(crate) const TREE_DIALOG_ACTIONS_GAP: Pixels = px(18.0);
 /// The width Send and Cancel share, so the request line keeps its layout while a send is in
 /// flight: the wider of the two, Send with its icon and `Ctrl ↵` keycap, with room to spare.
 pub(crate) const SEND_BUTTON_WIDTH: Pixels = px(140.0);
+
+/// The request/response split (request-panes/01): the gutter's height, the least height of
+/// each pane, the request pane's height before the user moves it and the step of Up and Down
+/// on the focused gutter.
+pub(crate) const SPLIT_GUTTER: Pixels = px(9.0);
+pub(crate) const SPLIT_PANE_MIN: Pixels = px(120.0);
+pub(crate) const SPLIT_DEFAULT_REQUEST: Pixels = px(306.0);
+pub(crate) const SPLIT_STEP: Pixels = px(16.0);
+
+/// The gutter's grip: a row of square dots and the gap between them.
+pub(crate) const SPLIT_GRIP_DOTS: usize = 5;
+pub(crate) const SPLIT_GRIP_DOT: Pixels = px(2.0);
+pub(crate) const SPLIT_GRIP_GAP: Pixels = px(4.0);
+
+/// The tint wash of the gutter on hover, focus and drag, and how far from its top the tint
+/// line sits while dragged.
+pub(crate) const SPLIT_HOVER_WASH: f32 = 0.06;
+pub(crate) const SPLIT_DRAG_LINE_TOP: Pixels = px(3.0);
+
+/// The collapsed response bar: its height, the gap between its parts and the side of its
+/// expand button.
+pub(crate) const RESPONSE_BAR: Pixels = px(40.0);
+pub(crate) const RESPONSE_BAR_GAP: Pixels = px(10.0);
+pub(crate) const RESPONSE_EXPAND: Pixels = px(28.0);
+
+/// The Params and Headers grid cells (request-panes/01): a line on every side. The row
+/// height, the enable, key, description and actions columns (the value fills the rest),
+/// the cell padding, the checkbox and its check, and the trash icon.
+pub(crate) const GRID_CELL_ROW: Pixels = px(30.0);
+pub(crate) const GRID_ENABLE_COLUMN: Pixels = px(36.0);
+pub(crate) const GRID_CELL_KEY_COLUMN: Pixels = px(210.0);
+pub(crate) const GRID_DESCRIPTION_COLUMN: Pixels = px(230.0);
+pub(crate) const GRID_ACTIONS_COLUMN: Pixels = px(34.0);
+pub(crate) const GRID_CELL_PADDING: Pixels = px(10.0);
+pub(crate) const GRID_CHECKBOX: Pixels = px(16.0);
+pub(crate) const GRID_CHECK_ICON: Pixels = px(12.0);
+pub(crate) const GRID_ACTION_ICON: Pixels = px(13.0);
 
 #[cfg(test)]
 pub(crate) mod tests {
