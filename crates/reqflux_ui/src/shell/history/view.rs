@@ -143,7 +143,7 @@ fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         (
             IconName::TriangleAlert,
             warning,
-            tokens::wash(warning, tokens::RESPONSE_ERROR_WASH),
+            tokens::wash(warning, tokens::HISTORY_BANNER_WASH),
             format!("The source request {} was deleted.", tab.name),
             CANNOT_SEND.to_owned(),
         )
@@ -157,7 +157,7 @@ fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     });
     region("history-banner")
         .flex_none()
-        .h(tokens::RESPONSE_ERROR_BANNER)
+        .h(tokens::HISTORY_BANNER)
         .flex()
         .items_center()
         .gap(space::SM)

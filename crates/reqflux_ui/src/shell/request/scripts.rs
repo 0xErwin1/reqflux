@@ -115,7 +115,7 @@ fn editor_box(
         .flex()
         .items_center()
         .gap(space::SM)
-        .h(tokens::GRID_HEADER)
+        .h(tokens::SCRIPT_EDITOR_HEADER)
         .pl(space::MD)
         .pr(space::HALF)
         .border_b(border::THIN)
@@ -217,7 +217,11 @@ fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElemen
         .items_center()
         .gap(space::SM)
         .p(space::LG)
-        .child(Icon::new(icon_name).size(icon::RAIL).color(accent))
+        .child(
+            Icon::new(icon_name)
+                .size(tokens::EMPTY_STATE_ICON)
+                .color(accent),
+        )
         .child(
             text_role::role(div(), text::BODY, cx)
                 .font_weight(FontWeight::SEMIBOLD)

@@ -85,12 +85,10 @@ body{background:#050507}
 .bdg.warn{background:rgba(255,194,61,.12);color:#FFC23D}
 .lnk{border:0;background:transparent;padding:0;color:#9DB1FF;font-size:12px;cursor:pointer}
 
-/* number field with stepper */
+/* number field */
 .num{display:flex;align-items:center;height:30px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
 .num>.v{flex-grow:1;padding:0 10px;white-space:nowrap}
 .num>.u{padding-right:8px;color:#8E8996}
-.num>.st{display:flex;flex-direction:column;width:20px;height:28px;border-left:1px solid #232128;color:#8E8996}
-.num>.st>span{display:flex;flex:1;align-items:center;justify-content:center}
 .num>.st>span+span{border-top:1px solid #232128}
 .num.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
 .caret{display:inline-block;width:1px;height:15px;background:#9DB1FF;vertical-align:middle}
@@ -629,15 +627,13 @@ body{background:#050507}
           <div data-use="subtabs" data-on="Scripts"></div>
           <div style="display:flex;flex-direction:column;gap:8px;flex-grow:1;min-height:0;padding:0 12px 12px">
             <div class="note" style="height:30px;flex-shrink:0">
-              <svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Runs in order: collection <span style="color:#C6C3CC">Billing API</span> › folder <span style="color:#C6C3CC">invoices</span> › this request. Edit the others from their settings.
+              <svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>A script here replaces the one its folder or collection sets.
             </div>
             <div class="c6 ed foc" style="flex:1 1 0" data-id="request-script-pre-editor">
               <div class="ed-h">
                 <span class="lab" style="color:#C6C3CC">Pre-request</span>
                 <span class="m" style="font-size:11.5px;color:#8E8996">create-invoice.pre.js</span>
                 <span style="flex-grow:1"></span>
-                <span class="m" style="font-size:11.5px;color:#8E8996">Ln 7, Col 31</span>
-                <button class="c6 btn sm" data-id="request-script-pre-snippets"><svg class="ico" style="width:13px;height:13px"><use href="#i-wand"/></svg>Snippets<svg class="ico" style="width:11px;height:11px;color:#8E8996"><use href="#i-down"/></svg></button>
                 <button aria-label="Delete pre-request script" class="c6 ib g" style="width:24px;height:24px"><svg class="ico" style="width:13px;height:13px"><use href="#i-trash"/></svg></button>
               </div>
               <div class="ed-b"><div data-use="pre-code"></div></div>
@@ -650,12 +646,9 @@ body{background:#050507}
               <div class="empty">
                 <svg class="ico" style="width:22px;height:22px;color:#9DB1FF"><use href="#i-test"/></svg>
                 <h3>No test script</h3>
-                <p>Tests run after the response arrives and show up in the Tests tab of the response. Start from a snippet or write your own.</p>
+                <p>Tests run after the response arrives and show up in the Tests tab of the response.</p>
                 <div style="display:flex;gap:8px">
                   <button class="c6 btn pri" data-id="request-script-test-create"><svg class="ico" style="width:14px;height:14px"><use href="#i-pencil"/></svg>Write a test</button>
-                  <button class="c6 btn" data-id="request-script-test-snippet-status">Status is 2xx</button>
-                  <button class="c6 btn">Body has field</button>
-                  <button class="c6 btn">Faster than 500 ms</button>
                 </div>
               </div>
             </div>
@@ -685,7 +678,7 @@ body{background:#050507}
               <span class="fl">Timeout</span>
               <div class="fc">
                 <div style="display:flex;align-items:center;gap:10px">
-                  <div class="c6 num foc" style="width:160px" data-id="request-setting-timeout-input"><span class="v" style="color:#F7F4F7">5000<span class="caret"></span></span><span class="u">ms</span><span class="st"><span><svg class="ico" style="width:9px;height:9px"><use href="#i-up"/></svg></span><span><svg class="ico" style="width:9px;height:9px"><use href="#i-down"/></svg></span></span></div>
+                  <div class="c6 num foc" style="width:160px" data-id="request-setting-timeout-input"><span class="v" style="color:#F7F4F7">5000<span class="caret"></span></span><span class="u">ms</span></div>
                   <span class="c4 bdg ovr">Overridden</span>
                   <button class="lnk" data-id="request-setting-timeout-reset">Reset to default</button>
                 </div>

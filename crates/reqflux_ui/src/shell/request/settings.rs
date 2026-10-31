@@ -113,7 +113,7 @@ fn timeout_control(
     let unit = div().text_color(colors.muted).child("ms");
     let field = match editing {
         Some(input) => well("request-setting-timeout-input".to_owned(), cx)
-            .w(tokens::GRID_KEY_COLUMN)
+            .w(tokens::SETTING_NUMBER_FIELD)
             .child(Chamfer::new(cut::CONTROL).edge(accent, border::FOCUS_RING))
             .on_action(cx.listener(|this, action: &Enter, window, cx| {
                 // Ctrl+Enter maps to the input's `secondary-enter` while the field has
@@ -148,7 +148,7 @@ fn timeout_control(
                     .child(DEFAULT_TIMEOUT_MS.to_string()),
             };
             well("request-setting-timeout".to_owned(), cx)
-                .w(tokens::GRID_KEY_COLUMN)
+                .w(tokens::SETTING_NUMBER_FIELD)
                 .cursor_text()
                 .on_click(cx.listener(move |this, _event, window, cx| {
                     this.start_timeout_edit(&request, window, cx);

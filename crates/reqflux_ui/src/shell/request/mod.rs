@@ -28,7 +28,7 @@ pub(crate) use model::{RequestState, SubTab};
 pub(crate) use send::{Completed, Failure, Received, SendState, StatusClass};
 pub(crate) use send::{elapsed_text, size_text};
 #[cfg(test)]
-pub(crate) use sub_tabs::shown_rows;
+pub(crate) use sub_tabs::{shown_rows, sub_tab_badge};
 
 use bolt::tokens::space;
 use gpui::{Context, Div, ParentElement, Stateful, StatefulInteractiveElement, Styled, Window};

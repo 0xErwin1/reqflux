@@ -181,3 +181,91 @@ fn saving_the_request_document_leaves_the_sidecars_alone() {
         "pre();\n"
     );
 }
+
+/// The request document of `c/r` as the engine loaded it.
+fn loaded_request(engine: &Engine) -> reqflux_core::model::Request {
+    match &engine.workspace().collections[0].items[0] {
+        Item::Request(node) => node.request.clone(),
+        Item::Folder(_) => panic!("expected a request"),
+    }
+}
+
+#[test]
+fn a_draft_save_with_a_moved_request_file_writes_no_sidecar() {
+    let dir = temp_dir();
+    workspace(dir.path(), Some("pre();\n"), None);
+    let engine = open(dir.path());
+    let request_base = match engine.request_base_hash("c/r") {
+        Ok(base) => base,
+        Err(error) => panic!("base: {error}"),
+    };
+    let script_base = match engine.script_base_hashes("c/r") {
+        Ok(base) => base,
+        Err(error) => panic!("base: {error}"),
+    };
+    let mut request = loaded_request(&engine);
+    request.url = "https://h/mine".to_owned();
+    let moved = format!(
+        "id = \"{}\"\nname = \"R\"\nmethod = \"GET\"\nurl = \"https://h/other\"\n",
+        id_text(2)
+    );
+    write(dir.path(), REQUEST, &moved);
+
+    let edited = scripts(Some("new();\n"), Some("t();\n"));
+    let result = engine.save_draft(
+        "c/r",
+        Some(&request),
+        request_base,
+        Some((&edited, script_base)),
+    );
+    match result {
+        Err(SaveError::Conflict { path }) => assert!(path.ends_with("r.req.toml"), "{path:?}"),
+        other => panic!("expected a conflict, got {other:?}"),
+    }
+    assert_eq!(
+        fs::read_to_string(dir.path().join(PRE)).unwrap_or_default(),
+        "pre();\n"
+    );
+    assert!(!dir.path().join(TEST).exists(), "no sidecar was written");
+    assert_eq!(
+        fs::read_to_string(dir.path().join(REQUEST)).unwrap_or_default(),
+        moved
+    );
+}
+
+#[test]
+fn a_draft_save_with_an_unchanged_document_checks_the_request_and_writes_the_sidecars() {
+    let dir = temp_dir();
+    workspace(dir.path(), Some("pre();\n"), None);
+    let mut engine = open(dir.path());
+    let request_base = match engine.request_base_hash("c/r") {
+        Ok(base) => base,
+        Err(error) => panic!("base: {error}"),
+    };
+    let script_base = match engine.script_base_hashes("c/r") {
+        Ok(base) => base,
+        Err(error) => panic!("base: {error}"),
+    };
+    let before = fs::read_to_string(dir.path().join(REQUEST)).unwrap_or_default();
+
+    let edited = scripts(Some(""), Some("t();\n"));
+    if let Err(error) = engine.save_draft("c/r", None, request_base, Some((&edited, script_base))) {
+        panic!("save: {error}");
+    }
+    assert!(
+        !dir.path().join(PRE).exists(),
+        "the empty script is deleted"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join(TEST)).unwrap_or_default(),
+        "t();\n"
+    );
+    assert_eq!(
+        fs::read_to_string(dir.path().join(REQUEST)).unwrap_or_default(),
+        before
+    );
+    if let Err(error) = engine.reload() {
+        panic!("reload: {error}");
+    }
+    assert_eq!(loaded_scripts(&engine), scripts(None, Some("t();\n")));
+}

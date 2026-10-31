@@ -1,5 +1,6 @@
 //! The sub-tab bar: Params, Headers, Body, Auth, Scripts and Settings, with the row counts of
-//! Params and Headers, and at the right the problem of the inspection or else the unresolved
+//! Params and Headers, the scripts the request has and its overridden settings (artboard
+//! request-panes/01), and at the right the problem of the inspection or else the unresolved
 //! variables notice.
 
 use bolt::chamfer::Chamfer;
@@ -38,7 +39,8 @@ pub(super) fn render(
         .border_t(border::THIN)
         .border_color(colors.line)
         .children(
-            SubTab::ALL.map(|tab| sub_tab(id, state, shown_rows(id, state, shell, tab), tab, cx)),
+            SubTab::ALL
+                .map(|tab| sub_tab(id, state, sub_tab_badge(id, state, shell, tab), tab, cx)),
         )
         .child(div().flex_1())
         .children(notice)
@@ -55,6 +57,44 @@ pub(crate) fn shown_rows(
 ) -> Option<usize> {
     let request = shell.displayed_request(id, &state.inspection.request.request);
     count(request, tab)
+}
+
+/// The badge next to the label of `tab`, from what the request `id` shows (its draft when it
+/// has one): the enabled rows of Params and Headers, `pre`, `test` or `2` for the scripts
+/// Scripts has, and the number of overridden settings. `None` for nothing to show.
+pub(crate) fn sub_tab_badge(
+    id: &str,
+    state: &RequestState,
+    shell: &Shell,
+    tab: SubTab,
+) -> Option<String> {
+    match tab {
+        SubTab::Scripts => {
+            let scripts = shell.displayed_scripts(id, &state.inspection.request.scripts);
+            let has = |script: &Option<String>| script.as_deref().is_some_and(|s| !s.is_empty());
+            match (has(&scripts.pre_request), has(&scripts.test)) {
+                (true, true) => Some("2".to_owned()),
+                (true, false) => Some("pre".to_owned()),
+                (false, true) => Some("test".to_owned()),
+                (false, false) => None,
+            }
+        }
+        SubTab::Settings => {
+            let settings = shell
+                .displayed_request(id, &state.inspection.request.request)
+                .settings;
+            let overridden = [
+                settings.timeout_ms.is_some(),
+                settings.follow_redirects.is_some(),
+                settings.verify_tls.is_some(),
+            ]
+            .into_iter()
+            .filter(|set| *set)
+            .count();
+            (overridden > 0).then(|| overridden.to_string())
+        }
+        _ => shown_rows(id, state, shell, tab).map(|rows| rows.to_string()),
+    }
 }
 
 /// A notice at the right of the bar, element id `id`, in `color`.
@@ -88,11 +128,13 @@ fn icon_of(tab: SubTab) -> IconName {
     }
 }
 
-/// The sub-tab `tab`, element id `request-tab-<name>`, selected when it is the state's tab.
+/// The sub-tab `tab`, element id `request-tab-<name>`, selected when it is the state's tab,
+/// with `badge` after its label as `request-tab-<name>-count`: in the accent for the
+/// overridden settings, muted otherwise.
 fn sub_tab(
     id: &str,
     state: &RequestState,
-    rows: Option<usize>,
+    badge: Option<String>,
     tab: SubTab,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
@@ -106,6 +148,10 @@ fn sub_tab(
         )
     } else {
         (colors.muted, text::BODY.weight, colors.muted)
+    };
+    let badge_color = match tab {
+        SubTab::Settings => bolt::brand(cx).accent_tint,
+        _ => colors.muted,
     };
     let request = id.to_owned();
     text_role::role(part(tab.element_id()), text::BODY, cx)
@@ -132,18 +178,18 @@ fn sub_tab(
                 .font_weight(weight)
                 .child(tab.label()),
         )
-        .children(rows.map(|rows| {
+        .children(badge.map(|badge| {
             text_role::role(
                 part(format!("request-tab-{}-count", tab.label().to_lowercase())),
                 text::LABEL,
                 cx,
             )
             .role(Role::Label)
-            .aria_label(rows.to_string())
+            .aria_label(badge.clone())
             .font_family(family::MONO)
             .text_size(tokens::SMALL_MONO_TEXT)
-            .text_color(colors.muted)
-            .child(rows.to_string())
+            .text_color(badge_color)
+            .child(badge)
         }))
         .on_click(cx.listener(move |this, _event, _window, cx| {
             this.select_sub_tab(&request, tab, cx);

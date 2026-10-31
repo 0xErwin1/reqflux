@@ -328,9 +328,6 @@ pub(crate) const BADGE_TEXT: Pixels = px(10.0);
 /// The height of a code line in the Body and Scripts panes.
 pub(crate) const CODE_LINE: Pixels = px(20.0);
 
-/// The width of the label column of the Auth and Settings rows.
-pub(crate) const PANE_LABEL_COLUMN: Pixels = px(160.0);
-
 /// The opacity of the warning wash on a grid row with an unresolved reference.
 const UNRESOLVED_ROW_WASH: f32 = 0.05;
 
@@ -487,6 +484,31 @@ pub(crate) const GRID_CELL_PADDING: Pixels = px(10.0);
 pub(crate) const GRID_CHECKBOX: Pixels = px(16.0);
 pub(crate) const GRID_CHECK_ICON: Pixels = px(12.0);
 pub(crate) const GRID_ACTION_ICON: Pixels = px(13.0);
+
+/// The header strip of a script editor box (request-panes/01 frame B) and the icon of a
+/// pane's empty state.
+pub(crate) const SCRIPT_EDITOR_HEADER: Pixels = px(34.0);
+pub(crate) const EMPTY_STATE_ICON: Pixels = px(22.0);
+
+/// The Settings pane (request-panes/01 frame C): the label column, the number field, the
+/// height of a state badge and the vertical padding of a row.
+pub(crate) const SETTINGS_LABEL_COLUMN: Pixels = px(170.0);
+pub(crate) const SETTING_NUMBER_FIELD: Pixels = px(160.0);
+pub(crate) const STATE_BADGE: Pixels = px(20.0);
+pub(crate) const SETTINGS_ROW_PADDING_Y: Pixels = px(7.0);
+
+/// The Auth pane's form (bolt-v2/05): the label column and the vertical padding of a row.
+pub(crate) const AUTH_LABEL_COLUMN: Pixels = px(170.0);
+pub(crate) const AUTH_ROW_PADDING_Y: Pixels = px(5.0);
+
+/// The history views (history/01): the read-only banner of a history tab and the opacity of
+/// its warning wash, a day group's label row, the status column of a row and the icon of
+/// the empty state.
+pub(crate) const HISTORY_BANNER: Pixels = px(44.0);
+pub(crate) const HISTORY_BANNER_WASH: f32 = 0.06;
+pub(crate) const HISTORY_GROUP_ROW: Pixels = px(28.0);
+pub(crate) const HISTORY_STATUS_COLUMN: Pixels = px(26.0);
+pub(crate) const HISTORY_EMPTY_ICON: Pixels = px(20.0);
 
 #[cfg(test)]
 pub(crate) mod tests {

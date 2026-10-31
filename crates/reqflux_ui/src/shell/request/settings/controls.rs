@@ -40,10 +40,10 @@ pub(super) fn row(
         .flex()
         .items_start()
         .gap(space::LG)
-        .py(space::HALF)
+        .py(tokens::SETTINGS_ROW_PADDING_Y)
         .child(
             text_role::role(div(), text::BODY, cx)
-                .w(tokens::PANE_LABEL_COLUMN)
+                .w(tokens::SETTINGS_LABEL_COLUMN)
                 .flex_none()
                 .pt(space::HALF)
                 .child(label.to_owned()),
@@ -159,7 +159,7 @@ pub(super) fn badge(id: String, badge: Badge, cx: &App) -> Stateful<Div> {
         .flex_none()
         .flex()
         .items_center()
-        .h(tokens::VARIABLES_PILL)
+        .h(tokens::STATE_BADGE)
         .pl(space::HALF)
         .pr(space::HALF)
         .font_family(family::INTERFACE)

@@ -173,6 +173,28 @@ fn a_passing_test_script_shows_the_tests_tab(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn send_runs_the_drafts_unsaved_test_script(cx: &mut TestAppContext) {
+    let (shell, cx) = render_files(cx, serve(Server::Ok), &[("ping.test.js", FAILING_TEST)]);
+    shell.update(cx, |shell, cx| {
+        shell.edit_draft_scripts(
+            PING,
+            |scripts| scripts.test = Some(PASSING_TEST.to_owned()),
+            cx,
+        );
+    });
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+
+    click(cx, "response-tab-tests");
+    present(cx, "response-test-1");
+    assert!(
+        absent(cx, "response-test-1-message"),
+        "the unsaved passing test ran, not the saved failing one"
+    );
+    assert!(absent(cx, "response-test-2"));
+}
+
+#[gpui::test]
 fn a_failing_test_shows_its_message(cx: &mut TestAppContext) {
     let (shell, cx) = render_files(cx, serve(Server::Ok), &[("ping.test.js", FAILING_TEST)]);
     click(cx, "request-send");

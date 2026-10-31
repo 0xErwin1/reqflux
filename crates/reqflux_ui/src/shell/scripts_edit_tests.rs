@@ -11,6 +11,7 @@ use tempfile::TempDir;
 use super::Shell;
 use super::draft_tests::{bounds, click, marker, render, state_file};
 use super::drafts::{ScriptDraft, decode_payload, encode_payload};
+use super::request::{SubTab, sub_tab_badge};
 use super::scripts_edit::ScriptSlot;
 use crate::workspace_tests::{demo_workspace, write};
 
@@ -242,6 +243,99 @@ fn a_sidecar_changed_behind_the_draft_makes_save_conflict(cx: &mut TestAppContex
     assert!(conflicted, "the draft is kept, conflicted");
     assert_eq!(read(dir.path(), TEST).as_deref(), Some("theirs();\n"));
     assert_eq!(read(dir.path(), PRE).as_deref(), Some("pre();\n"));
+}
+
+#[gpui::test]
+fn a_request_file_changed_behind_the_draft_leaves_the_sidecars_untouched(cx: &mut TestAppContext) {
+    let dir = scripts_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_scripts(cx);
+
+    write_test(cx, &shell);
+    type_text(cx, "mine();");
+    cx.simulate_keystrokes("escape");
+    shell.update(cx, |shell, cx| {
+        shell.set_draft_url(SCRIPTED, "https://h/mine".to_owned(), cx);
+    });
+    let theirs = format!(
+        "id = \"{SCRIPTED}\"\nname = \"Scripted\"\nmethod = \"GET\"\nurl = \"https://h/theirs\"\n"
+    );
+    write(dir.path(), FILE, &theirs);
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+
+    let conflicted = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .drafts
+            .get(SCRIPTED)
+            .is_some_and(|draft| draft.conflicted)
+    });
+    assert!(conflicted, "the draft is kept, conflicted");
+    assert!(
+        read(dir.path(), TEST).is_none(),
+        "no test sidecar was written"
+    );
+    assert_eq!(read(dir.path(), PRE).as_deref(), Some("pre();\n"));
+    assert_eq!(read(dir.path(), FILE), Some(theirs));
+}
+
+#[gpui::test]
+fn the_scripts_and_settings_tabs_badge_what_the_shown_request_has(cx: &mut TestAppContext) {
+    let dir = scripts_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_scripts(cx);
+    let badge = |cx: &mut VisualTestContext, tab: SubTab| {
+        cx.update(|_, cx| {
+            let shell = shell.read(cx);
+            shell
+                .requests
+                .get(SCRIPTED)
+                .and_then(|state| sub_tab_badge(SCRIPTED, state, shell, tab))
+        })
+    };
+
+    assert_eq!(badge(cx, SubTab::Scripts).as_deref(), Some("pre"));
+    assert!(bounds(cx, "request-tab-scripts-count").is_some());
+    assert_eq!(badge(cx, SubTab::Settings), None);
+    assert!(bounds(cx, "request-tab-settings-count").is_none());
+
+    shell.update(cx, |shell, cx| {
+        shell.edit_draft_scripts(
+            SCRIPTED,
+            |scripts| scripts.test = Some("t();".to_owned()),
+            cx,
+        );
+        shell.edit_draft(
+            SCRIPTED,
+            |request| {
+                request.settings.timeout_ms = Some(500);
+                request.settings.verify_tls = Some(false);
+            },
+            cx,
+        );
+    });
+    cx.run_until_parked();
+    assert_eq!(badge(cx, SubTab::Scripts).as_deref(), Some("2"));
+    assert_eq!(badge(cx, SubTab::Settings).as_deref(), Some("2"));
+    assert!(bounds(cx, "request-tab-settings-count").is_some());
+
+    shell.update(cx, |shell, cx| {
+        shell.edit_draft_scripts(
+            SCRIPTED,
+            |scripts| scripts.pre_request = Some(String::new()),
+            cx,
+        );
+    });
+    assert_eq!(badge(cx, SubTab::Scripts).as_deref(), Some("test"));
+    shell.update(cx, |shell, cx| {
+        shell.edit_draft_scripts(SCRIPTED, |scripts| scripts.test = None, cx);
+    });
+    cx.run_until_parked();
+    assert_eq!(badge(cx, SubTab::Scripts), None);
+    assert!(bounds(cx, "request-tab-scripts-count").is_none());
 }
 
 #[gpui::test]

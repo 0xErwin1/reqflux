@@ -161,7 +161,16 @@ impl Shell {
         // Kept for the completion, which persists the script writes against the
         // environment this send used.
         let persist = options.clone();
-        // A request with a draft sends the draft, not the file on disk.
+        // A request with a draft sends the draft, not the file on disk, and runs the draft's
+        // unsaved scripts in place of the saved sidecars. A Resend keeps the saved scripts.
+        let scripts = match document {
+            Some(_) => None,
+            None => self
+                .drafts
+                .get(id)
+                .and_then(|draft| draft.scripts.as_ref())
+                .map(|draft| draft.scripts.clone()),
+        };
         let drafted = document.or_else(|| self.drafts.get(id).map(|draft| draft.request.clone()));
         let pending = self.pending_record(id, drafted.as_ref());
         // Until the execution reports its own method and URL, the request view labels the
@@ -192,7 +201,9 @@ impl Shell {
         // on GPUI's background executor, never on the UI thread (S14).
         let prepare = cx.background_executor().spawn(async move {
             match drafted {
-                Some(draft) => engine.execute_draft(&selector, &draft, &options),
+                Some(draft) => {
+                    engine.execute_draft_with_scripts(&selector, &draft, scripts.as_ref(), &options)
+                }
                 None => engine.execute(&selector, &options),
             }
         });

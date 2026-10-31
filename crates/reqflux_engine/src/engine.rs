@@ -520,6 +520,44 @@ impl Engine {
         })
     }
 
+    /// Saves a request draft: `scripts` as the request `selector`'s sidecars, each checked
+    /// against its hash in the pair, then `request` as its document when given. Every file
+    /// is checked before any is written — the request file against `expected` even when
+    /// `request` is `None` — so a conflict on one of them writes nothing.
+    ///
+    /// # Errors
+    ///
+    /// As [`Engine::save_request`].
+    pub fn save_draft(
+        &self,
+        selector: &str,
+        request: Option<&Request>,
+        expected: Option<ContentHash>,
+        scripts: Option<(&Scripts, ScriptHashes)>,
+    ) -> Result<(), SaveError> {
+        let target = crate::select::find(self.workspace(), selector)
+            .map_err(|_| SaveError::UnknownRequest(selector.to_owned()))?;
+        let file = reqflux_store::checked_request_file(
+            &self.root,
+            &target.parent(),
+            &target.request.slug,
+        )?;
+        check_on_disk(&file, expected)?;
+        if let Some((_, hashes)) = scripts {
+            let owner = ScriptOwner::Request(target.parent(), target.request.slug.clone());
+            let files = owner.files(&self.root);
+            check_on_disk(&files.pre_request, hashes.pre_request)?;
+            check_on_disk(&files.test, hashes.test)?;
+        }
+        if let Some((scripts, hashes)) = scripts {
+            self.save_scripts(selector, scripts, hashes)?;
+        }
+        if let Some(request) = request {
+            self.save_request(selector, request, expected)?;
+        }
+        Ok(())
+    }
+
     /// Spawns a task on the engine runtime that sends `prepared`.
     #[must_use]
     pub fn send(&self, prepared: Prepared) -> Execution {
@@ -597,7 +635,7 @@ impl Engine {
     ) -> Result<PendingExecution, ExecuteError> {
         let target = crate::select::find(self.workspace(), selector)?;
         let (prepared, scripts, scripted) =
-            self.prepare_scripted(&target, &target.request.request, options)?;
+            self.prepare_scripted(&target, &target.request.request, None, options)?;
         Ok(PendingExecution {
             prepared,
             scripts,
@@ -630,8 +668,27 @@ impl Engine {
         draft: &Request,
         options: &ExecuteOptions,
     ) -> Result<Execution, ExecuteError> {
+        self.execute_draft_with_scripts(selector, draft, None, options)
+    }
+
+    /// [`Engine::execute_draft`] with the draft's own `scripts` in place of the request's
+    /// saved sidecars, so a front end runs the scripts the user edited and has not saved.
+    /// `None` runs the saved sidecars. A draft script that is absent or empty falls back to
+    /// the innermost folder's, then the collection's, as an absent sidecar does.
+    ///
+    /// # Errors
+    ///
+    /// As [`Engine::execute_draft`].
+    pub fn execute_draft_with_scripts(
+        &self,
+        selector: &str,
+        draft: &Request,
+        scripts: Option<&Scripts>,
+        options: &ExecuteOptions,
+    ) -> Result<Execution, ExecuteError> {
         let target = crate::select::find(self.workspace(), selector)?;
-        let (prepared, scripts, scripted) = self.prepare_scripted(&target, draft, options)?;
+        let (prepared, scripts, scripted) =
+            self.prepare_scripted(&target, draft, scripts, options)?;
         guard_main(&prepared, options)?;
         Ok(self.scripted_execution(prepared, scripts, scripted))
     }
@@ -653,15 +710,18 @@ impl Engine {
     }
 
     /// Runs the effective pre-request script of `target` over the scopes the execution
-    /// would resolve with, then prepares `request` with the script's writes applied. The
+    /// would resolve with, then prepares `request` with the script's writes applied.
+    /// `own` replaces the request's saved sidecars when given. The
     /// script's outcome comes back even when the script failed, beside the state the test
     /// script reads later.
     fn prepare_scripted(
         &self,
         target: &crate::select::Target<'_>,
         request: &Request,
+        own: Option<&Scripts>,
         options: &ExecuteOptions,
     ) -> Result<(Prepared, ScriptOutcome, Scripted), ExecuteError> {
+        let own = own.unwrap_or(&target.request.scripts);
         let environment = select_environment(self.workspace(), target.collection, options)?;
         let stored = StoredSecrets::read(
             self.secrets.as_ref(),
@@ -693,13 +753,14 @@ impl Engine {
         let outcome = engine_scripts::run_stage(
             ScriptStage::PreRequest,
             target,
+            own,
             &view,
             &scope_view,
             None,
             transport.clone(),
         );
         let mut scripted = Scripted {
-            script: engine_scripts::effective_test(target).map(str::to_owned),
+            script: engine_scripts::effective_test(target, own).map(str::to_owned),
             request: view,
             variables: BTreeMap::new(),
             transport,
@@ -788,5 +849,28 @@ fn guard_main(prepared: &Prepared, options: &ExecuteOptions) -> Result<(), Execu
             .check(prepared.request.method.as_str(), &prepared.request.url)
             .map_err(ExecuteError::HostRefused),
         None => Ok(()),
+    }
+}
+
+/// Fails with [`SaveError::Conflict`] unless the file at `path` has the content hash
+/// `expected` (`None`: the file does not exist), so a save can check every file it writes
+/// before writing any.
+fn check_on_disk(path: &Path, expected: Option<ContentHash>) -> Result<(), SaveError> {
+    let current = match std::fs::read(path) {
+        Ok(bytes) => Some(ContentHash::of(&bytes)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(SaveError::Store(StoreError::Io {
+                path: path.to_owned(),
+                source,
+            }));
+        }
+    };
+    if current == expected {
+        Ok(())
+    } else {
+        Err(SaveError::Conflict {
+            path: path.to_owned(),
+        })
     }
 }

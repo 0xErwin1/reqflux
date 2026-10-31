@@ -219,7 +219,7 @@ fn empty(cx: &App) -> impl IntoElement {
                 .child(Chamfer::new(cut::LARGE_CONTROL).fill(colors.raised))
                 .child(
                     Icon::new(IconName::RotateCcwClock)
-                        .size(icon::RAIL)
+                        .size(tokens::HISTORY_EMPTY_ICON)
                         .color(colors.muted),
                 ),
         )
@@ -348,7 +348,7 @@ fn group_label(n: usize, group: &Group<'_>, cx: &App) -> impl IntoElement {
         cx,
     )
     .flex_none()
-    .h(chrome::TREE_ROW)
+    .h(tokens::HISTORY_GROUP_ROW)
     .flex()
     .items_center()
     .pl(space::LG)
@@ -440,6 +440,8 @@ fn history_row(n: usize, row: &HistoryRow, sidebar: &Entity<Sidebar>, cx: &App) 
             .role(Role::Label)
             .aria_label(status.clone())
             .flex_none()
+            .w(tokens::HISTORY_STATUS_COLUMN)
+            .text_right()
             .font_family(family::MONO)
             .text_size(tokens::TREE_COUNT_SIZE)
             .font_weight(FontWeight::SEMIBOLD)

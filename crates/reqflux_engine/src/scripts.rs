@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use reqflux_core::model::{Body, Request};
+use reqflux_core::model::{Body, Request, Scripts};
 use reqflux_core::template::{ScopeEntry, ScopeKind, Scopes};
 use reqflux_http::{
     HttpClient, PreparedBody, PreparedRequest, RedirectRules, RequestOptions, Response,
@@ -63,14 +63,14 @@ impl Transport {
     }
 }
 
-/// The effective pre-request script of `target`: the request's, else the innermost folder's
-/// that has one, else the collection's.
-pub(crate) fn effective_pre_request<'a>(target: &Target<'a>) -> Option<&'a str> {
-    target
-        .request
-        .scripts
-        .pre_request
+/// The effective pre-request script of `target` whose own scripts are `own` (the saved
+/// sidecars or a draft's): the request's, else the innermost folder's that has one, else
+/// the collection's. An empty script of the request counts as absent, as saving it deletes
+/// its sidecar.
+pub(crate) fn effective_pre_request<'a>(target: &Target<'a>, own: &'a Scripts) -> Option<&'a str> {
+    own.pre_request
         .as_deref()
+        .filter(|script| !script.is_empty())
         .or_else(|| {
             target
                 .folders
@@ -82,12 +82,10 @@ pub(crate) fn effective_pre_request<'a>(target: &Target<'a>) -> Option<&'a str> 
 }
 
 /// The effective test script of `target`, resolved like the pre-request one.
-pub(crate) fn effective_test<'a>(target: &Target<'a>) -> Option<&'a str> {
-    target
-        .request
-        .scripts
-        .test
+pub(crate) fn effective_test<'a>(target: &Target<'a>, own: &'a Scripts) -> Option<&'a str> {
+    own.test
         .as_deref()
+        .filter(|script| !script.is_empty())
         .or_else(|| {
             target
                 .folders
@@ -346,21 +344,23 @@ fn failed(stage: ScriptStage, message: String) -> ScriptOutcome {
     outcome
 }
 
-/// Runs the effective script of `stage` and returns everything it produced.
+/// Runs the effective script of `stage`, the request's own scripts being `own`, and returns
+/// everything it produced.
 ///
 /// A script error — a syntax error, a throw, a limit — never fails the request: the outcome
 /// collected so far comes back with the error reported as an error console entry.
 pub(crate) fn run_stage(
     stage: ScriptStage,
     target: &Target<'_>,
+    own: &Scripts,
     request: &RequestView,
     scopes: &Scopes,
     response: Option<&Response>,
     transport: Transport,
 ) -> ScriptOutcome {
     let script = match stage {
-        ScriptStage::PreRequest => effective_pre_request(target),
-        ScriptStage::Test => effective_test(target),
+        ScriptStage::PreRequest => effective_pre_request(target, own),
+        ScriptStage::Test => effective_test(target, own),
     };
     let Some(script) = script else {
         return ScriptOutcome::default();

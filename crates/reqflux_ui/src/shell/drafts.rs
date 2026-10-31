@@ -387,8 +387,9 @@ impl Shell {
 
     /// Saves the draft of the request `id` into its file, and its edited scripts into their
     /// sidecars, hash-checked against the bases the draft was made from, and discards the
-    /// draft. The sidecars are written first and only when the scripts were edited; the
-    /// request file only when its document changed. The workspace is reloaded from disk, so
+    /// draft. The request file and the sidecars are all checked before anything is written;
+    /// then the sidecars are written, only when the scripts were edited, and the request
+    /// file, only when its document changed. The workspace is reloaded from disk, so
     /// the tree, the request view and later sends see the saved files.
     pub(super) fn save(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.drop_url_edit_of(id);
@@ -423,38 +424,23 @@ impl Shell {
             self.mark_conflicted(id, cx);
             return;
         }
-        if let Some(scripts) = &draft.scripts {
-            let current = match engine.script_base_hashes(id) {
-                Ok(current) => current,
+        let scripts = match &draft.scripts {
+            Some(scripts) => match engine.script_base_hashes(id) {
+                Ok(hashes) => Some((&scripts.scripts, hashes)),
                 Err(error) => {
                     log::warn!("cannot save the scripts of {id}: {error}");
                     self.set_save_error(id, error.to_string(), cx);
                     return;
                 }
-            };
-            match engine.save_scripts(id, &scripts.scripts, current) {
-                Ok(_) => {}
-                Err(SaveError::Conflict { .. }) => {
-                    self.mark_conflicted(id, cx);
-                    return;
-                }
-                Err(error) => {
-                    log::warn!("cannot save the scripts of {id}: {error}");
-                    self.set_save_error(id, error.to_string(), cx);
-                    return;
-                }
-            }
-        }
+            },
+            None => None,
+        };
         let unchanged = self
             .requests
             .get(id)
             .is_some_and(|state| state.inspection.request.request == draft.request);
-        let result = if unchanged {
-            Ok(())
-        } else {
-            engine.save_request(id, &draft.request, current).map(|_| ())
-        };
-        match result {
+        let request = (!unchanged).then_some(&draft.request);
+        match engine.save_draft(id, request, current, scripts) {
             Ok(()) => {
                 self.drafts.remove(id);
                 self.save_errors.remove(id);

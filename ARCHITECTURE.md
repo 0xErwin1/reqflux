@@ -276,7 +276,17 @@ Saving is explicit, as in Postman: an edit never touches the workspace file unti
   `recent_workspaces` table, the 20 newest by canonical path; an older file upgrades in one
   transaction and keeps what it holds). A draft stores the
   whole entity document as TOML, so later editable surfaces need no new storage.
-- **Sending** a request with a draft sends the draft. History records what was sent.
+- A draft payload is the request document as TOML. When the draft edits scripts, it adds a
+  `[reqflux_draft_scripts]` table: `pre_request`, `test`, and the sidecar hashes
+  `pre_request_base` / `test_base` the scripts were made from. A payload without that table
+  means the scripts are as saved. Saving checks the request and both sidecar hashes first,
+  then writes the sidecars (an empty script deletes its file) and the .req.toml if its
+  document changed (`Engine::save_draft`).
+- **Sending** a request with a draft sends the draft. History records what was sent. When the
+  draft edits scripts, the send runs the draft's unsaved scripts in place of the request's
+  sidecars (`Engine::execute_draft_with_scripts`); an empty or absent draft script falls back
+  to the folder's or collection's, as an absent sidecar does. Resend of a history entry runs
+  the saved scripts.
 
 ### History
 
