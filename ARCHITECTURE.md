@@ -100,6 +100,13 @@ secret leaves the keyring alone, and `pm.variables` writes stay local to the exe
 
 ## On-disk format
 
+A workspace is a directory, wherever it lives. Workspaces the app keeps are under
+`$XDG_DATA_HOME/reqflux/workspaces/<workspace id>/` (`~/.local/share/reqflux/workspaces/` when
+the variable is unset), named by id so a rename never moves files
+(`reqflux_engine::create_managed_workspace`); any other directory, such as one inside a
+repository, opens the same way. Both kinds use this format, so a later sync between machines
+works on the same files.
+
 ```text
 billing/                              workspace root
 ├── reqflux.toml                        workspace manifest: id, name, format version, globals
@@ -678,19 +685,27 @@ database, which was DBFlux's most expensive structural mistake.
 
 ## UI
 
-What exists today: `reqflux [<dir>]` opens a workspace through `reqflux_engine` before the window
-appears (a slow disk delays the window) and records it as recent. The title bar's workspace
+What exists today: ReqFlux is a standalone app. `reqflux` without a directory opens the most
+recent workspace that still loads, and on the first run creates a workspace named Personal
+kept by the app; the current directory never decides it. `reqflux <dir>` (`reqflux .` for the
+current one) opens that directory. The workspace opens through `reqflux_engine` before the
+window appears (a slow disk delays the window) and is recorded as recent. The window remembers
+its active environment per workspace (by environment id, in the app state's `settings`) and
+restores it when the workspace opens. The title bar's workspace
 selector (`workspace-selector`) opens a menu (`workspace-menu`) with the recent workspaces
-(`workspace-recent-<n>`, name and path, the current one marked; `workspace-recent-remove-<n>`
-drops one), `Open folder…` (`workspace-open`, the OS folder dialog), `New workspace…`
-(`workspace-new`, the OS save dialog; `reqflux_engine::create_workspace` writes a
-`reqflux.toml` named after the directory into a missing or empty directory) and
+(`workspace-recent-<n>`, the name with `In ReqFlux` for a workspace the app keeps or the path
+for a directory, the current one marked; `workspace-recent-remove-<n>` drops one from the list
+and deletes nothing), `New workspace…` (`workspace-new`, an inline name field
+`workspace-new-name`; Enter creates a workspace kept by the app and opens it, Escape cancels),
+`New workspace in folder…` (`workspace-new-folder`, the OS save dialog;
+`reqflux_engine::create_workspace` writes a `reqflux.toml` named after the directory into a
+missing or empty directory), `Open folder…` (`workspace-open`, the OS folder dialog) and
 `Close workspace` (`workspace-close`). Switching cancels sends in flight, closes every tab,
-resets the active environment and loads the new workspace's drafts and current values; the
-previous workspace's drafts stay in the app state. A workspace that fails to load keeps the
+restores the new workspace's remembered environment and loads its drafts and current values;
+the previous workspace's drafts stay in the app state. A workspace that fails to load keeps the
 current one and shows why (`workspace-error`). With no workspace the document island shows
-`Open folder…` (`empty-open`), `New workspace…` (`empty-new`) and the recent list
-(`empty-recent-<n>`). One window shows one workspace. The window is the Bolt shell of
+`New workspace…` (`empty-new`), `New workspace in folder…` (`empty-new-folder`),
+`Open folder…` (`empty-open`) and the recent list (`empty-recent-<n>`). One window shows one workspace. The window is the Bolt shell of
 `design/bolt-v2/01-main.html`: a title bar with the workspace and environment on the left,
 the command search in the middle and the approvals bell on the right; the activity rail
 (Collections, History, Environments, MCP approvals, Audit log, Settings); a sidebar island with

@@ -4,11 +4,12 @@ A local-first HTTP client built on [GPUI](https://www.gpui.rs/).
 ReqFlux reads and writes Postman collection v2.1 and environment files, runs Postman
 `pm.*` scripts, and lets AI agents manage collections and send requests through MCP.
 
-Workspaces are directories of small TOML files, so collections diff, merge and review
-cleanly in git.
+ReqFlux is a standalone app: opened from your desktop it shows your own workspaces, kept by
+the app under `~/.local/share/reqflux/workspaces`, and creates one named Personal on the first
+run. A workspace is a directory of small TOML files, so one can also live in a repository
+next to the code it calls, where collections diff, merge and review cleanly in git.
 
-> Status: early. The window is still empty; `reqflux run` sends a request of a workspace
-> from the command line. See [FEATURES.md](FEATURES.md) for what is planned and
+> Status: the MVP of [FEATURES.md](FEATURES.md) is in place. See
 > [ARCHITECTURE.md](ARCHITECTURE.md) for how it is built.
 
 ## Install
@@ -28,8 +29,8 @@ Linux only for now.
 
 ```sh
 nix develop          # toolchain, mold and native libraries
-cargo run            # opens the ReqFlux window (on the current directory if it holds reqflux.toml)
-cargo run -- ~/billing                     # opens the workspace in ~/billing
+cargo run            # opens the ReqFlux window on your last workspace (Personal at first)
+cargo run -- ~/billing                     # opens the workspace in the directory ~/billing
 cargo run -- run billing-api/invoices/list-invoices --workspace ~/billing --env staging
                      # sends one request, body to stdout, summary to stderr
 scripts/lint.py      # fmt, clippy, file-size and layering checks
