@@ -130,19 +130,55 @@ fn without_timing(executed: &mut reqflux_engine::Executed) {
     executed.response.headers.retain(|(name, _)| name != "date");
 }
 
-/// A script that busy-loops for `millis` of wall-clock time, so a blocked executor shows up
-/// as a stretched ticker.
+/// A script that busy-loops for `millis` of wall-clock time, logging the Unix time in
+/// milliseconds as it starts and as it ends, so a test can place other events inside or
+/// outside the window the script held its thread.
 fn busy_script(millis: u64) -> String {
-    format!("const start = Date.now();\nwhile (Date.now() - start < {millis}) {{}}\n")
+    format!(
+        "const start = Date.now();\nconsole.log(String(start));\nwhile (Date.now() - start < {millis}) {{}}\nconsole.log(String(Date.now()));\n"
+    )
+}
+
+/// The `(start, end)` Unix milliseconds a [`busy_script`] logged, from the console of the
+/// execution that ran it.
+fn busy_window(executed: &reqflux_engine::Executed) -> (u128, u128) {
+    let logged: Vec<u128> = executed
+        .scripts
+        .console
+        .iter()
+        .map(|entry| {
+            entry
+                .message
+                .parse()
+                .unwrap_or_else(|error| panic!("{:?}: {error}", entry.message))
+        })
+        .collect();
+    match logged.as_slice() {
+        [start, end] => (*start, *end),
+        _ => panic!(
+            "the busy script did not run to its end: {:?}",
+            executed.scripts
+        ),
+    }
+}
+
+/// The current Unix time in milliseconds, on the clock `Date.now()` reads in a script.
+fn unix_millis() -> u128 {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(since) => since.as_millis(),
+        Err(error) => panic!("clock: {error}"),
+    }
 }
 
 /// S14: finishing an execution never blocks the executor that polls it. The test script
-/// runs for [`BUSY_MS`]; a 10 ms ticker on the polling runtime must not stretch past a
-/// fraction of that while `finish` is awaited, as it would if `finish` joined the script
-/// thread inside its future.
+/// busy-loops for [`BUSY_MS`] while `finish` is awaited on a current-thread runtime that
+/// also runs a 10 ms ticker. A tick can only run while the script holds its thread if
+/// `finish` yields, so at least one tick must land strictly inside the script's window:
+/// had `finish` joined the script thread inside its future, none could, however slow the
+/// machine is.
 #[test]
 fn finish_does_not_block_its_executor() {
-    const BUSY_MS: u64 = 600;
+    const BUSY_MS: u64 = 1000;
     const TICK: Duration = Duration::from_millis(10);
     let rt = runtime();
     let server = server(&rt, Mock::given(path("/finished")).respond_with(ok()));
@@ -166,24 +202,19 @@ fn finish_does_not_block_its_executor() {
         Ok(runtime) => runtime,
         Err(error) => panic!("runtime: {error}"),
     };
-    let worst = Arc::new(Mutex::new(Duration::ZERO));
-    // The ticker ends itself once `done` is set, so the tick that lands after a stall is
-    // still polled and still records the gap: aborting it would throw the measurement away.
+    let ticks = Arc::new(Mutex::new(Vec::new()));
     let done = Arc::new(AtomicBool::new(false));
-    single.block_on(async {
+    let finished = single.block_on(async {
         let ticker = tokio::spawn({
-            let worst = Arc::clone(&worst);
+            let ticks = Arc::clone(&ticks);
             let done = Arc::clone(&done);
             async move {
-                let mut last = Instant::now();
                 while !done.load(Ordering::Relaxed) {
                     tokio::time::sleep(TICK).await;
-                    let gap = last.elapsed();
-                    let mut worst = worst.lock().unwrap_or_else(|error| panic!("{error}"));
-                    if gap > *worst {
-                        *worst = gap;
-                    }
-                    last = Instant::now();
+                    ticks
+                        .lock()
+                        .unwrap_or_else(|error| panic!("{error}"))
+                        .push(unix_millis());
                 }
             }
         });
@@ -191,32 +222,45 @@ fn finish_does_not_block_its_executor() {
             Ok(executed) => executed,
             Err(error) => panic!("finish: {error}"),
         };
-        assert_eq!(finished.response.status, 201, "{:?}", finished.scripts);
-        assert!(
-            finished.scripts.console.is_empty(),
-            "the test script failed to run: {:?}",
-            finished.scripts.console
-        );
         done.store(true, Ordering::Relaxed);
         match ticker.await {
             Ok(()) => {}
             Err(error) => panic!("ticker: {error}"),
         }
+        finished
     });
-    let worst = *worst.lock().unwrap_or_else(|error| panic!("{error}"));
+    assert_eq!(finished.response.status, 201, "{:?}", finished.scripts);
+    let (start, end) = busy_window(&finished);
+    let ticks = ticks.lock().unwrap_or_else(|error| panic!("{error}"));
     assert!(
-        worst < Duration::from_millis(BUSY_MS / 2),
-        "the executor stalled for {worst:?} while the test script ran"
+        ticks.iter().any(|tick| start < *tick && *tick < end),
+        "no tick ran while the test script held its thread ({start}..{end}): {ticks:?}"
     );
 }
 
 /// S14: a pre-request script that runs for [`SCRIPT_MS`] on its own thread must not delay
-/// another request completing on the engine's runtime beyond that other request's own
-/// duration.
+/// another request on the engine. The scripted request signals through `/started` once
+/// its script is running; only then does the other request start, and it must come back
+/// before the script ends. Had it waited for the script, it could only end after it.
 #[test]
 fn a_slow_pre_request_script_does_not_delay_another_request() {
-    const SCRIPT_MS: u64 = 400;
+    const SCRIPT_MS: u64 = 3000;
     let rt = runtime();
+    let (started_tx, started_rx) = std::sync::mpsc::channel();
+    let started_tx = Mutex::new(started_tx);
+    let started = server(
+        &rt,
+        Mock::given(path("/started")).respond_with(move |_: &wiremock::Request| {
+            let sent = started_tx
+                .lock()
+                .unwrap_or_else(|error| panic!("{error}"))
+                .send(());
+            if let Err(error) = sent {
+                panic!("signal: {error}");
+            }
+            ResponseTemplate::new(200)
+        }),
+    );
     let slow = server(&rt, Mock::given(path("/slow")).respond_with(ok()));
     let quick = server(&rt, Mock::given(path("/quick")).respond_with(ok()));
     let dir = temp_dir();
@@ -225,24 +269,35 @@ fn a_slow_pre_request_script_does_not_delay_another_request() {
     collection(root, "");
     request(root, "slow", false, &format!("{}/slow", slow.uri()));
     request(root, "quick", false, &format!("{}/quick", quick.uri()));
-    write(root, "collections/api/slow.pre.js", &busy_script(SCRIPT_MS));
+    // `pm.sendRequest` returns once `/started` answered, so the busy loop starts after the
+    // signal and its window covers the whole quick request.
+    write(
+        root,
+        "collections/api/slow.pre.js",
+        &format!(
+            "pm.sendRequest(\"{}/started\", function () {{}});\n{}",
+            started.uri(),
+            busy_script(SCRIPT_MS)
+        ),
+    );
     let engine = Arc::new(engine(root));
     let scripted = thread::spawn({
         let engine = Arc::clone(&engine);
         move || execute(&engine, "api/slow")
     });
-    // The scripted request is inside its pre-request script before this one starts.
-    thread::sleep(Duration::from_millis(50));
-    let started = Instant::now();
+    if let Err(error) = started_rx.recv_timeout(Duration::from_secs(30)) {
+        panic!("the pre-request script never started: {error}");
+    }
     let executed = execute(&engine, "api/quick");
-    let elapsed = started.elapsed();
+    let quick_end = unix_millis();
     assert_eq!(executed.response.status, 201, "{:?}", executed.scripts);
-    assert!(
-        elapsed < Duration::from_millis(SCRIPT_MS),
-        "the quick request waited {elapsed:?} for the scripted one"
-    );
     let scripted = scripted.join().unwrap_or_else(|error| panic!("{error:?}"));
-    assert_eq!(scripted.response.status, 201);
+    assert_eq!(scripted.response.status, 201, "{:?}", scripted.scripts);
+    let (_, script_end) = busy_window(&scripted);
+    assert!(
+        quick_end < script_end,
+        "the quick request ended at {quick_end}, after the script it ran beside ended at {script_end}"
+    );
 }
 
 #[test]
