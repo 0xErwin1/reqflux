@@ -26,7 +26,8 @@ names the alternative it rejects and, where relevant, the DBFlux experience behi
 | GPUI | Published `gpui-pre` 0.3.7, `gpui-component` 0.7.0 and `gpui-pre-platform` 0.3.7, the newest the UI automation bridge supports; every other dependency tracks its latest release. `gpui-pre` is patched from the `gpui-mcp` git repository at a pinned rev; nothing is vendored. |
 | Crates | Ten crates in a strict one-way dependency order. Only `bolt`, `reqflux_ui` and `reqflux` link GPUI. |
 | Design system | Bolt, copied from DBFlux, in the product-agnostic `bolt` crate. ReqFlux supplies only its accent and its own tokens, so `bolt` can become a shared library without touching ReqFlux's screens. |
-| UI automation | The upstream `gpui-mcp` bridge is always installed. `reqflux mcp` exposes it as `ui_*` tools under the same policy, so agents declare one MCP server. |
+| UI automation | The upstream `gpui-mcp` bridge is always installed. `reqflux mcp` exposes it as `ui_*` tools beside the engine tools, so agents declare one MCP server; the policy covers the engine tools only. |
+| User configuration | `~/.config/reqflux/config.toml` (theme, MCP policy) belongs to the user, not to a workspace; a workspace can only restrict the MCP policy. |
 
 ## Domain model
 
@@ -659,11 +660,62 @@ for `ui_select_target` when several are running, and reports a target that died 
 switching. Stdout carries only protocol frames; logs go to stderr. Text the bridge withholds
 as redacted stays withheld, and a bridge failure is a tool error, never a panic.
 
-Not yet: policy, approvals and audit. Every tool runs unpoliced and the help text says so. For
-the `ui_*` tools that adds no exposure the bridge does not already have (see the trust model
-below). The engine tools can change workspace files and send requests, with the stored
-credentials, to any URL the agent writes: the same as a shell with `reqflux run`, and what the
-host allowlist and approvals below are for.
+### Configuration and policy
+
+The user's configuration is `$XDG_CONFIG_HOME/reqflux/config.toml` (`~/.config/reqflux/config.toml`
+when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `system`, written by
+`Toggle theme` with a format-preserving editor that keeps comments, order and unknown keys) and
+`[mcp]`. A missing file is the defaults; a file that does not parse is reported (path, line and
+column, never the source line) in the window's status bar and by `reqflux mcp`, and the defaults
+apply. Unknown keys under `[mcp]` and `[mcp.workspaces."<id>"]`, and a key that is not a
+workspace id, are reported as warnings the same way; they change no rule.
+
+```toml
+[mcp]
+read = "allow"          # the defaults: read allow, everything else "ask"
+write = "allow"
+execute = "allow"
+destructive = "ask"
+hosts = ["api.example.com", "*.example.com", "localhost:8080"]   # absent: any host
+environments = ["dev", "staging"]                                  # absent: any environment
+
+[mcp.workspaces."01J00000000000000000000900"]
+destructive = "deny"
+```
+
+The engine tools are policed (`reqflux_engine::policy`); every tool has a class: read
+(`workspace_open`, `workspace_info`, `request_get`, `history_list`, `history_get`,
+`environment_list`, `variables_get`), write (`workspace_create`, `collection_create`,
+`folder_create`, `request_create`, `item_rename`, `item_duplicate`, `item_move`, `request_update`,
+`environment_create`, `environment_rename`, `variable_set`), execute (`request_execute`) and
+destructive (`item_delete`, `environment_delete`, `variable_delete`). Each class is `allow`,
+`ask` or `deny`; until in-app approvals exist, `ask` refuses. The effective rule is the strictest
+of the user's `[mcp]`, the matching `[mcp.workspaces."<id>"]` (the id in any case) and the open
+workspace's `reqflux.toml` `[mcp]`, and the effective `hosts` and `environments` are what every
+list given allows: a workspace, even a cloned repository, can only restrict what the user
+allows. `workspace_open` checks `read` against the target workspace before returning anything
+from it. The check runs before any file is read or written and before anything is sent, and the
+config file is read again on every call, so an edit applies without a restart.
+
+`hosts` is checked against the request as prepared (variables resolved): the main request, every
+`pm.sendRequest` a pre-request or test script makes (`reqflux_engine::HostGuard`), and every
+redirect target before it is followed (`reqflux_http::RedirectCheck`). A refused script send
+reaches the script as a transport error; a refusal in a pre-request script or on the main
+request's redirects refuses the call. Entries are exact hosts, `*.example.com` for subdomains
+only (not the apex) and `host:port` for one port, case-insensitive. A refusal names the tool, the
+class or the host, the rule and the file and table to change it in.
+
+Every write, execute and destructive call, allowed or refused, appends one JSON line to
+`$XDG_STATE_HOME/reqflux/audit.log` (`reqflux_engine::audit`; owner-only, appended and synced per
+line): time, tool, class, decision, reason, workspace id, the ids it targets and, for an
+execution, the method and the masked URL. Argument values (documents, variable values, bodies)
+are never written, and a call whose audit line cannot be written is refused. Read tools are not
+audited.
+
+The `ui_*` tools are not policed: they drive a window the user sees. That is also a way around
+the policy, since `ui_click` on Send sends a request the engine tools would refuse; an agent
+connected to `reqflux mcp` while the window is open has the window's power. Without the window
+running, the `ui_*` tools do nothing.
 
 - **More tools**: runner (run a collection or folder), import and export.
 - **Resources**: requests, collections and environments addressed by id, so an agent can read
@@ -671,13 +723,9 @@ host allowlist and approvals below are for.
 - **Secrets never leave the engine.** Tools return `{{token}}`, not the token. Execution
   resolves secrets inside the engine, and response output redacts any secret value it finds
   echoed back.
-- **Policy** lives in the workspace manifest and the user's settings: whether agents may write
-  files, which environments they may execute against, and a host allowlist. Each tool has an
-  execution class (read, write, execute, destructive), mapped to allow, ask or deny.
-- **Approvals.** With the GUI running, `ask` shows an approval prompt in the app over a local
-  socket. Headless, `ask` resolves to deny. An agent can never approve its own call.
-- **Audit.** Every write and execution is appended to a per-user audit log, with secrets
-  redacted.
+- **Approvals.** With the GUI running, `ask` will show an approval prompt in the app over a
+  local socket; headless, `ask` stays a refusal. An agent can never approve its own call.
+- **Audit viewer.** The rail's Audit log button will read `audit.log`.
 
 The GUI and `reqflux mcp` coordinate through the files themselves: atomic writes and
 hash-checked saves with conflict detection. There is no second runtime that has to agree with the GUI about a
@@ -870,7 +918,8 @@ dependency swap, so the copy lives behind a boundary from the start:
   theme config and refreshes every window; System follows the window appearance. In light the
   accent washes use the accent instead of the tint. ReqFlux's method and syntax colors read
   the active palette. The choice is the `Toggle theme` command (Ctrl+Shift+T, Dark, Light,
-  System) and persists in the app state (`settings` table, schema v5); Dark is the default.
+  System) and persists as `theme` in the user's `config.toml` (a value from the app state's
+  older `settings` key is moved there once); Dark is the default.
 - Extraction then means moving `crates/bolt` to its own repository, depending on it from
   both products, and deleting DBFlux's copy. Bolt values that change in the meantime are
   changed in both products or recorded as a divergence in `design/system.md`.
@@ -890,9 +939,10 @@ agent ── stdio (MCP) ──> reqflux mcp ──┬── reqflux_engine     
   handshake and operations such as reading the element tree, focusing, typing, pressing keys
   and clicking. There is no second process; `gpui-mcp-server` is upstream's own client and
   ReqFlux does not ship it.
-- UI tools are named `ui_*` and go through the same policy as every other tool. Reading the
-  tree is class `read`; any input is class `execute`, because a click on Send executes a
-  request just as `request_execute` does. Without that, the UI would be a way around the policy.
+- UI tools are named `ui_*` and are outside the MCP policy (see "Configuration and policy"): a
+  click on Send executes a request just as `request_execute` does, so an agent driving the
+  window is not limited by `[mcp]`. Policing them (tree reads as `read`, input as `execute`)
+  belongs with in-app approvals.
 - With several ReqFlux windows or processes, `ui_list_targets` lists them and `ui_select_target`
   chooses one; a single target is selected automatically.
 - Screenshots need native window capture, which on Linux only works for X11 windows. They are

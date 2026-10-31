@@ -40,6 +40,24 @@ cargo nextest run    # tests
 Without Nix you need the Rust toolchain from `rust-toolchain.toml`, `mold`, `pkg-config`
 and the GPUI native dependencies (Wayland, X11, xkbcommon, Vulkan, fontconfig, freetype).
 
+## Configuration
+
+Your settings live in `~/.config/reqflux/config.toml`, not in any workspace. Agents connected to
+`reqflux mcp` can only read until you allow more there:
+
+```toml
+theme = "system"
+
+[mcp]
+write = "allow"
+execute = "allow"
+hosts = ["api.example.com", "localhost:8080"]
+```
+
+A workspace's `reqflux.toml` can add an `[mcp]` table, but it can only restrict. Every change and
+execution an agent makes is logged to `~/.local/state/reqflux/audit.log`. See "Configuration and
+policy" in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## License
 
 Licensed under the [Apache License 2.0](LICENSE-APACHE).
