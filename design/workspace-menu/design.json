@@ -1,0 +1,10 @@
+{
+  "title": "Workspace menu",
+  "brief": "The title-bar workspace menu: recents with the current one, ReqFlux-managed workspaces vs repository folders, new workspace by name, new workspace in a folder, open folder, close, remove from recents, a workspace that fails to load, import Postman and workspace settings. Built on the Bolt shell of design/bolt-v2.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    { "file": "01-refined-dropdown.html", "title": "Refined dropdown", "tradeoff": "Closest to bolt-v2/02 and to the code: one list, every action one click away, name popover for a new workspace; the menu grows long (10 actions) and the load error is cut to one line", "width": 1440, "height": 900 },
+    { "file": "02-switcher-overlay.html", "title": "Switcher overlay", "tradeoff": "Keyboard first: filter, details pane, full error with Retry and Reveal, create from the typed name; a modal overlay is heavier than a dropdown for a quick switch", "width": 1440, "height": 900 },
+    { "file": "03-split-menu.html", "title": "Split menu with inline create", "tradeoff": "Current workspace actions on top, recents left, a create form right that covers by-name, in-folder and Postman import without a dialog; 760 px wide and the form takes space even when you only switch", "width": 1440, "height": 900 }
+  ]
+}

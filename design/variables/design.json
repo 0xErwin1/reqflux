@@ -1,0 +1,10 @@
+{
+  "title": "Variables and environments",
+  "brief": "Where and how ReqFlux edits environments and variables: environment list with create, rename and delete; variables with initial vs current values, enabled toggle, secrets in the OS keyring, collection-scope variables and undeclared current values. Built on the Bolt shell of design/bolt-v2.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    { "file": "01-settings-page.html", "title": "Workspace settings page", "tradeoff": "Refines bolt-v2/03: full table with room for initial, current, storage and description, collection scopes in the settings nav; editing is modal, so the request is hidden while you change a value", "width": 1440, "height": 900 },
+    { "file": "02-sidebar-panel.html", "title": "Sidebar panel", "tradeoff": "Edit next to the open request (rail entry, all scopes in one list, inline delete confirmation); 300 px forces two-line rows and one expanded editor at a time, no room for descriptions", "width": 1440, "height": 900 },
+    { "file": "03-scope-matrix.html", "title": "Scope matrix document", "tradeoff": "Variables as a document tab: keys by scopes shows overrides and what staging resolves to at a glance, with an inspector for the selected cell; gets wide past five or six environments and hides descriptions", "width": 1440, "height": 900 }
+  ]
+}
