@@ -991,7 +991,24 @@ The plan:
 
 ReqFlux and DBFlux are a family of apps: both use **Bolt** (islands, 45 degree cuts, Archivo and
 JetBrains Mono, compact density) with one accent per product. `design/system.md` holds the
-values; `design/bolt-v2/` holds the artboards of every view, built from DBFlux's own.
+values; the artboards under `design/` are the approved spec of every view, built from DBFlux's
+own. Before changing or adding anything visible, open the artboard that covers it (the
+`gentle_design` tool lists them and records which one a change implements); when the change is
+not drawn, update or add the artboard in the same change, and say in the change what the code
+does not back yet.
+
+| Area | Artboard |
+|------|----------|
+| Shell, request, response states, workspace settings, collection settings, welcome, import, MCP approvals, audit | `design/bolt-v2/` (01 to 13) |
+| Response island (views, format bar, Tests, Console) | `design/response-views/02-script-tabs-format-bar.html` |
+| Status bar and Problems panel | `design/status-bar/02-problems-panel.html` |
+| Workspace menu | `design/workspace-menu/01-refined-dropdown.html` |
+| Command palette | `design/command-palette/02-scope-tabs.html` |
+| Collection tree editing | `design/tree-editing/01-context-menu-modal.html` |
+| History | `design/history/01-sidebar-readonly-tab.html` |
+| Environments and variables | `design/variables/01-settings-page.html` |
+
+The other artboards in those folders are directions that were not chosen.
 
 Bolt is copied from DBFlux for now. The goal is to make the later move to a shared library a
 dependency swap, so the copy lives behind a boundary from the start:
