@@ -1,22 +1,22 @@
-//! Running the Variables panel's commands and the Variables document's edits
-//! (variables-editor S3, S6, S7) through the engine. Variables are not drafts: every commit
-//! writes at once and the open requests are inspected again. A refused write shows its
-//! reason in the panel and changes nothing.
+//! Running the variable edits of the workspace settings page (variables-editor S3, S6, S7;
+//! design-catch-up T7) through the engine. Variables are not drafts: every commit writes at
+//! once and the open requests are inspected again. A refused write shows its reason on the
+//! page and changes nothing.
 //!
-//! The document's cells edit through the shell's cell field slot, under the table names of
+//! The grid's cells edit through the shell's cell field slot, under the table names of
 //! [`Column`] and the scope's path as the owner, so they commit, discard and give the focus
-//! back as a grid cell does. A secret's value field opens empty, and an empty commit keeps
-//! the value; the value is never seeded or logged.
+//! back as a grid cell does. A secret has no value in the file: its current value cell edits
+//! the keyring through a field that opens empty, and an empty commit keeps the value; the
+//! value is never seeded or logged.
 
 use gpui::{AppContext as _, Context, Window};
 use gpui_component::input::InputState;
-use reqflux_core::model::{Id, Variable};
+use reqflux_core::model::Variable;
 use reqflux_engine::{Engine, SecretScope, VariableEdit, VariableError};
 
 use super::Shell;
 use super::cell_edit::{CellEdit, CellField};
-use super::sidebar_variables::VariablesCommand;
-use super::variables_model::{Column, new_key, scope_rows, scope_variables, undeclared};
+use super::variables_model::{Column, current_keys, new_key, scope_variables, undeclared};
 use crate::workspace::OpenedWorkspace;
 
 /// The warning shown after a variable stops being secret.
@@ -24,106 +24,6 @@ pub(crate) const UNMARKED: &str =
     "The secret value was not copied to the file; set a shared value if one is needed";
 
 impl Shell {
-    /// Runs `command` from the Variables panel and reports the outcome to the sidebar.
-    pub(super) fn run_variables_command(
-        &mut self,
-        command: &VariablesCommand,
-        cx: &mut Context<Self>,
-    ) {
-        match command {
-            VariablesCommand::Select(_) => {
-                self.commit_variable_edit(cx);
-                cx.notify();
-            }
-            VariablesCommand::NewEnvironment => {
-                let outcome = self.with_engine(|engine| {
-                    engine
-                        .create_environment()
-                        .map(Some)
-                        .map_err(|error| error.to_string())
-                });
-                self.environments_changed(outcome.map(|(created, _)| created), cx);
-            }
-            VariablesCommand::RenameEnvironment { id, name } => {
-                let was_active = self.is_active_environment(*id);
-                let outcome = self.with_engine(|engine| {
-                    engine
-                        .rename_environment(*id, name)
-                        .map(|_| None)
-                        .map_err(|error| error.to_string())
-                });
-                if outcome.is_ok() && was_active {
-                    self.active_environment = self.environment_slug(*id);
-                }
-                self.environments_changed(outcome.map(|(created, _)| created), cx);
-            }
-            VariablesCommand::DeleteEnvironment(id) => {
-                let was_active = self.is_active_environment(*id);
-                let outcome = self.with_engine(|engine| {
-                    engine
-                        .delete_environment(*id)
-                        .map(|()| None)
-                        .map_err(|error| error.to_string())
-                });
-                if outcome.is_ok() && was_active {
-                    self.active_environment = None;
-                    self.save_active_environment();
-                }
-                self.environments_changed(outcome.map(|(created, _)| created), cx);
-            }
-        }
-    }
-
-    /// Hands the panel the scopes after an environment operation, with `created` opening
-    /// into rename, and inspects the open requests again; or shows why it failed.
-    fn environments_changed(
-        &mut self,
-        outcome: Result<Option<Id>, String>,
-        cx: &mut Context<Self>,
-    ) {
-        match outcome {
-            Ok(created) => {
-                self.refresh_scopes(created, cx);
-                self.inspect_open_requests(cx);
-            }
-            Err(error) => self.show_variables_error(error, cx),
-        }
-    }
-
-    fn refresh_scopes(&mut self, created: Option<Id>, cx: &mut Context<Self>) {
-        let OpenedWorkspace::Loaded(engine) = &self.workspace else {
-            return;
-        };
-        let scopes = scope_rows(engine.workspace());
-        self.sidebar.update(cx, |sidebar, cx| {
-            sidebar.scopes_changed(scopes, created, cx)
-        });
-        cx.notify();
-    }
-
-    fn show_variables_error(&mut self, error: String, cx: &mut Context<Self>) {
-        log::warn!("variables operation failed: {error}");
-        self.sidebar
-            .update(cx, |sidebar, cx| sidebar.show_variables_error(error, cx));
-        cx.notify();
-    }
-
-    fn environment_slug(&self, id: Id) -> Option<String> {
-        match &self.workspace {
-            OpenedWorkspace::Loaded(engine) => engine
-                .workspace()
-                .environments
-                .iter()
-                .find(|node| node.environment.id == id)
-                .map(|node| node.slug.clone()),
-            OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => None,
-        }
-    }
-
-    fn is_active_environment(&self, id: Id) -> bool {
-        self.active_environment.is_some() && self.active_environment == self.environment_slug(id)
-    }
-
     /// The variables `scope` declares, cloned.
     pub(super) fn variables_of(&self, scope: SecretScope) -> Vec<Variable> {
         match &self.workspace {
@@ -145,9 +45,7 @@ impl Shell {
         let outcome = self.with_engine(|engine| write(engine).map(|()| None));
         match outcome {
             Ok(_) => {
-                self.sidebar.update(cx, |sidebar, cx| {
-                    sidebar.show_variables_warning(warning, cx)
-                });
+                self.show_variables_warning(warning, cx);
                 self.inspect_open_requests(cx);
                 true
             }
@@ -213,8 +111,8 @@ impl Shell {
         self.edit_variable(scope, n, VariableEdit::Enabled(!enabled), None, cx);
     }
 
-    /// The secret toggle of the 1-based row `n`. Turning it off warns that the value was
-    /// not copied to the file.
+    /// The `stored in` toggle of the 1-based row `n`, between the file and the keyring.
+    /// Moving a secret back to the file warns that the value was not copied there.
     pub(super) fn toggle_variable_secret(
         &mut self,
         scope: SecretScope,
@@ -249,14 +147,72 @@ impl Shell {
         );
     }
 
+    /// `Declare` on the 1-based undeclared row `n`: the key goes into the scope's file with
+    /// no initial value, and its current value stays on this machine.
+    pub(super) fn declare_undeclared(
+        &mut self,
+        scope: SecretScope,
+        n: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.commit_cell_edit(window, cx);
+        let Some(key) = self.undeclared_key(scope, n) else {
+            return;
+        };
+        self.write_variables(
+            |engine| engine.declare_variable(scope, &key).map_err(message),
+            None,
+            cx,
+        );
+    }
+
+    /// The discard control of the 1-based undeclared row `n`: clears its current value.
+    pub(super) fn discard_undeclared(
+        &mut self,
+        scope: SecretScope,
+        n: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.commit_cell_edit(window, cx);
+        if let Some(key) = self.undeclared_key(scope, n) {
+            self.set_current_value(scope, &key, String::new(), cx);
+        }
+    }
+
+    /// `Reset current values`: clears the current value of every variable `scope` declares,
+    /// so the initial values resolve again. Undeclared values stay.
+    pub(super) fn reset_current_values(
+        &mut self,
+        scope: SecretScope,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.commit_cell_edit(window, cx);
+        let variables = self.variables_of(scope);
+        for key in current_keys(&self.current, scope, &variables) {
+            self.set_current_value(scope, &key, String::new(), cx);
+        }
+    }
+
+    fn undeclared_key(&self, scope: SecretScope, n: usize) -> Option<String> {
+        let variables = self.variables_of(scope);
+        undeclared(&self.current, scope, &variables)
+            .into_iter()
+            .nth(n.checked_sub(1)?)
+            .map(|(key, _)| key)
+    }
+
     fn variable(&self, scope: SecretScope, n: usize) -> Option<Variable> {
         let index = n.checked_sub(1)?;
         self.variables_of(scope).get(index).cloned()
     }
 
     /// Opens a focused field over the cell `column` of the 1-based row `n` of `scope`,
-    /// seeded with its text; a secret's value opens empty with a placeholder. An open field
-    /// elsewhere commits first.
+    /// seeded with its text; a secret's current value opens empty with a placeholder, and
+    /// its initial value, which is not in the file, does not open. An open field elsewhere
+    /// commits first.
     pub(super) fn start_variable_edit(
         &mut self,
         scope: SecretScope,
@@ -288,10 +244,9 @@ impl Shell {
             };
             match column {
                 Column::Key => (variable.key, false),
-                Column::Value if variable.secret => (String::new(), true),
+                Column::Value if variable.secret => return,
                 Column::Value => (variable.value.unwrap_or_default(), false),
-                // A secret has no separate current value.
-                Column::Current if variable.secret => return,
+                Column::Current if variable.secret => (String::new(), true),
                 Column::Current | Column::Undeclared => (
                     self.current
                         .get(scope, &variable.key)
@@ -324,8 +279,8 @@ impl Shell {
         cx.notify();
     }
 
-    /// Commits and drops an open Variables document field without a window, when the
-    /// panel changes scope or the sidebar shows another panel.
+    /// Commits and drops an open variables field without a window, when the page changes
+    /// section or closes.
     pub(super) fn commit_variable_edit(&mut self, cx: &mut Context<Self>) {
         let Some(edit) = self
             .cell_edit
@@ -345,7 +300,7 @@ impl Shell {
     }
 
     /// Writes `value` into the cell (`table`, 1-based row `n`) of the scope at `owner`;
-    /// does nothing when `table` is not a Variables document column.
+    /// does nothing when `table` is not a variables grid column.
     pub(super) fn commit_variable_cell(
         &mut self,
         owner: &str,
@@ -361,11 +316,7 @@ impl Shell {
             return;
         };
         if column == Column::Undeclared {
-            let variables = self.variables_of(scope);
-            if let Some((key, _)) = undeclared(&self.current, scope, &variables)
-                .into_iter()
-                .nth(n.saturating_sub(1))
-            {
+            if let Some(key) = self.undeclared_key(scope, n) {
                 self.set_current_value(scope, &key, value, cx);
             }
             return;
@@ -376,11 +327,11 @@ impl Shell {
         let optional = |value: String| (!value.is_empty()).then_some(value);
         let edit = match column {
             Column::Key if value != variable.key => VariableEdit::Key(value),
-            Column::Value if secret => match optional(value) {
+            Column::Current if secret => match optional(value) {
                 Some(value) => VariableEdit::Value(Some(value)),
                 None => return,
             },
-            Column::Value if optional(value.clone()) != variable.value => {
+            Column::Value if !variable.secret && optional(value.clone()) != variable.value => {
                 VariableEdit::Value(optional(value))
             }
             Column::Description if optional(value.clone()) != variable.description => {
@@ -428,8 +379,7 @@ impl Shell {
         } else {
             self.current.insert(scope, key, value);
         }
-        self.sidebar
-            .update(cx, |sidebar, cx| sidebar.show_variables_warning(None, cx));
+        self.show_variables_warning(None, cx);
         self.inspect_open_requests(cx);
     }
 }

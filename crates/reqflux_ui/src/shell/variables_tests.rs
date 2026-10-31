@@ -1,5 +1,6 @@
-//! The Variables panel (variables-editor S6): the rail's Environments button lists Globals,
-//! the collections and the environments, and creates, renames and deletes environments.
+//! Environments on the workspace settings page (variables-editor S6, design-catch-up T7):
+//! the rail's Environments button lists Globals, the collections and the environments, and
+//! creates, renames and deletes environments.
 
 use std::fs;
 use std::path::Path;
@@ -118,28 +119,27 @@ fn open_menu(cx: &mut VisualTestContext, id: &str) {
 }
 
 #[gpui::test]
-fn the_panel_lists_globals_collections_and_environments(cx: &mut TestAppContext) {
+fn the_page_lists_globals_collections_and_environments(cx: &mut TestAppContext) {
     let dir = variables_workspace(closed_port());
     let (_state_dir, state_path) = state_file();
     let (_shell, cx) = render(cx, &dir, &state_path);
-    assert!(bounds(cx, "variables-panel").is_none());
+    assert!(bounds(cx, "settings-page").is_none());
 
     click(cx, "rail-environments");
-    present(cx, "variables-panel");
+    present(cx, "settings-page");
     assert!(
         bounds(cx, "collection-tree").is_none(),
-        "the panel replaces the tree"
+        "the page replaces the tree"
     );
     let globals = present(cx, "variables-scope-globals");
     let collection = present(cx, &format!("variables-scope-collection-{COLLECTION}"));
     let dev = present(cx, &format!("variables-scope-environment-{DEV}"));
     let staging = present(cx, &format!("variables-scope-environment-{STAGING}"));
     assert!(globals.origin.y < collection.origin.y);
-    assert!(collection.origin.y < dev.origin.y);
     assert!(dev.origin.y < staging.origin.y, "environments by name");
 
-    assert!(bounds(cx, "variables-document").is_none());
     click(cx, "variables-scope-globals");
+    assert!(bounds(cx, &format!("variables-scope-environment-{DEV}")).is_none());
     present(cx, "variables-document");
     present(cx, "variables-row-1");
     present(cx, "variables-key-1");
@@ -230,7 +230,7 @@ fn the_tree_history_and_selector_still_work_after_visiting_variables(cx: &mut Te
 
     click(cx, "rail-history");
     present(cx, "history-row-1");
-    assert!(bounds(cx, "variables-panel").is_none());
+    assert!(bounds(cx, "settings-page").is_none());
 
     click(cx, "environment-selector");
     click(cx, "environment-option-dev");

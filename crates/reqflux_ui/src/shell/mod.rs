@@ -33,10 +33,11 @@ mod row_edit;
 mod rows;
 mod send;
 mod setting_edit;
+mod settings_page;
+mod settings_view;
 mod sidebar;
 mod sidebar_edit;
 mod sidebar_history;
-mod sidebar_variables;
 mod status_bar;
 mod tabs;
 mod text;
@@ -76,10 +77,10 @@ use self::palette::Palette;
 use self::request::{RequestState, SubTab};
 use self::response::PreviewHost;
 use self::send::{RequestSend, SHELL_CONTEXT};
+use self::settings_page::SettingsPage;
 use self::sidebar::{OpenRequest, Sidebar};
 use self::sidebar_edit::{DeletePrompted, TreeCommand};
 use self::sidebar_history::{OpenHistory, Panel};
-use self::sidebar_variables::VariablesCommand;
 use self::tree_model::Node;
 use self::url_edit::UrlEdit;
 use self::workspace_picker::{OsPicker, WorkspacePicker};
@@ -187,6 +188,9 @@ pub(crate) struct Shell {
     palette: Option<Palette>,
     /// The approval requests from `reqflux mcp` and the listener they arrive on.
     approvals: approvals::Approvals,
+    /// The workspace settings page: its section, environment menu, rename field and the
+    /// outcome of the last variable write.
+    settings: SettingsPage,
     /// The history tab: the open history entry, read only (see [`history::HistoryTab`]).
     orphan: Option<history::HistoryTab>,
     /// Where `Open in browser` writes an HTML response and how it opens it.
@@ -262,6 +266,7 @@ impl Shell {
             focus: cx.focus_handle(),
             palette: None,
             approvals: approvals::Approvals::new(cx.focus_handle()),
+            settings: SettingsPage::new(cx),
             orphan: None,
             preview_host: PreviewHost::default(),
             _sidebar_events: sidebar_events,
@@ -442,11 +447,16 @@ impl Render for Shell {
             .pl(chrome::ISLAND_GAP)
             .pr(chrome::ISLAND_GAP)
             .child(rail::render(panel, pending, cx));
-        let middle = middle.child(self.sidebar.clone());
-        let middle = if panel == Panel::Approvals {
-            middle.child(approvals_view::render(self, cx))
+        let middle = if self.settings_open(cx) {
+            middle.child(settings_view::render(self, window, cx))
+        } else if panel == Panel::Approvals {
+            middle
+                .child(self.sidebar.clone())
+                .child(approvals_view::render(self, cx))
         } else {
-            middle.child(document::render(self, window, cx))
+            middle
+                .child(self.sidebar.clone())
+                .child(document::render(self, window, cx))
         };
         root.size_full()
             .flex()
@@ -459,8 +469,8 @@ impl Render for Shell {
     }
 }
 
-/// Subscribes the shell to the events of `sidebar`: opened requests and history entries,
-/// tree edits and variable edits.
+/// Subscribes the shell to the events of `sidebar`: opened requests and history entries and
+/// tree edits.
 fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<Subscription> {
     vec![
         cx.subscribe(sidebar, |this, _, OpenRequest(id), cx| {
@@ -481,9 +491,6 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
                 .cloned()
                 .collect();
             sidebar.update(cx, |sidebar, cx| sidebar.set_unsaved(unsaved, cx));
-        }),
-        cx.subscribe(sidebar, |this, _, command: &VariablesCommand, cx| {
-            this.run_variables_command(command, cx);
         }),
     ]
 }
@@ -544,6 +551,8 @@ mod row_edit_tests;
 mod send_tests;
 #[cfg(test)]
 mod settings_edit_tests;
+#[cfg(test)]
+mod settings_page_tests;
 #[cfg(test)]
 mod sidebar_tests;
 #[cfg(test)]

@@ -254,7 +254,7 @@ impl Shell {
         if panel == Panel::History {
             self.refresh_history(cx);
         }
-        if panel != Panel::Variables {
+        if panel != Panel::Environments {
             self.commit_variable_edit(cx);
         }
         self.sidebar

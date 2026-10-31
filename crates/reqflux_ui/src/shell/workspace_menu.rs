@@ -3,8 +3,9 @@
 //! `Workspaces` header over a legend of the row icons, the recent workspaces by name over
 //! their path (`In ReqFlux` for a workspace the app keeps), the current one marked, each with
 //! `Remove`; then `New workspace…` (an inline name field, standalone-workspaces S3),
-//! `New workspace in folder…`, `Open workspace…` and, while one is open, `Close workspace`,
-//! over the footer note. A recent workspace that does not load keeps the menu open and shows
+//! `New workspace in folder…`, `Open workspace…` and, while one is open, `Workspace
+//! settings…` (design-catch-up T7, the settings page) and `Close workspace`, over the footer
+//! note. A recent workspace that does not load keeps the menu open and shows
 //! its error in its row, `workspace-error`, with `Retry`; any other error shows under the
 //! recents. Escape or a click outside closes the menu.
 
@@ -46,6 +47,9 @@ pub(crate) const NEW_WORKSPACE_IN_FOLDER: &str = "New workspace in folder…";
 /// `Close workspace`.
 pub(crate) const CLOSE_WORKSPACE: &str = "Close workspace";
 
+/// `Workspace settings…`: opens the workspace settings page.
+pub(crate) const WORKSPACE_SETTINGS: &str = "Workspace settings…";
+
 /// The note at the foot of the menu.
 pub(crate) const FOOTER_NOTE: &str = "One workspace is open at a time. Drafts stay with their \
                                       workspace and come back when you switch to it.";
@@ -59,6 +63,7 @@ pub(super) enum Action {
     Open,
     New,
     NewInFolder,
+    Settings,
     Close,
 }
 
@@ -69,6 +74,10 @@ impl Action {
             Self::Open => shell.pick_folder(window, cx),
             Self::New => shell.start_new_workspace(window, cx),
             Self::NewInFolder => shell.pick_new(window, cx),
+            Self::Settings => {
+                shell.open_settings(super::settings_page::Section::Globals, cx);
+                shell.restore_focus(window, cx);
+            }
             Self::Close => shell.switch_workspace(None, window, cx),
         }
         cx.notify();
@@ -424,6 +433,14 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         ));
     if matches!(shell.workspace, OpenedWorkspace::Loaded(_)) {
         menu = menu.child(separator(cx)).child(menu_action(
+            "workspace-settings",
+            IconName::Settings,
+            WORKSPACE_SETTINGS,
+            Action::Settings,
+            Some(CommandId::WorkspaceSettings),
+            cx,
+        ));
+        menu = menu.child(menu_action(
             "workspace-close",
             IconName::LogOut,
             CLOSE_WORKSPACE,

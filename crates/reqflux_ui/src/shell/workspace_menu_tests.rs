@@ -67,6 +67,7 @@ fn the_menu_has_the_workspaces_header_actions_in_order_and_the_note(cx: &mut Tes
         "workspace-new",
         "workspace-new-folder",
         "workspace-open",
+        "workspace-settings",
         "workspace-close",
         "workspace-menu-note",
     ]
@@ -78,7 +79,7 @@ fn the_menu_has_the_workspaces_header_actions_in_order_and_the_note(cx: &mut Tes
     present(cx, "workspace-new-keycap");
     present(cx, "workspace-open-keycap");
     assert!(bounds(cx, "workspace-import").is_none());
-    assert!(bounds(cx, "workspace-settings").is_none());
+    present(cx, "workspace-settings-keycap");
 }
 
 #[gpui::test]

@@ -1,54 +1,126 @@
-//! The Variables panel and document without GPUI (variables-editor S6): the scopes the panel
-//! lists, the variables a scope declares, the key a new variable gets and the current values
-//! a scope holds for keys it does not declare.
+//! The workspace settings page without GPUI (variables-editor S6, design-catch-up T7): the
+//! environments and collections it lists, the variables a scope declares, the file they live
+//! in, the key a new variable gets, the variables left empty and the current values a scope
+//! holds for keys it does not declare.
 
-use reqflux_core::model::{Variable, Workspace};
+use reqflux_core::model::{Id, Variable, Workspace};
 use reqflux_engine::{CurrentValues, SecretScope};
 
 /// The key a new variable starts with, numbered when taken.
 pub(crate) const NEW_KEY: &str = "new_variable";
 
-/// One row of the Variables panel.
+/// An environment or a collection the page lists, with the number of variables it declares.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ScopeRow {
-    pub(crate) scope: SecretScope,
+pub(crate) struct ScopeEntry {
+    pub(crate) id: Id,
     pub(crate) name: String,
+    /// The environment's file stem or the collection's directory.
+    pub(crate) slug: String,
+    pub(crate) count: usize,
 }
 
-impl ScopeRow {
-    /// The element id of the row: `variables-scope-globals`,
-    /// `variables-scope-collection-<id>` or `variables-scope-environment-<id>`.
-    pub(crate) fn element_id(&self) -> String {
-        match self.scope {
-            SecretScope::Global => "variables-scope-globals".to_owned(),
-            SecretScope::Collection(id) => format!("variables-scope-collection-{id}"),
-            SecretScope::Environment(id) => format!("variables-scope-environment-{id}"),
-        }
-    }
-}
-
-/// The rows of the panel: Globals, the collections in workspace order, then the
-/// environments by name.
-pub(crate) fn scope_rows(workspace: &Workspace) -> Vec<ScopeRow> {
+/// The environments by name.
+pub(crate) fn environments(workspace: &Workspace) -> Vec<ScopeEntry> {
     let mut environments: Vec<_> = workspace
         .environments
         .iter()
-        .map(|node| ScopeRow {
-            scope: SecretScope::Environment(node.environment.id),
+        .map(|node| ScopeEntry {
+            id: node.environment.id,
             name: node.environment.name.clone(),
+            slug: node.slug.clone(),
+            count: node.environment.variables.len(),
         })
         .collect();
     environments.sort_by(|left, right| left.name.cmp(&right.name));
-    std::iter::once(ScopeRow {
-        scope: SecretScope::Global,
-        name: "Globals".to_owned(),
-    })
-    .chain(workspace.collections.iter().map(|node| ScopeRow {
-        scope: SecretScope::Collection(node.collection.id),
-        name: node.collection.name.clone(),
-    }))
-    .chain(environments)
-    .collect()
+    environments
+}
+
+/// The collections in workspace order.
+pub(crate) fn collections(workspace: &Workspace) -> Vec<ScopeEntry> {
+    workspace
+        .collections
+        .iter()
+        .map(|node| ScopeEntry {
+            id: node.collection.id,
+            name: node.collection.name.clone(),
+            slug: node.slug.clone(),
+            count: node.collection.variables.len(),
+        })
+        .collect()
+}
+
+/// The name of `scope`: `Globals`, or the collection's or the environment's name.
+pub(crate) fn scope_name(workspace: &Workspace, scope: SecretScope) -> Option<String> {
+    match scope {
+        SecretScope::Global => Some("Globals".to_owned()),
+        SecretScope::Collection(id) => collections(workspace)
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .map(|entry| entry.name),
+        SecretScope::Environment(id) => environments(workspace)
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .map(|entry| entry.name),
+    }
+}
+
+/// The file that declares the variables of `scope`, relative to the workspace.
+pub(crate) fn scope_file(workspace: &Workspace, scope: SecretScope) -> Option<String> {
+    match scope {
+        SecretScope::Global => Some("reqflux.toml".to_owned()),
+        SecretScope::Collection(id) => collections(workspace)
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .map(|entry| format!("{}/collection.toml", entry.slug)),
+        SecretScope::Environment(id) => environments(workspace)
+            .into_iter()
+            .find(|entry| entry.id == id)
+            .map(|entry| format!("{}.env.toml", entry.slug)),
+    }
+}
+
+/// `1 variable` or `<n> variables`.
+pub(crate) fn variable_count(count: usize) -> String {
+    if count == 1 {
+        "1 variable".to_owned()
+    } else {
+        format!("{count} variables")
+    }
+}
+
+/// Whether `variable` resolves to nothing: enabled, not secret (a secret's value is in the
+/// keyring, which the page never reads), with neither a shared nor a current value.
+pub(crate) fn is_empty(variable: &Variable, current: Option<&str>) -> bool {
+    variable.enabled
+        && !variable.secret
+        && variable.value.as_deref().unwrap_or_default().is_empty()
+        && current.unwrap_or_default().is_empty()
+}
+
+/// How many variables of `scope` are [`is_empty`].
+pub(crate) fn empty_count(
+    current: &CurrentValues,
+    scope: SecretScope,
+    variables: &[Variable],
+) -> usize {
+    variables
+        .iter()
+        .filter(|variable| is_empty(variable, current.get(scope, &variable.key)))
+        .count()
+}
+
+/// The keys `variables` declares that hold a current value in `scope`, which `Reset current
+/// values` clears; a secret has none of its own.
+pub(crate) fn current_keys(
+    current: &CurrentValues,
+    scope: SecretScope,
+    variables: &[Variable],
+) -> Vec<String> {
+    variables
+        .iter()
+        .filter(|variable| !variable.secret && current.get(scope, &variable.key).is_some())
+        .map(|variable| variable.key.clone())
+        .collect()
 }
 
 /// The variables `scope` declares, in file order; `None` when the scope no longer exists.
@@ -66,19 +138,6 @@ pub(crate) fn scope_variables(workspace: &Workspace, scope: SecretScope) -> Opti
             .find(|node| node.environment.id == id)
             .map(|node| node.environment.variables.as_slice()),
     }
-}
-
-/// The title of the document of `scope`: `Globals`, `Collection <name>` or
-/// `Environment <name>`.
-pub(crate) fn scope_title(workspace: &Workspace, scope: SecretScope) -> Option<String> {
-    let row = scope_rows(workspace)
-        .into_iter()
-        .find(|row| row.scope == scope)?;
-    Some(match scope {
-        SecretScope::Global => row.name,
-        SecretScope::Collection(_) => format!("Collection {}", row.name),
-        SecretScope::Environment(_) => format!("Environment {}", row.name),
-    })
 }
 
 /// [`NEW_KEY`], or `new_variable_<n>` with the first `n` from 2 that `variables` does not
@@ -177,6 +236,33 @@ mod tests {
             undeclared(&current, SecretScope::Global, &declared),
             vec![("token".to_owned(), "a".to_owned())]
         );
+    }
+
+    #[test]
+    fn empty_counts_enabled_plain_variables_with_no_value() {
+        let mut current = CurrentValues::default();
+        current.insert(SecretScope::Global, "filled", "x");
+        let mut disabled = Variable::new("disabled", "");
+        disabled.enabled = false;
+        let mut secret = Variable::new("secret", "");
+        secret.secret = true;
+        let mut none = Variable::new("none", "");
+        none.value = None;
+        let variables = [
+            none,
+            Variable::new("blank", ""),
+            Variable::new("filled", ""),
+            Variable::new("set", "v"),
+            disabled,
+            secret,
+        ];
+        assert_eq!(empty_count(&current, SecretScope::Global, &variables), 2);
+        assert_eq!(
+            current_keys(&current, SecretScope::Global, &variables),
+            vec!["filled".to_owned()]
+        );
+        assert_eq!(variable_count(1), "1 variable");
+        assert_eq!(variable_count(0), "0 variables");
     }
 
     #[test]

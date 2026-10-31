@@ -825,7 +825,8 @@ and deletes nothing), `New workspace…` (`workspace-new`, an inline name field
 `workspace-new-name`; Enter creates a workspace kept by the app and opens it, Escape cancels),
 `New workspace in folder…` (`workspace-new-folder`, the OS save dialog;
 `reqflux_engine::create_workspace` writes a `reqflux.toml` named after the directory into a
-missing or empty directory), `Open folder…` (`workspace-open`, the OS folder dialog) and
+missing or empty directory), `Open folder…` (`workspace-open`, the OS folder dialog),
+`Workspace settings…` (`workspace-settings`, the settings page at Globals) and
 `Close workspace` (`workspace-close`). Switching cancels sends in flight, closes every tab,
 restores the new workspace's remembered environment and loads its drafts and current values;
 the previous workspace's drafts stay in the app state. A workspace that fails to load keeps the
@@ -919,23 +920,45 @@ Clicking a row opens its request's tab and shows the recorded response under
 records the result as a new entry. A row whose request was deleted opens a read-only view
 (`history-readonly`) with the recorded method, URL and response, and Resend disabled.
 
-The rail's Environments button (`rail-environments`) swaps the sidebar for the Variables panel
-(`variables-panel`): Globals (`variables-scope-globals`), each collection
-(`variables-scope-collection-<id>`) and each environment (`variables-scope-environment-<id>`).
-Its `+` (`variables-new-environment`) creates an environment and opens its name into a field
-(`variables-rename-input`); an environment's `…` menu renames or deletes it, and delete asks
-first (`variables-delete-prompt`; deleting the active environment selects No environment).
-Selecting a scope shows its variables in the document island (`variables-document`) as a grid,
-row `variables-row-<n>`: enable box, key, shared value, current value, secret toggle,
-description and delete, plus `Add` (`variables-add`, key `new_variable`). Variables are not
-drafts: every commit writes the file (or the keyring, or the app state for a current value) at
-once and re-inspects open requests. A secret's value shows `••••••••` and edits through an empty
-field whose empty commit keeps it; its current value is the same keyring value. Turning a
-secret off does not copy its value into the file, and the panel says so
-(`variables-warning`). Current values a script wrote for a key the scope does not declare show
-as `variables-undeclared-<n>` rows that can be edited or cleared; renaming a key leaves its
-current value on the old key, where it shows as such a row. A refused write shows its reason in
-`variables-error` and changes nothing.
+Environments and variables are edited on the workspace settings page (`settings-page`,
+`design/variables/01-settings-page.html`, `shell/settings_page.rs`, `shell/settings_view.rs`,
+`shell/variables_document.rs`), which takes the place of the sidebar and document islands
+beside the rail. The rail's Environments button (`rail-environments`) and `Show Environments`
+(Ctrl+3) open it at Environments, `Workspace settings…` in the workspace menu and the palette's
+`Workspace settings` (Ctrl+,) at Globals, a palette variable row at Environments; Collections,
+History, `settings-close` or Escape leave it. A header row names the workspace and its path
+(`settings-title`, `settings-workspace`, `settings-workspace-path`); the nav island
+(`settings-nav`) lists Globals (`variables-scope-globals`) and Environments
+(`settings-nav-environments`) under `WORKSPACE` and one entry per collection
+(`variables-scope-collection-<id>`) under `COLLECTION VARIABLES`, each with its count, over the
+resolution order. The content island shows the section title (`settings-heading`,
+`settings-description`); in Environments the environment list sits beside the variables:
+`New environment` (`variables-new-environment`) creates one and opens its name into a field
+(`variables-rename-input`, hint `variables-rename-hint`); each row
+(`variables-scope-environment-<id>`, by name; the first is shown by default) has its count and
+file (`variables-environment-meta-<id>`) and a `…` menu (`variables-scope-menu-<id>`: Rename,
+`Delete environment…`); delete asks first (`variables-delete-prompt`; deleting the active
+environment selects No environment). The variables column (`variables-document`) has a heading
+(`variables-title`, `VARIABLES IN <NAME>` or `GLOBAL VARIABLES`) with the count of enabled
+variables that resolve to nothing (`variables-empty`) and `Reset current values`
+(`variables-reset-current`, clears the current values of the declared keys); then the grid,
+row `variables-row-<n>`: number, enable box, key, initial value (in the file), current value
+(this machine; `= initial` when unset, `empty` when both are), stored in (`variables-secret-<n>`,
+the `file` pill or the `KEYRING` badge `variables-stored-<n>`, a toggle), description and
+delete, plus the ghost row `variables-add` (key `new_variable`). Variables are not drafts:
+every commit writes the file (or the keyring, or the app state for a current value) at once
+and re-inspects open requests. A secret's initial value reads `not in the file`; its current
+value shows `••••••••` (`variables-masked-<n>`) and edits the keyring through an empty field
+whose empty commit keeps it. Turning a secret off does not copy its value into the file, and
+the page says so (`variables-warning`). Current values a script wrote for a key the scope does
+not declare show under `ONLY ON THIS MACHINE` as `variables-undeclared-<n>` rows: the current
+value edits (an empty commit clears it), `Declare` (`variables-declare-<n>`,
+`Engine::declare_variable`) adds the key to the scope's file with no initial value and keeps the
+current value local, and the discard control (`variables-discard-<n>`) clears it; renaming a
+key leaves its current value on the old key, where it shows as such a row. Notes name the
+keyring entry of the first secret (`variables-keyring-note`) and what Declare does
+(`variables-declare-note`). A refused write shows its reason in `variables-error` and changes
+nothing.
 
 Ctrl+K, Ctrl+P or a click on the title bar's search (`command-search-button`) opens the command
 palette (`palette`, input `palette-input`, rows `palette-row-<n>`). An empty query lists the
@@ -955,11 +978,11 @@ field takes keys first. The keymap is not configurable yet.
 | Save request, Revert request | Ctrl+S, Ctrl+Shift+R | the active request has a draft |
 | New request | Ctrl+N | a collection exists (in the selected collection or folder) |
 | New collection, New environment | Ctrl+Shift+N, Ctrl+Shift+E | a workspace is open |
-| Switch environment | Ctrl+E | a workspace is open |
+| Switch environment, Show Environments | Ctrl+E, Ctrl+3 | a workspace is open |
 | Open workspace, New workspace | Ctrl+O, Ctrl+Shift+O | always |
-| Close workspace | Ctrl+Shift+W | a workspace is open |
+| Close workspace, Workspace settings | Ctrl+Shift+W, Ctrl+, | a workspace is open |
 | Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request is open |
-| Show Collections, History, Variables | Ctrl+1, Ctrl+2, Ctrl+3 | a workspace is open |
+| Show Collections, History | Ctrl+1, Ctrl+2 | a workspace is open |
 | Toggle theme | Ctrl+Shift+T | always |
 | Open MCP approvals | Ctrl+Shift+M | always |
 

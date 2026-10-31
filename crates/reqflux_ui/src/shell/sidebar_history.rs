@@ -46,8 +46,9 @@ pub(crate) enum Panel {
     Collections,
     /// The History panel.
     History,
-    /// The Variables panel.
-    Variables,
+    /// The workspace settings page, which the shell shows in place of the sidebar and the
+    /// document islands.
+    Environments,
     /// The MCP approvals view, which the shell shows in the document island while the
     /// sidebar keeps the collection tree.
     Approvals,

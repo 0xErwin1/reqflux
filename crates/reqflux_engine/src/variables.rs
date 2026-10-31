@@ -69,6 +69,18 @@ impl Engine {
         self.commit(plan, moves)
     }
 
+    /// Declares `key` in `scope`: appends an enabled, non-secret variable with no value, so
+    /// the key is in the file while a current value for it stays on this machine.
+    ///
+    /// # Errors
+    ///
+    /// As [`Engine::add_variable`].
+    pub fn declare_variable(&mut self, scope: SecretScope, key: &str) -> Result<(), VariableError> {
+        let mut variable = Variable::new(key, "");
+        variable.value = None;
+        self.add_variable(scope, variable)
+    }
+
     /// Applies `edit` to the variable at `index` in `scope`.
     ///
     /// # Errors

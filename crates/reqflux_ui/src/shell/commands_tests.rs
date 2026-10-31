@@ -6,7 +6,7 @@ use super::{COMMANDS, PALETTE_KEYS, key_label};
 use crate::shell::send::SHELL_CONTEXT;
 
 /// The palette commands of command-palette S4, by stable id.
-const EXPECTED: [&str; 19] = [
+const EXPECTED: [&str; 20] = [
     "send-request",
     "cancel-send",
     "save-request",
@@ -18,12 +18,13 @@ const EXPECTED: [&str; 19] = [
     "open-workspace",
     "new-workspace",
     "close-workspace",
+    "workspace-settings",
     "close-tab",
     "next-tab",
     "previous-tab",
     "show-collections",
     "show-history",
-    "show-variables",
+    "show-environments",
     "toggle-theme",
     "open-approvals",
 ];
@@ -77,7 +78,8 @@ fn the_spec_keys_are_the_defaults() {
     assert_eq!(key("new-collection"), Some("ctrl-shift-n"));
     assert_eq!(key("show-collections"), Some("ctrl-1"));
     assert_eq!(key("show-history"), Some("ctrl-2"));
-    assert_eq!(key("show-variables"), Some("ctrl-3"));
+    assert_eq!(key("show-environments"), Some("ctrl-3"));
+    assert_eq!(key("workspace-settings"), Some("ctrl-,"));
     assert_eq!(key("switch-environment"), Some("ctrl-e"));
     assert_eq!(key("open-workspace"), Some("ctrl-o"));
     assert_eq!(key("send-request"), Some("ctrl-enter"));
@@ -108,12 +110,17 @@ fn every_area_holds_its_commands_in_palette_order() {
     };
     assert_eq!(
         names(Area::Environment),
-        ["new-environment", "switch-environment"]
+        ["new-environment", "switch-environment", "show-environments"]
     );
     assert_eq!(names(Area::Tabs), ["close-tab", "next-tab", "previous-tab"]);
     assert_eq!(names(Area::Agents), ["open-approvals"]);
     assert_eq!(
         names(Area::Workspace),
-        ["open-workspace", "new-workspace", "close-workspace"]
+        [
+            "open-workspace",
+            "new-workspace",
+            "close-workspace",
+            "workspace-settings"
+        ]
     );
 }

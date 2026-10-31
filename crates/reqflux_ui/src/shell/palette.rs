@@ -125,7 +125,8 @@ impl Shell {
     }
 
     /// Runs the 0-based row `index`: a request opens in its tab with the Collections panel
-    /// shown, an enabled command runs, a variable shows the Variables panel and Search
+    /// shown, an enabled command runs, a variable opens the workspace settings page at
+    /// Environments and Search
     /// everything leaves the scope. A disabled command does nothing and keeps the palette
     /// open.
     fn run_palette_row(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
@@ -147,7 +148,7 @@ impl Shell {
             }
             PaletteRow::Variable(_) => {
                 self.close_palette(window, cx);
-                self.show_panel(Panel::Variables, cx);
+                self.open_settings(super::settings_page::Section::Environments(None), cx);
             }
             PaletteRow::SearchEverything(text) => self.set_palette_query(text, window, cx),
         }

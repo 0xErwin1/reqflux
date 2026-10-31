@@ -276,10 +276,57 @@ pub(crate) const GRID_NUMBER_COLUMN: Pixels = px(46.0);
 pub(crate) const GRID_KEY_COLUMN: Pixels = px(200.0);
 pub(crate) const GRID_VALUE_COLUMN: Pixels = px(420.0);
 
-/// The Variables document columns: shared and current value, and the secret toggle; the
-/// key uses `GRID_KEY_COLUMN` and the description fills the rest.
+/// The variables grid columns of the workspace settings page (variables/01): row number,
+/// enable box, key, initial value, current value and where the value is stored; the
+/// description fills the rest.
+pub(crate) const VARIABLES_NUMBER_COLUMN: Pixels = px(24.0);
+pub(crate) const VARIABLES_ON_COLUMN: Pixels = px(34.0);
+pub(crate) const VARIABLES_KEY_COLUMN: Pixels = px(140.0);
 pub(crate) const VARIABLES_VALUE_COLUMN: Pixels = px(220.0);
-pub(crate) const VARIABLES_SECRET_COLUMN: Pixels = px(64.0);
+pub(crate) const VARIABLES_CURRENT_COLUMN: Pixels = px(150.0);
+pub(crate) const VARIABLES_STORED_COLUMN: Pixels = px(92.0);
+/// The width of the `Set by` column of an undeclared row, which the page leaves empty.
+pub(crate) const VARIABLES_UNDECLARED_NOTE: Pixels = px(118.0);
+/// The padding of a narrow grid cell (the enable box column).
+pub(crate) const VARIABLES_NARROW_PADDING: Pixels = px(6.0);
+/// The enable box of a variables row.
+pub(crate) const VARIABLES_CHECKBOX: Pixels = px(16.0);
+/// The `file` and `KEYRING` pills of the `stored in` column.
+pub(crate) const VARIABLES_PILL: Pixels = px(20.0);
+pub(crate) const VARIABLES_PILL_TEXT: Pixels = px(11.0);
+pub(crate) const VARIABLES_PILL_PADDING: Pixels = px(7.0);
+pub(crate) const VARIABLES_PILL_ICON: Pixels = px(11.0);
+/// The opacity of the key and values of a disabled variable.
+pub(crate) const VARIABLES_DISABLED_OPACITY: f32 = 0.55;
+/// The warning wash of the `empty` tag and, fainter, of an empty variable's row.
+pub(crate) const VARIABLES_EMPTY_TAG_WASH: f32 = 0.12;
+/// The height of the Declare and discard buttons of an undeclared row.
+pub(crate) const VARIABLES_ROW_ACTION: Pixels = px(24.0);
+/// The width of the discard button of an undeclared row.
+pub(crate) const VARIABLES_DISCARD_WIDTH: Pixels = px(26.0);
+/// The height of the section heading's `Reset current values` button.
+pub(crate) const VARIABLES_HEADING_ACTION: Pixels = px(26.0);
+/// The horizontal padding of the variables column of the page.
+pub(crate) const VARIABLES_PANEL_INSET: Pixels = px(20.0);
+/// The padding above a section heading of the variables column.
+pub(crate) const VARIABLES_HEADING_TOP: Pixels = px(18.0);
+/// The padding above the second section heading.
+pub(crate) const VARIABLES_SECOND_HEADING_TOP: Pixels = px(22.0);
+
+/// The workspace settings page (variables/01): its header row, the section nav and its
+/// entries, the environment list, and the title block of the content island.
+pub(crate) const SETTINGS_HEADER: Pixels = px(40.0);
+pub(crate) const SETTINGS_NAV_WIDTH: Pixels = px(230.0);
+pub(crate) const SETTINGS_NAV_ITEM: Pixels = px(32.0);
+pub(crate) const SETTINGS_ENVIRONMENT_LIST: Pixels = px(244.0);
+pub(crate) const SETTINGS_ENVIRONMENT_INSET: Pixels = px(14.0);
+pub(crate) const SETTINGS_ENVIRONMENT_FIELD: Pixels = px(28.0);
+pub(crate) const SETTINGS_ENVIRONMENT_META_TEXT: Pixels = px(11.5);
+pub(crate) const SETTINGS_TITLE_TOP: Pixels = px(22.0);
+pub(crate) const SETTINGS_TITLE_INSET: Pixels = px(28.0);
+pub(crate) const SETTINGS_TITLE_BOTTOM: Pixels = px(14.0);
+pub(crate) const SETTINGS_PATH_TEXT: Pixels = px(11.5);
+pub(crate) const SETTINGS_COUNT_TEXT: Pixels = px(11.0);
 
 /// The text and icon size of the SECRET badge.
 pub(crate) const BADGE_TEXT: Pixels = px(10.0);

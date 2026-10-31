@@ -108,6 +108,7 @@ impl Shell {
         self.save_errors.clear();
         self.url_edit = None;
         self.cell_edit = None;
+        self.settings.reset();
         self.body_edit = None;
         self.orphan = None;
         self.current = CurrentValues::default();

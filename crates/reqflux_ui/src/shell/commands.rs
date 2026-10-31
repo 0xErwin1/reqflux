@@ -10,9 +10,9 @@ use gpui::{App, Context, Div, InteractiveElement, KeyBinding, Window, actions};
 
 use super::Shell;
 use super::send::SHELL_CONTEXT;
+use super::settings_page::Section;
 use super::sidebar_edit::TreeCommand;
 use super::sidebar_history::Panel;
-use super::sidebar_variables::VariablesCommand;
 use super::tree_model::NodeKind;
 use crate::workspace::OpenedWorkspace;
 
@@ -50,7 +50,7 @@ impl Area {
         match self {
             Self::Request => "Request",
             Self::Tabs => "Tabs",
-            Self::Environment => "Environment",
+            Self::Environment => "Environments",
             Self::View => "View",
             Self::Agents => "Agents",
             Self::Workspace => "Workspace",
@@ -133,12 +133,13 @@ commands! {
     OpenWorkspace: OpenWorkspace, "open-workspace", "Open workspace", "ctrl-o", Workspace, always;
     NewWorkspace: NewWorkspace, "new-workspace", "New workspace", "ctrl-shift-o", Workspace, always;
     CloseWorkspace: CloseWorkspace, "close-workspace", "Close workspace", "ctrl-shift-w", Workspace, loaded;
+    WorkspaceSettings: WorkspaceSettings, "workspace-settings", "Workspace settings", "ctrl-,", Workspace, loaded;
     CloseTab: CloseTab, "close-tab", "Close tab", "ctrl-w", Tabs, has_tab;
     NextTab: NextTab, "next-tab", "Next tab", "ctrl-tab", Tabs, has_tab;
     PreviousTab: PreviousTab, "previous-tab", "Previous tab", "ctrl-shift-tab", Tabs, has_tab;
     ShowCollections: ShowCollections, "show-collections", "Show Collections", "ctrl-1", View, loaded;
     ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", View, loaded;
-    ShowVariables: ShowVariables, "show-variables", "Show Variables", "ctrl-3", View, loaded;
+    ShowEnvironments: ShowEnvironments, "show-environments", "Show Environments", "ctrl-3", Environment, loaded;
     ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", View, always;
     OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", Agents, always;
 }
@@ -291,12 +292,7 @@ impl Shell {
                     sidebar.command(TreeCommand::NewCollection, window, cx);
                 });
             }
-            CommandId::NewEnvironment => {
-                self.show_panel(Panel::Variables, cx);
-                self.sidebar.update(cx, |sidebar, cx| {
-                    sidebar.variables_command(VariablesCommand::NewEnvironment, window, cx);
-                });
-            }
+            CommandId::NewEnvironment => self.new_environment(window, cx),
             CommandId::SwitchEnvironment => {
                 if !self.environment_menu_open {
                     self.workspace_menu_open = false;
@@ -306,6 +302,10 @@ impl Shell {
             CommandId::OpenWorkspace => self.pick_folder(window, cx),
             CommandId::NewWorkspace => self.start_new_workspace(window, cx),
             CommandId::CloseWorkspace => self.switch_workspace(None, window, cx),
+            CommandId::WorkspaceSettings => {
+                self.open_settings(Section::Globals, cx);
+                self.restore_focus(window, cx);
+            }
             CommandId::CloseTab if self.history_tab_active() => self.close_history_tab(cx),
             CommandId::CloseTab => {
                 if let Some(active) = active {
@@ -316,7 +316,10 @@ impl Shell {
             CommandId::PreviousTab => self.step_tab(false, window, cx),
             CommandId::ShowCollections => self.switch_panel(Panel::Collections, window, cx),
             CommandId::ShowHistory => self.switch_panel(Panel::History, window, cx),
-            CommandId::ShowVariables => self.switch_panel(Panel::Variables, window, cx),
+            CommandId::ShowEnvironments => {
+                self.open_settings(Section::Environments(None), cx);
+                self.restore_focus(window, cx);
+            }
             CommandId::ToggleTheme => self.toggle_theme(window, cx),
             CommandId::OpenApprovals => self.open_approvals(window, cx),
         }

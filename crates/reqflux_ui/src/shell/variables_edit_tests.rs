@@ -1,4 +1,4 @@
-//! Editing variables from the Variables document (variables-editor S6, S7, and S2 on the
+//! Editing variables on the workspace settings page (variables-editor S6, S7, and S2 on the
 //! window side): every commit writes at once, current values override the shared value,
 //! secrets move to the secret store and a refused write shows its reason.
 
@@ -197,16 +197,17 @@ fn marking_a_variable_secret_moves_its_value_to_the_secret_store(cx: &mut TestAp
         Some("hello")
     );
     present(cx, "variables-masked-1");
-    present(cx, "variables-same-1");
 
-    // The value field opens empty; an empty commit keeps the value, a new one writes the
-    // store only.
-    commit(cx, "variables-value-1", "");
+    // The initial value is not in the file and does not open; the current value field opens
+    // empty; an empty commit keeps the value, a new one writes the store only.
+    click(cx, "variables-value-1");
+    assert_eq!(editing(cx, &shell), None);
+    commit(cx, "variables-current-1", "");
     assert_eq!(
         stored_secret(cx, &shell, "greeting").as_deref(),
         Some("hello")
     );
-    commit(cx, "variables-value-1", "hidden");
+    commit(cx, "variables-current-1", "hidden");
     assert_eq!(
         stored_secret(cx, &shell, "greeting").as_deref(),
         Some("hidden")

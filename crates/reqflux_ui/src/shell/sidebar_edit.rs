@@ -222,9 +222,6 @@ impl Sidebar {
             cx.notify();
             return true;
         }
-        if self.dismiss_variables(window, cx) {
-            return true;
-        }
         let had_error = self.edit.error.take().is_some();
         let closed = if self.edit.menu.is_some() {
             self.close_menu(window, cx);

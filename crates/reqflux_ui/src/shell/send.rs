@@ -107,9 +107,10 @@ impl Shell {
             self.close_body_menu(window, cx);
         } else if self.method_menu_open {
             self.close_method_menu(window, cx);
-        } else if self
-            .sidebar
-            .update(cx, |sidebar, cx| sidebar.dismiss(window, cx))
+        } else if self.dismiss_settings(window, cx)
+            || self
+                .sidebar
+                .update(cx, |sidebar, cx| sidebar.dismiss(window, cx))
         {
         } else if let Some(id) = self.documents.active().map(str::to_owned) {
             self.cancel(&id, cx);

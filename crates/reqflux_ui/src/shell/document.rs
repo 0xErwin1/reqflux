@@ -4,35 +4,15 @@
 //! The active request shows the action strip at its left and the request beside it, with
 //! its response under it. While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
-//!
-//! While the Variables panel has a scope selected, the island shows that scope's Variables
-//! document instead.
 
 use bolt::Island;
 use bolt::tokens::border;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
 
 use super::documents::locate;
-use super::sidebar_history::Panel;
-use super::{
-    Shell, action_strip, empty_state, history, path_bar, region, request, response, tabs,
-    variables_document,
-};
+use super::{Shell, action_strip, empty_state, history, path_bar, region, request, response, tabs};
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
-    let variables_scope = {
-        let sidebar = shell.sidebar.read(cx);
-        (sidebar.panel == Panel::Variables)
-            .then(|| sidebar.variables.selected())
-            .flatten()
-    };
-    if let (Some(scope), None) = (variables_scope, shell.workspace.document_message()) {
-        return region("document").flex_1().min_w_0().h_full().child(
-            Island::new()
-                .size_full()
-                .child(variables_document::render(shell, scope, cx)),
-        );
-    }
     let colors = bolt::colors(cx);
     let active = shell
         .active_request()

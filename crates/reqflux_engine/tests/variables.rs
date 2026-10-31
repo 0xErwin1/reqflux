@@ -344,3 +344,39 @@ fn environments_are_created_renamed_and_deleted() {
     assert_eq!(engine.workspace().environments[0].environment.id, created);
     assert_eq!(store.accounts().len(), 1, "the keyring entry stays");
 }
+
+#[test]
+fn declaring_a_key_writes_it_with_no_value_and_refuses_a_taken_one() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let store = Arc::new(MemorySecretStore::new());
+    let mut engine = open(root, store.clone());
+    ok(engine.declare_variable(env_scope(), "customer_id"));
+    assert_eq!(
+        read(root, ENV),
+        format!(
+            "id = \"{}\"\nname = \"dev\"\n\n[[variables]]\nkey = \"token\"\nvalue = \"abc\"\n\n[[variables]]\nkey = \"customer_id\"\n",
+            id_text(3)
+        )
+    );
+    let declared = &engine.workspace().environments[0].environment.variables[1];
+    assert_eq!(declared.key, "customer_id");
+    assert_eq!(declared.value, None);
+    assert!(declared.enabled);
+    assert!(!declared.secret);
+
+    let before = snapshot(root);
+    let taken = engine.declare_variable(env_scope(), "token");
+    assert!(
+        matches!(
+            taken,
+            Err(VariableError::Store(
+                StoreError::DuplicateVariableKey { .. }
+            ))
+        ),
+        "{taken:?}"
+    );
+    assert_eq!(snapshot(root), before);
+    assert!(store.accounts().is_empty());
+}
