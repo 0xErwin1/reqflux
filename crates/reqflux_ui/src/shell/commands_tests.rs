@@ -95,3 +95,25 @@ fn keys_print_as_the_palette_shows_them() {
     assert_eq!(key_label("ctrl-1"), "Ctrl+1");
     assert_eq!(key_label("ctrl-w"), "Ctrl+W");
 }
+
+#[test]
+fn every_area_holds_its_commands_in_palette_order() {
+    use super::Area;
+    let names = |area: Area| -> Vec<&str> {
+        COMMANDS
+            .iter()
+            .filter(|command| command.area == area)
+            .map(|command| command.name)
+            .collect()
+    };
+    assert_eq!(
+        names(Area::Environment),
+        ["new-environment", "switch-environment"]
+    );
+    assert_eq!(names(Area::Tabs), ["close-tab", "next-tab", "previous-tab"]);
+    assert_eq!(names(Area::Agents), ["open-approvals"]);
+    assert_eq!(
+        names(Area::Workspace),
+        ["open-workspace", "new-workspace", "close-workspace"]
+    );
+}

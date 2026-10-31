@@ -362,3 +362,265 @@ fn the_palette_key_works_as_soon_as_the_window_opens(cx: &mut TestAppContext) {
         "Ctrl+K opens the palette without a click"
     );
 }
+
+const DEV: &str = "01J00000000000000000000056";
+const STAGING: &str = "01J00000000000000000000057";
+
+/// [`palette_workspace`] with variables: the global `greeting`, the collection's
+/// `api_version`, the environment `dev` with `base_url`, the secret `token` and the disabled
+/// `old`, and the environment `staging` with `other`.
+fn variables_workspace() -> TempDir {
+    let dir = palette_workspace(closed_port());
+    let root = dir.path();
+    write(
+        root,
+        "reqflux.toml",
+        "id = \"01J00000000000000000000900\"\nname = \"Demo\"\nformat = 1\n\n\
+         [[globals]]\nkey = \"greeting\"\nvalue = \"hello\"\n",
+    );
+    write(
+        root,
+        "collections/api/collection.toml",
+        &format!(
+            "id = \"{API}\"\nname = \"API\"\norder = [\"users\", \"health\", \"admin\"]\n\n\
+             [[variables]]\nkey = \"api_version\"\nvalue = \"2026-10-01\"\n"
+        ),
+    );
+    write(
+        root,
+        "environments/dev.env.toml",
+        &format!(
+            "id = \"{DEV}\"\nname = \"dev\"\n\n\
+             [[variables]]\nkey = \"base_url\"\nvalue = \"https://dev.example\"\n\n\
+             [[variables]]\nkey = \"token\"\nsecret = true\n\n\
+             [[variables]]\nkey = \"old\"\nvalue = \"gone\"\nenabled = false\n"
+        ),
+    );
+    write(
+        root,
+        "environments/staging.env.toml",
+        &format!(
+            "id = \"{STAGING}\"\nname = \"staging\"\n\n\
+             [[variables]]\nkey = \"other\"\nvalue = \"o\"\n"
+        ),
+    );
+    dir
+}
+
+fn query(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> String {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .palette
+            .as_ref()
+            .map(|palette| palette.input.read(cx).value().to_string())
+            .unwrap_or_default()
+    })
+}
+
+fn node_label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
+}
+
+fn node_selected(automation: &gpui_mcp::Automation, id: &str) -> Option<bool> {
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.state.selected)
+}
+
+/// The labels of the palette rows, in order.
+fn row_labels(automation: &gpui_mcp::Automation) -> Vec<String> {
+    let tree = automation.snapshot();
+    (1..)
+        .map_while(|n| {
+            tree.nodes
+                .get(&format!("palette-row-{n}"))
+                .and_then(|row| row.label.clone())
+        })
+        .collect()
+}
+
+#[gpui::test]
+fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext) {
+    let dir = variables_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    shell.update(cx, |shell, _| {
+        shell.active_environment = Some("dev".to_owned())
+    });
+    focus_shell(cx, &shell);
+
+    press(cx, "ctrl-k");
+    assert_eq!(
+        node_label(&automation, "palette-tab-all").as_deref(),
+        Some("All 26")
+    );
+    assert_eq!(
+        node_label(&automation, "palette-tab-requests").as_deref(),
+        Some("Requests 3")
+    );
+    assert_eq!(
+        node_label(&automation, "palette-tab-commands").as_deref(),
+        Some("Commands 19")
+    );
+    assert_eq!(
+        node_label(&automation, "palette-tab-variables").as_deref(),
+        Some("Variables 4")
+    );
+    assert_eq!(node_selected(&automation, "palette-tab-all"), Some(true));
+
+    // `>` lists the commands grouped by area; an unavailable one says why.
+    type_query(cx, ">");
+    assert_eq!(
+        node_selected(&automation, "palette-tab-commands"),
+        Some(true)
+    );
+    assert_eq!(node_selected(&automation, "palette-tab-all"), Some(false));
+    assert_eq!(
+        node_label(&automation, "palette-count").as_deref(),
+        Some("19 commands")
+    );
+    present(cx, "palette-group-request");
+    present(cx, "palette-group-workspace");
+    assert_eq!(
+        row_labels(&automation).first().map(String::as_str),
+        Some("Send request Ctrl+Enter")
+    );
+    assert_eq!(
+        node_label(&automation, "palette-row-1-reason").as_deref(),
+        Some("no open request")
+    );
+    assert_eq!(row_labels(&automation).len(), 19);
+
+    // Tab moves to the next scope and rewrites the prefix; Shift+Tab goes back.
+    press(cx, "tab");
+    assert_eq!(query(cx, &shell), "$");
+    assert_eq!(
+        node_selected(&automation, "palette-tab-variables"),
+        Some(true)
+    );
+    press(cx, "shift-tab");
+    assert_eq!(query(cx, &shell), ">");
+    press(cx, "tab");
+    press(cx, "tab");
+    assert_eq!(query(cx, &shell), "", "after Variables comes All");
+    assert!(is_open(cx, &shell));
+
+    // A click on a tab picks its scope and keeps the query.
+    type_query(cx, "get");
+    click(cx, "palette-tab-requests");
+    assert_eq!(query(cx, &shell), "@get");
+    assert_eq!(
+        row_labels(&automation),
+        vec!["GET List users API".to_owned(), "GET Health API".to_owned()]
+    );
+}
+
+#[gpui::test]
+fn variables_list_the_active_environment_first_and_mask_secrets(cx: &mut TestAppContext) {
+    let dir = variables_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    shell.update(cx, |shell, _| {
+        shell.active_environment = Some("dev".to_owned())
+    });
+    focus_shell(cx, &shell);
+
+    press(cx, "ctrl-k");
+    type_query(cx, "$");
+    assert_eq!(
+        row_labels(&automation),
+        vec![
+            "{{base_url}} dev https://dev.example".to_owned(),
+            "{{token}} dev secret".to_owned(),
+            "{{api_version}} API collection 2026-10-01".to_owned(),
+            "{{greeting}} global hello".to_owned(),
+        ],
+        "the active environment first, then the collections and the globals; disabled \
+         variables and other environments are left out"
+    );
+    present(cx, "palette-group-environment");
+    present(cx, "palette-group-global");
+    assert_eq!(
+        node_label(&automation, "palette-row-2-value").as_deref(),
+        Some("secret value hidden")
+    );
+
+    type_query(cx, "gree");
+    assert_eq!(
+        row_labels(&automation),
+        vec!["{{greeting}} global hello".to_owned()]
+    );
+    // A variable row shows its scope's variables.
+    press(cx, "enter");
+    assert!(!is_open(cx, &shell));
+    assert!(
+        cx.update(|_, cx| shell.read(cx).sidebar.read(cx).panel
+            == super::sidebar_history::Panel::Variables)
+    );
+}
+
+#[gpui::test]
+fn no_match_in_a_scope_offers_to_search_everything(cx: &mut TestAppContext) {
+    let dir = variables_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    focus_shell(cx, &shell);
+
+    press(cx, "ctrl-k");
+    type_query(cx, "$health");
+    assert_eq!(
+        node_label(&automation, "palette-empty-title").as_deref(),
+        Some("Nothing matches \u{201c}health\u{201d} in variables")
+    );
+    assert_eq!(
+        node_label(&automation, "palette-count").as_deref(),
+        Some("0 / 2")
+    );
+    assert_eq!(
+        row_labels(&automation),
+        vec!["Search everything for \u{201c}health\u{201d}".to_owned()]
+    );
+    press(cx, "enter");
+    assert!(is_open(cx, &shell));
+    assert_eq!(query(cx, &shell), "health");
+    assert_eq!(row_labels(&automation), vec!["GET Health API".to_owned()]);
+
+    // In All, a query nothing matches has no rows to offer.
+    type_query(cx, "zzzz");
+    assert_eq!(
+        node_label(&automation, "palette-empty-title").as_deref(),
+        Some("Nothing matches \u{201c}healthzzzz\u{201d}")
+    );
+    assert!(row_labels(&automation).is_empty());
+}
+
+#[gpui::test]
+fn an_empty_scope_says_what_it_lists(cx: &mut TestAppContext) {
+    let dir = palette_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    focus_shell(cx, &shell);
+
+    press(cx, "ctrl-k");
+    type_query(cx, "$");
+    assert_eq!(
+        node_label(&automation, "palette-empty-title").as_deref(),
+        Some("No variables")
+    );
+    assert!(row_labels(&automation).is_empty());
+}

@@ -1,32 +1,21 @@
-//! The command palette (command-palette S1-S3): a query field over the window that finds
-//! requests by name, URL or method and runs commands. Up and Down move the highlight, Enter
-//! or a click runs a row, Escape or a click outside closes it and gives the focus back.
+//! The command palette (command-palette S1-S3, design-catch-up T9): a query field over the
+//! window that finds requests, commands and variables. The scope tabs All, Requests `@`,
+//! Commands `>` and Variables `$` follow the query prefix; Tab and Shift+Tab step through
+//! them. Up and Down move the highlight, Enter or a click runs a row, Escape or a click
+//! outside closes it and gives the focus back.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, chrome, cut, space, text};
-use gpui::{
-    AnyElement, AppContext as _, Context, Entity, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Point, Role, Styled, Subscription, Window, anchored, deferred, div, point,
-    prelude::*,
-};
-use gpui_component::input::{Enter, Escape, Input, InputEvent, InputState, MoveDown, MoveUp};
+use gpui::{AppContext as _, Context, Entity, Subscription, Window};
+use gpui_component::input::{InputEvent, InputState};
 
-use super::commands::{COMMANDS, CommandId, command, key_label};
-use super::palette_match::{RequestEntry, requests};
-use super::rows::labeled_row;
+use super::Shell;
+use super::commands::command;
+use super::palette_match::requests;
 use super::sidebar_history::Panel;
-use super::{Shell, region, text as text_role};
-use crate::tokens;
 use crate::workspace::OpenedWorkspace;
+use model::{Listing, PaletteRow, Scope, listing, parse, variables};
 
 /// The placeholder of the query field.
 pub(crate) const PLACEHOLDER: &str = "Search requests or run a command";
-
-/// The most rows the palette lists.
-const MAX_ROWS: usize = 50;
-
-/// The longest row label the automation tree gets; longer ones are cut.
-const MAX_LABEL: usize = 200;
 
 /// The open palette: its query field and the highlighted row, 0-based.
 pub(crate) struct Palette {
@@ -34,15 +23,6 @@ pub(crate) struct Palette {
     pub(crate) highlight: usize,
     /// Resets the highlight when the query changes.
     _change: Subscription,
-}
-
-/// A row of the palette.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum PaletteRow {
-    /// Opens the request.
-    Request(RequestEntry),
-    /// Runs the command.
-    Command(CommandId),
 }
 
 impl Shell {
@@ -78,18 +58,57 @@ impl Shell {
         }
     }
 
-    /// The rows for the palette's current query.
-    pub(crate) fn palette_rows(&self, cx: &gpui::App) -> Vec<PaletteRow> {
-        let query = self
-            .palette
+    /// The palette's current query, prefix included.
+    fn palette_query(&self, cx: &gpui::App) -> String {
+        self.palette
             .as_ref()
             .map(|palette| palette.input.read(cx).value().to_string())
-            .unwrap_or_default();
-        let requests = match &self.workspace {
-            OpenedWorkspace::Loaded(engine) => requests(engine.workspace()),
-            OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => Vec::new(),
+            .unwrap_or_default()
+    }
+
+    /// What the palette lists for its current query.
+    pub(crate) fn palette_listing(&self, cx: &gpui::App) -> Listing {
+        let (requests, groups) = match &self.workspace {
+            OpenedWorkspace::Loaded(engine) => (
+                requests(engine.workspace()),
+                variables(engine.workspace(), self.active_environment.as_deref()),
+            ),
+            OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => (Vec::new(), Vec::new()),
         };
-        rows(&query, requests)
+        listing(&self.palette_query(cx), requests, groups)
+    }
+
+    /// The rows for the palette's current query, as the highlight counts them.
+    pub(crate) fn palette_rows(&self, cx: &gpui::App) -> Vec<PaletteRow> {
+        self.palette_listing(cx).rows()
+    }
+
+    /// Replaces the query with `query`, the caret at its end.
+    fn set_palette_query(&mut self, query: String, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(palette) = self.palette.as_ref() {
+            palette.input.update(cx, |state, cx| {
+                state.set_value(query, window, cx);
+            });
+        }
+        if let Some(palette) = self.palette.as_mut() {
+            palette.highlight = 0;
+        }
+        cx.notify();
+    }
+
+    /// Picks `scope`, keeping the text after the prefix.
+    fn pick_scope(&mut self, scope: Scope, window: &mut Window, cx: &mut Context<Self>) {
+        let query = self.palette_query(cx);
+        let (_, text) = parse(&query);
+        let query = scope.query(text);
+        self.set_palette_query(query, window, cx);
+    }
+
+    /// Tab and Shift+Tab: the next or the previous scope.
+    fn step_scope(&mut self, forward: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let query = self.palette_query(cx);
+        let (scope, _) = parse(&query);
+        self.pick_scope(scope.step(forward), window, cx);
     }
 
     /// Moves the highlight by one row, down or up, staying on the list.
@@ -106,8 +125,9 @@ impl Shell {
     }
 
     /// Runs the 0-based row `index`: a request opens in its tab with the Collections panel
-    /// shown, an enabled command runs. A disabled command does nothing and keeps the
-    /// palette open.
+    /// shown, an enabled command runs, a variable shows the Variables panel and Search
+    /// everything leaves the scope. A disabled command does nothing and keeps the palette
+    /// open.
     fn run_palette_row(&mut self, index: usize, window: &mut Window, cx: &mut Context<Self>) {
         let Some(row) = self.palette_rows(cx).into_iter().nth(index) else {
             return;
@@ -119,207 +139,23 @@ impl Shell {
                 self.open_document(&entry.id, cx);
             }
             PaletteRow::Command(id) => {
-                if !command(id).is_some_and(|command| (command.enabled)(self)) {
+                if !command(id).is_some_and(|command| command.enabled(self)) {
                     return;
                 }
                 self.close_palette(window, cx);
                 self.run_command(id, window, cx);
             }
+            PaletteRow::Variable(_) => {
+                self.close_palette(window, cx);
+                self.show_panel(Panel::Variables, cx);
+            }
+            PaletteRow::SearchEverything(text) => self.set_palette_query(text, window, cx),
         }
     }
 }
 
-/// The rows for `query` over `requests`: every command with an empty query; else the
-/// requests and commands that match, best first, ties in list order.
-pub(crate) fn rows(query: &str, requests: Vec<RequestEntry>) -> Vec<PaletteRow> {
-    if query.trim().is_empty() {
-        return COMMANDS
-            .iter()
-            .map(|command| PaletteRow::Command(command.id))
-            .collect();
-    }
-    let mut scored: Vec<(u32, PaletteRow)> = requests
-        .into_iter()
-        .filter_map(|entry| Some((entry.score(query)?, PaletteRow::Request(entry))))
-        .chain(COMMANDS.iter().filter_map(|command| {
-            let score = super::palette_match::score(query, command.label)?;
-            Some((score, PaletteRow::Command(command.id)))
-        }))
-        .collect();
-    scored.sort_by_key(|(score, _)| std::cmp::Reverse(*score));
-    scored
-        .into_iter()
-        .take(MAX_ROWS)
-        .map(|(_, row)| row)
-        .collect()
-}
+mod metrics;
+pub(crate) mod model;
+mod view;
 
-/// The single-line label the automation tree reads for a row, cut to [`MAX_LABEL`].
-fn row_label(title: &str, detail: &str) -> String {
-    let label = format!("{title} {detail}");
-    let cut: String = label
-        .chars()
-        .filter(|character| !character.is_control())
-        .take(MAX_LABEL)
-        .collect();
-    cut
-}
-
-/// The row `palette-row-<n>`, from 1, of `row`.
-fn render_row(
-    index: usize,
-    row: &PaletteRow,
-    highlighted: bool,
-    shell: &Shell,
-    cx: &mut Context<Shell>,
-) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let (title, detail, enabled) = match row {
-        PaletteRow::Request(entry) => (entry.title(), entry.path.clone(), true),
-        PaletteRow::Command(id) => match command(*id) {
-            Some(command) => (
-                command.label.to_owned(),
-                key_label(command.key),
-                (command.enabled)(shell),
-            ),
-            None => (String::new(), String::new(), false),
-        },
-    };
-    let label = row_label(&title, &detail);
-    text_role::role(
-        labeled_row(format!("palette-row-{}", index + 1), label),
-        text::BODY,
-        cx,
-    )
-    .role(Role::MenuItem)
-    .aria_selected(highlighted)
-    .aria_disabled(!enabled)
-    .flex()
-    .items_center()
-    .gap(space::MD)
-    .h(tokens::ENVIRONMENT_OPTION)
-    .pl(space::MD)
-    .pr(space::MD)
-    .when(highlighted, |row| {
-        row.bg(bolt::accent_washes(cx).selected_item)
-    })
-    .when(enabled, |row| {
-        row.cursor_pointer()
-            .text_color(colors.strong)
-            .hover(|style| style.bg(colors.hover))
-    })
-    .when(!enabled, |row| row.text_color(colors.muted))
-    .child(
-        div()
-            .flex_1()
-            .min_w_0()
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .child(title),
-    )
-    .child(
-        text_role::role(div(), text::CAPTION, cx)
-            .flex_none()
-            .whitespace_nowrap()
-            .child(detail),
-    )
-    .on_click(cx.listener(move |this, _event, window, cx| {
-        this.run_palette_row(index, window, cx);
-    }))
-    .into_any_element()
-}
-
-/// The open palette, centered under the title bar over a backdrop the size of the window
-/// that closes it on a click outside.
-pub(super) fn render(
-    shell: &Shell,
-    window: &Window,
-    cx: &mut Context<Shell>,
-) -> Option<AnyElement> {
-    let palette = shell.palette.as_ref()?;
-    let highlight = palette.highlight;
-    let mut rows: Vec<AnyElement> = Vec::new();
-    for (index, row) in shell.palette_rows(cx).iter().enumerate() {
-        rows.push(render_row(index, row, index == highlight, shell, cx));
-    }
-    let colors = bolt::colors(cx);
-    let field = region("palette-input")
-        .role(Role::TextInput)
-        .flex_none()
-        .h(chrome::CONTROL)
-        .flex()
-        .items_center()
-        .pl(space::MD)
-        .pr(space::MD)
-        .child(
-            Input::new(&palette.input)
-                .appearance(false)
-                .bordered(false)
-                .flex_1()
-                .min_w_0()
-                .text_color(colors.strong),
-        );
-    let panel = region("palette")
-        .role(Role::Dialog)
-        .occlude()
-        .relative()
-        .w(tokens::PALETTE_WIDTH)
-        .py(space::HALF)
-        .flex()
-        .flex_col()
-        .child(
-            Chamfer::new(cut::OVERLAY)
-                .fill(colors.raised)
-                .edge(colors.line_2, border::THIN),
-        )
-        .capture_action(cx.listener(|this, _: &MoveUp, _, cx| {
-            cx.stop_propagation();
-            this.step_palette(false, cx);
-        }))
-        .capture_action(cx.listener(|this, _: &MoveDown, _, cx| {
-            cx.stop_propagation();
-            this.step_palette(true, cx);
-        }))
-        .on_action(cx.listener(|this, _: &Enter, window, cx| {
-            let index = this.palette.as_ref().map_or(0, |palette| palette.highlight);
-            this.run_palette_row(index, window, cx);
-        }))
-        .on_action(cx.listener(|this, _: &Escape, window, cx| {
-            this.cancel_active(window, cx);
-        }))
-        .child(field)
-        .child(
-            region("palette-rows")
-                .flex()
-                .flex_col()
-                .max_h(tokens::PALETTE_LIST_HEIGHT)
-                .overflow_y_scroll()
-                .children(rows),
-        );
-    let viewport = window.viewport_size();
-    let left = ((viewport.width - tokens::PALETTE_WIDTH) / 2.).max(gpui::Pixels::ZERO);
-    let backdrop = region("palette-backdrop")
-        .occlude()
-        .w(viewport.width)
-        .h(viewport.height)
-        .on_mouse_down(
-            MouseButton::Left,
-            cx.listener(|this, _event, window, cx| this.close_palette(window, cx)),
-        );
-    Some(
-        div()
-            .absolute()
-            .top_0()
-            .left_0()
-            .child(deferred(anchored().position(Point::default()).child(backdrop)).with_priority(3))
-            .child(
-                deferred(
-                    anchored()
-                        .position(point(left, chrome::TITLE_BAR))
-                        .child(panel),
-                )
-                .with_priority(4),
-            )
-            .into_any_element(),
-    )
-}
+pub(super) use view::render;

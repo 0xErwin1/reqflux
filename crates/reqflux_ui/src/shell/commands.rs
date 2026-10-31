@@ -1,5 +1,6 @@
 //! The window's commands (command-palette S4, S5): one registry the palette lists, the
-//! keymap binds and the coverage test checks, so the three cannot drift.
+//! keymap binds and the coverage test checks, so the three cannot drift. Each command has
+//! an area the palette groups it under and, when it cannot run, a reason the palette shows.
 //!
 //! Every command has an action bound to its default key in its key context. A key runs the
 //! command when it can run now; the palette lists it dimmed and inert when it cannot.
@@ -26,14 +27,60 @@ pub(crate) struct Command {
     pub(crate) key: &'static str,
     /// The key context the key is bound in.
     pub(crate) context: &'static str,
+    /// The area the palette groups the command under.
+    pub(crate) area: Area,
+    /// Whether the command can run now; else why not, as the palette shows it.
+    pub(crate) available: fn(&Shell) -> Result<(), &'static str>,
+}
+
+/// The area of a command, which the palette's Commands scope groups by, in this order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum Area {
+    Request,
+    Tabs,
+    Environment,
+    View,
+    Agents,
+    Workspace,
+}
+
+impl Area {
+    /// The group header of the area.
+    pub(crate) fn title(self) -> &'static str {
+        match self {
+            Self::Request => "Request",
+            Self::Tabs => "Tabs",
+            Self::Environment => "Environment",
+            Self::View => "View",
+            Self::Agents => "Agents",
+            Self::Workspace => "Workspace",
+        }
+    }
+
+    /// The element id suffix of the area's group header.
+    pub(crate) fn slug(self) -> &'static str {
+        match self {
+            Self::Request => "request",
+            Self::Tabs => "tabs",
+            Self::Environment => "environment",
+            Self::View => "view",
+            Self::Agents => "agents",
+            Self::Workspace => "workspace",
+        }
+    }
+}
+
+impl Command {
     /// Whether the command can run now.
-    pub(crate) enabled: fn(&Shell) -> bool,
+    pub(crate) fn enabled(&self, shell: &Shell) -> bool {
+        (self.available)(shell).is_ok()
+    }
 }
 
 /// Generates the command actions, [`CommandId`], [`COMMANDS`], their key bindings and the
 /// shell's action handlers from one list.
 macro_rules! commands {
-    ($($variant:ident: $action:ident, $name:literal, $label:literal, $key:literal, $enabled:path;)*) => {
+    ($($variant:ident: $action:ident, $name:literal, $label:literal, $key:literal, $area:ident, $available:path;)*) => {
         actions!(shell, [$(
             #[doc = concat!("Runs the `", $name, "` command.")]
             $action,
@@ -52,7 +99,8 @@ macro_rules! commands {
             label: $label,
             key: $key,
             context: SHELL_CONTEXT,
-            enabled: $enabled,
+            area: Area::$area,
+            available: $available,
         },)*];
 
         /// Binds the default key of every command in its context, as [`COMMANDS`] has them.
@@ -74,25 +122,25 @@ macro_rules! commands {
 }
 
 commands! {
-    SendRequest: SendRequest, "send-request", "Send request", "ctrl-enter", has_request;
-    CancelSend: CancelRequest, "cancel-send", "Cancel send", "escape", has_request;
-    SaveRequest: SaveRequest, "save-request", "Save request", "ctrl-s", has_draft;
-    RevertRequest: RevertRequest, "revert-request", "Revert request", "ctrl-shift-r", has_draft;
-    NewRequest: NewRequest, "new-request", "New request", "ctrl-n", has_collection;
-    NewCollection: NewCollection, "new-collection", "New collection", "ctrl-shift-n", loaded;
-    NewEnvironment: NewEnvironment, "new-environment", "New environment", "ctrl-shift-e", loaded;
-    SwitchEnvironment: SwitchEnvironment, "switch-environment", "Switch environment", "ctrl-e", loaded;
-    OpenWorkspace: OpenWorkspace, "open-workspace", "Open workspace", "ctrl-o", always;
-    NewWorkspace: NewWorkspace, "new-workspace", "New workspace", "ctrl-shift-o", always;
-    CloseWorkspace: CloseWorkspace, "close-workspace", "Close workspace", "ctrl-shift-w", loaded;
-    CloseTab: CloseTab, "close-tab", "Close tab", "ctrl-w", has_request;
-    NextTab: NextTab, "next-tab", "Next tab", "ctrl-tab", has_request;
-    PreviousTab: PreviousTab, "previous-tab", "Previous tab", "ctrl-shift-tab", has_request;
-    ShowCollections: ShowCollections, "show-collections", "Show Collections", "ctrl-1", loaded;
-    ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", loaded;
-    ShowVariables: ShowVariables, "show-variables", "Show Variables", "ctrl-3", loaded;
-    ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", always;
-    OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", always;
+    SendRequest: SendRequest, "send-request", "Send request", "ctrl-enter", Request, has_request;
+    CancelSend: CancelRequest, "cancel-send", "Cancel send", "escape", Request, has_request;
+    SaveRequest: SaveRequest, "save-request", "Save request", "ctrl-s", Request, has_draft;
+    RevertRequest: RevertRequest, "revert-request", "Revert request", "ctrl-shift-r", Request, has_draft;
+    NewRequest: NewRequest, "new-request", "New request", "ctrl-n", Request, has_collection;
+    NewCollection: NewCollection, "new-collection", "New collection", "ctrl-shift-n", Request, loaded;
+    NewEnvironment: NewEnvironment, "new-environment", "New environment", "ctrl-shift-e", Environment, loaded;
+    SwitchEnvironment: SwitchEnvironment, "switch-environment", "Switch environment", "ctrl-e", Environment, loaded;
+    OpenWorkspace: OpenWorkspace, "open-workspace", "Open workspace", "ctrl-o", Workspace, always;
+    NewWorkspace: NewWorkspace, "new-workspace", "New workspace", "ctrl-shift-o", Workspace, always;
+    CloseWorkspace: CloseWorkspace, "close-workspace", "Close workspace", "ctrl-shift-w", Workspace, loaded;
+    CloseTab: CloseTab, "close-tab", "Close tab", "ctrl-w", Tabs, has_request;
+    NextTab: NextTab, "next-tab", "Next tab", "ctrl-tab", Tabs, has_request;
+    PreviousTab: PreviousTab, "previous-tab", "Previous tab", "ctrl-shift-tab", Tabs, has_request;
+    ShowCollections: ShowCollections, "show-collections", "Show Collections", "ctrl-1", View, loaded;
+    ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", View, loaded;
+    ShowVariables: ShowVariables, "show-variables", "Show Variables", "ctrl-3", View, loaded;
+    ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", View, always;
+    OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", Agents, always;
 }
 
 actions!(
@@ -136,27 +184,45 @@ pub(crate) fn key_label(key: &str) -> String {
         .join("+")
 }
 
-fn always(_: &Shell) -> bool {
-    true
+fn always(_: &Shell) -> Result<(), &'static str> {
+    Ok(())
 }
 
-fn loaded(shell: &Shell) -> bool {
-    matches!(shell.workspace, OpenedWorkspace::Loaded(_))
+fn loaded(shell: &Shell) -> Result<(), &'static str> {
+    match shell.workspace {
+        OpenedWorkspace::Loaded(_) => Ok(()),
+        OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => Err("no workspace open"),
+    }
 }
 
-fn has_collection(shell: &Shell) -> bool {
-    loaded(shell) && !shell.roots.is_empty()
+fn has_collection(shell: &Shell) -> Result<(), &'static str> {
+    loaded(shell)?;
+    if shell.roots.is_empty() {
+        Err("no collection")
+    } else {
+        Ok(())
+    }
 }
 
-fn has_request(shell: &Shell) -> bool {
-    shell.documents.active().is_some()
-}
-
-fn has_draft(shell: &Shell) -> bool {
+fn has_request(shell: &Shell) -> Result<(), &'static str> {
     shell
         .documents
         .active()
+        .map(|_| ())
+        .ok_or("no open request")
+}
+
+fn has_draft(shell: &Shell) -> Result<(), &'static str> {
+    has_request(shell)?;
+    if shell
+        .documents
+        .active()
         .is_some_and(|id| shell.drafts.contains_key(id))
+    {
+        Ok(())
+    } else {
+        Err("no unsaved changes")
+    }
 }
 
 impl Shell {
@@ -166,7 +232,7 @@ impl Shell {
         let Some(command) = command(id) else {
             return;
         };
-        if (command.enabled)(self) || id == CommandId::CancelSend {
+        if command.enabled(self) || id == CommandId::CancelSend {
             log::debug!("running {} from its key", command.name);
             self.run_command(id, window, cx);
         }
