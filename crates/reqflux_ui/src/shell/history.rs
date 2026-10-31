@@ -1,11 +1,16 @@
 //! Send history in the window (history S6-S8): recording every completed or failed send in
-//! the app state, the History panel rows, reopening an entry and Resend.
+//! the app state, the History panel rows, the history tab and Resend
+//! (design/history/01-sidebar-readonly-tab).
 //!
 //! Recording and reading go through `reqflux_engine::state`; the window never writes the
-//! table itself. Reopening an entry never touches the request or its draft: it shows the
-//! recorded response in the response pane of the request's tab, labelled
-//! `From history · <time>`. An entry whose request no longer exists opens in a read-only
-//! view of the document island instead (see [`Orphan`]), where Resend is disabled.
+//! table itself. Opening an entry never touches the request or its draft: it opens the one
+//! read-only history tab (see [`HistoryTab`]) with the recorded request and response. Resend
+//! sends the recorded document again in the request's own tab; it is disabled when the
+//! request no longer exists, because the engine prepares a document only in the place of a
+//! stored request.
+
+mod clock;
+mod view;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -15,13 +20,17 @@ use reqflux_engine::state::{HistoryEntry, HistoryOutcome, HistoryRecord, Recorde
 use reqflux_engine::{Response, ScriptOutcome, SentRequest};
 
 use super::Shell;
-use super::last_request::path_of;
 use super::request::{Completed, Failure, Received};
 use super::send::RequestSend;
 use super::sidebar_history::{HistoryRow, Panel};
 
+pub(super) use view::{render as render_tab, tab_chip};
+
 /// How many entries the History panel lists.
 const PANEL_LIMIT: usize = 200;
+
+/// The note beside a disabled Resend.
+pub(crate) const RESEND_NOTE: &str = "Resend needs the request to exist";
 
 /// What a send records besides its outcome, captured when it starts.
 #[derive(Debug, Clone)]
@@ -34,39 +43,53 @@ pub(crate) struct Pending {
     pub(crate) document: String,
 }
 
-/// A recorded response shown in the response pane, reopened from history.
+/// The recorded response of the history tab, as its send carries it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Reopened {
-    /// When the request was sent, in milliseconds since the Unix epoch.
-    pub(crate) sent_at: i64,
     /// The request document that was sent, as TOML; what Resend sends again.
     pub(crate) document: String,
     /// Whether Resend can run: the request still exists.
     pub(crate) resendable: bool,
 }
 
-impl Reopened {
-    /// `From history · <time ago>`.
-    pub(crate) fn label(&self) -> String {
-        format!("From history · {}", time_ago(self.sent_at, now_millis()))
-    }
+/// The Params, Headers and Body views of the recorded request.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum RecordedTab {
+    Params,
+    #[default]
+    Headers,
+    Body,
 }
 
-/// A history entry whose request no longer exists, shown read-only in the document island
-/// over every tab; opening or activating a request leaves it. Its response lives in the
-/// shell's sends under the deleted request's id, so the response sub-tabs work as usual.
+/// The history tab: one recorded send, read only, in a document tab of its own beside the
+/// request tabs. Activating a request tab leaves it in the row; its close button drops it.
+/// Its response lives in the shell's sends under [`HistoryTab::key`], so the response
+/// sub-tabs work as usual.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Orphan {
+pub(crate) struct HistoryTab {
+    /// The id of the history entry.
+    pub(crate) entry: i64,
     pub(crate) request_id: String,
+    /// The request's name when it was sent.
     pub(crate) name: String,
-    pub(crate) method: String,
-    pub(crate) url: String,
+    /// The request as sent, secrets masked.
+    pub(crate) sent: SentRequest,
+    /// The local `HH:MM` the tab shows.
+    pub(crate) time: String,
+    /// The local day and `HH:MM:SS` the banner shows.
+    pub(crate) moment: String,
+    /// Whether the request still exists, so Open source request and Resend can run.
+    pub(crate) source_exists: bool,
+    /// The selected view of the recorded request.
+    pub(crate) tab: RecordedTab,
+    /// Whether the tab is the active document.
+    pub(crate) active: bool,
 }
 
-impl Orphan {
-    /// `METHOD url`, as recorded.
-    pub(crate) fn request_line(&self) -> String {
-        format!("{} {}", self.method, self.url)
+impl HistoryTab {
+    /// The key of its send in the shell's sends, apart from every request id.
+    pub(crate) fn key(&self) -> String {
+        format!("history-{}", self.entry)
     }
 }
 
@@ -79,29 +102,24 @@ pub(crate) fn now_millis() -> i64 {
         })
 }
 
-/// `just now` under a minute, else `<n> min ago`, `<n> h ago` or `<n> d ago`.
-pub(crate) fn time_ago(then: i64, now: i64) -> String {
-    let seconds = now.saturating_sub(then).max(0) / 1000;
-    match seconds {
-        0..60 => "just now".to_owned(),
-        60..3600 => format!("{} min ago", seconds / 60),
-        3600..86_400 => format!("{} h ago", seconds / 3600),
-        _ => format!("{} d ago", seconds / 86_400),
+/// The History panel row of `entry` seen at `now`, in the local time zone.
+fn row_of(entry: &HistoryEntry, now: i64, deleted: bool, selected: bool) -> HistoryRow {
+    let record = &entry.record;
+    let (day, time) = clock::day_and_time(record.sent_at, now, clock::local_offset(now));
+    HistoryRow {
+        entry: entry.id,
+        method: record.sent.method.clone(),
+        name: record.request_name.clone(),
+        url: record.sent.url.clone(),
+        status: match &record.outcome {
+            HistoryOutcome::Response(response) => Some(response.status),
+            HistoryOutcome::Failed { .. } => None,
+        },
+        day,
+        time,
+        deleted,
+        selected,
     }
-}
-
-/// `METHOD path · status · time ago`, or `failed` in place of the status.
-pub(crate) fn row_text(record: &HistoryRecord, now: i64) -> String {
-    let status = match &record.outcome {
-        HistoryOutcome::Response(response) => response.status.to_string(),
-        HistoryOutcome::Failed { .. } => "failed".to_owned(),
-    };
-    format!(
-        "{} {} · {status} · {}",
-        record.sent.method,
-        path_of(&record.sent.url),
-        time_ago(record.sent_at, now)
-    )
 }
 
 /// The slug path (`collection/folder/request`) and the saved document of the request `id`.
@@ -217,11 +235,13 @@ impl Shell {
             }
         };
         let now = now_millis();
+        let open = self.orphan.as_ref().map(|tab| tab.entry);
         let rows = entries
             .iter()
-            .map(|entry| HistoryRow {
-                entry: entry.id,
-                text: row_text(&entry.record, now),
+            .map(|entry| {
+                let deleted =
+                    super::documents::locate(&self.roots, &entry.record.request_id).is_none();
+                row_of(entry, now, deleted, open == Some(entry.id))
             })
             .collect();
         self.sidebar
@@ -242,9 +262,8 @@ impl Shell {
         cx.notify();
     }
 
-    /// Opens the history entry `entry`: the request's tab with the recorded response, or the
-    /// read-only view when the request no longer exists. The request and its draft are
-    /// untouched; a send in flight of the request is replaced.
+    /// Opens the history entry `entry` in the history tab, replacing the entry it showed, and
+    /// activates it. The request, its tab and its draft are untouched.
     pub(super) fn open_history_entry(&mut self, entry: i64, cx: &mut Context<Self>) {
         let Some(state) = self.state.as_ref() else {
             return;
@@ -259,67 +278,133 @@ impl Shell {
         };
         let id = entry.record.request_id.clone();
         let exists = super::documents::locate(&self.roots, &id).is_some();
-        self.close_orphan();
+        self.leave_approvals(cx);
+        self.drop_history_tab();
+        let now = now_millis();
+        let offset = clock::local_offset(now);
+        let (day, time) = clock::day_and_time(entry.record.sent_at, now, offset);
+        let tab = HistoryTab {
+            entry: entry.id,
+            request_id: id,
+            name: entry.record.request_name.clone(),
+            sent: entry.record.sent.clone(),
+            time,
+            moment: format!("{day} {}", clock::seconds(entry.record.sent_at, offset)),
+            source_exists: exists,
+            tab: RecordedTab::default(),
+            active: true,
+        };
         let send = RequestSend::reopened(
             completed_of(&entry),
             Reopened {
-                sent_at: entry.record.sent_at,
                 document: entry.record.document.clone(),
                 resendable: exists,
             },
         );
-        if exists {
-            self.open_document(&id, cx);
-        } else {
-            self.orphan = Some(Orphan {
-                request_id: id.clone(),
-                name: entry.record.request_name.clone(),
-                method: entry.record.sent.method.clone(),
-                url: entry.record.sent.url.clone(),
-            });
-        }
-        self.sends.insert(id, send);
+        self.sends.insert(tab.key(), send);
+        self.orphan = Some(tab);
+        self.auth_menu_open = false;
+        self.body_menu_open = false;
+        self.method_menu_open = false;
+        self.refresh_history(cx);
         cx.notify();
     }
 
-    /// Leaves the read-only view of a deleted request's entry, dropping its response.
-    pub(super) fn close_orphan(&mut self) {
-        if let Some(orphan) = self.orphan.take()
-            && !self.documents.open_ids().contains(&orphan.request_id)
-        {
-            self.sends.remove(&orphan.request_id);
+    /// Whether the history tab is the active document.
+    pub(super) fn history_tab_active(&self) -> bool {
+        self.orphan.as_ref().is_some_and(|tab| tab.active)
+    }
+
+    /// The id of the active request tab; `None` while the history tab is active.
+    pub(super) fn active_request(&self) -> Option<&str> {
+        if self.history_tab_active() {
+            None
+        } else {
+            self.documents.active()
         }
     }
 
-    /// Resend: sends the recorded document of the request `id`'s reopened entry again
-    /// through the engine's draft path, without touching its draft or file. Does nothing
-    /// when the request no longer exists.
-    pub(super) fn resend(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(reopened) = self.sends.get(id).and_then(|send| send.history.clone()) else {
+    /// Leaves the history tab in the row, inactive, as activating a request does.
+    pub(super) fn leave_history_tab(&mut self) {
+        if let Some(tab) = self.orphan.as_mut() {
+            tab.active = false;
+        }
+    }
+
+    /// Activates the history tab.
+    pub(super) fn activate_history_tab(&mut self, cx: &mut Context<Self>) {
+        self.leave_approvals(cx);
+        if let Some(tab) = self.orphan.as_mut() {
+            tab.active = true;
+        }
+        cx.notify();
+    }
+
+    /// Closes the history tab; the request tab that was active before shows again.
+    pub(super) fn close_history_tab(&mut self, cx: &mut Context<Self>) {
+        self.drop_history_tab();
+        self.refresh_history(cx);
+        cx.notify();
+    }
+
+    fn drop_history_tab(&mut self) {
+        if let Some(tab) = self.orphan.take() {
+            self.sends.remove(&tab.key());
+        }
+    }
+
+    /// Selects the view `tab` of the recorded request.
+    pub(super) fn select_recorded_tab(&mut self, tab: RecordedTab, cx: &mut Context<Self>) {
+        if let Some(history) = self.orphan.as_mut() {
+            history.tab = tab;
+            cx.notify();
+        }
+    }
+
+    /// Whether Resend can run in the history tab: it is active and its request exists.
+    pub(super) fn can_resend(&self) -> Result<(), &'static str> {
+        match &self.orphan {
+            Some(tab) if tab.active && tab.source_exists => Ok(()),
+            Some(tab) if tab.active => Err(RESEND_NOTE),
+            _ => Err("no recorded request is open"),
+        }
+    }
+
+    /// Open source request: opens the request of the history tab in its own tab.
+    pub(super) fn open_history_source(&mut self, cx: &mut Context<Self>) {
+        let Some(id) = self
+            .orphan
+            .as_ref()
+            .filter(|tab| tab.source_exists)
+            .map(|tab| tab.request_id.clone())
+        else {
             return;
         };
-        if !reopened.resendable {
+        self.open_document(&id, cx);
+    }
+
+    /// Resend: opens the request of the history tab and sends the recorded document again in
+    /// its tab through the engine's draft path, without touching its draft or file. Does
+    /// nothing when the request no longer exists.
+    pub(super) fn resend_history(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.orphan.as_ref().filter(|tab| tab.source_exists) else {
             return;
-        }
+        };
+        let id = tab.request_id.clone();
+        let Some(reopened) = self
+            .sends
+            .get(&tab.key())
+            .and_then(|send| send.history.clone())
+            .filter(|reopened| reopened.resendable)
+        else {
+            return;
+        };
         match toml::from_str::<Request>(&reopened.document) {
-            Ok(request) => self.send_document(id, Some(request), window, cx),
+            Ok(request) => {
+                self.open_document(&id, cx);
+                self.send_document(&id, Some(request), window, cx);
+            }
             Err(error) => log::warn!("the recorded document of {id} did not parse: {error}"),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::time_ago;
-
-    #[test]
-    fn time_ago_rounds_down_to_the_largest_unit() {
-        let minute = 60_000;
-        assert_eq!(time_ago(0, 59_999), "just now");
-        assert_eq!(time_ago(5, 0), "just now");
-        assert_eq!(time_ago(0, minute), "1 min ago");
-        assert_eq!(time_ago(0, 59 * minute), "59 min ago");
-        assert_eq!(time_ago(0, 60 * minute), "1 h ago");
-        assert_eq!(time_ago(0, 24 * 60 * minute), "1 d ago");
     }
 }

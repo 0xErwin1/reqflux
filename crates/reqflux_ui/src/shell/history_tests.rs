@@ -1,6 +1,7 @@
 //! Send history in the window (history S6-S8): every completed or failed send is recorded
-//! in the app state, the rail's History button lists it in the sidebar island, a row
-//! reopens its recorded response, and Resend sends the recorded document again.
+//! in the app state, the rail's History button lists it in the sidebar island grouped by
+//! day, a row opens the read-only history tab with its recorded request and response, and
+//! Resend sends the recorded document again (design/history/01-sidebar-readonly-tab).
 
 use std::io::{Read, Write};
 use std::net::TcpListener;
@@ -14,7 +15,7 @@ use tempfile::TempDir;
 
 use super::Shell;
 use super::draft_tests::{bounds, click, present, render, state_file};
-use super::send_tests::{Server, closed_port, response, serve, settle};
+use super::send_tests::{Server, closed_port, serve, settle};
 use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::{demo_workspace, write};
 
@@ -77,7 +78,7 @@ fn send(cx: &mut VisualTestContext, shell: &Entity<Shell>, id: &str) -> Option<S
     settle(cx, shell, id)
 }
 
-/// The texts of the History panel rows, top first.
+/// The texts of the History panel rows, top first: `METHOD name · status`.
 fn rows(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Vec<String> {
     cx.update(|_, cx| {
         let sidebar = shell.read(cx).sidebar.clone();
@@ -89,16 +90,35 @@ fn no_drafts(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
     cx.update(|_, cx| shell.read(cx).drafts.is_empty())
 }
 
-/// The text of the history label of the response, if it shows one.
-fn history_label(cx: &mut VisualTestContext, shell: &Entity<Shell>, id: &str) -> Option<String> {
+/// The accessible label of the element `selector`, which must be on screen.
+fn label(cx: &mut VisualTestContext, selector: &str) -> String {
+    present(cx, selector);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(selector)
+        .and_then(|node| node.label.clone())
+        .unwrap_or_default()
+}
+
+/// The id of the active request tab, `None` while the history tab is active or none is.
+fn active_request(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
     cx.update(|_, cx| {
-        shell
-            .read(cx)
-            .sends
-            .get(id)
-            .and_then(|send| send.history.as_ref())
-            .map(super::history::Reopened::label)
+        let shell = shell.read(cx);
+        shell.active_request().map(str::to_owned)
     })
+}
+
+/// Opens the History panel and the history tab of its top row.
+fn open_top_row(cx: &mut VisualTestContext) {
+    click(cx, "rail-history");
+    click(cx, "history-row-1");
 }
 
 #[gpui::test]
@@ -153,7 +173,8 @@ fn a_failed_send_is_recorded_as_failed(cx: &mut TestAppContext) {
         "{entries:?}"
     );
     click(cx, "rail-history");
-    assert_eq!(rows(cx, &shell), vec!["POST /other · failed · just now"]);
+    assert_eq!(rows(cx, &shell), vec!["POST Other · failed"]);
+    assert_eq!(label(cx, "history-row-1-status"), "failed");
 }
 
 #[gpui::test]
@@ -219,13 +240,21 @@ fn the_history_panel_lists_newest_first_and_collections_returns(cx: &mut TestApp
     assert!(bounds(cx, "history-empty").is_none());
     assert_eq!(
         rows(cx, &shell),
-        vec![
-            "POST /other · 200 · just now".to_owned(),
-            "GET /ping · 200 · just now".to_owned(),
-        ]
+        vec!["POST Other · 200".to_owned(), "GET Ping · 200".to_owned()]
     );
-    present(cx, "history-row-1");
-    present(cx, "history-row-2");
+    // One day group with its count, then the rows' method, name, time and status.
+    assert_eq!(label(cx, "history-group-1"), "Today");
+    assert_eq!(label(cx, "history-group-1-count"), "2");
+    assert!(bounds(cx, "history-group-2").is_none());
+    assert_eq!(label(cx, "history-row-1-method"), "POST");
+    assert_eq!(label(cx, "history-row-1-name"), "Other");
+    assert_eq!(label(cx, "history-row-1-status"), "200");
+    let time = label(cx, "history-row-1-time");
+    assert!(
+        time.len() == 5 && time.as_bytes().get(2) == Some(&b':'),
+        "HH:MM, got {time}"
+    );
+    assert_eq!(label(cx, "history-row-2-name"), "Ping");
 
     click(cx, "rail-collections");
     assert!(cx.update(|_, cx| !shell.read(cx).sidebar.read(cx).showing_history()));
@@ -241,33 +270,149 @@ fn the_panel_refreshes_when_a_send_is_recorded(cx: &mut TestAppContext) {
     click(cx, "rail-history");
     click(cx, "request-send");
     assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
-    assert_eq!(rows(cx, &shell), vec!["GET /ping · 200 · just now"]);
+    assert_eq!(rows(cx, &shell), vec!["GET Ping · 200"]);
 }
 
 #[gpui::test]
-fn a_row_reopens_the_recorded_response_and_leaves_no_draft(cx: &mut TestAppContext) {
+fn the_empty_panel_explains_history(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    click(cx, "rail-history");
+    assert_eq!(label(cx, "history-empty-title"), "No requests sent yet");
+    assert_eq!(
+        label(cx, "history-empty-text"),
+        "Every send is recorded here with its response, grouped by day. Secrets are never stored."
+    );
+    assert_eq!(label(cx, "history-empty-hint"), "Send the open request");
+    present(cx, "history-empty-hint-keycap");
+    assert!(
+        bounds(cx, "history-filter").is_none(),
+        "no filter without rows"
+    );
+}
+
+#[gpui::test]
+fn the_filter_narrows_the_rows_by_name_url_or_status(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    assert_eq!(send(cx, &shell, OTHER).as_deref(), Some("200 OK"));
+    click(cx, "rail-history");
+
+    click(cx, "history-filter");
+    cx.simulate_input("/pi");
+    cx.run_until_parked();
+    assert_eq!(label(cx, "history-row-1-name"), "Ping");
+    assert!(
+        bounds(cx, "history-row-2").is_none(),
+        "Other is filtered out"
+    );
+    assert_eq!(label(cx, "history-group-1-count"), "1");
+
+    cx.simulate_keystrokes("ctrl-a backspace");
+    cx.simulate_input("oth");
+    cx.run_until_parked();
+    assert_eq!(label(cx, "history-row-1-name"), "Other");
+    assert!(bounds(cx, "history-row-2").is_none());
+
+    cx.simulate_keystrokes("ctrl-a backspace");
+    cx.simulate_input("404");
+    cx.run_until_parked();
+    assert!(bounds(cx, "history-row-1").is_none());
+    assert_eq!(label(cx, "history-no-match"), "No sends match the filter");
+
+    // The panel keeps every row; only the view is filtered.
+    assert_eq!(rows(cx, &shell).len(), 2);
+}
+
+#[gpui::test]
+fn a_row_opens_the_read_only_history_tab(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, "rail-history");
+    click(cx, "history-row-1");
+
+    // The history tab is active beside the request's own tab.
+    assert_eq!(label(cx, "doc-tab-history"), "GET Ping");
+    present(cx, "doc-tab-history-time");
+    present(cx, &format!("doc-tab-{PING}"));
+    assert_eq!(active_request(cx, &shell), None);
+    assert!(
+        bounds(cx, "request-send").is_none(),
+        "no editable request line"
+    );
+
+    // The banner, the recorded request line and its response.
+    assert_eq!(
+        label(cx, "history-banner-title"),
+        "Recorded request, read only"
+    );
+    present(cx, "history-banner-meta");
+    present(cx, "history-open-source");
+    assert_eq!(label(cx, "history-resend"), "Resend");
+    present(cx, "history-resend-keycap");
+    assert!(bounds(cx, "history-resend-disabled").is_none());
+    assert_eq!(label(cx, "history-method"), "GET");
+    assert!(label(cx, "history-url").ends_with("/ping"));
+    present(cx, "response-status");
+    assert!(bounds(cx, "response-history-label").is_none());
+    assert!(no_drafts(cx, &shell), "opening history makes no draft");
+
+    // The recorded headers, with the secret as history masked it.
+    click(cx, "history-tab-headers");
+    assert_eq!(
+        label(cx, "history-tabs-note"),
+        "Values as sent; variables already resolved"
+    );
+    let mut headers = Vec::new();
+    for n in 1..=8 {
+        let id = format!("history-grid-key-{n}");
+        if bounds(cx, &id).is_none() {
+            break;
+        }
+        headers.push(label(cx, &id));
+    }
+    let Some(n) = headers
+        .iter()
+        .position(|key| key.eq_ignore_ascii_case("authorization"))
+    else {
+        panic!("no Authorization row in {headers:?}");
+    };
+    let value = label(cx, &format!("history-grid-value-{}", n + 1));
+    assert_eq!(value, format!("Bearer {MASK}"));
+    assert!(!value.contains(TOKEN));
+
+    // Activating the request tab leaves the history tab in the row; closing it removes it.
+    click(cx, &format!("doc-tab-{PING}"));
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+    present(cx, "request-send");
+    present(cx, "doc-tab-history");
+    click(cx, "doc-tab-history");
+    present(cx, "history-banner");
+    click(cx, "doc-tab-history-close");
+    assert!(bounds(cx, "doc-tab-history").is_none());
+    assert!(bounds(cx, "history-banner").is_none());
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+}
+
+#[gpui::test]
+fn open_source_request_opens_its_tab(cx: &mut TestAppContext) {
     let dir = history_workspace(serve(Server::Ok));
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
     assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
     click(cx, &format!("doc-tab-close-{PING}"));
+    open_top_row(cx);
     assert!(bounds(cx, &format!("doc-tab-{PING}")).is_none());
 
-    click(cx, "rail-history");
-    click(cx, "history-row-1");
-    present(cx, &format!("doc-tab-{PING}"));
-    present(cx, "response-history-label");
-    present(cx, "history-resend");
-    assert_eq!(response(cx, &shell, PING).as_deref(), Some("200 OK"));
-    let label = history_label(cx, &shell, PING).unwrap_or_default();
-    assert!(label.starts_with("From history · "), "{label}");
-    assert!(no_drafts(cx, &shell), "reopening makes no draft");
-
-    // A normal send replaces the history view.
-    click(cx, "request-send");
-    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
-    assert!(bounds(cx, "response-history-label").is_none());
-    assert_eq!(history(cx, &shell).len(), 2);
+    click(cx, "history-open-source");
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+    present(cx, "request-send");
+    present(cx, "doc-tab-history");
 }
 
 #[gpui::test]
@@ -276,17 +421,40 @@ fn resend_records_a_new_entry_and_shows_its_response(cx: &mut TestAppContext) {
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
     assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
-    click(cx, "rail-history");
-    click(cx, "history-row-1");
+    open_top_row(cx);
 
     click(cx, "history-resend");
     assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
-    assert!(bounds(cx, "response-history-label").is_none());
-    assert!(history_label(cx, &shell, PING).is_none());
-    let entries = history(cx, &shell);
-    assert_eq!(entries.len(), 2);
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+    assert_eq!(history(cx, &shell).len(), 2);
     assert!(no_drafts(cx, &shell), "resending makes no draft");
     assert_eq!(rows(cx, &shell).len(), 2);
+}
+
+#[gpui::test]
+fn ctrl_enter_in_the_history_tab_resends(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, &format!("doc-tab-close-{PING}"));
+    open_top_row(cx);
+
+    cx.simulate_keystrokes("ctrl-enter");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+    assert_eq!(history(cx, &shell).len(), 2);
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+}
+
+#[gpui::test]
+fn ctrl_enter_in_a_request_tab_still_sends_it(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{OTHER}"));
+    cx.simulate_keystrokes("ctrl-enter");
+    assert_eq!(settle(cx, &shell, OTHER).as_deref(), Some("200 OK"));
+    assert_eq!(history(cx, &shell).len(), 1);
 }
 
 #[gpui::test]
@@ -303,28 +471,39 @@ fn a_row_of_a_deleted_request_is_read_only(cx: &mut TestAppContext) {
     assert!(bounds(cx, &format!("tree-row-{PING}")).is_none());
 
     click(cx, "rail-history");
+    present(cx, "history-row-1-deleted");
     click(cx, "history-row-1");
     present(cx, "history-readonly");
-    present(cx, "response-history-label");
     present(cx, "response-status");
-    let shown = cx.update(|_, cx| {
-        shell
-            .read(cx)
-            .orphan
-            .as_ref()
-            .map(super::history::Orphan::request_line)
-    });
-    assert_eq!(shown, Some(format!("GET http://127.0.0.1:{port}/ping")));
+    assert_eq!(
+        label(cx, "history-banner-title"),
+        "The source request Ping was deleted."
+    );
+    assert_eq!(
+        label(cx, "history-banner-meta"),
+        "This record can no longer be sent."
+    );
+    assert_eq!(
+        label(cx, "history-url"),
+        format!("http://127.0.0.1:{port}/ping")
+    );
+    assert!(bounds(cx, "history-open-source").is_none());
     present(cx, "history-resend-disabled");
-    present(cx, "history-resend-note");
+    assert_eq!(
+        label(cx, "history-resend-note"),
+        "Resend needs the request to exist"
+    );
     click(cx, "history-resend");
+    cx.simulate_keystrokes("ctrl-enter");
+    cx.run_until_parked();
     assert_eq!(history(cx, &shell).len(), 1, "Resend is disabled");
     assert!(bounds(cx, &format!("doc-tab-{PING}")).is_none());
 
-    // Opening a request leaves the read-only view.
+    // Opening a request activates it; the history tab stays in the row.
     click(cx, "rail-collections");
     click(cx, &format!("tree-row-{OTHER}"));
     assert!(bounds(cx, "history-readonly").is_none());
+    present(cx, "doc-tab-history");
 }
 
 #[gpui::test]
@@ -336,7 +515,7 @@ fn a_send_and_the_tree_still_work_after_history(cx: &mut TestAppContext) {
     click(cx, "rail-collections");
     assert_eq!(send(cx, &shell, OTHER).as_deref(), Some("200 OK"));
     present(cx, "response-status");
-    assert!(bounds(cx, "response-history-label").is_none());
+    assert!(bounds(cx, "history-banner").is_none());
     click(cx, &format!("tree-row-{PING}"));
     present(cx, &format!("doc-tab-{PING}"));
 }

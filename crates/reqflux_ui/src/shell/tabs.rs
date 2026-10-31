@@ -1,7 +1,9 @@
 //! The document tab row: one tab per open request with its method label, name and close
 //! button. The active tab is the raised cut chip with strong text; the others are muted.
 //! While the MCP approvals view is open it adds the active `MCP approvals` tab,
-//! `doc-tab-approvals`, and no request tab is active; activating one leaves the view.
+//! `doc-tab-approvals`, and no request tab is active; activating one leaves the view. An open
+//! history entry has the history tab, `doc-tab-history`, first in the row; while it is active
+//! no request tab is.
 
 use bolt::chamfer::Chamfer;
 use bolt::tokens::{chrome, cut, doc_tab, family, icon, text};
@@ -12,7 +14,7 @@ use super::approvals_view::TITLE;
 use super::documents::{Location, locate};
 use super::drafts::RequestDraft;
 use super::rows::part;
-use super::{Shell, region, text as text_role};
+use super::{Shell, history, region, text as text_role};
 use crate::tokens::{self, DIRTY_DOT, method_color};
 
 /// The tab row, element id `document-tabs`.
@@ -25,10 +27,10 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         .collect();
     let approvals = shell.approvals_open(cx);
     let active = shell
-        .documents
-        .active()
+        .active_request()
         .filter(|_| !approvals)
         .map(str::to_owned);
+    let history_tab = shell.orphan.as_ref().map(|tab| history::tab_chip(tab, cx));
 
     region("document-tabs")
         .flex_none()
@@ -39,6 +41,7 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         .pl(doc_tab::ROW_PADDING_X)
         .pr(doc_tab::ROW_PADDING_X)
         .overflow_hidden()
+        .children(history_tab)
         .children(tabs.into_iter().map(|(id, location)| {
             let is_active = active.as_deref() == Some(id.as_str());
             let drafted = shell.drafts.get(&id);

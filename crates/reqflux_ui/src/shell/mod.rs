@@ -187,9 +187,8 @@ pub(crate) struct Shell {
     palette: Option<Palette>,
     /// The approval requests from `reqflux mcp` and the listener they arrive on.
     approvals: approvals::Approvals,
-    /// The read-only view of a history entry whose request no longer exists, shown over
-    /// the tabs until a request is opened or activated.
-    orphan: Option<history::Orphan>,
+    /// The history tab: the open history entry, read only (see [`history::HistoryTab`]).
+    orphan: Option<history::HistoryTab>,
     /// Where `Open in browser` writes an HTML response and how it opens it.
     preview_host: PreviewHost,
     /// The shell's subscriptions to the sidebar's events, replaced with the sidebar.
@@ -286,7 +285,7 @@ impl Shell {
     /// Opens the request `id` in a tab, inspecting it when it was not open.
     fn open_document(&mut self, id: &str, cx: &mut Context<Self>) {
         self.leave_approvals(cx);
-        self.close_orphan();
+        self.leave_history_tab();
         self.documents.open(id);
         self.drop_stale_url_edit(id);
         self.drop_stale_cell_edit(id);
@@ -398,7 +397,7 @@ impl Shell {
     /// like clicking another cell does, so switching tabs keeps what was typed.
     fn activate_document(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.leave_approvals(cx);
-        self.close_orphan();
+        self.leave_history_tab();
         self.documents.activate(id);
         self.auth_menu_open = false;
         self.body_menu_open = false;

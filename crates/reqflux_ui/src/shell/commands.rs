@@ -122,7 +122,7 @@ macro_rules! commands {
 }
 
 commands! {
-    SendRequest: SendRequest, "send-request", "Send request", "ctrl-enter", Request, has_request;
+    SendRequest: SendRequest, "send-request", "Send request", "ctrl-enter", Request, can_send;
     CancelSend: CancelRequest, "cancel-send", "Cancel send", "escape", Request, has_request;
     SaveRequest: SaveRequest, "save-request", "Save request", "ctrl-s", Request, has_draft;
     RevertRequest: RevertRequest, "revert-request", "Revert request", "ctrl-shift-r", Request, has_draft;
@@ -133,9 +133,9 @@ commands! {
     OpenWorkspace: OpenWorkspace, "open-workspace", "Open workspace", "ctrl-o", Workspace, always;
     NewWorkspace: NewWorkspace, "new-workspace", "New workspace", "ctrl-shift-o", Workspace, always;
     CloseWorkspace: CloseWorkspace, "close-workspace", "Close workspace", "ctrl-shift-w", Workspace, loaded;
-    CloseTab: CloseTab, "close-tab", "Close tab", "ctrl-w", Tabs, has_request;
-    NextTab: NextTab, "next-tab", "Next tab", "ctrl-tab", Tabs, has_request;
-    PreviousTab: PreviousTab, "previous-tab", "Previous tab", "ctrl-shift-tab", Tabs, has_request;
+    CloseTab: CloseTab, "close-tab", "Close tab", "ctrl-w", Tabs, has_tab;
+    NextTab: NextTab, "next-tab", "Next tab", "ctrl-tab", Tabs, has_tab;
+    PreviousTab: PreviousTab, "previous-tab", "Previous tab", "ctrl-shift-tab", Tabs, has_tab;
     ShowCollections: ShowCollections, "show-collections", "Show Collections", "ctrl-1", View, loaded;
     ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", View, loaded;
     ShowVariables: ShowVariables, "show-variables", "Show Variables", "ctrl-3", View, loaded;
@@ -204,12 +204,38 @@ fn has_collection(shell: &Shell) -> Result<(), &'static str> {
     }
 }
 
+/// A request tab is active; the history tab, while active, is not one.
 fn has_request(shell: &Shell) -> Result<(), &'static str> {
+    if shell.history_tab_active() {
+        return Err("a recorded request is open");
+    }
     shell
         .documents
         .active()
         .map(|_| ())
         .ok_or("no open request")
+}
+
+/// Ctrl+Enter sends the active request, or resends the active history tab's record.
+fn can_send(shell: &Shell) -> Result<(), &'static str> {
+    if shell.history_tab_active() {
+        shell.can_resend()
+    } else {
+        has_request(shell)
+    }
+}
+
+/// A request tab or the history tab is open.
+fn has_tab(shell: &Shell) -> Result<(), &'static str> {
+    if shell.orphan.is_some() {
+        Ok(())
+    } else {
+        shell
+            .documents
+            .active()
+            .map(|_| ())
+            .ok_or("no open request")
+    }
 }
 
 fn has_draft(shell: &Shell) -> Result<(), &'static str> {
@@ -245,8 +271,11 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let active = self.documents.active().map(str::to_owned);
+        let active = self.active_request().map(str::to_owned);
         match id {
+            CommandId::SendRequest if self.history_tab_active() => {
+                self.resend_history(window, cx);
+            }
             CommandId::SendRequest => self.send_active(window, cx),
             CommandId::CancelSend => self.cancel_active(window, cx),
             CommandId::SaveRequest => self.save_active(window, cx),
@@ -277,6 +306,7 @@ impl Shell {
             CommandId::OpenWorkspace => self.pick_folder(window, cx),
             CommandId::NewWorkspace => self.start_new_workspace(window, cx),
             CommandId::CloseWorkspace => self.switch_workspace(None, window, cx),
+            CommandId::CloseTab if self.history_tab_active() => self.close_history_tab(cx),
             CommandId::CloseTab => {
                 if let Some(active) = active {
                     self.close_document(&active, cx);
