@@ -14,6 +14,7 @@ use reqflux_engine::state::{AppState, HistoryEntry, HistoryOutcome};
 use reqflux_engine::{MASK, Masker, SentBody};
 use serde_json::{Value, json};
 
+use super::policy::Scope;
 use super::request::{masked, masked_headers};
 use super::{EngineState, EntryArgs, HistoryListArgs, cut, encode};
 use crate::tools::ToolError;
@@ -75,6 +76,7 @@ fn state_error(error: impl std::fmt::Display) -> ToolError {
 ///
 /// No open workspace, or the app state cannot open or be read.
 pub fn history_list(state: &mut EngineState, args: HistoryListArgs) -> Result<String, ToolError> {
+    state.authorize("history_list", Scope::Open, &[])?;
     let (app, workspace_id, masking) = state.history_source()?;
     let limit = args.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
     let entries = app
@@ -94,6 +96,7 @@ pub fn history_list(state: &mut EngineState, args: HistoryListArgs) -> Result<St
 /// No open workspace, the app state cannot open or be read, or no entry of the open
 /// workspace has this id.
 pub fn history_get(state: &mut EngineState, args: EntryArgs) -> Result<String, ToolError> {
+    state.authorize("history_get", Scope::Open, &[])?;
     let (app, workspace_id, masking) = state.history_source()?;
     let entry = app
         .history_entry(args.entry_id)

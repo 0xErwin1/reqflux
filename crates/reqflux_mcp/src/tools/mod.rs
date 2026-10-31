@@ -61,6 +61,9 @@ pub enum ToolError {
     /// The engine, the store or the app state refused or failed the operation.
     #[error("{0}")]
     Engine(String),
+    /// The MCP policy refused the call, or its audit line could not be written.
+    #[error("{0}")]
+    Refused(String),
     /// The bridge answered with a result the tool cannot use.
     #[error("the bridge returned {0} where the tool expected another result")]
     UnexpectedResult(&'static str),

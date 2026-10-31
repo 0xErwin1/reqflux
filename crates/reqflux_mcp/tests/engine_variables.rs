@@ -8,6 +8,8 @@
     clippy::panic
 )]
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -52,7 +54,11 @@ fn err(result: Result<String, ToolError>) -> String {
 /// A state over `store` with a fresh workspace `Demo` at `<dir>/ws` open; returns the
 /// workspace id too.
 fn open(dir: &TempDir, store: Arc<MemorySecretStore>) -> (EngineState, PathBuf, String) {
-    let mut state = EngineState::new(store, Some(dir.path().join("state.sqlite3")));
+    let mut state = EngineState::new(
+        store,
+        Some(dir.path().join("state.sqlite3")),
+        common::allow_all(dir.path()),
+    );
     let root = dir.path().join("ws");
     let created = ok(engine_tools::workspace_create(
         &mut state,
@@ -270,6 +276,7 @@ fn an_unknown_keyring_reports_the_reason_once() {
     state = EngineState::new(
         Arc::new(MemorySecretStore::unavailable("no secret service")),
         Some(dir.path().join("state.sqlite3")),
+        common::allow_all(dir.path()),
     );
     ok(engine_tools::workspace_open(
         &mut state,
@@ -473,6 +480,7 @@ fn an_unavailable_keyring_refuses_a_secret_without_echoing_it_or_changing_anythi
     let mut state = EngineState::new(
         Arc::new(MemorySecretStore::unavailable("no secret service")),
         Some(dir.path().join("state.sqlite3")),
+        common::allow_all(dir.path()),
     );
     ok(engine_tools::workspace_open(
         &mut state,

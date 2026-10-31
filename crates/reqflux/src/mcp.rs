@@ -3,10 +3,13 @@
 use std::process::ExitCode;
 use std::sync::Arc;
 
-use reqflux_engine::KeyringSecretStore;
+use std::path::PathBuf;
+
+use reqflux_engine::state::AppState;
+use reqflux_engine::{KeyringSecretStore, config};
 use reqflux_mcp::AppId;
 use reqflux_mcp::bridge::default_endpoint_dir;
-use reqflux_mcp::engine_tools::EngineState;
+use reqflux_mcp::engine_tools::{EngineState, PolicyPaths};
 use reqflux_mcp::server::serve;
 
 use crate::cli::McpArgs;
@@ -44,9 +47,14 @@ fn run(args: McpArgs) -> Result<(), Failure> {
     let cwd = std::env::current_dir().map_err(|error| {
         Failure::Execution(format!("could not read the current directory: {error}"))
     })?;
-    let mut engine = EngineState::new(Arc::new(KeyringSecretStore), None);
+    let paths = PolicyPaths::user().map_err(Failure::Execution)?;
+    // The policy is read again before every tool call; this only says early that it fails.
+    if let Err(error) = config::load(&paths.config) {
+        log::warn!("the MCP policy runs on the defaults: {error}");
+    }
+    let mut engine = EngineState::new(Arc::new(KeyringSecretStore), None, paths);
     engine
-        .open_startup(args.workspace.as_deref(), &cwd)
+        .open_startup(args.workspace.as_deref(), &cwd, &recent_workspaces())
         .map_err(|error| Failure::Usage(error.to_string()))?;
     let endpoint_dir =
         default_endpoint_dir().map_err(|error| Failure::Execution(error.to_string()))?;
@@ -65,5 +73,16 @@ fn run(args: McpArgs) -> Result<(), Failure> {
             Ok(())
         }
         Err(error) => Err(Failure::Execution(error.to_string())),
+    }
+}
+
+/// The window's recent workspaces, newest first; none when the app state cannot be read.
+fn recent_workspaces() -> Vec<PathBuf> {
+    match AppState::open_default().and_then(|state| state.recent_workspaces()) {
+        Ok(recents) => recents.into_iter().map(|recent| recent.path).collect(),
+        Err(error) => {
+            log::warn!("could not read the recent workspaces: {error}");
+            Vec::new()
+        }
     }
 }

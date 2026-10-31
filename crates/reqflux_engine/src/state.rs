@@ -409,7 +409,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
 
 /// Creates the state directory if needed, owner-only where the platform has file modes,
 /// so other users cannot list the draft names.
-fn create_state_directory(dir: &Path) -> Result<(), StateError> {
+pub(crate) fn create_state_directory(dir: &Path) -> Result<(), StateError> {
     fs::create_dir_all(dir).map_err(|source| StateError::Io {
         path: dir.to_owned(),
         source,

@@ -11,6 +11,7 @@ use reqflux_core::model::{Auth, Id, Item, KeyValue, Request, RequestNode, Worksp
 use reqflux_engine::{ContentHash, MASK, is_credential_header, toml_error_location};
 use serde_json::json;
 
+use super::policy::Scope;
 use super::{EngineState, ItemArgs, UpdateArgs, encode, id_result, parse_id};
 use crate::tools::ToolError;
 
@@ -63,6 +64,7 @@ fn unknown(id: Id) -> ToolError {
 ///
 /// A bad or unknown id, no open workspace, or the document does not encode.
 pub fn request_get(state: &mut EngineState, args: ItemArgs) -> Result<String, ToolError> {
+    state.authorize("request_get", Scope::Open, &[&args.id])?;
     let id = parse_id(&args.id)?;
     let engine = state.reloaded()?;
     let found = find_request(engine.workspace(), id).ok_or_else(|| unknown(id))?;
@@ -97,6 +99,7 @@ pub fn request_get(state: &mut EngineState, args: ItemArgs) -> Result<String, To
 /// A bad or unknown id, a bad `base_hash`, a document that does not parse or carries
 /// another id, a mask with no stored value to keep, or a conflict.
 pub fn request_update(state: &mut EngineState, args: UpdateArgs) -> Result<String, ToolError> {
+    state.authorize("request_update", Scope::Open, &[&args.id])?;
     let id = parse_id(&args.id)?;
     let base: ContentHash = args.base_hash.parse().map_err(|error| {
         ToolError::Invalid(format!(

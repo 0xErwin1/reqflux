@@ -65,6 +65,29 @@ pub struct Execution {
     masker: Masker,
 }
 
+/// A request prepared by [`Engine::prepare_execution`], its pre-request script run, not
+/// sent yet.
+#[derive(Debug)]
+pub struct PendingExecution {
+    prepared: Prepared,
+    scripts: ScriptOutcome,
+    scripted: Scripted,
+}
+
+impl PendingExecution {
+    /// The resolved request that [`Engine::start`] sends.
+    #[must_use]
+    pub fn request(&self) -> &PreparedRequest {
+        &self.prepared.request
+    }
+
+    /// What masks this send's secrets; see [`Execution::masker`].
+    #[must_use]
+    pub fn masker(&self) -> Masker {
+        self.prepared.masker()
+    }
+}
+
 /// What [`Execution::complete`] needs to run the effective test script after the response,
 /// resolved once when the execution started so finishing needs no engine borrow.
 #[derive(Debug)]
@@ -503,10 +526,42 @@ impl Engine {
         selector: &str,
         options: &ExecuteOptions,
     ) -> Result<Execution, ExecuteError> {
+        let pending = self.prepare_execution(selector, options)?;
+        Ok(self.start(pending))
+    }
+
+    /// The first half of [`Engine::execute`]: runs the effective pre-request script and
+    /// prepares the request, sending nothing, so a caller can check the prepared request
+    /// (such as its host against a policy) before [`Engine::start`] sends it.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`prepare`](crate::prepare).
+    pub fn prepare_execution(
+        &self,
+        selector: &str,
+        options: &ExecuteOptions,
+    ) -> Result<PendingExecution, ExecuteError> {
         let target = crate::select::find(self.workspace(), selector)?;
         let (prepared, scripts, scripted) =
             self.prepare_scripted(&target, &target.request.request, options)?;
-        Ok(self.scripted_execution(prepared, scripts, scripted))
+        Ok(PendingExecution {
+            prepared,
+            scripts,
+            scripted,
+        })
+    }
+
+    /// Sends a request [`Engine::prepare_execution`] prepared; the second half of
+    /// [`Engine::execute`].
+    #[must_use]
+    pub fn start(&self, pending: PendingExecution) -> Execution {
+        let PendingExecution {
+            prepared,
+            scripts,
+            scripted,
+        } = pending;
+        self.scripted_execution(prepared, scripts, scripted)
     }
 
     /// Prepares and sends `draft` in the place of the request `selector` selects, so a front

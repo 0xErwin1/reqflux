@@ -8,6 +8,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use super::policy::Scope;
 use super::{EngineState, encode, id_result, parse_id};
 use crate::tools::ToolError;
 
@@ -81,6 +82,7 @@ fn variable_error(error: VariableError) -> ToolError {
 ///
 /// No workspace is open, or it no longer loads.
 pub fn environment_list(state: &mut EngineState) -> Result<String, ToolError> {
+    state.authorize("environment_list", Scope::Open, &[])?;
     let engine = state.reloaded()?;
     let environments: Vec<Value> = engine
         .workspace()
@@ -107,6 +109,7 @@ pub fn environment_create(
     state: &mut EngineState,
     args: EnvironmentCreateArgs,
 ) -> Result<String, ToolError> {
+    state.authorize("environment_create", Scope::Open, &[])?;
     let engine = state.reloaded()?;
     let id = engine.create_environment().map_err(tree_error)?;
     if let Some(name) = &args.name
@@ -132,6 +135,7 @@ pub fn environment_rename(
     state: &mut EngineState,
     args: EnvironmentRenameArgs,
 ) -> Result<String, ToolError> {
+    state.authorize("environment_rename", Scope::Open, &[&args.id])?;
     let id = parse_id(&args.id)?;
     let engine = state.reloaded()?;
     id_result(
@@ -150,6 +154,7 @@ pub fn environment_delete(
     state: &mut EngineState,
     args: EnvironmentArgs,
 ) -> Result<String, ToolError> {
+    state.authorize("environment_delete", Scope::Open, &[&args.id])?;
     let id = parse_id(&args.id)?;
     let engine = state.reloaded()?;
     engine.delete_environment(id).map_err(tree_error)?;
@@ -163,6 +168,11 @@ pub fn environment_delete(
 ///
 /// A bad or unknown scope, or no workspace is open.
 pub fn variables_get(state: &mut EngineState, args: ScopeArgs) -> Result<String, ToolError> {
+    state.authorize(
+        "variables_get",
+        Scope::Open,
+        &[EngineState::scope_target(&args.scope)],
+    )?;
     let scope = parse_scope(&args.scope)?;
     let engine = state.reloaded()?;
     let variables = scope_variables(engine.workspace(), scope, &args.scope)?;
@@ -213,6 +223,11 @@ pub fn variables_get(state: &mut EngineState, args: ScopeArgs) -> Result<String,
 /// A bad or unknown scope, or the engine refused an edit (a keyring failure refuses it
 /// before the file is touched).
 pub fn variable_set(state: &mut EngineState, args: VariableSetArgs) -> Result<String, ToolError> {
+    state.authorize(
+        "variable_set",
+        Scope::Open,
+        &[EngineState::scope_target(&args.scope)],
+    )?;
     let scope = parse_scope(&args.scope)?;
     let engine = state.reloaded()?;
     let existing = scope_variables(engine.workspace(), scope, &args.scope)?
@@ -269,6 +284,11 @@ pub fn variable_delete(
     state: &mut EngineState,
     args: VariableDeleteArgs,
 ) -> Result<String, ToolError> {
+    state.authorize(
+        "variable_delete",
+        Scope::Open,
+        &[EngineState::scope_target(&args.scope)],
+    )?;
     let scope = parse_scope(&args.scope)?;
     let engine = state.reloaded()?;
     let index = index_of(engine, scope, &args.scope, &args.key)?;

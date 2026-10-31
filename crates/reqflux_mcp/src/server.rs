@@ -213,7 +213,9 @@ impl ServerHandler for ReqFluxMcp {
                  (workspace_*, collection_create, folder_create, request_*, item_*, \
                  history_*) work on files directly: call workspace_info first; when no \
                  workspace is open, call workspace_open or workspace_create. Auth \
-                 secrets show masked; send the mask back to keep a stored value."
+                 secrets show masked; send the mask back to keep a stored value. The \
+                 engine tools follow the user's MCP policy: by default only reads run, \
+                 and a refusal names the setting that refused it."
                     .to_owned(),
             )
     }
@@ -299,7 +301,14 @@ mod tests {
                 std::env::temp_dir().join("reqflux-mcp-server-tests"),
                 AppId::new("reqflux").unwrap(),
             ),
-            EngineState::new(Arc::new(reqflux_engine::MemorySecretStore::new()), None),
+            EngineState::new(
+                Arc::new(reqflux_engine::MemorySecretStore::new()),
+                None,
+                crate::engine_tools::PolicyPaths {
+                    config: std::env::temp_dir().join("reqflux-mcp-server-tests/no-config.toml"),
+                    audit: std::env::temp_dir().join("reqflux-mcp-server-tests/audit.log"),
+                },
+            ),
         )
     }
 
@@ -328,6 +337,32 @@ mod tests {
             .collect();
         expected.sort();
         assert_eq!(listed, expected);
+    }
+
+    /// The `ui_*` tools are outside the MCP policy: they run under the default one, which
+    /// refuses every engine write and execute, and write no audit line.
+    #[allow(clippy::unwrap_used)]
+    #[tokio::test]
+    async fn the_ui_tools_run_under_the_default_policy_unaudited() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let audit = dir.path().join("state/reqflux/audit.log");
+        let server = ReqFluxMcp::new(
+            BridgeSession::new(
+                dir.path().join("no-endpoints"),
+                AppId::new("reqflux").unwrap(),
+            ),
+            EngineState::new(
+                Arc::new(reqflux_engine::MemorySecretStore::new()),
+                None,
+                crate::engine_tools::PolicyPaths {
+                    config: dir.path().join("config/reqflux/config.toml"),
+                    audit: audit.clone(),
+                },
+            ),
+        );
+        let result = server.ui_list_targets().await.unwrap();
+        assert_eq!(result.is_error, Some(false));
+        assert!(!audit.exists());
     }
 
     #[test]

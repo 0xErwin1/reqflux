@@ -317,13 +317,29 @@ mod tests {
     use crate::AppId;
     use crate::bridge::BridgeSession;
 
-    fn server() -> ReqFluxMcp {
+    /// A server whose policy allows every class, from a config file in `dir`.
+    fn server(dir: &tempfile::TempDir) -> ReqFluxMcp {
+        let config = dir.path().join("config/reqflux/config.toml");
+        std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+        std::fs::write(
+            &config,
+            "[mcp]\nwrite = \"allow\"\nexecute = \"allow\"\ndestructive = \"allow\"\n",
+        )
+        .unwrap();
+        let paths = super::super::PolicyPaths {
+            config,
+            audit: dir.path().join("state/reqflux/audit.log"),
+        };
         ReqFluxMcp::new(
             BridgeSession::new(
                 std::env::temp_dir().join("reqflux-mcp-engine-router-tests"),
                 AppId::new("reqflux").unwrap(),
             ),
-            EngineState::new(Arc::new(MemorySecretStore::new()), None),
+            EngineState::new(
+                Arc::new(MemorySecretStore::new()),
+                Some(dir.path().join("state/reqflux/state.sqlite3")),
+                paths,
+            ),
         )
     }
 
@@ -336,7 +352,8 @@ mod tests {
 
     #[tokio::test]
     async fn an_engine_tool_without_a_workspace_is_an_error_result() {
-        let result = server().workspace_info().await.unwrap();
+        let dir = tempfile::TempDir::new().unwrap();
+        let result = server(&dir).workspace_info().await.unwrap();
         assert_eq!(result.is_error, Some(true));
         assert!(
             text(&result).contains("workspace_open"),
@@ -350,7 +367,7 @@ mod tests {
     #[tokio::test]
     async fn engine_tools_replace_the_engine_and_send_inside_the_async_server() {
         let dir = tempfile::TempDir::new().unwrap();
-        let server = server();
+        let server = server(&dir);
         for name in ["one", "two"] {
             let args = WorkspaceCreateArgs {
                 path: dir.path().join(name).display().to_string(),

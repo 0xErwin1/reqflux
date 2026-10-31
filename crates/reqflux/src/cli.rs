@@ -38,7 +38,8 @@ pub(crate) enum Command {
     Run(RunArgs),
     /// Serve the MCP tools that edit and run a workspace and drive the running app, over stdio.
     ///
-    /// The engine tools start on the workspace in the current directory, or --workspace.
+    /// The engine tools start on the workspace in the current directory, or --workspace, else
+    /// the most recent workspace that loads.
     Mcp(McpArgs),
     /// Import a Postman collection and its environments into a workspace.
     Import(ImportArgs),
@@ -263,9 +264,26 @@ UI tools, driving a running ReqFlux window through its gpui-mcp bridge:
   ui_tree, ui_find, ui_element, ui_element_bounds, ui_wait_for_element
   ui_click, ui_type, ui_key, ui_focus, ui_scroll
 
-Policy, approvals and audit are not implemented yet: every tool runs. An agent connected to
-this server can change workspace files and send requests, with the stored credentials, to any
-URL it writes.
+Policy: each engine tool has a class. By default read tools run and write, execute and
+destructive tools are refused (\"ask\", and in-app approvals do not exist yet, so ask refuses).
+Enable them in ~/.config/reqflux/config.toml ($XDG_CONFIG_HOME/reqflux/config.toml):
+  [mcp]
+  write = \"allow\"                    # allow, ask or deny
+  execute = \"allow\"
+  destructive = \"deny\"
+  hosts = [\"api.example.com\", \"*.example.com\", \"localhost:8080\"]   # request_execute only
+  environments = [\"dev\"]             # absent: any; no environment is always allowed
+[mcp.workspaces.\"<workspace id>\"] in that file and [mcp] in a workspace's reqflux.toml can
+only restrict: the strictest rule wins and every hosts or environments list must allow. The
+file is read before every call. The ui_* tools are outside the policy.
+
+Audit: every write, execute and destructive call, allowed or refused, appends one JSON line to
+~/.local/state/reqflux/audit.log ($XDG_STATE_HOME/reqflux/audit.log) with the tool, the
+decision, the ids it targets and the masked URL of an execute, never argument values. A call
+whose line cannot be written is refused.
+
+Without --workspace and a reqflux.toml in the current directory, the engine tools start on the
+most recent workspace the window opened that still loads.
 
 Exit codes:
   0  the client closed the connection
@@ -388,6 +406,27 @@ mod tests {
         for expected in ["ui_tree", "ui_select_target", "stdout", "Exit codes"] {
             assert!(help.contains(expected), "{expected} missing: {help}");
         }
+    }
+
+    #[test]
+    fn mcp_help_documents_the_policy_and_the_audit_log() {
+        let help = Cli::command()
+            .find_subcommand_mut("mcp")
+            .map_or_else(String::new, |command| {
+                command.render_long_help().to_string()
+            });
+        for expected in [
+            "By default read tools run and write, execute and",
+            "~/.config/reqflux/config.toml",
+            "write = \"allow\"",
+            "execute = \"allow\"",
+            "can\nonly restrict",
+            "$XDG_STATE_HOME/reqflux/audit.log",
+            "most recent workspace",
+        ] {
+            assert!(help.contains(expected), "{expected} missing: {help}");
+        }
+        assert!(!help.contains("not implemented yet"), "{help}");
     }
 
     /// A directory literally named `run` is the subcommand; `./run` opens it.

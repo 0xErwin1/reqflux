@@ -13,6 +13,7 @@
 mod environments;
 mod execute;
 mod history;
+mod policy;
 mod request;
 pub(crate) mod router;
 mod tree;
@@ -29,6 +30,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::tools::ToolError;
+use policy::Scope;
 
 pub use environments::{
     EnvironmentArgs, EnvironmentCreateArgs, EnvironmentRenameArgs, ScopeArgs, VariableDeleteArgs,
@@ -37,6 +39,7 @@ pub use environments::{
 };
 pub use execute::request_execute;
 pub use history::{history_get, history_list};
+pub use policy::{PolicyPaths, TOOL_CLASSES, tool_class};
 pub use request::{request_get, request_update};
 pub use tree::{
     collection_create, folder_create, item_delete, item_duplicate, item_move, item_rename,
@@ -49,6 +52,8 @@ pub struct EngineState {
     secrets: Arc<dyn SecretStore>,
     /// The app state file history is read from; `None` is the per-user default.
     state_path: Option<PathBuf>,
+    /// The user's config file the policy is read from and the audit log.
+    paths: PolicyPaths,
 }
 
 impl fmt::Debug for EngineState {
@@ -57,6 +62,7 @@ impl fmt::Debug for EngineState {
             .debug_struct("EngineState")
             .field("root", &self.engine.as_ref().map(Engine::root))
             .field("state_path", &self.state_path)
+            .field("paths", &self.paths)
             .finish_non_exhaustive()
     }
 }
@@ -87,35 +93,57 @@ impl Drop for EngineState {
 }
 
 impl EngineState {
-    /// A state with no workspace open that reads secrets from `secrets` and history from
-    /// the app state at `state_path`, or the per-user one when `None`.
+    /// A state with no workspace open that reads secrets from `secrets`, history from
+    /// the app state at `state_path` (the per-user one when `None`), the MCP policy from
+    /// the config file in `paths` and appends to the audit log in `paths`.
     #[must_use]
-    pub fn new(secrets: Arc<dyn SecretStore>, state_path: Option<PathBuf>) -> Self {
+    pub fn new(
+        secrets: Arc<dyn SecretStore>,
+        state_path: Option<PathBuf>,
+        paths: PolicyPaths,
+    ) -> Self {
         Self {
             engine: None,
             secrets,
             state_path,
+            paths,
         }
     }
 
     /// Opens the startup workspace: `flag` when given, else `cwd` when it holds a
-    /// `reqflux.toml`, else none (S1).
+    /// `reqflux.toml`, else the first of `recents` (newest first) that loads, as the window
+    /// does, else none (S1; user-config-mcp-policy S8).
     ///
     /// # Errors
     ///
     /// The workspace `flag` names does not load. A workspace in `cwd` that does not load is
     /// logged and left closed.
-    pub fn open_startup(&mut self, flag: Option<&Path>, cwd: &Path) -> Result<(), ToolError> {
+    pub fn open_startup(
+        &mut self,
+        flag: Option<&Path>,
+        cwd: &Path,
+        recents: &[PathBuf],
+    ) -> Result<(), ToolError> {
         if let Some(root) = flag {
             return self.open(root);
         }
-        if cwd.join("reqflux.toml").is_file()
-            && let Err(error) = self.open(cwd)
-        {
-            log::warn!(
-                target: "reqflux_mcp",
-                "the workspace in the current directory did not open: {error}"
-            );
+        if cwd.join("reqflux.toml").is_file() {
+            if let Err(error) = self.open(cwd) {
+                log::warn!(
+                    target: "reqflux_mcp",
+                    "the workspace in the current directory did not open: {error}"
+                );
+            }
+            return Ok(());
+        }
+        for recent in recents {
+            match self.open(recent) {
+                Ok(()) => return Ok(()),
+                Err(error) => log::info!(
+                    target: "reqflux_mcp",
+                    "skipping a recent workspace that does not load: {error}"
+                ),
+            }
         }
         Ok(())
     }
@@ -259,6 +287,7 @@ pub struct EntryArgs {
 ///
 /// The workspace does not load; the open one stays open.
 pub fn workspace_open(state: &mut EngineState, args: PathArgs) -> Result<String, ToolError> {
+    state.authorize("workspace_open", Scope::Global, &[])?;
     state.open(Path::new(&args.path))?;
     summary(state.engine()?)
 }
@@ -272,6 +301,7 @@ pub fn workspace_create(
     state: &mut EngineState,
     args: WorkspaceCreateArgs,
 ) -> Result<String, ToolError> {
+    state.authorize("workspace_create", Scope::Global, &[])?;
     let root = PathBuf::from(&args.path);
     create_workspace(&root, &args.name).map_err(|error| ToolError::Engine(error.to_string()))?;
     state.open(&root)?;
@@ -284,6 +314,7 @@ pub fn workspace_create(
 ///
 /// No workspace is open, or it no longer loads.
 pub fn workspace_info(state: &mut EngineState) -> Result<String, ToolError> {
+    state.authorize("workspace_info", Scope::Open, &[])?;
     let engine = state.reloaded()?;
     let mut value = describe(engine);
     if let Value::Object(map) = &mut value {

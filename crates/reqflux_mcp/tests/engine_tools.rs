@@ -8,6 +8,8 @@
     clippy::panic
 )]
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -28,6 +30,7 @@ fn state(dir: &TempDir) -> EngineState {
     EngineState::new(
         Arc::new(MemorySecretStore::new()),
         Some(dir.path().join("state.sqlite3")),
+        common::allow_all(dir.path()),
     )
 }
 
@@ -205,21 +208,21 @@ fn startup_prefers_the_flag_then_a_workspace_in_the_current_directory() {
     reqflux_engine::create_workspace(&current, "Current").unwrap();
 
     let mut by_flag = state(&dir);
-    by_flag.open_startup(Some(&flagged), &current).unwrap();
+    by_flag.open_startup(Some(&flagged), &current, &[]).unwrap();
     assert_eq!(info(&mut by_flag)["name"], "Flagged");
 
     let mut by_cwd = state(&dir);
-    by_cwd.open_startup(None, &current).unwrap();
+    by_cwd.open_startup(None, &current, &[]).unwrap();
     assert_eq!(info(&mut by_cwd)["name"], "Current");
 
     let mut none = state(&dir);
-    none.open_startup(None, dir.path()).unwrap();
+    none.open_startup(None, dir.path(), &[]).unwrap();
     assert!(err(engine_tools::workspace_info(&mut none)).contains("workspace_open"));
 
     let mut bad_flag = state(&dir);
     assert!(
         bad_flag
-            .open_startup(Some(&dir.path().join("nope")), &current)
+            .open_startup(Some(&dir.path().join("nope")), &current, &[])
             .is_err()
     );
 }
@@ -699,6 +702,7 @@ fn history_fails_alone_when_the_app_state_cannot_open() {
     let mut state = EngineState::new(
         Arc::new(MemorySecretStore::new()),
         Some(blocker.join("state.sqlite3")),
+        common::allow_all(dir.path()),
     );
     let root = dir.path().join("ws");
     ok(engine_tools::workspace_create(

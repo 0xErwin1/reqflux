@@ -57,6 +57,7 @@
 //! [`config`] reads and edits the user's config file,
 //! `$XDG_CONFIG_HOME/reqflux/config.toml`: the theme and the MCP policy.
 
+pub mod audit;
 pub mod config;
 mod create;
 mod current;
@@ -64,6 +65,7 @@ mod engine;
 mod error;
 mod import;
 mod managed;
+pub mod policy;
 mod prepare;
 mod scripts;
 mod secrets;
@@ -75,7 +77,7 @@ mod variables;
 
 pub use create::create_workspace;
 pub use current::CurrentValues;
-pub use engine::{Engine, Executed, Execution};
+pub use engine::{Engine, Executed, Execution, PendingExecution};
 pub use error::{
     CreateWorkspaceError, ExecuteError, ImportError, OpenError, PersistError, SaveError, TreeError,
     VariableError,
