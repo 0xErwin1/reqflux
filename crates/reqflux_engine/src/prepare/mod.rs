@@ -21,6 +21,7 @@ use reqflux_script::VariableWrite;
 
 use crate::current::CurrentValues;
 use crate::error::ExecuteError;
+use crate::guard::HostGuard;
 use crate::secrets::SecretScope;
 use crate::select::{self, Target};
 use crate::sent::{self, Masker, Secrets, SentRequest};
@@ -44,6 +45,10 @@ pub struct ExecuteOptions {
     /// the shared value of its variable within its scope, below local variables. Empty by
     /// default, which is what `reqflux run` passes.
     pub current: CurrentValues,
+    /// The check every request of the execution passes before it is sent: the main request
+    /// and each `pm.sendRequest` of its scripts (user-config-mcp-policy S3). `None`, the
+    /// default and what the window and `reqflux run` pass, sends anywhere.
+    pub host_guard: Option<HostGuard>,
 }
 
 /// A request ready to send.

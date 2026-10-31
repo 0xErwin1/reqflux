@@ -76,6 +76,10 @@ pub enum ExecuteError {
     /// The transport failed.
     #[error(transparent)]
     Http(#[from] HttpError),
+    /// The execution's [`HostGuard`](crate::HostGuard) refused the main request, which was
+    /// not sent; the text is the refusal.
+    #[error("{0}")]
+    HostRefused(String),
     /// The execution task panicked or was aborted.
     #[error("execution task failed: {0}")]
     Task(String),

@@ -2,13 +2,21 @@
 //! returns the response with this send's secrets masked (S7). It reads no current values,
 //! records no history and persists no script writes.
 //!
-//! The policy runs in two steps (user-config-mcp-policy S6, S7): the class and the
-//! environment before the workspace is read, then the host of the prepared request before it
-//! is sent. One audit line records the decision, with the method and the masked URL once the
-//! request is prepared; a line that cannot be written refuses the send.
+//! The policy runs in steps (user-config-mcp-policy S6, S7): the class and the environment
+//! before the workspace is read and again after it is reloaded, then the host of the
+//! prepared request before it is sent. Every `pm.sendRequest` of the request's scripts
+//! passes the same hosts check through the engine's host guard: a refused one sends nothing
+//! and its callback receives the refusal. One audit line records the decision, with the
+//! method and the masked URL once the request is prepared; a pre-request script's refused
+//! send refuses the call, audited with that request's method and masked URL; a test
+//! script's refused send, which runs after the allowed line, adds one refused line of its
+//! own. A line that cannot be written refuses the send.
 
 use reqflux_engine::audit::Decision;
-use reqflux_engine::{ExecuteOptions, Executed, Masker};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+
+use reqflux_engine::policy::Policy;
+use reqflux_engine::{ExecuteOptions, Executed, HostGuard, Masker};
 use serde_json::{Value, json};
 
 use super::policy::{self, Scope};
@@ -16,6 +24,41 @@ use super::{EngineState, ExecuteArgs, cut, encode, parse_id};
 use crate::tools::ToolError;
 
 const TOOL: &str = "request_execute";
+
+/// What a refusal of a script's request starts with, in the tool error and the audit line.
+const SCRIPT_REFUSED: &str = "a script's pm.sendRequest was refused: ";
+
+/// The script requests the host guard refused during one call: method, URL and refusal, in
+/// order. The guard runs on the script thread, so the list is shared behind a mutex.
+#[derive(Debug, Clone, Default)]
+struct Refused(Arc<Mutex<Vec<(String, String, String)>>>);
+
+impl Refused {
+    /// A guard checking each request against the policy's hosts and recording a refusal.
+    /// The main request is checked by the caller, with its own audit line.
+    fn guard(&self, policy: Policy) -> HostGuard {
+        let refused = self.clone();
+        HostGuard::new(move |method, url| {
+            policy.check_host(TOOL, url).map_err(|refusal| {
+                let reason = refusal.to_string();
+                refused
+                    .lock()
+                    .push((method.to_owned(), url.to_owned(), reason.clone()));
+                reason
+            })
+        })
+    }
+
+    /// The refusals recorded so far, leaving none.
+    fn take(&self) -> Vec<(String, String, String)> {
+        std::mem::take(&mut *self.lock())
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Vec<(String, String, String)>> {
+        // A poisoned list still holds every refusal pushed before the panic.
+        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
 
 /// `request_execute`: sends the request `id` with `environment` and `vars`.
 ///
@@ -34,42 +77,69 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
     if let Err(refusal) = checked(&policy::evaluate(&paths, state.engine.as_ref())) {
         return Err(call.refuse(&paths, &refusal.to_string(), None));
     }
-    let prepared = parse_id(&args.id).and_then(|id| {
-        let engine = state.reloaded()?;
-        let options = ExecuteOptions {
-            environment: args.environment.clone(),
-            vars: args.vars.clone().unwrap_or_default().into_iter().collect(),
-            // The server never reads current values: they belong to the window's app state.
-            ..ExecuteOptions::default()
-        };
-        engine
-            .prepare_execution(&id.to_string(), &options)
-            .map_err(|error| ToolError::Engine(error.to_string()))
-    });
-    let pending = match prepared {
-        Ok(pending) => pending,
+    let id = parse_id(&args.id);
+    let reloaded = id.and_then(|id| state.reloaded().map(|_| id));
+    let id = match reloaded {
+        Ok(id) => id,
         Err(error) => {
             call.audit(&paths, Decision::Allowed, None, None)?;
             return Err(error);
         }
     };
+    // The workspace was reloaded: check again with its manifest as it is now, before the
+    // pre-request script runs, then guard every request the execution sends with its hosts.
+    let engine = state.engine()?;
+    let policy = policy::evaluate(&paths, Some(engine));
+    if let Err(refusal) = checked(&policy) {
+        return Err(call.refuse(&paths, &refusal.to_string(), None));
+    }
+    let refused = Refused::default();
+    let options = ExecuteOptions {
+        environment: args.environment.clone(),
+        vars: args.vars.clone().unwrap_or_default().into_iter().collect(),
+        host_guard: Some(refused.guard(policy.clone())),
+        // The server never reads current values: they belong to the window's app state.
+        ..ExecuteOptions::default()
+    };
+    let pending = match engine.prepare_execution(&id.to_string(), &options) {
+        Ok(pending) => pending,
+        Err(error) => {
+            call.audit(&paths, Decision::Allowed, None, None)?;
+            return Err(ToolError::Engine(error.to_string()));
+        }
+    };
     let masker = pending.masker();
+    // A pre-request script sent to a refused host: nothing was sent, and the call is
+    // refused with the script's request in the audit line.
+    if let Some((method, url, reason)) = refused.take().into_iter().next() {
+        let url = masker.mask(&url);
+        let reason = masker.mask(&format!("{SCRIPT_REFUSED}{reason}"));
+        return Err(call.refuse(&paths, &reason, Some((method.as_str(), url.as_str()))));
+    }
     let method = pending.request().method.clone();
     let url = masker.mask(&pending.request().url);
     let sent = Some((method.as_str(), url.as_str()));
-    // The workspace was reloaded: check again with its manifest as it is now, then the host.
-    let engine = state.engine()?;
-    let policy = policy::evaluate(&paths, Some(engine));
-    if let Err(refusal) =
-        checked(&policy).and_then(|()| policy.check_host(TOOL, &pending.request().url))
-    {
+    if let Err(refusal) = policy.check_host(TOOL, &pending.request().url) {
         return Err(call.refuse(&paths, &masker.mask(&refusal.to_string()), sent));
     }
     call.audit(&paths, Decision::Allowed, None, sent)?;
     let execution = engine.start(pending);
     let executed = engine
         .wait(execution)
-        .map_err(|error| ToolError::Engine(masker.mask(&error.to_string())))?;
+        .map_err(|error| ToolError::Engine(masker.mask(&error.to_string())));
+    // A test script's send runs after the allowed line was written: each refused one gets
+    // its own refused line; the response still comes back, the refusal in its console.
+    for (method, url, reason) in refused.take() {
+        let url = masker.mask(&url);
+        let reason = masker.mask(&format!("{SCRIPT_REFUSED}{reason}"));
+        call.audit(
+            &paths,
+            Decision::Refused,
+            Some(&reason),
+            Some((method.as_str(), url.as_str())),
+        )?;
+    }
+    let executed = executed?;
     encode(&output(&executed, &masker))
 }
 

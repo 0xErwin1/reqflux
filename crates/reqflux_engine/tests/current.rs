@@ -355,6 +355,7 @@ fn options(current: CurrentValues, vars: &[(&str, &str)]) -> ExecuteOptions {
             .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
             .collect(),
         current,
+        ..ExecuteOptions::default()
     }
 }
 

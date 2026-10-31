@@ -189,7 +189,8 @@ impl EngineState {
         }
     }
 
-    /// Checks the class of `tool` before it touches anything, and audits the decision of a
+    /// Checks the class of `tool` against the open workspace as it is on disk before it
+    /// touches anything else, and audits the decision of a
     /// write or destructive tool (S6, S7). Every engine tool but `request_execute` calls this
     /// first; `request_execute` audits once it knows the URL.
     ///
@@ -197,12 +198,17 @@ impl EngineState {
     ///
     /// The policy refused the call, or its audit line could not be written.
     pub(super) fn authorize(
-        &self,
+        &mut self,
         tool: &'static str,
         scope: Scope,
         targets: &[&str],
     ) -> Result<(), ToolError> {
         let call = self.call(tool, scope, targets);
+        // The manifest may have changed on disk since the last call: reload it first, so a
+        // `[mcp]` restriction added there refuses before anything is written.
+        if scope == Scope::Open && self.engine.is_some() {
+            self.reloaded()?;
+        }
         let engine = match scope {
             Scope::Open => self.engine.as_ref(),
             Scope::Global => None,

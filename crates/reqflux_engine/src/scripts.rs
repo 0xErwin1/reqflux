@@ -18,20 +18,31 @@ use tokio::runtime::Runtime;
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
+use crate::guard::HostGuard;
 use crate::select::Target;
 
 /// What a script's `pm.sendRequest` needs from the engine (S13): the same
 /// [`HttpClient`] the request path uses and the request's own settings, so a send from a
-/// script respects the same timeout, redirect and TLS choices as the real request.
+/// script respects the same timeout, redirect and TLS choices as the real request, and
+/// passes the execution's host guard first.
 #[derive(Debug, Clone)]
 pub(crate) struct Transport {
     client: HttpClient,
     options: RequestOptions,
+    guard: Option<HostGuard>,
 }
 
 impl Transport {
-    pub(crate) fn new(client: HttpClient, options: RequestOptions) -> Self {
-        Self { client, options }
+    pub(crate) fn new(
+        client: HttpClient,
+        options: RequestOptions,
+        guard: Option<HostGuard>,
+    ) -> Self {
+        Self {
+            client,
+            options,
+            guard,
+        }
     }
 }
 
@@ -258,10 +269,18 @@ fn run_on_thread(script: &str, mut context: ScriptContext, transport: Transport)
 
 /// The host handler behind `pm.sendRequest`: one runtime per script run, one client, the
 /// request's own settings. A transport failure reaches the script as the callback's
-/// `error`; the request's timeout bounds how long the host can take.
+/// `error`; the request's timeout bounds how long the host can take. A request the guard
+/// refuses is never sent: the refusal reaches the script the same way.
 fn send_through(runtime: Runtime, transport: Transport) -> SendRequest {
-    let Transport { client, options } = transport;
+    let Transport {
+        client,
+        options,
+        guard,
+    } = transport;
     SendRequest::new(move |request: ScriptRequest| {
+        if let Some(guard) = &guard {
+            guard.check(&request.method, &request.url)?;
+        }
         let prepared = PreparedRequest {
             method: request.method,
             url: request.url,

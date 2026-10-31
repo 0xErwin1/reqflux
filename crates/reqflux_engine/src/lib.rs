@@ -63,6 +63,7 @@ mod create;
 mod current;
 mod engine;
 mod error;
+mod guard;
 mod import;
 mod managed;
 pub mod policy;
@@ -82,6 +83,7 @@ pub use error::{
     CreateWorkspaceError, ExecuteError, ImportError, OpenError, PersistError, SaveError, TreeError,
     VariableError,
 };
+pub use guard::HostGuard;
 pub use import::{ImportSummary, postman};
 pub use managed::{
     create_managed_workspace, create_managed_workspace_in, is_managed, is_managed_in,

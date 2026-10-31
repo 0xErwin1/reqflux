@@ -527,12 +527,15 @@ impl Engine {
         options: &ExecuteOptions,
     ) -> Result<Execution, ExecuteError> {
         let pending = self.prepare_execution(selector, options)?;
+        guard_main(&pending.prepared, options)?;
         Ok(self.start(pending))
     }
 
     /// The first half of [`Engine::execute`]: runs the effective pre-request script and
     /// prepares the request, sending nothing, so a caller can check the prepared request
-    /// (such as its host against a policy) before [`Engine::start`] sends it.
+    /// (such as its host against a policy) before [`Engine::start`] sends it. The options'
+    /// host guard applies to the scripts' `pm.sendRequest`; the main request is the
+    /// caller's to check before [`Engine::start`], which does not.
     ///
     /// # Errors
     ///
@@ -579,6 +582,7 @@ impl Engine {
     ) -> Result<Execution, ExecuteError> {
         let target = crate::select::find(self.workspace(), selector)?;
         let (prepared, scripts, scripted) = self.prepare_scripted(&target, draft, options)?;
+        guard_main(&prepared, options)?;
         Ok(self.scripted_execution(prepared, scripts, scripted))
     }
 
@@ -627,6 +631,7 @@ impl Engine {
         let transport = engine_scripts::Transport::new(
             self.client.clone(),
             crate::prepare::request_options(request.settings),
+            options.host_guard.clone(),
         );
         let outcome = engine_scripts::run_stage(
             ScriptStage::PreRequest,
@@ -714,5 +719,15 @@ impl Engine {
     ) -> Result<Executed, ExecuteError> {
         let execution = self.execute(selector, options)?;
         self.wait(execution)
+    }
+}
+
+/// Checks the main request of an execution against the options' host guard, if any.
+fn guard_main(prepared: &Prepared, options: &ExecuteOptions) -> Result<(), ExecuteError> {
+    match &options.host_guard {
+        Some(guard) => guard
+            .check(prepared.request.method.as_str(), &prepared.request.url)
+            .map_err(ExecuteError::HostRefused),
+        None => Ok(()),
     }
 }
