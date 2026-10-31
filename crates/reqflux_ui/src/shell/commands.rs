@@ -208,7 +208,7 @@ impl Shell {
                 }
             }
             CommandId::OpenWorkspace => self.pick_folder(window, cx),
-            CommandId::NewWorkspace => self.pick_new(window, cx),
+            CommandId::NewWorkspace => self.start_new_workspace(window, cx),
             CommandId::CloseWorkspace => self.switch_workspace(None, window, cx),
             CommandId::CloseTab => {
                 if let Some(active) = active {

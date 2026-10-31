@@ -26,7 +26,7 @@ impl Shell {
     /// The new workspace loads first: a failure keeps the current one and shows the error in
     /// the workspace menu or the empty state. Then every send in flight is cancelled (dropping
     /// a send cancels it), every tab closes and every field edit and menu drops, the active
-    /// environment resets to none, and the sidebar, drafts, current values and history are
+    /// environment becomes the one stored for the new workspace (else none), and the sidebar, drafts, current values and history are
     /// read again for the new workspace, which is recorded as recent. Drafts of the previous
     /// workspace stay in the app state.
     ///
@@ -74,6 +74,7 @@ impl Shell {
             sidebar
         });
         self._sidebar_events = subscribe_sidebar(&self.sidebar, cx);
+        self.restore_active_environment();
         self.load_drafts();
         self.load_current_values();
         self.refresh_history(cx);
@@ -81,6 +82,7 @@ impl Shell {
         self.record_recent();
         self.refresh_recents();
         self.workspace_menu_open = false;
+        self.new_workspace_name = None;
         self.focus.focus(window, cx);
         cx.notify();
     }
@@ -185,7 +187,7 @@ impl Shell {
         }
     }
 
-    fn show_workspace_error(&mut self, error: String, cx: &mut Context<Self>) {
+    pub(super) fn show_workspace_error(&mut self, error: String, cx: &mut Context<Self>) {
         log::warn!("{error}");
         self.workspace_error = Some(error);
         cx.notify();
@@ -243,6 +245,7 @@ impl Shell {
     /// Closes the workspace menu and gives the focus back.
     pub(super) fn close_workspace_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.workspace_menu_open = false;
+        self.new_workspace_name = None;
         self.restore_focus(window, cx);
     }
 }

@@ -45,6 +45,9 @@ pub enum CreateWorkspaceError {
     /// The store could not write `reqflux.toml`.
     #[error(transparent)]
     Save(#[from] StoreError),
+    /// Neither `XDG_DATA_HOME` nor `HOME` is set, so there is nowhere to keep workspaces.
+    #[error("neither XDG_DATA_HOME nor HOME is set; cannot locate the app's workspaces")]
+    NoDataDirectory,
 }
 
 /// Why a request could not be prepared or sent.

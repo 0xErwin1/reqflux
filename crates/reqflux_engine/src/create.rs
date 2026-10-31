@@ -21,6 +21,17 @@ use crate::error::CreateWorkspaceError;
 /// empty: each is refused before anything is written. Creating the directory or saving the
 /// manifest can also fail.
 pub fn create_workspace(dir: &Path, name: &str) -> Result<Id, CreateWorkspaceError> {
+    let id = Id::new();
+    create_workspace_with_id(dir, name, id)?;
+    Ok(id)
+}
+
+/// [`create_workspace`] with the id the manifest takes.
+pub(crate) fn create_workspace_with_id(
+    dir: &Path,
+    name: &str,
+    id: Id,
+) -> Result<(), CreateWorkspaceError> {
     if name.trim().is_empty() {
         return Err(CreateWorkspaceError::EmptyName);
     }
@@ -46,12 +57,12 @@ pub fn create_workspace(dir: &Path, name: &str) -> Result<Id, CreateWorkspaceErr
         Err(source) => return Err(io_error(source)),
     }
     let manifest = WorkspaceManifest {
-        id: Id::new(),
+        id,
         name: name.to_owned(),
         format: FORMAT,
         globals: Vec::new(),
         extensions: toml::Table::new(),
     };
     save_manifest(dir, &manifest, None)?;
-    Ok(manifest.id)
+    Ok(())
 }

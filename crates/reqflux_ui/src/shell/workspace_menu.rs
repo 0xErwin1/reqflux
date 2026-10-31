@@ -1,6 +1,8 @@
 //! The workspace menu under the title bar workspace selector (recent-workspaces S3, S6): the
-//! recent workspaces by name over their path, the current one marked, each with `Remove`;
-//! then `Open folder…`, `New workspace…` and, while one is open, `Close workspace`. A recent
+//! recent workspaces by name over their path (`In ReqFlux` for a workspace the app keeps),
+//! the current one marked, each with `Remove`; then `Open folder…`, `New workspace…` (an
+//! inline name field, standalone-workspaces S3), `New workspace in folder…` and, while one is
+//! open, `Close workspace`. A recent
 //! entry that does not load keeps the menu open over its error, `workspace-error`. Escape or
 //! a click outside closes the menu.
 
@@ -28,6 +30,9 @@ pub(crate) const OPEN_FOLDER: &str = "Open folder…";
 /// `New workspace…`.
 pub(crate) const NEW_WORKSPACE: &str = "New workspace…";
 
+/// `New workspace in folder…`.
+pub(crate) const NEW_WORKSPACE_IN_FOLDER: &str = "New workspace in folder…";
+
 /// `Close workspace`.
 pub(crate) const CLOSE_WORKSPACE: &str = "Close workspace";
 
@@ -36,6 +41,7 @@ pub(crate) const CLOSE_WORKSPACE: &str = "Close workspace";
 pub(super) enum Action {
     Open,
     New,
+    NewInFolder,
     Close,
 }
 
@@ -44,7 +50,8 @@ impl Action {
         shell.workspace_menu_open = false;
         match self {
             Self::Open => shell.pick_folder(window, cx),
-            Self::New => shell.pick_new(window, cx),
+            Self::New => shell.start_new_workspace(window, cx),
+            Self::NewInFolder => shell.pick_new(window, cx),
             Self::Close => shell.switch_workspace(None, window, cx),
         }
         cx.notify();
@@ -76,19 +83,20 @@ pub(super) fn action_row(
 }
 
 /// The recent row `<prefix>-recent-<n>` of `recent`, with its `Remove` button
-/// `<prefix>-recent-remove-<n>`; `current` marks the window's workspace.
+/// `<prefix>-recent-remove-<n>`, its name over `detail` (its path or `In ReqFlux`);
+/// `current` marks the window's workspace.
 pub(super) fn recent_row(
     prefix: &'static str,
     index: usize,
     recent: &RecentWorkspace,
+    detail: String,
     current: bool,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
     let colors = bolt::colors(cx);
     let tint = bolt::brand(cx).accent_tint;
     let n = index + 1;
-    let path = recent.path.display().to_string();
-    let label = format!("{} {path}", recent.name);
+    let label = format!("{} {detail}", recent.name);
     let open = text_role::role(
         labeled_row(format!("{prefix}-recent-{n}"), label),
         text::BODY,
@@ -114,7 +122,7 @@ pub(super) fn recent_row(
         text_role::role(div(), text::CAPTION, cx)
             .overflow_hidden()
             .whitespace_nowrap()
-            .child(path),
+            .child(detail),
     )
     .on_click(cx.listener(move |this, _event, window, cx| this.open_recent(index, window, cx)));
     let remove = IconButton::new(
@@ -198,7 +206,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
                 .edge(colors.line_2, border::THIN),
         )
         .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-            if event.keystroke.key == "escape" {
+            if event.keystroke.key == "escape" && !this.cancel_new_workspace(window, cx) {
                 this.close_workspace_menu(window, cx);
             }
         }));
@@ -208,7 +216,8 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
     let current = shell.workspace_path.as_deref();
     for (index, recent) in shell.recents.iter().enumerate() {
         let selected = is_current(recent, current);
-        menu = menu.child(recent_row("workspace", index, recent, selected, cx));
+        let detail = shell.recent_detail(recent);
+        menu = menu.child(recent_row("workspace", index, recent, detail, selected, cx));
     }
     let divider = bolt::colors(cx).line;
     if let Some(error) = &shell.workspace_error {
@@ -228,6 +237,14 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             IconName::Plus,
             NEW_WORKSPACE,
             Action::New,
+            cx,
+        ))
+        .children(shell.new_name_field(cx))
+        .child(action_row(
+            "workspace-new-folder",
+            IconName::FolderPlus,
+            NEW_WORKSPACE_IN_FOLDER,
+            Action::NewInFolder,
             cx,
         ));
     if matches!(shell.workspace, OpenedWorkspace::Loaded(_)) {

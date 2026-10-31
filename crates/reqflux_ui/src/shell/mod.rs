@@ -2,6 +2,7 @@
 //! and document islands between them.
 
 mod action_strip;
+mod active_environment;
 mod auth_edit;
 mod body_edit;
 mod cell_edit;
@@ -43,6 +44,7 @@ mod variables_document;
 mod variables_model;
 mod variables_ops;
 mod workspace_menu;
+mod workspace_new;
 mod workspace_picker;
 mod workspace_switch;
 
@@ -102,6 +104,11 @@ pub(crate) struct Shell {
     picker: Rc<dyn WorkspacePicker>,
     /// Whether the title bar workspace menu is open.
     workspace_menu_open: bool,
+    /// The name field of `New workspace…`, while it is open in the workspace menu.
+    new_workspace_name: Option<Entity<gpui_component::input::InputState>>,
+    /// Where `New workspace…` creates workspaces the app keeps, which recent rows read
+    /// `In ReqFlux` under; `None` when there is no data directory, and in tests unless set.
+    managed_dir: Option<PathBuf>,
     /// Focused while the workspace menu is open, so Escape reaches it.
     workspace_menu_focus: FocusHandle,
     sidebar: Entity<Sidebar>,
@@ -201,6 +208,8 @@ impl Shell {
             workspace_error: None,
             picker: Rc::new(OsPicker),
             workspace_menu_open: false,
+            new_workspace_name: None,
+            managed_dir: workspace_new::default_managed_dir(),
             workspace_menu_focus: cx.focus_handle(),
             sidebar,
             roots,
@@ -231,6 +240,7 @@ impl Shell {
             preview_host: PreviewHost::default(),
             _sidebar_events: sidebar_events,
         };
+        shell.restore_active_environment();
         shell.load_drafts();
         shell.load_current_values();
         shell.refresh_history(cx);
@@ -267,10 +277,12 @@ impl Shell {
         cx.notify();
     }
 
-    /// Makes `slug` the active environment and inspects every open request again against it,
-    /// keeping its sub-tab; a request that can no longer be inspected is dropped.
+    /// Makes `slug` the active environment, remembers it for the workspace and inspects every
+    /// open request again against it, keeping its sub-tab; a request that can no longer be
+    /// inspected is dropped.
     pub(super) fn set_environment(&mut self, slug: Option<String>, cx: &mut Context<Self>) {
         self.active_environment = slug;
+        self.save_active_environment();
         self.inspect_open_requests(cx);
     }
 
@@ -446,6 +458,8 @@ fn text_region(id: &'static str) -> Stateful<Div> {
 }
 
 #[cfg(test)]
+mod active_environment_tests;
+#[cfg(test)]
 mod auth_edit_tests;
 #[cfg(test)]
 mod body_edit_tests;
@@ -495,5 +509,7 @@ mod tree_reorder_tests;
 mod variables_edit_tests;
 #[cfg(test)]
 mod variables_tests;
+#[cfg(test)]
+mod workspace_new_tests;
 #[cfg(test)]
 mod workspace_switch_tests;

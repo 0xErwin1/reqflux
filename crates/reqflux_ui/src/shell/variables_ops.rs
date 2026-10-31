@@ -67,6 +67,7 @@ impl Shell {
                 });
                 if outcome.is_ok() && was_active {
                     self.active_environment = None;
+                    self.save_active_environment();
                 }
                 self.environments_changed(outcome.map(|(created, _)| created), cx);
             }

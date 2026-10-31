@@ -7,8 +7,10 @@ use clap::CommandFactory as _;
 use clap::{Args, Parser, Subcommand};
 
 const AFTER_HELP: &str = "\
-Without DIR, ReqFlux opens the current directory when it holds a reqflux.toml, and an empty
-window otherwise. A directory named like a subcommand needs a path prefix: reqflux ./run";
+Without DIR, ReqFlux opens the last workspace you used that still loads; on the first run it
+creates a new workspace named Personal, kept by the app under
+$XDG_DATA_HOME/reqflux/workspaces. With DIR, it opens that directory (reqflux . opens the
+current one). A directory named like a subcommand needs a path prefix: reqflux ./run";
 
 /// A local-first HTTP client. Without a subcommand, opens the ReqFlux window.
 #[derive(Debug, Parser)]
@@ -19,7 +21,7 @@ window otherwise. A directory named like a subcommand needs a path prefix: reqfl
     after_help = AFTER_HELP
 )]
 pub(crate) struct Cli {
-    /// The workspace directory to open in the window.
+    /// The workspace directory to open in the window; without it, the last workspace.
     #[arg(value_name = "DIR")]
     pub(crate) workspace: Option<PathBuf>,
     /// What to do instead of opening the window.
@@ -31,12 +33,19 @@ pub(crate) struct Cli {
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
     /// Send one request of a workspace and write the response body to stdout.
+    ///
+    /// Uses the workspace in the current directory, or --workspace.
     Run(RunArgs),
     /// Serve the MCP tools that edit and run a workspace and drive the running app, over stdio.
+    ///
+    /// The engine tools start on the workspace in the current directory, or --workspace.
     Mcp(McpArgs),
     /// Import a Postman collection and its environments into a workspace.
     Import(ImportArgs),
     /// Set, unset and list secret variable values in the OS keyring.
+    ///
+    /// Uses the workspace in the current directory, or --workspace (a DIR argument for
+    /// list).
     Secret(SecretArgs),
 }
 
@@ -387,6 +396,35 @@ mod tests {
         assert!(Cli::try_parse_from(["reqflux", "run"]).is_err());
         let cli = parse(&["reqflux", "./run"]);
         assert_eq!(cli.workspace, Some(PathBuf::from("./run")));
+    }
+
+    #[test]
+    fn help_documents_the_window_startup() {
+        let help = Cli::command().render_long_help().to_string();
+        for expected in [
+            "Without DIR, ReqFlux opens the last workspace you used",
+            "a new workspace named Personal",
+            "With DIR, it opens that directory",
+            "reqflux .",
+        ] {
+            assert!(help.contains(expected), "{expected} missing: {help}");
+        }
+        assert!(!help.contains("current directory when it holds"), "{help}");
+    }
+
+    #[test]
+    fn directory_tools_say_they_use_the_current_directory() {
+        let mut command = Cli::command();
+        for name in ["run", "secret", "mcp"] {
+            let Some(sub) = command.find_subcommand_mut(name) else {
+                panic!("{name} is missing");
+            };
+            let help = sub.render_long_help().to_string();
+            assert!(
+                help.contains("the workspace in the current directory, or --workspace"),
+                "{name}: {help}"
+            );
+        }
     }
 
     #[test]

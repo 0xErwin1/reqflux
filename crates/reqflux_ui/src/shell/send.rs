@@ -95,7 +95,9 @@ impl Shell {
         if self.palette.is_some() {
             self.close_palette(window, cx);
         } else if self.workspace_menu_open {
-            self.close_workspace_menu(window, cx);
+            if !self.cancel_new_workspace(window, cx) {
+                self.close_workspace_menu(window, cx);
+            }
         } else if self.environment_menu_open {
             self.close_environment_menu(window, cx);
         } else if self.auth_menu_open {

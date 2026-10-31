@@ -16,12 +16,12 @@ use super::workspace_picker::TestPicker;
 use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::write;
 
-const FIRST_ID: &str = "01J00000000000000000000A01";
+pub(super) const FIRST_ID: &str = "01J00000000000000000000A01";
 const SECOND_ID: &str = "01J00000000000000000000B01";
 const FIRST_REQUEST: &str = "01J00000000000000000000A03";
 const SECOND_REQUEST: &str = "01J00000000000000000000B03";
 
-fn temp_dir() -> TempDir {
+pub(super) fn temp_dir() -> TempDir {
     match TempDir::new() {
         Ok(dir) => dir,
         Err(error) => panic!("temp dir: {error}"),
@@ -30,7 +30,7 @@ fn temp_dir() -> TempDir {
 
 /// A workspace `name` with id `id`, one collection and the request `request` at `url`, and
 /// the environment `dev`.
-fn workspace(id: &str, name: &str, request: &str, url: &str) -> TempDir {
+pub(super) fn workspace(id: &str, name: &str, request: &str, url: &str) -> TempDir {
     let dir = temp_dir();
     let root = dir.path();
     write(
@@ -57,7 +57,7 @@ fn workspace(id: &str, name: &str, request: &str, url: &str) -> TempDir {
 }
 
 /// `id` with its last character replaced by `last`.
-fn sibling(id: &str, last: char) -> String {
+pub(super) fn sibling(id: &str, last: char) -> String {
     let mut sibling: String = id.chars().take(id.len() - 1).collect();
     sibling.push(last);
     sibling
@@ -67,14 +67,14 @@ fn collection_of(id: &str) -> String {
     sibling(id, '2')
 }
 
-fn canonical(path: &Path) -> PathBuf {
+pub(super) fn canonical(path: &Path) -> PathBuf {
     match fs::canonicalize(path) {
         Ok(path) => path,
         Err(error) => panic!("canonicalize {}: {error}", path.display()),
     }
 }
 
-fn open_state(path: &Path) -> AppState {
+pub(super) fn open_state(path: &Path) -> AppState {
     match AppState::open(path) {
         Ok(state) => state,
         Err(error) => panic!("open state: {error}"),
@@ -89,7 +89,7 @@ fn record(state_path: &Path, dir: &Path, id: &str, name: &str, at: i64) {
     }
 }
 
-fn recents(state_path: &Path) -> Vec<(PathBuf, String)> {
+pub(super) fn recents(state_path: &Path) -> Vec<(PathBuf, String)> {
     match open_state(state_path).recent_workspaces() {
         Ok(found) => found
             .into_iter()
@@ -100,7 +100,7 @@ fn recents(state_path: &Path) -> Vec<(PathBuf, String)> {
 }
 
 /// The shell on `dir` (or none) over the state at `state_path`, with `picker`.
-fn render<'a>(
+pub(super) fn render<'a>(
     cx: &'a mut TestAppContext,
     dir: Option<&Path>,
     state_path: &Path,
@@ -120,24 +120,27 @@ fn render<'a>(
     (shell, cx)
 }
 
-fn bounds(cx: &mut VisualTestContext, selector: &str) -> Option<gpui::Bounds<gpui::Pixels>> {
+pub(super) fn bounds(
+    cx: &mut VisualTestContext,
+    selector: &str,
+) -> Option<gpui::Bounds<gpui::Pixels>> {
     cx.debug_bounds(Box::leak(selector.to_owned().into_boxed_str()))
 }
 
-fn present(cx: &mut VisualTestContext, selector: &str) -> gpui::Bounds<gpui::Pixels> {
+pub(super) fn present(cx: &mut VisualTestContext, selector: &str) -> gpui::Bounds<gpui::Pixels> {
     match bounds(cx, selector) {
         Some(found) => found,
         None => panic!("{selector} is missing"),
     }
 }
 
-fn click(cx: &mut VisualTestContext, selector: &str) {
+pub(super) fn click(cx: &mut VisualTestContext, selector: &str) {
     let target = present(cx, selector);
     cx.simulate_click(target.center(), Modifiers::none());
     cx.run_until_parked();
 }
 
-fn name(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
+pub(super) fn name(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
     cx.update(|_, cx| shell.read(cx).workspace.name().map(str::to_owned))
 }
 
@@ -150,14 +153,14 @@ fn drafted(cx: &mut VisualTestContext, shell: &Entity<Shell>, id: &str) -> bool 
 }
 
 /// Two workspaces, both recent, `First` older; the window opens on `First`.
-struct Pair {
-    first: TempDir,
-    second: TempDir,
-    _state_dir: TempDir,
-    state_path: PathBuf,
+pub(super) struct Pair {
+    pub(super) first: TempDir,
+    pub(super) second: TempDir,
+    pub(super) _state_dir: TempDir,
+    pub(super) state_path: PathBuf,
 }
 
-fn pair(url: &str) -> Pair {
+pub(super) fn pair(url: &str) -> Pair {
     let first = workspace(FIRST_ID, "First", FIRST_REQUEST, url);
     let second = workspace(SECOND_ID, "Second", SECOND_REQUEST, "https://second/x");
     let (state_dir, state_path) = state_file();
@@ -203,7 +206,12 @@ fn the_menu_lists_recents_newest_first_with_the_current_marked(cx: &mut TestAppC
     let one = present(cx, "workspace-recent-1");
     let two = present(cx, "workspace-recent-2");
     assert!(menu.contains(&one.origin) && one.top() < two.top());
-    for id in ["workspace-open", "workspace-new", "workspace-close"] {
+    for id in [
+        "workspace-open",
+        "workspace-new",
+        "workspace-new-folder",
+        "workspace-close",
+    ] {
         present(cx, id);
     }
     present(cx, "workspace-recent-current-1");
@@ -313,7 +321,7 @@ fn new_workspace_creates_one_named_after_the_directory(cx: &mut TestAppContext) 
     };
     let (shell, cx) = render(cx, Some(pair.first.path()), &pair.state_path, picker);
     click(cx, "workspace-selector");
-    click(cx, "workspace-new");
+    click(cx, "workspace-new-folder");
     assert!(target.join("reqflux.toml").is_file());
     assert_eq!(name(cx, &shell).as_deref(), Some("payments-api"));
     assert_eq!(
@@ -337,6 +345,7 @@ fn close_shows_the_empty_state_and_a_recent_reopens(cx: &mut TestAppContext) {
     for id in [
         "empty-open",
         "empty-new",
+        "empty-new-folder",
         "empty-recent-1",
         "empty-recent-2",
         "document-message",

@@ -43,7 +43,8 @@
 //! # Creating a workspace
 //!
 //! [`create_workspace`] writes a new workspace's `reqflux.toml` into a missing or empty
-//! directory.
+//! directory. [`create_managed_workspace`] creates one the app keeps, under
+//! [`managed_workspaces_dir`].
 //!
 //! # App state
 //!
@@ -56,6 +57,7 @@ mod current;
 mod engine;
 mod error;
 mod import;
+mod managed;
 mod prepare;
 mod scripts;
 mod secrets;
@@ -73,6 +75,10 @@ pub use error::{
     VariableError,
 };
 pub use import::{ImportSummary, postman};
+pub use managed::{
+    create_managed_workspace, create_managed_workspace_in, is_managed, is_managed_in,
+    managed_workspaces_dir,
+};
 pub use prepare::{
     DEFAULT_TIMEOUT_MS, ExecuteOptions, Inspection, Prepared, Span, inspect, prepare, prepare_draft,
 };
