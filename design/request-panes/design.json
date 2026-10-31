@@ -1,0 +1,10 @@
+{
+  "title": "Request panes",
+  "brief": "Scripts tab (pre-request and test editors, empty state that invites a first script), Settings tab (timeout, follow redirects, verify TLS as visible controls with a default state), Params/Headers grid with readable column divisions, and a draggable split between the request and the response with a visible handle, resize cursor and collapsed and expanded states. Built on the Bolt shell of design/bolt-v2/01-main.html; every editable value reads as editable.",
+  "feature": "odd/tasks/request-pane-feedback.md",
+  "artboards": [
+    { "file": "01-stacked-grip.html", "title": "Stacked split with a grip", "tradeoff": "Closest to today's layout: a 9 px gutter with a dotted grip between request and response, spreadsheet grid with a line on every side, both scripts stacked, settings as Default / On / Off segments; the two stacked editors get short when the response is open", "width": 1440, "height": 2820 },
+    { "file": "02-side-by-side.html", "title": "Side by side", "tradeoff": "Request and response next to each other (the Split button turns it on) with a column handle and a 40 px collapsed column; editing and reading the response at once, but each side gets about 550 px: the grid drops its description column and one script shows at a time", "width": 1440, "height": 3760 },
+    { "file": "03-docked-header.html", "title": "Response header as the handle", "tradeoff": "DBFlux results-panel pattern: the whole response header row drags, with Collapse / Split / Maximize presets; request sections move to a vertical list so the DBFlux data grid, side-by-side scripts and an explicit override table fit; costs 140 px of width and changes where the request tabs live", "width": 1440, "height": 2820 }
+  ]
+}

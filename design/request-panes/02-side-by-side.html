@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Request panes: side by side</title>
+<!--
+  ReqFlux main window rebuilt on DBFlux's islands artboard (03-isl-editor.html).
+  Values are copied from that artboard; only the accent changes:
+  byzantine #702963 -> cobalt #2B45B8 (hover #3451C8, pressed #1F3389),
+  tint #D48CC8 -> #9DB1FF, washes rgba(tint, .06 / .11 / .14 / .16).
+-->
+<style>
+body{margin:0;background:#09090B}
+.x{font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-stretch:125%}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;overflow:visible;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap}
+.isl-doc [style*=" width:"],.isl-doc [style^="width:"]{flex-shrink:0}
+
+/* shared control shapes, values from the DBFlux artboard */
+.kc{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;padding:2px 6px;background:#1A181E;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
+.ib{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:0;background:#1A181E;color:#C6C3CC}
+.ib.g{background:transparent;color:#8E8996}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
+.sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px;white-space:nowrap}
+.tab{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;color:#8E8996;font-size:13px;white-space:nowrap}
+.tab.on{background:#1A181E;color:#F7F4F7;font-weight:600}
+.seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7}
+.chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
+.dia{width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+
+/* tree */
+.row{position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:13px;color:#C6C3CC}
+.row .gl{position:absolute;top:0;bottom:0;width:1px;background:#232128}
+.row .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.row.sel-row{background:rgba(157,177,255,.14);color:#F7F4F7}
+.row.sel-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.mt{width:38px;flex-shrink:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.02em;text-align:left}
+.get{color:#7BE0A0}.post{color:#FFC23D}.patch{color:#B79CFF}.del{color:#FF6B5E}
+
+/* grid */
+.gh{display:flex;align-items:center;height:32px;background:#09090B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;color:#F7F4F7;font-weight:600}
+.gr{display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr>.rn{padding:0 12px 0 0;text-align:right;color:#37333D}
+.tp{font-weight:400;font-size:10.5px;color:#8E8996;margin-left:6px}
+.var{color:#9DB1FF;background:rgba(157,177,255,.12)}
+.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+
+/* code */
+.ln{display:flex;align-items:center;height:20px}
+.ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:#37333D}
+.ln>.tx{white-space:pre;color:#C6C3CC}
+.k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}.b{color:#FFC23D}
+</style>
+<style>
+:focus-visible{outline:2px solid #FFB454;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+<style>
+/* request-panes additions. Colors are design/system.md tokens only. */
+:focus-visible{outline:1.5px solid #9DB1FF;outline-offset:-1.5px}
+body{background:#050507}
+.frame{width:1440px;margin:0 0 0 0}
+.cap{display:flex;align-items:center;gap:12px;height:40px;padding:0 16px;box-sizing:border-box;background:#050507;color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:12px}
+.cap b{font-family:'Archivo',system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#C6C3CC}
+.lab{font-family:'Archivo',system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+.note{display:flex;align-items:center;gap:6px;font-size:12px;color:#8E8996}
+
+/* checkbox, Bolt 16 px, cut 4 */
+.chk{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex-shrink:0;background:#09090B;box-shadow:#37333D 0 0 0 1px inset;color:#100F13}
+.chk.on{background:#9DB1FF;box-shadow:none}
+.chk.mix{background:#1A181E}
+.chk.mix::after{content:"";width:8px;height:2px;background:#8E8996}
+
+/* state badges */
+.bdg{display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;box-sizing:border-box;background:#1A181E;color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.bdg.ovr{background:rgba(157,177,255,.12);color:#9DB1FF}
+.bdg.warn{background:rgba(255,194,61,.12);color:#FFC23D}
+.lnk{border:0;background:transparent;padding:0;color:#9DB1FF;font-size:12px;cursor:pointer}
+
+/* number field with stepper */
+.num{display:flex;align-items:center;height:30px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.num>.v{flex-grow:1;padding:0 10px;white-space:nowrap}
+.num>.u{padding-right:8px;color:#8E8996}
+.num>.st{display:flex;flex-direction:column;width:20px;height:28px;border-left:1px solid #232128;color:#8E8996}
+.num>.st>span{display:flex;flex:1;align-items:center;justify-content:center}
+.num>.st>span+span{border-top:1px solid #232128}
+.num.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
+.caret{display:inline-block;width:1px;height:15px;background:#9DB1FF;vertical-align:middle}
+
+/* code editor, DBFlux editor surface: well fill, gutter, header strip */
+.ed{display:flex;flex-direction:column;min-height:0;background:#09090B;box-shadow:#232128 0 0 0 1px inset}
+.ed-h{display:flex;align-items:center;gap:8px;height:34px;padding:0 6px 0 12px;flex-shrink:0;border-bottom:1px solid #232128}
+.ed-b{flex-grow:1;min-height:0;overflow:hidden;padding-top:6px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.ed-b .ln>.no,.ln>.no{flex-shrink:0}
+.ed-b .ln.cur{background:rgba(255,255,255,.04)}
+.ed-b .ln.cur>.no{color:#8E8996}
+.cm{color:#8E8996}
+.ed.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;flex-grow:1;padding:16px;text-align:center}
+.empty h3{margin:0;font-size:13px;font-weight:600;color:#F7F4F7}
+.empty p{margin:0;max-width:380px;font-size:12px;color:#8E8996;line-height:1.5}
+.btn.pri{background:#2B45B8;color:#FFF;font-weight:600}
+.btn.sm{height:24px;padding:0 10px;font-size:12px}
+
+/* settings form, DBFlux settings grid: 170 px label column */
+.fr{display:grid;grid-template-columns:170px 1fr;align-items:start;gap:16px;padding:7px 0}
+.fr>.fl{padding-top:7px;font-size:13px;color:#C6C3CC}
+.fr .fc{display:flex;flex-direction:column;gap:6px}
+.fr .hint{font-size:12px;color:#8E8996}
+
+/* splitters */
+.sp{position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#100F13;touch-action:none}
+.sp-y{height:9px;cursor:row-resize;border-top:1px solid #232128;border-bottom:1px solid #232128}
+.sp-x{width:9px;cursor:col-resize;border-left:1px solid #232128;border-right:1px solid #232128}
+.sp .grip{background-image:radial-gradient(circle,#37333D 1.1px,transparent 1.4px)}
+.sp-y .grip{width:30px;height:5px;background-size:6px 5px}
+.sp-x .grip{width:5px;height:30px;background-size:5px 6px}
+.sp:hover,.sp.drag{background:rgba(157,177,255,.06)}
+.sp:hover .grip,.sp.drag .grip{background-image:radial-gradient(circle,#9DB1FF 1.1px,transparent 1.4px)}
+.sp.drag::after{content:"";position:absolute;background:#9DB1FF}
+.sp-y.drag::after{left:0;right:0;top:3px;height:2px}
+.sp-x.drag::after{top:0;bottom:0;left:3px;width:2px}
+.split{display:flex;flex-grow:1;min-height:0;min-width:0}
+.split>.pane-req{display:flex;min-height:0;min-width:0;overflow:hidden}
+.split>.pane-resp{display:flex;flex-direction:column;flex:1 1 0;min-height:0;min-width:0}
+.split .rbar{display:none}
+.split.collapsed .rfull{display:none}
+.split.collapsed .rbar{display:flex}
+.split.collapsed>.pane-req{flex:1 1 auto!important}
+.split.collapsed>.pane-resp{flex:0 0 auto}
+.rfull{display:flex;flex-direction:column;flex-grow:1;min-height:0}
+.callout{position:absolute;z-index:2;display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;background:#1A181E;box-shadow:#37333D 0 0 0 1px inset;color:#C6C3CC;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;white-space:nowrap;pointer-events:none}
+
+/* 01 grid: spreadsheet cells, a line on every side */
+.eg{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.eg .h,.eg .r{display:grid;grid-template-columns:36px 210px minmax(0,1fr) 230px 34px}
+.eg .h{height:32px;background:#09090B;color:#F7F4F7;font-weight:600;font-size:12px;box-shadow:inset 0 -1px 0 #37333D}
+.eg .r{height:30px;box-shadow:inset 0 -1px 0 #232128}
+.eg .h>span,.eg .r>span{position:relative;display:flex;align-items:center;gap:8px;padding:0 10px;min-width:0;overflow:hidden;white-space:nowrap;border-right:1px solid #232128}
+.eg .h>span{border-right-color:#37333D}
+.eg .h>span:last-child,.eg .r>span:last-child{border-right:0;justify-content:center;padding:0}
+.eg .h>span:first-child,.eg .r>span:first-child{justify-content:center;padding:0}
+.eg .h .rz{position:absolute;right:-3px;top:6px;bottom:6px;width:5px;cursor:col-resize}
+.eg .r>span.foc{overflow:visible;background:#09090B;box-shadow:inset 0 0 0 1.5px #9DB1FF}
+.eg .r.off>span:not(:first-child){color:#8E8996;text-decoration:line-through;text-decoration-color:#37333D}
+.eg .r.add>span{color:#8E8996}
+.prose{font-family:Archivo,system-ui,sans-serif;font-size:12.5px;color:#8E8996}
+.secret{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em}
+.mask{color:#8E8996;letter-spacing:.1em}
+
+/* 02 grid: every cell is an input well */
+.wg{display:flex;flex-direction:column;gap:4px;padding:8px 12px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.wg .h,.wg .r{display:grid;grid-template-columns:20px 150px minmax(0,1fr) 24px;gap:4px;align-items:center}
+.wg .h{height:22px;padding:0 0 2px}
+.wg .h>span{padding:0 10px;font-family:'Archivo',system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+.wg .h>span:first-child,.wg .h>span:last-child{padding:0}
+.wg .r>.w{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;min-width:0;overflow:hidden;white-space:nowrap;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset}
+.wg .r>.w.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset;overflow:visible}
+.wg .r.off>.w{color:#8E8996}
+.wg .r.add>.w{background:transparent;box-shadow:#232128 0 0 0 1px inset;color:#8E8996}
+
+/* 03 grid: DBFlux data grid, 31 px rows, 40 px header, column dividers, alternating rows */
+.dg{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.dg .h,.dg .r{display:grid;grid-template-columns:46px 36px 210px minmax(0,1fr) 220px}
+.dg .h{height:40px;background:#09090B;box-shadow:inset 0 -1px 0 #37333D}
+.dg .h>span{display:flex;flex-direction:column;justify-content:center;padding:0 12px;border-right:1px solid #37333D;color:#F7F4F7;font-weight:600;font-size:12px;position:relative}
+.dg .h>span>i{font-style:normal;font-weight:400;font-size:10.5px;color:#8E8996}
+.dg .r{height:31px;box-shadow:inset 0 -1px 0 #18161B}
+.dg .r:nth-child(odd){background:rgba(255,255,255,.012)}
+.dg .r>span{position:relative;display:flex;align-items:center;gap:8px;padding:0 12px;min-width:0;overflow:hidden;white-space:nowrap;border-right:1px solid #232128}
+.dg .r>.rn{justify-content:flex-end;color:#37333D}
+.dg .h>span:nth-child(-n+2),.dg .r>span:nth-child(2){padding:0;align-items:center;justify-content:center}
+.dg .r.selrow{background:rgba(157,177,255,.07)}
+.dg .r>span.foc{overflow:visible;background:#09090B;box-shadow:inset 0 0 0 1.5px #9DB1FF}
+.dg .r.off>span:nth-child(n+3){color:#8E8996}
+.dg .h .rz{position:absolute;right:-3px;top:8px;bottom:8px;width:5px;cursor:col-resize}
+.pen{display:none}
+.dg .r:hover .pen{display:inline-flex}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-workspace" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+  <symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol>
+  <symbol id="i-cookie" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3l-2 18"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></symbol>
+  <symbol id="i-cols" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
+  <symbol id="i-max" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 15h18"/><path d="m15 8-3 3-3-3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-test" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></symbol>
+  <symbol id="i-resize-y" viewBox="0 0 24 24"><path d="M12 3v18"/><path d="m8 7 4-4 4 4"/><path d="m8 17 4 4 4-4"/></symbol>
+  <symbol id="i-resize-x" viewBox="0 0 24 24"><path d="M3 12h18"/><path d="m7 8-4 4 4 4"/><path d="m17 8 4 4-4 4"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+  <symbol id="i-wand" viewBox="0 0 24 24"><path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72"/><path d="m14 7 3 3"/><path d="M5 6v4"/><path d="M19 14v4"/><path d="M10 2v2"/><path d="M7 8H3"/><path d="M21 16h-4"/><path d="M11 3H9"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-redirect" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13"/></symbol>
+  <symbol id="i-pip" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/></symbol>
+</svg>
+
+<!-- Shell: 01-main of design/bolt-v2, verbatim, with the request area replaced by the slot -->
+<template id="tpl-shell">
+<main style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+
+    <!-- Sidebar island -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New request" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="padding:0 12px 10px">
+          <div class="c6 field">
+            <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+            <span style="flex-grow:1;color:#8E8996;white-space:nowrap;overflow:hidden">Filter requests</span>
+            <span class="c4 kc">/</span>
+          </div>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div class="row" style="color:#F7F4F7">
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+            <span class="n">Billing API</span>
+            <span class="ct">9</span>
+          </div>
+          <div class="row" style="padding-left:26px;color:#F7F4F7">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">invoices</span>
+            <span class="ct">4</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt get">GET</span><span class="n">List invoices</span>
+          </div>
+          <div class="row sel-row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Create invoice</span>
+            <span class="dia" style="margin-left:auto;background:#9DB1FF" title="Unsaved draft"></span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt get">GET</span><span class="n">Get invoice</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt patch">PATCH</span><span class="n">Void invoice</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">customers</span>
+            <span class="ct">3</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">webhooks</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Register endpoint</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt del">DELETE</span><span class="n">Remove endpoint</span>
+          </div>
+          <div class="row" style="color:#F7F4F7">
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+            <span class="n">Auth</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Token</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Refresh token</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:40px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>11 requests</span><span>·</span><span>2 collections</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+
+        <!-- Document tabs -->
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="c6 tab on">
+            <span class="mt post" style="width:auto">POST</span>Create invoice
+            <span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span>
+            <svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg>
+          </span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Token</span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+
+        <!-- Path bar: breadcrumb only -->
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-box"/></svg>
+          <span style="color:#8E8996">Billing API</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg>
+          <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-folder"/></svg>
+          <span style="color:#8E8996">invoices</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg>
+          <span style="color:#C6C3CC">Create invoice</span>
+        </div>
+
+        <div data-slot style="display:flex;flex-direction:column;flex-grow:1;min-height:0;min-width:0;border-top:1px solid #232128"></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip">
+      <svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg>
+      <span class="m" style="color:#C6C3CC">POST /v1/invoices · 201 · 184 ms</span>
+    </span>
+  </footer>
+</main>
+</template>
+<template id="tpl-strip">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:36px;padding:8px 0;flex-shrink:0;border-right:1px solid #232128">
+            <button aria-label="Save (Ctrl S)" title="Save  Ctrl S" class="c6 ib g" style="position:relative;width:28px;height:28px;color:#C6C3CC"><svg class="ico" style="width:14px;height:14px"><use href="#i-save"/></svg><span class="dia" style="position:absolute;top:3px;right:3px;width:5px;height:5px;background:#9DB1FF" title="Unsaved draft"></span></button>
+            <button aria-label="Revert" title="Revert" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-revert"/></svg></button>
+            <button aria-label="Undo" title="Undo  Ctrl Z" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-undo"/></svg></button>
+            <button aria-label="Redo" title="Redo  Ctrl Shift Z" class="c6 ib g" style="width:28px;height:28px;color:#37333D"><svg class="ico" style="width:14px;height:14px"><use href="#i-redo"/></svg></button>
+            <span style="width:16px;height:1px;background:#232128;margin:2px 0"></span>
+            <button aria-label="Split request and response side by side" title="Split view" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-cols"/></svg></button>
+          </div>
+</template>
+<template id="tpl-line">
+        <!-- Request line -->
+        <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;flex-shrink:0">
+          <div class="c6 sel" style="width:96px;box-sizing:border-box">
+            <span class="m post" style="flex-grow:1;font-weight:700;font-size:12.5px">POST</span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+          </div>
+          <div class="c6 field m" style="flex-grow:1;width:auto;font-size:13px;color:#F7F4F7;height:32px">
+            <span style="white-space:nowrap;overflow:hidden"><span class="var">{{base_url}}</span>/v1/invoices<span style="color:#8E8996">?</span>expand<span style="color:#8E8996">=</span>lines</span>
+          </div>
+          <div style="display:flex;gap:1px">
+            <button class="c6" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:0;background:#2B45B8;color:#FFF;font-size:12.5px;font-weight:600;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px)">
+              <svg class="ico" style="width:14px;height:14px"><use href="#i-send"/></svg>Send
+              <span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82);box-shadow:rgba(0,0,0,.35) 0 -1px 0 inset">Ctrl ↵</span>
+            </button>
+          </div>
+        </div>
+</template>
+<template id="tpl-resp">
+          <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 12px;flex-shrink:0">
+            <span class="c6 tab on">
+              <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-send"/></svg>Response
+              <span class="m" style="font-size:11px;font-weight:600;color:#7BE0A0">201 Created</span>
+              <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-x"/></svg>
+            </span>
+            <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-test"/></svg>Tests<span class="m" style="font-size:10.5px">3 passed</span></span>
+            <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-code"/></svg>Console</span>
+            <span style="flex-grow:1"></span>
+            <span class="m" style="display:flex;align-items:center;gap:6px;margin-right:6px;font-size:11.5px;color:#8E8996;white-space:nowrap">
+              <svg class="ico" style="width:13px;height:13px"><use href="#i-clock"/></svg>184 ms · 1.2 KB
+            </span>
+            <button aria-label="Maximize response" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-max"/></svg></button>
+            <button aria-label="Collapse response" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-collapse"/></svg></button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128">
+            <div class="c6 seg">
+              <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Body</span>
+              <span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>Headers<span class="m" style="font-size:10.5px">11</span></span>
+              <span><svg class="ico" style="width:13px;height:13px"><use href="#i-cookie"/></svg>Cookies<span class="m" style="font-size:10.5px">1</span></span>
+              <span><svg class="ico" style="width:13px;height:13px"><use href="#i-activity"/></svg>Timeline</span>
+            </div>
+            <span class="m" style="font-size:11.5px;color:#8E8996;white-space:nowrap">application/json · utf-8</span>
+            <span style="flex-grow:1"></span>
+            <div class="c6 field" style="width:220px">
+              <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+              <span style="flex-grow:1;color:#8E8996;white-space:nowrap">Search in response</span>
+            </div>
+          </div>
+          <div class="m" style="flex-grow:1;min-height:0;overflow:hidden;padding-top:6px;font-size:12.5px;border-top:1px solid #232128">
+            <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+            <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span>,</span></div>
+            <div class="ln"><span class="no">3</span><span class="tx">  <span class="k">"status"</span>: <span class="s">"draft"</span>,</span></div>
+            <div class="ln"><span class="no">4</span><span class="tx">  <span class="k">"customer"</span>: <span class="s">"cus_9s6XKzkNRiz8i3"</span>,</span></div>
+            <div class="ln"><span class="no">5</span><span class="tx">  <span class="k">"currency"</span>: <span class="s">"eur"</span>,</span></div>
+            <div class="ln"><span class="no">6</span><span class="tx">  <span class="k">"amount_due"</span>: <span class="nu">12900</span>,</span></div>
+            <div class="ln"><span class="no">7</span><span class="tx">  <span class="k">"lines"</span>: [</span></div>
+            <div class="ln"><span class="no">8</span><span class="tx">    { <span class="k">"description"</span>: <span class="s">"Pro plan, October"</span>, <span class="k">"quantity"</span>: <span class="nu">1</span>, <span class="k">"amount"</span>: <span class="nu">12900</span> }</span></div>
+            <div class="ln"><span class="no">9</span><span class="tx">  ],</span></div>
+            <div class="ln"><span class="no">10</span><span class="tx">  <span class="k">"livemode"</span>: <span class="b">false</span>,</span></div>
+            <div class="ln"><span class="no">11</span><span class="tx">  <span class="k">"created"</span>: <span class="nu">1793276295</span></span></div>
+            <div class="ln"><span class="no">12</span><span class="tx">}</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:46px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+            <span style="display:flex;align-items:center;gap:14px;white-space:nowrap">
+              <span style="display:flex;align-items:center;gap:6px;color:#C6C3CC"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Pretty</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>12 lines</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>saved to history</span>
+            </span>
+            <span></span>
+            <span style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
+              <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-copy"/></svg>Copy</button>
+              <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-bookmark"/></svg>Save as example</button>
+              <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-export"/></svg>Export<svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></button>
+              <span class="m" style="margin-left:4px">184 ms</span>
+            </span>
+          </div>
+</template>
+
+<!-- Request sub-tabs. The active tab comes from data-on on the include. Counts tell what a tab holds
+     before you open it: Scripts shows which scripts exist, Settings how many values are overridden. -->
+<template id="tpl-subtabs">
+        <div style="display:flex;align-items:center;gap:4px;height:42px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128" role="tablist" aria-label="Request">
+          <span class="tab" data-tab="Params" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-hash"/></svg>Params<span class="m" style="font-size:10.5px">1</span></span>
+          <span class="tab" data-tab="Headers" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-list"/></svg>Headers<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">4</span></span>
+          <span class="tab" data-tab="Body" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-braces"/></svg>Body</span>
+          <span class="tab" data-tab="Auth" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-key"/></svg>Auth</span>
+          <span class="tab" data-tab="Scripts" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-code"/></svg>Scripts<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">pre</span></span>
+          <span class="tab" data-tab="Settings" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Settings<span class="m" style="font-size:10.5px;font-weight:400;color:#9DB1FF">2</span></span>
+          <span style="flex-grow:1"></span>
+          <span data-only="Headers" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#FFC23D;white-space:nowrap">
+            <svg class="ico" style="width:13px;height:13px"><use href="#i-alert"/></svg>1 unresolved variable
+          </span>
+        </div>
+</template>
+
+<!-- Pre-request script body, shared by every direction -->
+<template id="tpl-pre-code">
+            <div class="ln"><span class="no">1</span><span class="tx"><span class="cm">// Sign the body so the billing API accepts the webhook replay</span></span></div>
+            <div class="ln"><span class="no">2</span><span class="tx"><span class="k">const</span> ts = Math.floor(Date.now() / <span class="nu">1000</span>);</span></div>
+            <div class="ln"><span class="no">3</span><span class="tx">pm.variables.set(<span class="s">"request_ts"</span>, String(ts));</span></div>
+            <div class="ln"><span class="no">4</span><span class="tx"></span></div>
+            <div class="ln"><span class="no">5</span><span class="tx">pm.request.headers.add({</span></div>
+            <div class="ln"><span class="no">6</span><span class="tx">  key: <span class="s">"X-Signature-Ts"</span>,</span></div>
+            <div class="ln cur"><span class="no">7</span><span class="tx">  value: <span class="s">"{{request_ts}}"</span>,<span class="caret"></span></span></div>
+            <div class="ln"><span class="no">8</span><span class="tx">});</span></div>
+</template>
+
+<!-- Collapsed response: the bar stays docked; a click, Ctrl J or a drag on the handle brings it back -->
+<template id="tpl-resp-bar">
+          <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 8px 0 12px;flex-shrink:0;font-size:12.5px">
+            <button aria-label="Expand response" data-id="response-expand" class="c6 ib g" style="width:28px;height:28px;color:#C6C3CC"><svg class="ico" style="width:14px;height:14px"><use href="#i-up"/></svg></button>
+            <span style="color:#F7F4F7;font-weight:600">Response</span>
+            <span class="m" style="font-size:11.5px;font-weight:600;color:#7BE0A0">201 Created</span>
+            <span class="m" style="font-size:11.5px;color:#8E8996">184 ms · 1.2 KB</span>
+            <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#7BE0A0"><svg class="ico" style="width:13px;height:13px"><use href="#i-test"/></svg>3 passed</span>
+            <span style="flex-grow:1"></span>
+            <span class="note">Collapsed · drag the handle or</span>
+            <span class="c4 kc">Ctrl J</span>
+          </div>
+</template>
+
+<style>
+/* 02: the action strip's Split button is on, because the panes sit side by side */
+[aria-label="Split request and response side by side"]{background:rgba(157,177,255,.14)!important;color:#9DB1FF!important}
+.split.collapsed .rbar{flex-direction:column}
+.pane-req .field{min-width:0}
+.pane-resp{overflow:hidden}
+/* narrow response: timing moves to the footer, which already shows it */
+.rfull>div:first-child>span.m{display:none!important}
+.rfull>div:last-child>span:first-child>span:nth-child(3){display:none}
+.vstrip{display:flex;flex-direction:column;align-items:center;gap:12px;width:40px;padding:8px 0;box-sizing:border-box;font-size:12.5px}
+.vstrip .vt{writing-mode:vertical-rl;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.srow{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid #18161B}
+.srow .st-t{display:flex;flex-direction:column;gap:4px;flex-grow:1;min-width:0}
+.srow .st-t b{font-weight:500;font-size:13px;color:#F7F4F7}
+.srow .st-t span{font-size:12px;color:#8E8996}
+.srow .st-c{display:flex;align-items:center;gap:10px;flex-shrink:0}
+</style>
+
+<!-- 02: collapsed response is a 40 px column on the right -->
+<template id="tpl-resp-strip">
+          <div class="vstrip">
+            <button aria-label="Expand response" data-id="response-expand" class="c6 ib g" style="width:28px;height:28px;color:#C6C3CC"><svg class="ico" style="width:14px;height:14px;transform:rotate(-90deg)"><use href="#i-up"/></svg></button>
+            <span class="vt"><span style="color:#F7F4F7;font-weight:600">Response</span><span class="m" style="font-size:11.5px;font-weight:600;color:#7BE0A0">201 Created</span><span class="m" style="font-size:11.5px;color:#8E8996">184 ms</span><span style="color:#7BE0A0;font-size:12px">3 passed</span></span>
+            <span style="flex-grow:1"></span>
+            <span class="c4 kc" style="writing-mode:vertical-rl;padding:6px 2px">Ctrl J</span>
+          </div>
+</template>
+
+<!-- Script tab header, shared by frames B and C -->
+<template id="tpl-script-seg">
+            <div style="display:flex;align-items:center;gap:10px;height:42px;flex-shrink:0">
+              <div class="c6 seg" role="tablist" aria-label="Script" data-id="request-script-kind">
+                <span class="c4" data-tab="Pre-request" role="tab"><svg class="ico" style="width:13px;height:13px"><use href="#i-code"/></svg>Pre-request<span class="m" style="font-size:10.5px">8 lines</span></span>
+                <span data-tab="Tests" role="tab"><svg class="ico" style="width:13px;height:13px"><use href="#i-test"/></svg>Tests<span class="m" style="font-size:10.5px">empty</span></span>
+              </div>
+              <span style="flex-grow:1"></span>
+              <span class="note"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Also runs: Billing API › invoices</span>
+            </div>
+</template>
+
+<!-- ============================================================ frames -->
+
+<section class="frame" data-dir="row" aria-label="Frame A: Headers grid while the split is dragged">
+  <div class="cap"><b>A · Headers, dragging the split</b><span>Request left, response right, the layout the Split button of the action strip turns on. Every cell is an input well. The description column moves into a tooltip to fit 560 px.</span></div>
+  <template class="doc">
+    <div class="split">
+      <div class="pane-req" style="flex:0 0 560px">
+        <div data-use="strip"></div>
+        <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0">
+          <div data-use="line"></div>
+          <div data-use="subtabs" data-on="Headers"></div>
+          <div class="wg" role="grid" aria-label="Headers" data-id="request-headers-grid">
+            <div class="h" role="row"><span></span><span>Key</span><span>Value · staging</span><span></span></div>
+            <div class="r" role="row">
+              <span class="chk on"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+              <span class="c6 w" style="color:#F7F4F7">Content-Type</span>
+              <span class="c6 w">application/json</span>
+              <svg class="ico" style="width:13px;height:13px;color:#37333D"><use href="#i-trash"/></svg>
+            </div>
+            <div class="r" role="row">
+              <span class="chk on"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+              <span class="c6 w" style="color:#F7F4F7">Authorization</span>
+              <span class="c6 w">Bearer <span class="var">{{access_token}}</span><span class="c4 secret"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></span>
+              <svg class="ico" style="width:13px;height:13px;color:#37333D"><use href="#i-trash"/></svg>
+            </div>
+            <div class="r" role="row">
+              <span class="chk on"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+              <span class="c6 w" style="color:#F7F4F7">X-Tenant-Id</span>
+              <span class="c6 w foc" data-id="request-header-value-2"><span class="unres">{{tenant_id}}</span><span class="caret"></span></span>
+              <svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-trash"/></svg>
+            </div>
+            <div class="r off" role="row">
+              <span class="chk"></span>
+              <span class="c6 w">X-Debug-Trace</span>
+              <span class="c6 w">1</span>
+              <svg class="ico" style="width:13px;height:13px;color:#37333D"><use href="#i-trash"/></svg>
+            </div>
+            <div class="r add" role="row">
+              <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-plus"/></svg>
+              <span class="c6 w">Header</span>
+              <span class="c6 w">Value</span>
+              <span></span>
+            </div>
+            <span class="note" style="padding:4px 2px 0;color:#FFC23D"><svg class="ico" style="width:13px;height:13px"><use href="#i-alert"/></svg>tenant_id is not defined in staging</span>
+          </div>
+        </div>
+      </div>
+      <div role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize request and response" aria-valuenow="51" data-id="request-response-split" class="sp sp-x drag"><span class="grip"></span>
+        <span class="callout" style="top:50%;left:14px"><svg class="ico" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-resize-x"/></svg>col-resize · request 560 px · response 534 px</span>
+      </div>
+      <div class="pane-resp">
+        <div class="rfull"><div data-use="resp"></div></div>
+        <div class="rbar"><div data-use="resp-strip"></div></div>
+      </div>
+    </div>
+  </template>
+</section>
+
+<section class="frame" data-dir="row" aria-label="Frame B: pre-request script with the response collapsed">
+  <div class="cap"><b>B · Pre-request script, response collapsed</b><span>One script at a time behind a segmented control; the editor takes the whole pane. Collapsed, the response is a 40 px column that keeps status, time and test count.</span></div>
+  <template class="doc">
+    <div class="split collapsed">
+      <div class="pane-req" style="flex:0 0 560px">
+        <div data-use="strip"></div>
+        <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0">
+          <div data-use="line"></div>
+          <div data-use="subtabs" data-on="Scripts"></div>
+          <div style="display:flex;flex-direction:column;flex-grow:1;min-height:0;padding:0 12px 12px">
+            <div data-use="script-seg" data-on="Pre-request"></div>
+            <div class="c6 ed foc" style="flex-grow:1" data-id="request-script-pre-editor">
+              <div class="ed-h">
+                <span class="m" style="font-size:11.5px;color:#8E8996">create-invoice.pre.js</span>
+                <span style="flex-grow:1"></span>
+                <span class="m" style="font-size:11.5px;color:#8E8996">Ln 7, Col 31</span>
+                <button class="c6 btn sm"><svg class="ico" style="width:13px;height:13px"><use href="#i-wand"/></svg>Snippets<svg class="ico" style="width:11px;height:11px;color:#8E8996"><use href="#i-down"/></svg></button>
+                <button aria-label="Delete pre-request script" class="c6 ib g" style="width:24px;height:24px"><svg class="ico" style="width:13px;height:13px"><use href="#i-trash"/></svg></button>
+              </div>
+              <div class="ed-b"><div data-use="pre-code"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize request and response" aria-valuenow="96" data-id="request-response-split" class="sp sp-x"><span class="grip"></span></div>
+      <div class="pane-resp">
+        <div class="rfull"><div data-use="resp"></div></div>
+        <div class="rbar"><div data-use="resp-strip"></div></div>
+      </div>
+    </div>
+  </template>
+</section>
+
+<section class="frame" data-dir="row" aria-label="Frame C: empty test script with the split at rest">
+  <div class="cap"><b>C · Tests, empty, split at rest</b><span>The empty editor invites a first test. The handle is a 9 px gutter with a dotted grip; it takes the tint on hover.</span></div>
+  <template class="doc">
+    <div class="split">
+      <div class="pane-req" style="flex:0 0 560px">
+        <div data-use="strip"></div>
+        <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0">
+          <div data-use="line"></div>
+          <div data-use="subtabs" data-on="Scripts"></div>
+          <div style="display:flex;flex-direction:column;flex-grow:1;min-height:0;padding:0 12px 12px">
+            <div data-use="script-seg" data-on="Tests"></div>
+            <div class="c6 ed" style="flex-grow:1" data-id="request-script-test-editor">
+              <div class="empty">
+                <svg class="ico" style="width:22px;height:22px;color:#9DB1FF"><use href="#i-test"/></svg>
+                <h3>No test script</h3>
+                <p>Tests check the response after it arrives. Their results show in the Tests tab of the response.</p>
+                <button class="c6 btn pri" data-id="request-script-test-create"><svg class="ico" style="width:14px;height:14px"><use href="#i-pencil"/></svg>Write a test</button>
+                <span class="lab" style="margin-top:8px">or start from</span>
+                <div style="display:flex;flex-wrap:wrap;justify-content:center;gap:8px;max-width:420px">
+                  <button class="c6 btn sm" data-id="request-script-test-snippet-status">Status is 2xx</button>
+                  <button class="c6 btn sm">Body has field</button>
+                  <button class="c6 btn sm">Faster than 500 ms</button>
+                  <button class="c6 btn sm">Save a value to a variable</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize request and response" aria-valuenow="51" data-id="request-response-split" class="sp sp-x"><span class="grip"></span></div>
+      <div class="pane-resp">
+        <div class="rfull"><div data-use="resp"></div></div>
+        <div class="rbar"><div data-use="resp-strip"></div></div>
+      </div>
+    </div>
+  </template>
+</section>
+
+<section class="frame" data-dir="row" aria-label="Frame D: Settings as checkbox rows">
+  <div class="cap"><b>D · Settings</b><span>A list of rows, each with a description and one control. A value at its default reads "Default" and stays a live control; changing it overrides, Reset goes back.</span></div>
+  <template class="doc">
+    <div class="split">
+      <div class="pane-req" style="flex:0 0 560px">
+        <div data-use="strip"></div>
+        <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0">
+          <div data-use="line"></div>
+          <div data-use="subtabs" data-on="Settings"></div>
+          <div style="padding:0 16px">
+            <div class="srow">
+              <div class="st-t"><b>Timeout</b><span>Bounds the whole redirect chain. Empty uses the default.</span></div>
+              <div class="st-c">
+                <div class="c6 num" style="width:150px" data-id="request-setting-timeout-input"><span class="v" style="color:#8E8996">30000</span><span class="u">ms</span><span class="st"><span><svg class="ico" style="width:9px;height:9px"><use href="#i-up"/></svg></span><span><svg class="ico" style="width:9px;height:9px"><use href="#i-down"/></svg></span></span></div>
+                <span class="c4 bdg" style="width:86px;justify-content:center">Default</span>
+              </div>
+            </div>
+            <div class="srow">
+              <span class="chk on" style="margin-top:2px" role="checkbox" aria-checked="true" data-id="request-setting-follow-redirects"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span>
+              <div class="st-t"><b>Follow redirects</b><span>Up to 10. Credentials are dropped when the origin changes.</span></div>
+              <div class="st-c"><span class="c4 bdg" style="width:86px;justify-content:center">Default</span></div>
+            </div>
+            <div class="srow">
+              <span class="chk" style="margin-top:2px" role="checkbox" aria-checked="false" data-id="request-setting-verify-tls"></span>
+              <div class="st-t"><b>Verify TLS certificates</b><span style="color:#FFC23D">Off for this request. The default checks them.</span></div>
+              <div class="st-c"><span class="c4 bdg warn" style="width:86px;justify-content:center">Overridden</span><button class="lnk" data-id="request-setting-verify-tls-reset">Reset</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize request and response" aria-valuenow="51" data-id="request-response-split" class="sp sp-x"><span class="grip"></span></div>
+      <div class="pane-resp">
+        <div class="rfull"><div data-use="resp"></div></div>
+        <div class="rbar"><div data-use="resp-strip"></div></div>
+      </div>
+    </div>
+  </template>
+</section>
+
+<script>
+// Builds every frame from the shared shell, then wires the splitters so they can be dragged,
+// moved with the arrow keys and collapsed with a double click or Enter.
+(function () {
+  function expand(root) {
+    root.querySelectorAll('[data-use]').forEach(function (el) {
+      var tpl = document.getElementById('tpl-' + el.dataset.use);
+      if (!tpl) return;
+      var frag = tpl.content.cloneNode(true);
+      expand(frag);
+      var on = el.dataset.on;
+      if (on) {
+        frag.querySelectorAll('[data-tab]').forEach(function (t) {
+          var active = t.dataset.tab === on;
+          t.classList.toggle('on', active);
+          t.classList.toggle('c6', active);
+          t.setAttribute('aria-selected', active ? 'true' : 'false');
+          var icon = t.querySelector('svg');
+          if (active && icon) icon.style.color = '#9DB1FF';
+        });
+        frag.querySelectorAll('[data-only]').forEach(function (n) {
+          if (n.dataset.only !== on) n.remove();
+        });
+      }
+      el.replaceWith(frag);
+    });
+  }
+  document.querySelectorAll('.frame').forEach(function (frame) {
+    var shell = document.getElementById('tpl-shell').content.cloneNode(true);
+    var slot = shell.querySelector('[data-slot]');
+    var doc = frame.querySelector('template.doc').content.cloneNode(true);
+    expand(doc);
+    if (frame.dataset.dir) slot.style.flexDirection = frame.dataset.dir;
+    slot.appendChild(doc);
+    expand(shell);
+    frame.appendChild(shell);
+  });
+
+  document.querySelectorAll('[role="separator"]').forEach(function (sp) {
+    var x = sp.getAttribute('aria-orientation') === 'vertical';
+    var pane = sp.previousElementSibling;
+    var box = sp.parentElement;
+    var min = 120;
+    function total() { return x ? box.clientWidth : box.clientHeight; }
+    function set(px) {
+      var max = total() - min - 9;
+      px = Math.max(min, Math.min(max, px));
+      pane.style.flexBasis = px + 'px';
+      box.classList.remove('collapsed', 'maximized');
+      sp.setAttribute('aria-valuenow', String(Math.round(px / total() * 100)));
+    }
+    sp.addEventListener('pointerdown', function (e) {
+      sp.setPointerCapture(e.pointerId);
+      sp.classList.add('drag');
+      var start = (x ? e.clientX : e.clientY) - pane.getBoundingClientRect()[x ? 'width' : 'height'];
+      function move(ev) { set((x ? ev.clientX : ev.clientY) - start); }
+      function up() {
+        sp.classList.remove('drag');
+        sp.removeEventListener('pointermove', move);
+        sp.removeEventListener('pointerup', up);
+      }
+      sp.addEventListener('pointermove', move);
+      sp.addEventListener('pointerup', up);
+    });
+    sp.addEventListener('keydown', function (e) {
+      var size = pane.getBoundingClientRect()[x ? 'width' : 'height'];
+      var back = x ? 'ArrowLeft' : 'ArrowUp';
+      var fwd = x ? 'ArrowRight' : 'ArrowDown';
+      if (e.key === back) { set(size - 16); e.preventDefault(); }
+      if (e.key === fwd) { set(size + 16); e.preventDefault(); }
+      if (e.key === 'Enter') { box.classList.toggle('collapsed'); e.preventDefault(); }
+    });
+    sp.addEventListener('dblclick', function () { box.classList.toggle('collapsed'); });
+  });
+})();
+</script>
+</body></html>
