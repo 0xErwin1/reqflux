@@ -1,0 +1,28 @@
+{
+  "title": "Status bar",
+  "brief": "Status bar states: last request chip (sending, 2xx, 4xx, 5xx, failure), user config not loaded with file and line, config and workspace warnings, pending MCP approvals count opening the approvals view of bolt-v2/12-agent-approval.html, and several at once.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    {
+      "file": "01-inline-chips.html",
+      "title": "Inline chips",
+      "tradeoff": "Each problem is named and one click from its fix; with everything at once the bar fills to about 900 px and the chips shift position as states come and go",
+      "width": 1440,
+      "height": 2050
+    },
+    {
+      "file": "02-problems-panel.html",
+      "title": "Problems panel",
+      "tradeoff": "A calm, stable bar that never grows past three chips and one place to read every issue; the file and line of a broken config sit one click away instead of on the bar",
+      "width": 1440,
+      "height": 1500
+    },
+    {
+      "file": "03-config-strip.html",
+      "title": "Strip for a broken config",
+      "tradeoff": "A broken config cannot be missed and its fix is on screen; the strip costs 40 px of document height for as long as the file is broken, and compact chips rely on tooltips",
+      "width": 1440,
+      "height": 1450
+    }
+  ]
+}

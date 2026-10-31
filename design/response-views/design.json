@@ -1,0 +1,28 @@
+{
+  "title": "Response views",
+  "brief": "The response island: Body with Pretty / Raw / Preview (HTML, image, unsupported type), Headers, Cookies table with masked secrets, Tests results, script Console, Timeline, search in response, size and time. Built on the bolt-v2 shell.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    {
+      "file": "01-single-view-row.html",
+      "title": "One row of views",
+      "tradeoff": "Every view one click away and the format sits next to the body it changes; six segments crowd the row and a Body-only second row makes the content jump when switching views",
+      "width": 1440,
+      "height": 5160
+    },
+    {
+      "file": "02-script-tabs-format-bar.html",
+      "title": "Script tabs, format in the bottom bar",
+      "tradeoff": "Closest to bolt-v2/01-main and separates what the server sent from what scripts said; the format switch lives far from the view switch, and a failed test hides behind a tab",
+      "width": 1440,
+      "height": 5160
+    },
+    {
+      "file": "03-body-with-inspector.html",
+      "title": "Body with an inspector",
+      "tradeoff": "Body and a failing test or cookie are visible together; the body loses 500 px, so long JSON lines wrap sooner, and the cookies table becomes stacked cards",
+      "width": 1440,
+      "height": 3728
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "title": "Command palette",
+  "brief": "Command palette over the bolt-v2 shell: requests, generic commands (Toggle theme, Show History, Show Environments, Open MCP approvals, New request, ...) with keybindings, variables with masked secrets, grouping, the empty query and the no-match state.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    {
+      "file": "01-grouped-list.html",
+      "title": "One grouped list",
+      "tradeoff": "Fastest path and identical to bolt-v2/09; with 186 items the generic commands get buried under requests unless the user knows the > prefix",
+      "width": 1440,
+      "height": 3000
+    },
+    {
+      "file": "02-scope-tabs.html",
+      "title": "Scope tabs",
+      "tradeoff": "Scopes are visible and the full command list is browsable with keybindings, unavailable commands explain why; one more row and one more key (Tab) before typing",
+      "width": 1440,
+      "height": 2900
+    },
+    {
+      "file": "03-list-with-preview.html",
+      "title": "List with preview",
+      "tradeoff": "Shows the resolved URL, last status, keybinding or per-environment state before acting; the palette is 900 px wide and covers most of the document, and fewer rows fit",
+      "width": 1440,
+      "height": 2600
+    }
+  ]
+}
