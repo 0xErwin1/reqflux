@@ -278,3 +278,74 @@ fn console_selected_then_a_response_without_entries_falls_back_to_body(cx: &mut 
     assert!(absent(cx, "response-console"));
     present(cx, "response-body");
 }
+
+#[gpui::test]
+fn tests_and_console_sit_in_the_tab_row_beside_response(cx: &mut TestAppContext) {
+    let (shell, cx) = render_files(
+        cx,
+        serve(Server::Ok),
+        &[(
+            "ping.test.js",
+            "console.log(\"from the test\");\npm.test(\"ok\", function () {});\n",
+        )],
+    );
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+
+    let response = present(cx, "response-tab-response");
+    let tests = present(cx, "response-tab-tests");
+    let console = present(cx, "response-tab-console");
+    let views = present(cx, "response-views");
+    for tab in [tests, console] {
+        assert_eq!(tab.center().y, response.center().y);
+        assert!(tab.origin.x > response.origin.x);
+        assert!(tab.bottom() <= views.origin.y);
+    }
+
+    // A script tab replaces the HTTP views and their bottom bar.
+    click(cx, "response-tab-tests");
+    present(cx, "response-test-1");
+    assert!(absent(cx, "response-views"));
+    assert!(absent(cx, "response-footer"));
+}
+
+#[gpui::test]
+fn the_body_format_switch_sits_in_the_bottom_bar(cx: &mut TestAppContext) {
+    let (shell, cx) = render(cx, serve(Server::Ok));
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+
+    let views = present(cx, "response-views");
+    let body_tab = present(cx, "response-tab-body");
+    let body = present(cx, "response-body");
+    let footer = present(cx, "response-footer");
+    assert!(views.contains(&body_tab.center()));
+    assert!(footer.origin.y >= body.bottom());
+    for view in [
+        "response-view-pretty",
+        "response-view-raw",
+        "response-footer-lines",
+    ] {
+        let bounds = present(cx, view);
+        assert!(footer.contains(&bounds.center()), "{view} outside the bar");
+    }
+
+    // Headers has no format switch.
+    click(cx, "response-tab-headers");
+    assert!(absent(cx, "response-footer"));
+    assert!(absent(cx, "response-view-pretty"));
+}
+
+#[gpui::test]
+fn the_response_tab_returns_from_a_script_tab_to_the_body(cx: &mut TestAppContext) {
+    let (shell, cx) = render_files(cx, serve(Server::Ok), &[("ping.test.js", PASSING_TEST)]);
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+
+    click(cx, "response-tab-tests");
+    assert!(absent(cx, "response-body"));
+    click(cx, "response-tab-response");
+    present(cx, "response-body");
+    present(cx, "response-view-pretty");
+    assert!(absent(cx, "response-tests"));
+}

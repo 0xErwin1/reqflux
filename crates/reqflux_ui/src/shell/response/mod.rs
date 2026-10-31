@@ -1,18 +1,22 @@
-//! The response under the request: the tab row with the status, time and size, then the
-//! empty state before the first send, the progress bar while sending over the previous
-//! outcome dimmed, and the outcome: the unresolved line, then the body (Pretty, Raw or
-//! Preview), headers and cookies of a response or the error banner of a failure, beside its Tests and Console panes. A response
-//! reopened from history carries the `From history` bar with Resend under the tab row.
+//! The response under the request: the tab row with the `Response`, `Tests` and `Console`
+//! tabs, the status, time and size, then the empty state before the first send, the progress
+//! bar while sending over the previous outcome dimmed, and the outcome: the unresolved line,
+//! then the Body, Headers and Cookies views of a response (the body with its Pretty / Raw /
+//! Preview bottom bar) or its Tests and Console panes, or the error banner of a failure. A
+//! response reopened from history carries the `From history` bar with Resend under the tab
+//! row.
 
 mod body;
 mod cookies;
 mod cookies_view;
 mod error;
+mod footer;
 mod history_bar;
 mod model;
 mod preview;
 mod preview_model;
 mod results;
+mod segmented;
 mod sub_tabs;
 mod tab_row;
 
@@ -61,7 +65,7 @@ pub(super) fn render(
         .flex_col()
         .border_t(border::THIN)
         .border_color(line_2)
-        .child(tab_row::render(state, cx))
+        .child(tab_row::render(id, send, cx))
         .children(
             send.and_then(|send| send.history.as_ref())
                 .map(|reopened| history_bar::render(id, reopened, cx)),
@@ -84,7 +88,13 @@ fn completed(id: &str, send: &RequestSend, outcome: &Completed, cx: &mut Context
         .children(model::unresolved_text(unresolved).map(|text| unresolved_line(text, cx)));
     match outcome {
         Completed::Response(received) => column
-            .child(sub_tabs::render(id, send, received, cx))
+            .when(
+                !matches!(
+                    sub_tabs::effective_tab(send.tab, received),
+                    ResponseTab::Tests | ResponseTab::Console
+                ),
+                |column| column.child(sub_tabs::render(id, send, received, cx)),
+            )
             .child(match sub_tabs::effective_tab(send.tab, received) {
                 ResponseTab::Body => match sub_tabs::effective_view(send.view, received) {
                     BodyView::Preview => preview::render(id, send, cx),
@@ -94,7 +104,11 @@ fn completed(id: &str, send: &RequestSend, outcome: &Completed, cx: &mut Context
                 ResponseTab::Cookies => cookies_view::render(received, cx),
                 ResponseTab::Tests => results::tests(received, cx),
                 ResponseTab::Console => results::console(received, cx),
-            }),
+            })
+            .when(
+                sub_tabs::effective_tab(send.tab, received) == ResponseTab::Body,
+                |column| column.child(footer::render(id, send, received, cx)),
+            ),
         Completed::Failure(failure) => column.child(error::render(id, failure, cx)),
     }
 }
