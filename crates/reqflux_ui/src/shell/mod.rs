@@ -54,7 +54,7 @@ mod workspace_new;
 mod workspace_picker;
 mod workspace_switch;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -77,7 +77,7 @@ use self::request::{RequestState, SubTab};
 use self::response::PreviewHost;
 use self::send::{RequestSend, SHELL_CONTEXT};
 use self::sidebar::{OpenRequest, Sidebar};
-use self::sidebar_edit::TreeCommand;
+use self::sidebar_edit::{DeletePrompted, TreeCommand};
 use self::sidebar_history::{OpenHistory, Panel};
 use self::sidebar_variables::VariablesCommand;
 use self::tree_model::Node;
@@ -472,6 +472,16 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
         }),
         cx.subscribe(sidebar, |this, _, command: &TreeCommand, cx| {
             this.run_tree_command(command, cx);
+        }),
+        // The delete dialog flags the requests that hold unsaved changes; only the shell knows
+        // the drafts, so it answers the prompt before the dialog's first frame.
+        cx.subscribe(sidebar, |this, sidebar, DeletePrompted { ids }, cx| {
+            let unsaved: HashSet<String> = ids
+                .iter()
+                .filter(|id| this.drafts.contains_key(*id))
+                .cloned()
+                .collect();
+            sidebar.update(cx, |sidebar, cx| sidebar.set_unsaved(unsaved, cx));
         }),
         cx.subscribe(sidebar, |this, _, command: &VariablesCommand, cx| {
             this.run_variables_command(command, cx);

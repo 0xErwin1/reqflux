@@ -1,12 +1,13 @@
 //! The sidebar island: the `COLLECTIONS` header with the new-collection button, the filter
-//! field, the error of the last failed tree operation, the delete confirmation, the
-//! collection tree and a footer with the request and collection counts. The filter does
+//! field, the error of the last failed tree operation, the collection tree and a footer with
+//! the request and collection counts, or the row being dragged and how to cancel. The filter does
 //! nothing yet. While the rail's History view is active, the History panel of
 //! [`super::sidebar_history`] takes the tree's place, and while its Environments view is,
 //! the Variables panel of [`super::sidebar_variables`].
 //!
 //! The tree keeps keyboard focus as a whole; its rows are not focusable. Navigation runs
-//! through the actions below, bound in the `SidebarTree` key context.
+//! through the actions below, bound in the `SidebarTree` key context, which also rename (F2),
+//! duplicate (Ctrl+D) and delete (Delete) the selected row.
 //!
 //! Clicking a request row, or Enter on a selected one, emits [`OpenRequest`]; the shell
 //! subscribes to it and opens the request in a document tab. The sidebar knows nothing of
@@ -21,7 +22,7 @@ use gpui::{
 };
 
 use super::rows::{NameDecorator, RowSlots};
-use super::sidebar_edit::{TreeCommand, TreeEdit};
+use super::sidebar_edit::{DeletePrompted, TreeCommand, TreeEdit};
 use super::sidebar_history::{HistoryRow, OpenHistory, Panel};
 use super::sidebar_variables::{VariablesCommand, VariablesPanel};
 use super::tree_drag::{self, DragPreview, DraggedRow, DropPlace, Step};
@@ -52,6 +53,12 @@ actions!(
         MoveUp,
         /// Moves the selected row one place down among its siblings.
         MoveDown,
+        /// Opens the selected row into rename.
+        RenameSelected,
+        /// Duplicates the selected request or folder.
+        DuplicateSelected,
+        /// Asks to delete the selected row.
+        DeleteSelected,
     ]
 );
 
@@ -66,7 +73,15 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("enter", ToggleSelected, context),
         KeyBinding::new("alt-up", MoveUp, context),
         KeyBinding::new("alt-down", MoveDown, context),
+        KeyBinding::new("f2", RenameSelected, context),
+        KeyBinding::new("ctrl-d", DuplicateSelected, context),
+        KeyBinding::new("delete", DeleteSelected, context),
     ]);
+}
+
+/// The footer text while the row `name` is dragged.
+pub(crate) fn moving_text(name: &str) -> String {
+    format!("Moving {name} · Esc cancels")
 }
 
 /// The footer text: `<n> requests · <m> collections`, singular for one.
@@ -128,6 +143,11 @@ impl Sidebar {
     /// The node `id`, shown or not.
     pub(super) fn node(&self, id: &str) -> Option<&Node> {
         self.tree.as_ref().and_then(|tree| tree.node(id))
+    }
+
+    /// The roots of the tree; empty when no workspace is loaded.
+    pub(super) fn roots(&self) -> &[Node] {
+        self.tree.as_ref().map_or(&[], TreeState::roots)
     }
 
     /// The id of the collection or folder holding `id`.
@@ -204,6 +224,7 @@ impl Sidebar {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.edit.dragging = None;
         let command = self
             .tree
             .as_ref()
@@ -214,21 +235,34 @@ impl Sidebar {
     }
 
     /// The drop target on the name of the collection or folder `id`: a drop there puts the
-    /// dragged row inside at the end, and the name shows the drop-target wash meanwhile.
+    /// dragged row inside at the end, and the name shows the drop-target wash and outline
+    /// meanwhile.
     fn name_drop(&self, id: &str, cx: &mut Context<Self>) -> NameDecorator {
         let wash = bolt::accent_washes(cx).drop_target;
+        let outline = bolt::brand(cx).accent_tint;
         let id = id.to_owned();
         let on_drop = cx.listener(move |this, dragged: &DraggedRow, window, cx| {
             this.drop_row(&dragged.id, DropPlace::Inside(&id), window, cx);
         });
         Box::new(move |name| {
-            name.drag_over::<DraggedRow>(move |style, _, _, _| style.bg(wash))
-                .on_drop(on_drop)
+            name.drag_over::<DraggedRow>(move |style, _, _, _| {
+                style.bg(wash).border(border::THIN).border_color(outline)
+            })
+            .on_drop(on_drop)
         })
     }
 
+    /// The name of the row being dragged, while a drag runs.
+    fn moving(&self, cx: &App) -> Option<&str> {
+        self.edit
+            .dragging
+            .as_ref()
+            .filter(|_| cx.has_active_drag())
+            .map(|(_, name)| name.as_str())
+    }
+
     /// Emits [`OpenRequest`] when `id` is a request; returns whether it did.
-    fn open_if_request(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+    pub(super) fn open_if_request(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
         let is_request = self.tree.as_ref().is_some_and(|tree| tree.is_request(id));
         if is_request {
             cx.emit(OpenRequest(id.to_owned()));
@@ -240,6 +274,8 @@ impl Sidebar {
 impl EventEmitter<OpenRequest> for Sidebar {}
 
 impl EventEmitter<TreeCommand> for Sidebar {}
+
+impl EventEmitter<DeletePrompted> for Sidebar {}
 
 impl EventEmitter<OpenHistory> for Sidebar {}
 
@@ -287,8 +323,13 @@ fn filter() -> impl IntoElement {
         )
 }
 
-fn footer(tree: &TreeState, cx: &App) -> impl IntoElement {
+fn footer(tree: &TreeState, moving: Option<&str>, cx: &App) -> impl IntoElement {
+    let footer = match moving {
+        Some(name) => moving_text(name),
+        None => footer_text(tree.request_count(), tree.collection_count()),
+    };
     text_role::role(text_region("sidebar-footer"), text::CAPTION, cx)
+        .aria_label(footer.clone())
         .flex_none()
         .h(tokens::SIDEBAR_FOOTER)
         .flex()
@@ -296,7 +337,7 @@ fn footer(tree: &TreeState, cx: &App) -> impl IntoElement {
         .pl(space::LG)
         .pr(space::LG)
         .whitespace_nowrap()
-        .child(footer_text(tree.request_count(), tree.collection_count()))
+        .child(footer)
 }
 
 impl Render for Sidebar {
@@ -308,10 +349,16 @@ impl Render for Sidebar {
         } else if self.panel == Panel::Variables && self.tree.is_some() {
             content = content.child(self.variables_panel(window, cx));
         } else if let Some(tree) = &self.tree {
+            let moving = self.moving(cx);
+            let dragging = moving.and(self.edit.dragging.as_ref().map(|(id, _)| id.clone()));
+            let sidebar = cx.weak_entity();
             let tree_rows: Vec<_> = tree
                 .visible_rows()
                 .into_iter()
-                .map(|row| {
+                .flat_map(|row| {
+                    let hint = self.rename_hint_row(&row.node.id, row.depth, cx);
+                    let dimmed = dragging.as_deref() == Some(row.node.id.as_str());
+                    let sidebar = sidebar.clone();
                     let selected = tree.selected() == Some(row.node.id.as_str());
                     let id = row.node.id.clone();
                     let chevron_id = id.clone();
@@ -331,9 +378,20 @@ impl Render for Sidebar {
                     };
                     let target = id.clone();
                     let line = bolt::brand(cx).accent_tint;
-                    rows::tree_row(row, selected, slots, on_toggle, cx)
+                    let element = rows::tree_row(row, selected, slots, on_toggle, cx)
+                        .when(dimmed, |element| {
+                            element.opacity(tokens::TREE_DRAG_SOURCE_OPACITY)
+                        })
                         .when(draggable, |element| {
-                            element.on_drag(dragged, |dragged, _, _, cx| {
+                            element.on_drag(dragged, move |dragged, _, _, cx| {
+                                let started = sidebar.update(cx, |this, cx| {
+                                    this.edit.dragging =
+                                        Some((dragged.id.clone(), dragged.name.clone()));
+                                    cx.notify();
+                                });
+                                if let Err(error) = started {
+                                    log::warn!("tree drag start: {error}");
+                                }
                                 cx.new(|_| DragPreview(dragged.name.clone()))
                             })
                         })
@@ -352,13 +410,15 @@ impl Render for Sidebar {
                                 this.open_menu(&menu_id, window, cx);
                             }),
                         )
+                        .into_any_element();
+                    std::iter::once(element).chain(hint)
                 })
                 .collect();
             content = content
                 .child(header(cx))
                 .child(filter())
                 .children(self.error_label(cx))
-                .children(self.delete_prompt(cx))
+                .children(self.delete_prompt(window, cx))
                 .child(
                     region("collection-tree")
                         .track_focus(&self.focus)
@@ -384,6 +444,15 @@ impl Render for Sidebar {
                         .on_action(cx.listener(|this, _: &MoveDown, window, cx| {
                             this.step_selected(Step::Down, window, cx);
                         }))
+                        .on_action(cx.listener(|this, _: &RenameSelected, window, cx| {
+                            this.rename_selected(window, cx);
+                        }))
+                        .on_action(cx.listener(|this, _: &DuplicateSelected, window, cx| {
+                            this.duplicate_selected(window, cx);
+                        }))
+                        .on_action(cx.listener(|this, _: &DeleteSelected, window, cx| {
+                            this.delete_selected(window, cx);
+                        }))
                         .flex_1()
                         .min_h_0()
                         .overflow_y_scroll()
@@ -391,7 +460,7 @@ impl Render for Sidebar {
                         .flex_col()
                         .children(tree_rows),
                 )
-                .child(footer(tree, cx));
+                .child(footer(tree, moving, cx));
         }
 
         region("sidebar")

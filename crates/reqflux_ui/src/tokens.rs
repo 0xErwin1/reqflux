@@ -383,6 +383,29 @@ pub(crate) const PALETTE_METHOD_COLUMN: Pixels = px(44.0);
 /// The square that holds the icon of the palette's empty and no-match states.
 pub(crate) const PALETTE_EMPTY_ICON_BOX: Pixels = px(40.0);
 
+/// The height of a tree row menu item (design/tree-editing/01-context-menu-modal.html).
+pub(crate) const TREE_MENU_ITEM: Pixels = px(30.0);
+/// The horizontal padding of a tree row menu item.
+pub(crate) const TREE_MENU_INSET: Pixels = px(14.0);
+/// How far the rename hint under a tree row starts past the row's indent.
+pub(crate) const TREE_HINT_OFFSET: Pixels = px(20.0);
+/// The opacity of the tree row being dragged.
+pub(crate) const TREE_DRAG_SOURCE_OPACITY: f32 = 0.4;
+/// The width of the tree's delete dialog.
+pub(crate) const TREE_DIALOG_WIDTH: Pixels = px(460.0);
+/// The distance from the window top to the tree's delete dialog.
+pub(crate) const TREE_DIALOG_TOP: Pixels = px(250.0);
+/// The horizontal padding of the tree's delete dialog.
+pub(crate) const TREE_DIALOG_INSET: Pixels = px(22.0);
+/// The top padding of the tree's delete dialog.
+pub(crate) const TREE_DIALOG_TOP_INSET: Pixels = px(20.0);
+/// The bottom padding of the tree's delete dialog.
+pub(crate) const TREE_DIALOG_BOTTOM_INSET: Pixels = px(18.0);
+/// The height of a request row in the tree's delete dialog.
+pub(crate) const TREE_DIALOG_ROW: Pixels = px(24.0);
+/// The gap above the buttons of the tree's delete dialog.
+pub(crate) const TREE_DIALOG_ACTIONS_GAP: Pixels = px(18.0);
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

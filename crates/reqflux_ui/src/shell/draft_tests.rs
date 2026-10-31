@@ -91,7 +91,7 @@ pub(crate) fn click(cx: &mut VisualTestContext, selector: &str) {
 
 /// Replaces the text of the URL field with `url`: opens the field over the read-only URL,
 /// selects all and types.
-fn edit_url(cx: &mut VisualTestContext, url: &str) {
+pub(super) fn edit_url(cx: &mut VisualTestContext, url: &str) {
     click(cx, "request-url");
     cx.simulate_keystrokes("ctrl-a");
     let typed = url

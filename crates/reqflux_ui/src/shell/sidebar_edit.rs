@@ -1,24 +1,40 @@
-//! Editing the tree from the sidebar: the row menu, the inline rename field, the delete
-//! confirmation and the error of the last failed operation.
+//! Editing the tree from the sidebar (design/tree-editing/01-context-menu-modal): the row
+//! menu of [`menu`], the inline rename field and its hint, the delete dialog of
+//! [`delete_dialog`] and the error of the last failed operation.
 //!
 //! The sidebar never touches the workspace: it emits a [`TreeCommand`], and the shell, which
 //! owns the engine, runs it and reports back through [`Sidebar::tree_changed`] or
 //! [`Sidebar::show_error`].
+
+use std::collections::HashSet;
 
 use bolt::chamfer::Chamfer;
 use bolt::tokens::{border, chrome, cut, icon, space, text};
 use bolt::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, ParentElement,
-    Role, Styled, Window, div, prelude::*,
+    Role, Styled, Window, prelude::*,
 };
 use gpui_component::input::{Enter, Escape, Input, InputState};
 
-use super::request::option_menu;
 use super::rows::part;
 use super::sidebar::Sidebar;
-use super::tree_model::{Node, NodeKind};
+use super::tree_model::Node;
 use super::{region, text as text_role, text_region};
+use crate::tokens;
+
+mod delete_dialog;
+mod menu;
+
+#[cfg(test)]
+pub(crate) use delete_dialog::{
+    delete_body, delete_button, delete_note, delete_question, delete_title,
+};
+use menu::{MenuItem, MenuPage};
+
+#[cfg(test)]
+#[path = "sidebar_edit_tests.rs"]
+mod tests;
 
 /// The hover group of a tree row, which shows its action button.
 pub(super) const ROW_GROUP: &str = "tree-row";
@@ -48,25 +64,47 @@ pub(crate) enum TreeCommand {
     },
 }
 
-/// The open rename field: the entity it renames, the name it started from and its input.
+/// Emitted when the delete dialog opens: the ids of the requests it lists, so the shell can
+/// answer with [`Sidebar::set_unsaved`] before the dialog is drawn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct DeletePrompted {
+    pub(crate) ids: Vec<String>,
+}
+
+/// The open rename field: the entity it renames, the name it started from, whether the
+/// entity was just created, and its input.
 pub(crate) struct Rename {
     id: String,
     original: String,
+    created: bool,
     input: Entity<InputState>,
+}
+
+/// An entity the shell just reported, which opens into rename once the field can be made
+/// with a window; `created` when a New command made it, not a duplicate.
+struct PendingRename {
+    id: String,
+    created: bool,
 }
 
 /// What the sidebar shows while the tree is edited.
 pub(crate) struct TreeEdit {
     /// The id of the row whose menu is open.
     menu: Option<String>,
+    /// Whether the open menu shows the actions or the Move to… destinations.
+    page: MenuPage,
     /// Focused while the menu is open.
     menu_focus: FocusHandle,
     rename: Option<Rename>,
-    /// The entity the shell just created, which opens into rename once the field can be
-    /// made with a window.
-    pending_rename: Option<String>,
+    pending_rename: Option<PendingRename>,
+    /// Set while a duplicate runs: the copy it reports opens into rename.
+    rename_copy: bool,
     /// The id of the entity whose delete waits for a confirmation.
     confirm: Option<String>,
+    /// The requests with an unsaved draft, as the shell reported them for the delete dialog.
+    unsaved: HashSet<String>,
+    /// The id and name of the row being dragged.
+    pub(super) dragging: Option<(String, String)>,
     /// Why the last operation failed.
     error: Option<String>,
 }
@@ -75,27 +113,25 @@ impl TreeEdit {
     pub(super) fn new(cx: &mut App) -> Self {
         Self {
             menu: None,
+            page: MenuPage::Actions,
             menu_focus: cx.focus_handle(),
             rename: None,
             pending_rename: None,
+            rename_copy: false,
             confirm: None,
+            unsaved: HashSet::new(),
+            dragging: None,
             error: None,
         }
     }
 }
 
-/// The confirmation question for deleting the node of `kind` named `name` that holds
-/// `requests` requests.
-pub(crate) fn delete_question(kind: &NodeKind, name: &str, requests: usize) -> String {
-    let noun = match kind {
-        NodeKind::Collection => "collection",
-        NodeKind::Folder => "folder",
-        NodeKind::Request { .. } => return format!("Delete request \"{name}\"?"),
-    };
-    match requests {
-        0 => format!("Delete {noun} \"{name}\"?"),
-        1 => format!("Delete {noun} \"{name}\" and its 1 request?"),
-        count => format!("Delete {noun} \"{name}\" and its {count} requests?"),
+/// The hint under the rename field.
+fn rename_hint(created: bool) -> &'static str {
+    if created {
+        "Enter creates · Esc cancels"
+    } else {
+        "Enter saves · Esc cancels"
     }
 }
 
@@ -109,17 +145,19 @@ impl Sidebar {
         cx: &mut Context<Self>,
     ) {
         self.edit.menu = None;
+        self.edit.rename_copy = matches!(command, TreeCommand::Duplicate(_));
         cx.emit(command);
         cx.defer_in(window, |this, window, cx| {
-            if let Some(id) = this.edit.pending_rename.take() {
-                this.start_rename(&id, window, cx);
+            this.edit.rename_copy = false;
+            if let Some(pending) = this.edit.pending_rename.take() {
+                this.start_rename(&pending.id, pending.created, window, cx);
             }
         });
         cx.notify();
     }
 
     /// The shell ran an operation: the error clears, and `created`, when the operation made
-    /// an entity, is selected and shown; `rename` also opens it into rename.
+    /// an entity, is selected and shown; `rename`, or a duplicate, also opens it into rename.
     pub(crate) fn tree_changed(
         &mut self,
         roots: Vec<Node>,
@@ -131,8 +169,11 @@ impl Sidebar {
         self.set_roots(roots, cx);
         if let Some(id) = created {
             self.update_tree(cx, |tree| tree.reveal(&id));
-            if rename {
-                self.edit.pending_rename = Some(id);
+            if rename || self.edit.rename_copy {
+                self.edit.pending_rename = Some(PendingRename {
+                    id,
+                    created: rename,
+                });
             }
         }
         cx.notify();
@@ -141,6 +182,12 @@ impl Sidebar {
     /// Shows why the last operation failed, above the tree.
     pub(crate) fn show_error(&mut self, error: String, cx: &mut Context<Self>) {
         self.edit.error = Some(error);
+        cx.notify();
+    }
+
+    /// The requests with an unsaved draft, which the delete dialog flags.
+    pub(crate) fn set_unsaved(&mut self, ids: HashSet<String>, cx: &mut Context<Self>) {
+        self.edit.unsaved = ids;
         cx.notify();
     }
 
@@ -159,9 +206,22 @@ impl Sidebar {
             .map(|rename| rename.input.read(cx).value().to_string())
     }
 
-    /// Escape: closes the menu or the delete confirmation and clears the error. Returns
-    /// whether it closed something, so the shell does not also cancel a send.
+    /// The hint under the rename field, while it is open.
+    #[cfg(test)]
+    pub(crate) fn rename_hint(&self) -> Option<&'static str> {
+        self.edit
+            .rename
+            .as_ref()
+            .map(|rename| rename_hint(rename.created))
+    }
+
+    /// Escape: cancels a drag, closes the menu or the delete dialog, and clears the error.
+    /// Returns whether it closed something, so the shell does not also cancel a send.
     pub(crate) fn dismiss(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if self.edit.dragging.take().is_some() && cx.stop_active_drag(window) {
+            cx.notify();
+            return true;
+        }
         if self.dismiss_variables(window, cx) {
             return true;
         }
@@ -178,10 +238,11 @@ impl Sidebar {
         closed
     }
 
-    /// Opens the menu of the row `id`, selecting it.
+    /// Opens the menu of the row `id` on its actions, selecting it.
     pub(super) fn open_menu(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.update_tree(cx, |tree| tree.select(id));
         self.edit.menu = Some(id.to_owned());
+        self.edit.page = MenuPage::Actions;
         self.edit.menu_focus.focus(window, cx);
         cx.notify();
     }
@@ -193,7 +254,13 @@ impl Sidebar {
     }
 
     /// Opens the rename field over the name of `id`, seeded with the name, all selected.
-    fn start_rename(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+    fn start_rename(
+        &mut self,
+        id: &str,
+        created: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(name) = self.node(id).map(|node| node.name.clone()) else {
             return;
         };
@@ -207,6 +274,7 @@ impl Sidebar {
         self.edit.rename = Some(Rename {
             id: id.to_owned(),
             original: name,
+            created,
             input,
         });
         cx.notify();
@@ -233,11 +301,49 @@ impl Sidebar {
         );
     }
 
-    /// Escape in the rename field: closes it and keeps the name.
+    /// Escape in the rename field: closes it and keeps the name; on an entity just
+    /// created, cancels the creation by deleting it.
     fn cancel_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.edit.rename.take().is_some() {
-            self.focus.focus(window, cx);
+        let Some(rename) = self.edit.rename.take() else {
+            return;
+        };
+        self.focus.focus(window, cx);
+        if rename.created {
+            self.command(TreeCommand::Delete(rename.id), window, cx);
+        } else {
             cx.notify();
+        }
+    }
+
+    /// F2 on the tree: renames the selected row.
+    pub(super) fn rename_selected(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.pick_on_selected(MenuItem::Rename, window, cx);
+    }
+
+    /// Ctrl+D on the tree: duplicates the selected request or folder.
+    pub(super) fn duplicate_selected(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.pick_on_selected(MenuItem::Duplicate, window, cx);
+    }
+
+    /// Delete on the tree: asks to delete the selected row.
+    pub(super) fn delete_selected(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.pick_on_selected(MenuItem::Delete, window, cx);
+    }
+
+    /// Runs the menu item `item` on the selected row, when it applies there and no rename
+    /// field takes the keys.
+    fn pick_on_selected(&mut self, item: MenuItem, window: &mut Window, cx: &mut Context<Self>) {
+        if self.edit.rename.is_some() {
+            return;
+        }
+        let Some(id) = self.selected().map(str::to_owned) else {
+            return;
+        };
+        if self
+            .node(&id)
+            .is_some_and(|node| item.applies_to(&node.kind))
+        {
+            self.pick(&id, item, window, cx);
         }
     }
 
@@ -250,6 +356,10 @@ impl Sidebar {
             Some(_) | None => self.parent(id),
         };
         match (pick, container) {
+            (MenuItem::Open, _) => {
+                self.open_if_request(id, cx);
+                self.close_menu(window, cx);
+            }
             (MenuItem::NewRequest, Some(parent)) => {
                 self.command(TreeCommand::NewRequest(parent), window, cx);
             }
@@ -257,16 +367,28 @@ impl Sidebar {
                 self.command(TreeCommand::NewFolder(parent), window, cx);
             }
             (MenuItem::NewRequest | MenuItem::NewFolder, None) => self.close_menu(window, cx),
-            (MenuItem::Rename, _) => self.start_rename(id, window, cx),
+            (MenuItem::Rename, _) => self.start_rename(id, false, window, cx),
             (MenuItem::Duplicate, _) => {
                 self.command(TreeCommand::Duplicate(id.to_owned()), window, cx);
             }
-            (MenuItem::Delete, _) => {
-                self.edit.confirm = Some(id.to_owned());
-                self.focus.focus(window, cx);
+            (MenuItem::MoveTo, _) => {
+                self.edit.menu = Some(id.to_owned());
+                self.edit.page = MenuPage::MoveTo;
+                self.edit.menu_focus.focus(window, cx);
                 cx.notify();
             }
+            (MenuItem::Delete, _) => self.prompt_delete(id, window, cx),
         }
+    }
+
+    /// Opens the delete dialog for `id` and tells the shell which requests it lists.
+    fn prompt_delete(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let ids = self.node(id).map(Node::request_ids).unwrap_or_default();
+        self.edit.confirm = Some(id.to_owned());
+        self.edit.unsaved.clear();
+        self.focus.focus(window, cx);
+        cx.emit(DeletePrompted { ids });
+        cx.notify();
     }
 
     fn confirm_delete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -319,6 +441,23 @@ impl Sidebar {
         )
     }
 
+    /// The hint `tree-rename-hint` under the row `id` at `depth`, while it is renamed.
+    pub(super) fn rename_hint_row(&self, id: &str, depth: usize, cx: &App) -> Option<AnyElement> {
+        let rename = self.edit.rename.as_ref().filter(|rename| rename.id == id)?;
+        let hint = rename_hint(rename.created);
+        Some(
+            text_role::role(text_region("tree-rename-hint"), text::CAPTION, cx)
+                .aria_label(hint)
+                .flex_none()
+                .pl(space::MD + chrome::TREE_INDENT * depth as f32 + tokens::TREE_HINT_OFFSET)
+                .pr(space::MD)
+                .pt(border::THICK)
+                .pb(space::XS)
+                .child(hint)
+                .into_any_element(),
+        )
+    }
+
     /// The `…` button of the row `id`, shown while the row is selected or hovered, and the
     /// row's menu while it is open.
     pub(super) fn row_actions(
@@ -357,31 +496,6 @@ impl Sidebar {
         actions
     }
 
-    fn menu(&self, node: &Node, window: &Window, cx: &mut Context<Self>) -> AnyElement {
-        let items = MenuItem::ALL
-            .into_iter()
-            .filter(|item| item.applies_to(&node.kind))
-            .map(|item| {
-                let id = node.id.clone();
-                option_menu::option(
-                    format!("tree-menu-{}", item.slug()),
-                    item.label().to_owned(),
-                    false,
-                    move |this: &mut Sidebar, window, cx| this.pick(&id, item, window, cx),
-                    cx,
-                )
-            })
-            .collect();
-        option_menu::render(
-            ("tree-menu", "tree-menu-backdrop"),
-            &self.edit.menu_focus,
-            items,
-            Sidebar::close_menu,
-            window,
-            cx,
-        )
-    }
-
     /// The error of the last failed operation, `sidebar-error`, in the danger tone.
     pub(super) fn error_label(&self, cx: &App) -> Option<AnyElement> {
         let error = self.edit.error.clone()?;
@@ -397,105 +511,5 @@ impl Sidebar {
                 .child(error)
                 .into_any_element(),
         )
-    }
-
-    /// The delete confirmation, `tree-delete-prompt`, while a delete waits for it: the
-    /// question and the `tree-delete-confirm` and `tree-delete-cancel` buttons.
-    pub(super) fn delete_prompt(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
-        let node = self.node(self.edit.confirm.as_deref()?)?;
-        let question = delete_question(&node.kind, &node.name, node.request_count());
-        let (hover, danger, strong) = {
-            let colors = bolt::colors(cx);
-            (colors.hover, colors.danger, colors.strong)
-        };
-        let button = |id: &'static str, label: &'static str, cx: &mut Context<Self>| {
-            text_role::role(text_region(id), text::BODY, cx)
-                .role(Role::Button)
-                .aria_label(label)
-                .cursor_pointer()
-                .pl(space::SM)
-                .pr(space::SM)
-                .hover(move |style| style.bg(hover))
-                .child(label)
-        };
-        Some(
-            text_role::role(region("tree-delete-prompt"), text::BODY, cx)
-                .role(Role::Dialog)
-                .aria_label(question.clone())
-                .flex_none()
-                .flex()
-                .flex_col()
-                .gap(space::SM)
-                .pl(space::LG)
-                .pr(space::LG)
-                .pb(space::SM)
-                .child(div().text_color(strong).child(question))
-                .child(
-                    div()
-                        .flex()
-                        .gap(space::SM)
-                        .child(
-                            button("tree-delete-confirm", "Delete", cx)
-                                .text_color(danger)
-                                .on_click(cx.listener(|this, _event, window, cx| {
-                                    this.confirm_delete(window, cx);
-                                })),
-                        )
-                        .child(button("tree-delete-cancel", "Cancel", cx).on_click(
-                            cx.listener(|this, _event, window, cx| this.cancel_delete(window, cx)),
-                        )),
-                )
-                .into_any_element(),
-        )
-    }
-}
-
-/// An item of the row menu.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MenuItem {
-    NewRequest,
-    NewFolder,
-    Rename,
-    Duplicate,
-    Delete,
-}
-
-impl MenuItem {
-    const ALL: [Self; 5] = [
-        Self::NewRequest,
-        Self::NewFolder,
-        Self::Rename,
-        Self::Duplicate,
-        Self::Delete,
-    ];
-
-    fn slug(self) -> &'static str {
-        match self {
-            Self::NewRequest => "new-request",
-            Self::NewFolder => "new-folder",
-            Self::Rename => "rename",
-            Self::Duplicate => "duplicate",
-            Self::Delete => "delete",
-        }
-    }
-
-    fn label(self) -> &'static str {
-        match self {
-            Self::NewRequest => "New request",
-            Self::NewFolder => "New folder",
-            Self::Rename => "Rename",
-            Self::Duplicate => "Duplicate",
-            Self::Delete => "Delete",
-        }
-    }
-
-    /// Whether the item is offered on a row of `kind`: New folder on collections and
-    /// folders, Duplicate on folders and requests.
-    fn applies_to(self, kind: &NodeKind) -> bool {
-        match self {
-            Self::NewFolder => !matches!(kind, NodeKind::Request { .. }),
-            Self::Duplicate => !matches!(kind, NodeKind::Collection),
-            Self::NewRequest | Self::Rename | Self::Delete => true,
-        }
     }
 }

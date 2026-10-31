@@ -131,28 +131,6 @@ fn new_request_from_the_menu_is_last_selected_and_on_disk(cx: &mut TestAppContex
 }
 
 #[gpui::test]
-fn new_request_on_a_request_row_creates_in_its_parent(cx: &mut TestAppContext) {
-    let dir = sidebar_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-
-    open_menu(cx, HEALTH);
-    present(cx, "tree-menu-duplicate");
-    assert!(
-        bounds(cx, "tree-menu-new-folder").is_none(),
-        "New folder is offered on collections and folders only"
-    );
-    click(cx, "tree-menu-new-request");
-
-    assert!(exists(dir.path(), "collections/api/new-request.req.toml"));
-    let api = node(cx, &shell, API);
-    assert_eq!(
-        api.children.last().map(|node| node.name.as_str()),
-        Some("New request")
-    );
-}
-
-#[gpui::test]
 fn new_folder_in_a_folder_expands_it(cx: &mut TestAppContext) {
     let dir = sidebar_workspace();
     let (_state_dir, state_path) = state_file();
