@@ -67,6 +67,16 @@ button{font:inherit;white-space:nowrap}
 <style>
 :focus-visible{outline:2px solid #FFB454;outline-offset:2px}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+<style>
+/* states section, same layout as 12-agent-approval.html */
+.desk{width:1440px;box-sizing:border-box;padding:40px 48px 56px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px}
+.desk h2{margin:0 0 6px;font-size:18px;font-weight:600;color:#F7F4F7}
+.desk h3{margin:0;white-space:nowrap;font-size:13px;font-weight:600;color:#F7F4F7}
+.desk p{margin:0;color:#8E8996;font-size:12.5px;line-height:1.5}
+.state{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+.state-head{display:flex;align-items:baseline;gap:12px}
+.frame{width:1344px;box-sizing:border-box;background:#100F13;box-shadow:#232128 0 0 0 1px inset;overflow:hidden}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -335,7 +345,6 @@ button{font:inherit;white-space:nowrap}
                 <span><svg class="ico" style="width:13px;height:13px"><use href="#i-folder"/></svg>Inherited from Billing API</span>
                 <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-key"/></svg>This request</span>
               </div>
-              <span class="hint">Billing API uses Bearer <span class="m">{{access_token}}</span>. This request overrides it.</span>
             </div>
           </div>
           <div class="frow">
@@ -353,23 +362,7 @@ button{font:inherit;white-space:nowrap}
                 <div class="c6 field m" style="flex-grow:1;color:#F7F4F7"><span style="flex-grow:1;white-space:nowrap;overflow:hidden"><span class="var">{{access_token}}</span></span>
                   <span class="c4" style="display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span>
                 </div>
-                <button aria-label="Reveal resolved value" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></button>
               </div>
-              <span class="hint" style="display:flex;align-items:center;gap:8px">Resolves in staging to <span class="m" style="color:#C6C3CC;letter-spacing:.1em">••••••••••••</span><span class="m">(412 chars)</span> · set by Auth › Token</span>
-            </div>
-          </div>
-          <div class="frow">
-            <span class="lb">Prefix</span>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <div class="c6 field m" style="width:240px;color:#F7F4F7">Bearer</div>
-              <span class="hint">Written before the token, separated by one space.</span>
-            </div>
-          </div>
-          <div class="frow" style="padding-bottom:0">
-            <span class="lb">Sends</span>
-            <div style="display:flex;flex-direction:column;gap:6px">
-              <div class="c6 field m" style="background:#100F13;color:#C6C3CC"><span style="color:#8E8996">Authorization:</span> Bearer <span style="color:#8E8996;letter-spacing:.1em">••••••••••••</span></div>
-              <span class="hint" style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Added as the Authorization header on send. An Authorization header on the Headers tab replaces it.</span>
             </div>
           </div>
         </div>
@@ -449,4 +442,58 @@ button{font:inherit;white-space:nowrap}
     </span>
   </footer>
 </main>
+<section class="desk" aria-label="Request auth · states"><h2>Request auth · states</h2><p>Crops of the auth form; anything not shown matches the window above.</p>
+<div class="state"><div class="state-head"><h3>Inherited</h3><p>Source is the parent collection: no Type row, one line names whose auth is sent.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow">
+      <span class="lb">Source</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 seg" style="align-self:flex-start;justify-self:start">
+          <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-folder"/></svg>Inherited from Billing API</span>
+          <span><svg class="ico" style="width:13px;height:13px"><use href="#i-key"/></svg>This request</span>
+        </div>
+        <span class="hint">This request sends the auth of Billing API.</span>
+      </div>
+    </div>
+  </div>
+</div></div>
+<div class="state"><div class="state-head"><h3>API key</h3><p>Key and Value wells; the value is a secret, so it stays masked. Add to picks the header or the query string.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow">
+      <span class="lb">Source</span>
+      <div class="c6 seg" style="align-self:flex-start;justify-self:start">
+        <span><svg class="ico" style="width:13px;height:13px"><use href="#i-folder"/></svg>Inherited from Billing API</span>
+        <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-key"/></svg>This request</span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Type</span>
+      <div class="c6 sel" style="width:240px;box-sizing:border-box">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-key"/></svg>
+        <span style="flex-grow:1">API key</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Key</span>
+      <div class="c6 field m" style="width:240px;color:#F7F4F7">X-Api-Key</div>
+    </div>
+    <div class="frow">
+      <span class="lb">Value</span>
+      <div class="c6 field m" style="color:#F7F4F7"><span style="flex-grow:1;color:#8E8996;letter-spacing:.1em">••••••••</span>
+        <span class="c4" style="display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Add to</span>
+      <div class="c6 seg" style="align-self:flex-start;justify-self:start">
+        <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>Header</span>
+        <span><svg class="ico" style="width:13px;height:13px"><use href="#i-hash"/></svg>Query</span>
+      </div>
+    </div>
+  </div>
+</div></div>
+</section>
 </body></html>

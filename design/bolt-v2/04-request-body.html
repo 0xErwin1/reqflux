@@ -67,6 +67,17 @@ button{font:inherit;white-space:nowrap}
 <style>
 :focus-visible{outline:2px solid #FFB454;outline-offset:2px}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+<style>
+/* states section, same layout as 12-agent-approval.html */
+.desk{width:1440px;box-sizing:border-box;padding:40px 48px 56px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px}
+.desk h2{margin:0 0 6px;font-size:18px;font-weight:600;color:#F7F4F7}
+.desk h3{margin:0;white-space:nowrap;font-size:13px;font-weight:600;color:#F7F4F7}
+.desk p{margin:0;color:#8E8996;font-size:12.5px;line-height:1.5}
+.state{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+.state-head{display:flex;align-items:baseline;gap:12px}
+.frame{width:1344px;box-sizing:border-box;background:#100F13;box-shadow:#232128 0 0 0 1px inset;overflow:hidden}
+.well{box-sizing:border-box;padding:6px 0;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -480,4 +491,90 @@ button{font:inherit;white-space:nowrap}
     </span>
   </footer>
 </main>
+<section class="desk" aria-label="Request body · states"><h2>Request body · states</h2><p>Crops of the request area from the Body mode row down; anything not shown matches the window above.</p>
+<div class="state"><div class="state-head"><h3>Raw</h3><p>Raw selected; a language select follows the modes, then the content type it sets. The body is edited in a field well.</p></div>
+<div class="frame">
+  <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px">
+    <div class="c6 seg">
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-ban"/></svg>None</span>
+      <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Raw</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>URL-encoded</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-paperclip"/></svg>Form data</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Binary</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-graph"/></svg>GraphQL</span>
+    </div>
+    <div class="c6 sel" aria-label="Language: JSON (JSON, XML, Text)" style="width:110px;box-sizing:border-box">
+      <span style="flex-grow:1">JSON</span>
+      <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+    </div>
+    <span class="m" style="font-size:11.5px;color:#8E8996;white-space:nowrap">application/json</span>
+  </div>
+  <div style="padding:0 12px 12px">
+    <div class="c6 well m">
+      <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+      <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"customer"</span>: <span class="s">"cus_9s6XKzkNRiz8i3"</span>,</span></div>
+      <div class="ln"><span class="no">3</span><span class="tx">  <span class="k">"tenant"</span>: <span class="s">"<span class="unres">{{tenant_id}}</span>"</span>,</span></div>
+      <div class="ln"><span class="no">4</span><span class="tx">  <span class="k">"currency"</span>: <span class="s">"eur"</span>,</span></div>
+      <div class="ln"><span class="no">5</span><span class="tx">  <span class="k">"due_days"</span>: <span class="nu">30</span>,</span></div>
+      <div class="ln"><span class="no">6</span><span class="tx">  <span class="k">"lines"</span>: [</span></div>
+      <div class="ln"><span class="no">7</span><span class="tx">    { <span class="k">"description"</span>: <span class="s">"Pro plan, October"</span>, <span class="k">"quantity"</span>: <span class="nu">1</span>, <span class="k">"amount"</span>: <span class="nu">12900</span> }</span></div>
+      <div class="ln"><span class="no">8</span><span class="tx">  ]</span></div>
+      <div class="ln"><span class="no">9</span><span class="tx">}</span></div>
+    </div>
+  </div>
+</div></div>
+<div class="state"><div class="state-head"><h3>Binary, no file</h3><p>The path is empty: the well reads No file in muted.</p></div>
+<div class="frame">
+  <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px">
+    <div class="c6 seg">
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-ban"/></svg>None</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Raw</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>URL-encoded</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-paperclip"/></svg>Form data</span>
+      <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Binary</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-graph"/></svg>GraphQL</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:8px;padding:0 12px 12px">
+    <div class="c6 field" style="width:480px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-file"/></svg>No file</div>
+  </div>
+</div></div>
+<div class="state"><div class="state-head"><h3>GraphQL</h3><p>The query and its variables, each in its own field well, side by side.</p></div>
+<div class="frame">
+  <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px">
+    <div class="c6 seg">
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-ban"/></svg>None</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Raw</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>URL-encoded</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-paperclip"/></svg>Form data</span>
+      <span><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Binary</span>
+      <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-graph"/></svg>GraphQL</span>
+    </div>
+    <span class="m" style="font-size:11.5px;color:#8E8996;white-space:nowrap">application/json</span>
+  </div>
+  <div style="display:grid;grid-template-columns:3fr 2fr;gap:12px;padding:0 12px 12px">
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Query</span>
+      <div class="c6 well m" style="flex-grow:1">
+        <div class="ln"><span class="no">1</span><span class="tx"><span class="k">query</span> Invoice(<span class="nu">$id</span>: ID!) {</span></div>
+        <div class="ln"><span class="no">2</span><span class="tx">  invoice(id: <span class="nu">$id</span>) {</span></div>
+        <div class="ln"><span class="no">3</span><span class="tx">    id</span></div>
+        <div class="ln"><span class="no">4</span><span class="tx">    status</span></div>
+        <div class="ln"><span class="no">5</span><span class="tx">    amountDue</span></div>
+        <div class="ln"><span class="no">6</span><span class="tx">    lines { description quantity amount }</span></div>
+        <div class="ln"><span class="no">7</span><span class="tx">  }</span></div>
+        <div class="ln"><span class="no">8</span><span class="tx">}</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Variables</span>
+      <div class="c6 well m" style="flex-grow:1">
+        <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+        <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span></span></div>
+        <div class="ln"><span class="no">3</span><span class="tx">}</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+</section>
 </body></html>

@@ -1,8 +1,9 @@
-//! The editable Auth pane: the type menu switches the auth type, and the Username, Key,
+//! The editable Auth pane: the Source control switches between the parent's auth and the
+//! request's own, the type menu switches the auth type, and the Username, Key,
 //! Password, Token and API key Value rows open a field in the shell's cell field slot, so it
 //! commits, discards and gives the focus back exactly as a grid cell does. A secret field
 //! opens empty with a `Secret value` placeholder and an empty commit keeps the stored value.
-//! Add to toggles header and query. Other auth types stay read-only.
+//! Add to picks header or query. Other auth types stay read-only.
 
 use gpui::{AppContext as _, Context, Window};
 use gpui_component::input::InputState;
@@ -14,8 +15,9 @@ use super::cell_edit::{CellEdit, CellField};
 /// The table name an Auth field records in its [`CellEdit`], which no grid uses.
 pub(crate) const AUTH_TABLE: &str = "auth";
 
-/// The auth types the type menu offers, by their on-disk `type`, in menu order.
-pub(crate) const AUTH_KINDS: [&str; 5] = ["inherit", "none", "basic", "bearer", "apikey"];
+/// The auth types the type menu offers, by their on-disk `type`, in menu order. Inheriting
+/// is the Source control's, not a type.
+pub(crate) const AUTH_KINDS: [&str; 4] = ["none", "basic", "bearer", "apikey"];
 
 /// A new auth of the on-disk type `kind`, with empty fields and the key in a header.
 pub(crate) fn empty_auth(kind: &str) -> Option<Auth> {
@@ -190,22 +192,46 @@ impl Shell {
         self.edit_draft(id, |request| request.auth = auth, cx);
     }
 
-    /// Toggles where the API key of the request `id` is sent, header or query.
-    pub(super) fn toggle_api_key_location(
+    /// Makes the request `id` inherit its parent's auth, or, when `inherit` is false and it
+    /// inherits, gives it its own auth, with no auth. Picking the source it already has
+    /// changes nothing.
+    pub(super) fn set_auth_source(
         &mut self,
         id: &str,
+        inherit: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let inherits = self
+            .displayed_auth(id)
+            .is_some_and(|auth| matches!(auth, Auth::Inherit));
+        if inherit != inherits {
+            self.set_auth_type(id, if inherit { "inherit" } else { "none" }, window, cx);
+        }
+    }
+
+    /// Sends the API key of the request `id` in `location`, a header or the query. Picking
+    /// the location it already has changes nothing.
+    pub(super) fn set_api_key_location(
+        &mut self,
+        id: &str,
+        location: ApiKeyLocation,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.commit_cell_edit(window, cx);
+        if !matches!(self.displayed_auth(id), Some(Auth::ApiKey { location: current, .. }) if current != location)
+        {
+            return;
+        }
         self.edit_draft(
             id,
             |request| {
-                if let Auth::ApiKey { location, .. } = &mut request.auth {
-                    *location = match location {
-                        ApiKeyLocation::Header => ApiKeyLocation::Query,
-                        ApiKeyLocation::Query => ApiKeyLocation::Header,
-                    };
+                if let Auth::ApiKey {
+                    location: current, ..
+                } = &mut request.auth
+                {
+                    *current = location;
                 }
             },
             cx,

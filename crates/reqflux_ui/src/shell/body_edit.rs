@@ -1,4 +1,5 @@
-//! The editable Body pane: the mode menu switches the body mode, and clicking the raw text
+//! The editable Body pane: the mode control switches the body mode, the language menu the
+//! language of a raw body, and clicking the raw text
 //! swaps it for a multi-line editor whose text lands in the draft as it is typed, as the
 //! URL field's does. Enter inserts a newline, Ctrl+Enter sends and Escape gives the focus
 //! back to the shell, keeping the text, which is already in the draft. The urlencoded and
@@ -11,58 +12,75 @@ use reqflux_core::model::{Body, FormPart, RawLanguage};
 
 use super::Shell;
 
-/// The modes the mode menu offers, by their menu id and name, in menu order.
+/// The modes the mode control offers, by their id and name, left to right.
 pub(crate) const BODY_MODES: [(&str, &str); 6] = [
-    ("none", "none"),
-    ("json", "raw · JSON"),
-    ("xml", "raw · XML"),
-    ("text", "raw · Text"),
-    ("urlencoded", "urlencoded"),
-    ("formdata", "form-data"),
+    ("none", "None"),
+    ("raw", "Raw"),
+    ("urlencoded", "URL-encoded"),
+    ("formdata", "Form data"),
+    ("binary", "Binary"),
+    ("graphql", "GraphQL"),
+];
+
+/// The languages the language menu of a raw body offers, by their id and name, in menu
+/// order.
+pub(crate) const RAW_LANGUAGES: [(&str, &str, RawLanguage); 3] = [
+    ("json", "JSON", RawLanguage::Json),
+    ("xml", "XML", RawLanguage::Xml),
+    ("text", "Text", RawLanguage::Text),
 ];
 
 /// The rows the raw text editor shows.
 const EDITOR_ROWS: usize = 12;
 
-/// The menu id of the mode of `body`, or `None` for a mode the menu does not offer.
-pub(crate) fn body_kind(body: &Body) -> Option<&'static str> {
-    Some(match body {
+/// The mode id of `body`.
+pub(crate) fn body_kind(body: &Body) -> &'static str {
+    match body {
         Body::None => "none",
-        Body::Raw {
-            language: RawLanguage::Json,
-            ..
-        } => "json",
-        Body::Raw {
-            language: RawLanguage::Xml,
-            ..
-        } => "xml",
-        Body::Raw {
-            language: RawLanguage::Text,
-            ..
-        } => "text",
+        Body::Raw { .. } => "raw",
         Body::Urlencoded { .. } => "urlencoded",
         Body::FormData { .. } => "formdata",
-        _ => return None,
+        Body::Binary { .. } => "binary",
+        Body::Graphql { .. } => "graphql",
+    }
+}
+
+/// The content type the request sends with `body`, as the mode row hints it.
+pub(crate) fn body_hint(body: &Body) -> Option<&'static str> {
+    Some(match body {
+        Body::Raw { language, .. } => match language {
+            RawLanguage::Json => "application/json",
+            RawLanguage::Xml => "application/xml",
+            RawLanguage::Text => "text/plain",
+            RawLanguage::Html => "text/html",
+            RawLanguage::Javascript => "application/javascript",
+        },
+        Body::Urlencoded { .. } => "application/x-www-form-urlencoded",
+        Body::FormData { .. } => "multipart/form-data · boundary set on send",
+        Body::Graphql { .. } => "application/json",
+        Body::None | Body::Binary { .. } => return None,
     })
 }
 
-/// `body` switched to the mode `kind`: a raw body keeps its text across raw languages,
-/// any other switch starts empty.
-fn switched_body(body: &Body, kind: &str) -> Option<Body> {
-    let language = match kind {
-        "none" => return Some(Body::None),
-        "urlencoded" => return Some(Body::Urlencoded { fields: Vec::new() }),
-        "formdata" => return Some(Body::FormData { parts: Vec::new() }),
-        "json" => RawLanguage::Json,
-        "xml" => RawLanguage::Xml,
-        "text" => RawLanguage::Text,
+/// An empty body of the mode `kind`; a raw body starts in JSON.
+fn empty_body(kind: &str) -> Option<Body> {
+    Some(match kind {
+        "none" => Body::None,
+        "raw" => Body::Raw {
+            language: RawLanguage::Json,
+            text: String::new(),
+        },
+        "urlencoded" => Body::Urlencoded { fields: Vec::new() },
+        "formdata" => Body::FormData { parts: Vec::new() },
+        "binary" => Body::Binary {
+            path: String::new(),
+        },
+        "graphql" => Body::Graphql {
+            query: String::new(),
+            variables: String::new(),
+        },
         _ => return None,
-    };
-    let text = match body {
-        Body::Raw { text, .. } => text.clone(),
-        _ => String::new(),
-    };
-    Some(Body::Raw { language, text })
+    })
 }
 
 /// The key, the value (a file part's path) and the enabled flag of the 1-based row `n` of
@@ -110,7 +128,7 @@ impl Shell {
         )
     }
 
-    /// Opens the mode menu and focuses it, or closes it when open.
+    /// Opens the language menu and focuses it, or closes it when open.
     pub(super) fn toggle_body_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.body_menu_open {
             self.close_body_menu(window, cx);
@@ -121,14 +139,14 @@ impl Shell {
         }
     }
 
-    /// Closes the mode menu and gives the focus back.
+    /// Closes the language menu and gives the focus back.
     pub(super) fn close_body_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.body_menu_open = false;
         self.restore_focus(window, cx);
     }
 
-    /// Switches the body of the request `id` to the mode `kind`. Picking the mode it
-    /// already has changes nothing. An open field commits first.
+    /// Switches the body of the request `id` to an empty body of the mode `kind`. Picking
+    /// the mode it already has changes nothing. An open field commits first.
     pub(super) fn set_body_mode(
         &mut self,
         id: &str,
@@ -136,18 +154,46 @@ impl Shell {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.close_body_menu(window, cx);
         self.commit_cell_edit(window, cx);
-        self.drop_body_edit_of(id);
         let Some(current) = self.displayed_body(id) else {
             return;
         };
-        if body_kind(&current) == Some(kind) {
+        if body_kind(&current) == kind {
             return;
         }
-        if let Some(body) = switched_body(&current, kind) {
+        self.drop_body_edit_of(id);
+        if let Some(body) = empty_body(kind) {
             self.edit_draft(id, |request| request.body = body, cx);
         }
+    }
+
+    /// Switches the raw body of the request `id` to `language`, keeping its text. Picking
+    /// the language it already has changes nothing. An open field commits first.
+    pub(super) fn set_raw_language(
+        &mut self,
+        id: &str,
+        language: RawLanguage,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.close_body_menu(window, cx);
+        self.commit_cell_edit(window, cx);
+        if !matches!(self.displayed_body(id), Some(Body::Raw { language: current, .. }) if current != language)
+        {
+            return;
+        }
+        self.edit_draft(
+            id,
+            |request| {
+                if let Body::Raw {
+                    language: current, ..
+                } = &mut request.body
+                {
+                    *current = language;
+                }
+            },
+            cx,
+        );
     }
 
     /// Swaps the raw text of the request `id` for a focused multi-line editor seeded with

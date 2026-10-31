@@ -69,9 +69,10 @@ fn draft_request(
     })
 }
 
-fn pick_mode(cx: &mut VisualTestContext, mode: &str) {
-    click(cx, "request-body-mode");
-    click(cx, &format!("body-mode-{mode}"));
+/// Picks the raw language `language` from the language menu of a raw body.
+fn pick_language(cx: &mut VisualTestContext, language: &str) {
+    click(cx, "request-body-language");
+    click(cx, &format!("body-language-{language}"));
 }
 
 fn type_text(cx: &mut VisualTestContext, text: &str) {
@@ -93,21 +94,39 @@ fn raw(language: RawLanguage, text: &str) -> Body {
 }
 
 #[gpui::test]
-fn the_mode_menu_switches_the_body_in_the_draft(cx: &mut TestAppContext) {
+fn the_mode_control_switches_the_body_in_the_draft(cx: &mut TestAppContext) {
     let dir = json_workspace();
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
     open_body(cx);
 
-    click(cx, "request-body-mode");
-    for mode in ["none", "json", "xml", "text", "urlencoded", "formdata"] {
-        assert!(bounds(cx, &format!("body-mode-{mode}")).is_some(), "{mode}");
+    for mode in ["none", "raw", "urlencoded", "formdata", "binary", "graphql"] {
+        assert!(
+            bounds(cx, &format!("body-mode-{mode}")).is_some(),
+            "every mode shows without opening anything: {mode}"
+        );
     }
-    click(cx, "body-mode-json");
-    assert!(bounds(cx, "body-mode-json").is_none(), "the pick closed it");
+    click(cx, "body-mode-raw");
     assert!(draft_body(cx, &shell).is_none(), "the same mode is a no-op");
 
-    pick_mode(cx, "xml");
+    click(cx, "request-body-language");
+    for language in ["json", "xml", "text"] {
+        assert!(
+            bounds(cx, &format!("body-language-{language}")).is_some(),
+            "{language}"
+        );
+    }
+    click(cx, "body-language-json");
+    assert!(
+        bounds(cx, "body-language-json").is_none(),
+        "the pick closed it"
+    );
+    assert!(
+        draft_body(cx, &shell).is_none(),
+        "the same language is a no-op"
+    );
+
+    pick_language(cx, "xml");
     assert_eq!(
         draft_body(cx, &shell),
         Some(raw(RawLanguage::Xml, "{}")),
@@ -115,27 +134,49 @@ fn the_mode_menu_switches_the_body_in_the_draft(cx: &mut TestAppContext) {
     );
     assert!(marker(cx, POSTED), "the edit marks the tab");
 
-    pick_mode(cx, "urlencoded");
+    click(cx, "body-mode-urlencoded");
     assert_eq!(
         draft_body(cx, &shell),
         Some(Body::Urlencoded { fields: Vec::new() })
     );
-    pick_mode(cx, "text");
+    assert!(
+        bounds(cx, "request-body-language").is_none(),
+        "only a raw body has a language"
+    );
+    click(cx, "body-mode-binary");
     assert_eq!(
         draft_body(cx, &shell),
-        Some(raw(RawLanguage::Text, "")),
-        "another kind starts empty"
+        Some(Body::Binary {
+            path: String::new()
+        })
+    );
+    click(cx, "body-mode-graphql");
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(Body::Graphql {
+            query: String::new(),
+            variables: String::new()
+        })
+    );
+    click(cx, "body-mode-raw");
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(raw(RawLanguage::Json, "")),
+        "another kind starts empty, in JSON"
     );
 
-    click(cx, "request-body-mode");
+    click(cx, "request-body-language");
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
-    assert!(bounds(cx, "body-mode-none").is_none(), "Escape closes it");
+    assert!(
+        bounds(cx, "body-language-text").is_none(),
+        "Escape closes it"
+    );
 
     let (shell_2, _cx) = render(cx, &dir, &state_path);
     assert_eq!(
         draft_body(cx, &shell_2),
-        Some(raw(RawLanguage::Text, "")),
+        Some(raw(RawLanguage::Json, "")),
         "the draft was restored"
     );
 }

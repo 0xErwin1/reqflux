@@ -6,7 +6,7 @@ use reqflux_core::model::{ApiKeyLocation, Auth};
 use tempfile::TempDir;
 
 use super::Shell;
-use super::draft_tests::{bounds, click, marker, render, state_file};
+use super::draft_tests::{bounds, click, marker, present, render, state_file};
 use crate::workspace_tests::{demo_workspace, write};
 
 const COLLECTION: &str = "01J00000000000000000000071";
@@ -87,6 +87,23 @@ fn type_field(cx: &mut VisualTestContext, label: &str, text: &str, key: &str) {
     cx.run_until_parked();
 }
 
+/// The accessible label of the element `selector`, which must be on screen.
+fn label(cx: &mut VisualTestContext, selector: &str) -> String {
+    present(cx, selector);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(selector)
+        .and_then(|node| node.label.clone())
+        .unwrap_or_default()
+}
+
 fn file(dir: &TempDir) -> String {
     std::fs::read_to_string(dir.path().join(FILE)).unwrap_or_default()
 }
@@ -99,9 +116,13 @@ fn the_type_menu_switches_the_type_in_the_draft(cx: &mut TestAppContext) {
     open_auth(cx);
 
     click(cx, "request-auth-type");
-    for kind in ["inherit", "none", "basic", "bearer", "apikey"] {
+    for kind in ["none", "basic", "bearer", "apikey"] {
         assert!(bounds(cx, &format!("auth-type-{kind}")).is_some(), "{kind}");
     }
+    assert!(
+        bounds(cx, "auth-type-inherit").is_none(),
+        "inheriting is the Source control's"
+    );
     click(cx, "auth-type-bearer");
     assert!(
         bounds(cx, "auth-type-bearer").is_none(),
@@ -133,6 +154,53 @@ fn the_type_menu_switches_the_type_in_the_draft(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_source_control_switches_between_inherited_and_own_auth(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    assert_eq!(label(cx, "auth-source-inherit"), "Inherited from API");
+    assert_eq!(label(cx, "auth-source-request"), "This request");
+    click(cx, "auth-source-request");
+    assert!(
+        draft_auth(cx, &shell).is_none(),
+        "the same source is a no-op"
+    );
+
+    click(cx, "auth-source-inherit");
+    assert_eq!(draft_auth(cx, &shell), Some(Auth::Inherit));
+    assert!(
+        bounds(cx, "request-auth-type").is_none(),
+        "an inherited auth has no type of its own"
+    );
+    assert_eq!(
+        label(cx, "request-auth-hint"),
+        "This request sends the auth of API."
+    );
+
+    click(cx, "auth-source-request");
+    assert_eq!(draft_auth(cx, &shell), Some(Auth::None));
+    assert!(bounds(cx, "request-auth-type").is_some());
+}
+
+#[gpui::test]
+fn a_secret_shows_masked_in_a_field(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    assert!(
+        bounds(cx, "request-auth-well-token").is_some(),
+        "the token sits in a field well"
+    );
+    let shown = label(cx, "request-auth-field-token");
+    assert_eq!(shown, "Token: ••••••••");
+    assert!(!shown.contains("stored-token"));
+}
+
+#[gpui::test]
 fn username_and_key_edit_the_draft_and_add_to_toggles(cx: &mut TestAppContext) {
     let dir = bearer_workspace();
     let (_state_dir, state_path) = state_file();
@@ -161,12 +229,23 @@ fn username_and_key_edit_the_draft_and_add_to_toggles(cx: &mut TestAppContext) {
 
     pick_type(cx, "apikey");
     type_field(cx, "key", "X-Key", "enter");
-    click(cx, "request-auth-field-add-to");
+    click(cx, "auth-location-query");
     let Some(Auth::ApiKey { key, location, .. }) = draft_auth(cx, &shell) else {
         panic!("an API key draft");
     };
     assert_eq!((key.as_str(), location), ("X-Key", ApiKeyLocation::Query));
-    click(cx, "request-auth-field-add-to");
+    click(cx, "auth-location-query");
+    assert!(
+        matches!(
+            draft_auth(cx, &shell),
+            Some(Auth::ApiKey {
+                location: ApiKeyLocation::Query,
+                ..
+            })
+        ),
+        "the selected location is a no-op"
+    );
+    click(cx, "auth-location-header");
     assert!(matches!(
         draft_auth(cx, &shell),
         Some(Auth::ApiKey {

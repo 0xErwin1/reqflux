@@ -28,14 +28,14 @@
       "title": "Request body: form data",
       "tradeoff": "DBFlux segmented modes and grid",
       "width": 1440,
-      "height": 900
+      "height": 1785
     },
     {
       "file": "05-request-auth.html",
       "title": "Request auth",
       "tradeoff": "DBFlux form rows; inheritance visible",
       "width": 1440,
-      "height": 900
+      "height": 1435
     },
     {
       "file": "06-response-sending.html",
