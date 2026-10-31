@@ -142,7 +142,7 @@ pub enum StoreError {
 /// line the parser's `Display` quotes.
 #[must_use]
 pub fn toml_error_location(text: &str, error: &toml::de::Error) -> String {
-    let message = without_quoted_values(error.message());
+    let message = without_unknown_values(&without_quoted_values(error.message()));
     let Some(before) = error.span().and_then(|span| text.get(..span.start)) else {
         return message;
     };
@@ -153,6 +153,25 @@ pub fn toml_error_location(text: &str, error: &toml::de::Error) -> String {
         .map_or(0, |last| last.chars().count())
         + 1;
     format!("line {line}, column {column}: {message}")
+}
+
+/// `message` with the backtick-quoted value of an `unknown variant` or `unknown field`
+/// replaced by `` `…` ``: serde quotes the offending enum value or key that way, and it can be
+/// a secret. The `expected` values after it are this build's names and stay.
+fn without_unknown_values(message: &str) -> String {
+    let mut out = message.to_owned();
+    for prefix in ["unknown variant `", "unknown field `"] {
+        let Some(start) = out.find(prefix).map(|at| at + prefix.len()) else {
+            continue;
+        };
+        let Some(end) = out.get(start..).and_then(|rest| rest.find('`')) else {
+            out.truncate(start);
+            out.push_str("…`");
+            continue;
+        };
+        out.replace_range(start..start + end, "…");
+    }
+    out
 }
 
 /// `message` with every double-quoted run replaced by `"…"`: serde quotes the offending value

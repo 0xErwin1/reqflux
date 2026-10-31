@@ -118,3 +118,19 @@ fn a_parse_error_never_quotes_a_value_from_the_document() {
     assert!(!shown.contains("val-SECRET-81"), "{shown}");
     assert!(shown.starts_with("line 1, column"), "{shown}");
 }
+
+#[test]
+fn a_parse_error_never_quotes_an_unknown_variant() {
+    // An unknown enum value: serde's message quotes it in backticks.
+    let text = "read = \"val-SECRET-82\"\n";
+    let error = match toml::from_str::<reqflux_core::model::McpOverride>(text) {
+        Ok(_) => panic!("an unknown rule must not parse"),
+        Err(error) => error,
+    };
+    let shown = reqflux_store::toml_error_location(text, &error);
+    assert!(!shown.contains("val-SECRET-82"), "{shown}");
+    assert!(
+        shown.contains("`allow`"),
+        "the expected values stay: {shown}"
+    );
+}
