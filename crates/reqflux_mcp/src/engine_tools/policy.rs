@@ -6,16 +6,21 @@
 //! restart; one that does not load leaves the defaults, and every refusal says so. The
 //! workspace overrides come from `[mcp.workspaces."<id>"]` and the open workspace's manifest
 //! as last loaded. The `ui_*` tools are outside the policy.
+//!
+//! A class whose rule is `ask` is asked in the running window (mcp-approvals S2); its audit
+//! line records the approval in its reason (S6).
 
 use std::path::PathBuf;
 
 use reqflux_core::model::Id;
 use reqflux_engine::Engine;
+use reqflux_engine::approvals::WorkspaceRef;
 use reqflux_engine::audit::{self, AuditEntry, Decision};
-use reqflux_engine::config;
-use reqflux_engine::policy::{Policy, ToolClass, WorkspaceScope};
+use reqflux_engine::config::{self, Rule};
+use reqflux_engine::policy::{Policy, Refusal, ToolClass, WorkspaceScope};
 
 use super::EngineState;
+use crate::approvals::{Ask, target_name};
 use crate::tools::ToolError;
 
 /// Where the server reads the user's config and appends the audit log.
@@ -245,10 +250,45 @@ impl EngineState {
             Scope::Open => self.engine.as_ref(),
             Scope::Global => None,
         };
-        match evaluate(&self.paths, engine).check_class(tool, call.class) {
+        let policy = evaluate(&self.paths, engine);
+        match policy.check_class(tool, call.class) {
             Ok(()) => call.audit(&self.paths, Decision::Allowed, None, None),
+            Err(refusal) if policy.rule(call.class) == Rule::Ask => {
+                match self.approve(&call, &refusal, None) {
+                    Ok(reason) => call.audit(&self.paths, Decision::Allowed, Some(reason), None),
+                    Err(text) => Err(call.refuse(&self.paths, &text, None)),
+                }
+            }
             Err(refusal) => Err(call.refuse(&self.paths, &refusal.to_string(), None)),
         }
+    }
+
+    /// Asks the window to approve `call`, which the policy refused with `refusal` because
+    /// its rule is `ask`; `sent` is the method and masked URL of an execute. Returns the
+    /// audit reason of the approval, or the refusal text.
+    pub(super) fn approve(
+        &mut self,
+        call: &Call,
+        refusal: &Refusal,
+        sent: Option<(&str, &str)>,
+    ) -> Result<&'static str, String> {
+        let workspace = self.engine.as_ref().map(Engine::workspace);
+        let ask = Ask {
+            tool: call.tool,
+            class: call.class,
+            workspace: call.workspace_id.as_ref().map(|id| WorkspaceRef {
+                id: id.clone(),
+                name: workspace.map_or_else(String::new, |w| w.manifest.name.clone()),
+            }),
+            targets: call
+                .targets
+                .iter()
+                .map(|id| workspace.map_or_else(|| id.clone(), |w| target_name(w, id)))
+                .collect(),
+            method: sent.map(|(method, _)| method.to_owned()),
+            url: sent.map(|(_, url)| url.to_owned()),
+        };
+        self.approvals.approve(ask).result(&refusal.to_string())
     }
 
     /// Checks `tool`, a read, against `engine`, a workspace loaded but not open yet, so a

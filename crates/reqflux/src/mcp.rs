@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use reqflux_engine::state::AppState;
 use reqflux_engine::{KeyringSecretStore, config};
 use reqflux_mcp::AppId;
+use reqflux_mcp::approvals::Approvals;
 use reqflux_mcp::bridge::default_endpoint_dir;
 use reqflux_mcp::engine_tools::{EngineState, PolicyPaths};
 use reqflux_mcp::server::serve;
@@ -52,7 +53,8 @@ fn run(args: McpArgs) -> Result<(), Failure> {
     if let Err(error) = config::load(&paths.config) {
         log::warn!("the MCP policy runs on the defaults: {error}");
     }
-    let mut engine = EngineState::new(Arc::new(KeyringSecretStore), None, paths);
+    let mut engine = EngineState::new(Arc::new(KeyringSecretStore), None, paths)
+        .with_approvals(Approvals::user());
     engine
         .open_startup(args.workspace.as_deref(), &cwd, &recent_workspaces())
         .map_err(|error| Failure::Usage(error.to_string()))?;

@@ -6326,7 +6326,9 @@ name = "reqflux_engine"
 version = "0.1.0-dev.0"
 dependencies = [
  "base64 0.23.1",
+ "interprocess",
  "keyring",
+ "log",
  "pretty_assertions",
  "reqflux_core",
  "reqflux_http",

@@ -13,12 +13,17 @@
 //! own. A redirect of any of these requests passes the same check before it is followed: a
 //! refused one sends nothing to its target, fails the request it belongs to and adds one
 //! refused line naming the redirect. A line that cannot be written refuses the send.
+//!
+//! An execute class of `ask` is asked in the window once the environment passed, with the
+//! method and masked URL the request prepares to without running its scripts; nothing runs
+//! before the window allows it (mcp-approvals S2).
 
 use reqflux_engine::audit::Decision;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use reqflux_engine::policy::Policy;
-use reqflux_engine::{ExecuteOptions, Executed, HostGuard, Masker};
+use reqflux_engine::config::Rule;
+use reqflux_engine::policy::{Policy, Refusal as PolicyRefusal};
+use reqflux_engine::{Engine, ExecuteOptions, Executed, HostGuard, Masker};
 use serde_json::{Value, json};
 
 use super::policy::{self, Scope};
@@ -98,10 +103,16 @@ impl Refused {
 pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<String, ToolError> {
     let call = state.call(TOOL, Scope::Open, &[&args.id]);
     let paths = state.paths.clone();
-    let checked = |policy: &reqflux_engine::policy::Policy| {
-        policy
-            .check_class(TOOL, call.class)
-            .and_then(|()| policy.check_environment(TOOL, args.environment.as_deref()))
+    // The class and the environment; a class whose rule is `ask` comes back as the refusal
+    // the window is asked to lift, once the environment passed too.
+    let checked = |policy: &Policy| -> Result<Option<PolicyRefusal>, PolicyRefusal> {
+        let ask = match policy.check_class(TOOL, call.class) {
+            Ok(()) => None,
+            Err(refusal) if policy.rule(call.class) == Rule::Ask => Some(refusal),
+            Err(refusal) => return Err(refusal),
+        };
+        policy.check_environment(TOOL, args.environment.as_deref())?;
+        Ok(ask)
     };
     if let Err(refusal) = checked(&policy::evaluate(&paths, state.engine.as_ref())) {
         return Err(call.refuse(&paths, &refusal.to_string(), None));
@@ -117,11 +128,31 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
     };
     // The workspace was reloaded: check again with its manifest as it is now, before the
     // pre-request script runs, then guard every request the execution sends with its hosts.
+    let policy = policy::evaluate(&paths, state.engine.as_ref());
+    let ask = match checked(&policy) {
+        Ok(ask) => ask,
+        Err(refusal) => return Err(call.refuse(&paths, &refusal.to_string(), None)),
+    };
+    // `ask`: the window sees the method and masked URL the request prepares to, without its
+    // scripts, so nothing is sent before it answers (mcp-approvals S2).
+    let approval = match ask {
+        None => None,
+        Some(refusal) => {
+            let preview = state
+                .engine
+                .as_ref()
+                .filter(|_| state.approvals.enabled())
+                .and_then(|engine| preview(engine, &id.to_string(), &args));
+            let sent = preview
+                .as_ref()
+                .map(|(method, url)| (method.as_str(), url.as_str()));
+            match state.approve(&call, &refusal, sent) {
+                Ok(reason) => Some(reason),
+                Err(text) => return Err(call.refuse(&paths, &text, sent)),
+            }
+        }
+    };
     let engine = state.engine()?;
-    let policy = policy::evaluate(&paths, Some(engine));
-    if let Err(refusal) = checked(&policy) {
-        return Err(call.refuse(&paths, &refusal.to_string(), None));
-    }
     let refused = Refused::default();
     let options = ExecuteOptions {
         environment: args.environment.clone(),
@@ -155,7 +186,7 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
     if let Err(refusal) = policy.check_host(TOOL, &pending.request().url) {
         return Err(call.refuse(&paths, &masker.mask(&refusal.to_string()), sent));
     }
-    call.audit(&paths, Decision::Allowed, None, sent)?;
+    call.audit(&paths, Decision::Allowed, approval, sent)?;
     let execution = engine.start(pending);
     let executed = engine
         .wait(execution)
@@ -175,6 +206,19 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
     }
     let executed = executed?;
     encode(&output(&executed, &masker))
+}
+
+/// The method and masked URL the request `id` prepares to with `args`, its scripts not
+/// run; `None` when it does not prepare.
+fn preview(engine: &Engine, id: &str, args: &ExecuteArgs) -> Option<(String, String)> {
+    let options = ExecuteOptions {
+        environment: args.environment.clone(),
+        vars: args.vars.clone().unwrap_or_default().into_iter().collect(),
+        ..ExecuteOptions::default()
+    };
+    let prepared = engine.prepare(id, &options).ok()?;
+    let url = prepared.masker().mask(&prepared.request.url);
+    Some((prepared.request.method.clone(), url))
 }
 
 fn output(executed: &Executed, masker: &Masker) -> Value {

@@ -13,7 +13,9 @@ workspace = true
 
 [dependencies]
 base64.workspace = true
+interprocess = "2.4"
 keyring.workspace = true
+log.workspace = true
 reqflux_core.workspace = true
 reqflux_http.workspace = true
 reqflux_postman.workspace = true

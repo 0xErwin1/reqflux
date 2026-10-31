@@ -29,6 +29,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::approvals::Approvals;
 use crate::tools::ToolError;
 use policy::Scope;
 
@@ -54,6 +55,8 @@ pub struct EngineState {
     state_path: Option<PathBuf>,
     /// The user's config file the policy is read from and the audit log.
     paths: PolicyPaths,
+    /// Where `ask` is approved, and what this session already allowed.
+    approvals: Approvals,
 }
 
 impl fmt::Debug for EngineState {
@@ -107,7 +110,16 @@ impl EngineState {
             secrets,
             state_path,
             paths,
+            approvals: Approvals::disabled(),
         }
+    }
+
+    /// The same state asking `approvals` when the policy says `ask` (mcp-approvals S1). A
+    /// new state has approvals off, so `ask` refuses.
+    #[must_use]
+    pub fn with_approvals(mut self, approvals: Approvals) -> Self {
+        self.approvals = approvals;
+        self
     }
 
     /// Opens the startup workspace: `flag` when given, else `cwd` when it holds a

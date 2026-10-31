@@ -57,6 +57,7 @@
 //! [`config`] reads and edits the user's config file,
 //! `$XDG_CONFIG_HOME/reqflux/config.toml`: the theme and the MCP policy.
 
+pub mod approvals;
 pub mod audit;
 pub mod config;
 mod create;
