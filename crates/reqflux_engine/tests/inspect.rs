@@ -64,6 +64,14 @@ fn url_appends_enabled_params_unencoded_after_a_question_mark() {
 }
 
 #[test]
+fn url_skips_a_param_row_with_an_empty_key_and_value() {
+    let mut request_doc = get("dsadsadsad");
+    request_doc.params = vec![KeyValue::new("", "")];
+    let inspection = inspect(&single(request_doc));
+    assert_eq!(inspection.url, "dsadsadsad");
+}
+
+#[test]
 fn url_appends_params_after_an_ampersand_when_it_has_a_query() {
     let mut request_doc = get("https://h/p?a=1");
     request_doc.params = vec![KeyValue::new("b", "{{two}}")];

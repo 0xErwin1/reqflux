@@ -1,6 +1,7 @@
 //! The request line: the method chip, which opens the method menu, the URL with its references styled, and
-//! the Send split button, which sends the request, or the Cancel button while it is in
-//! flight. Clicking the URL swaps it for an editable field; the send options do nothing yet.
+//! the Send button, which sends the request, or the Cancel button while it is in flight; both
+//! have the same width, so the line does not move. Clicking the URL swaps it for an editable
+//! field.
 
 use bolt::chamfer::Chamfer;
 use bolt::controls::Keycap;
@@ -54,9 +55,11 @@ fn cancel(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
         .aria_label("Cancel")
         .relative()
         .flex_none()
+        .w(tokens::SEND_BUTTON_WIDTH)
         .h(tokens::URL_FIELD)
         .flex()
         .items_center()
+        .justify_center()
         .gap(space::SM)
         .pl(space::MD)
         .pr(space::MD)
@@ -269,53 +272,35 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
         )
 }
 
-/// The Send split button: `request-send`, which sends the request `id`, then
-/// `request-send-options`.
-fn send(id: &str, cx: &mut Context<Shell>) -> Div {
+/// The Send button, element id `request-send`, which sends the request `id`.
+fn send(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
     let id = id.to_owned();
     let brand = bolt::brand(cx);
-    div()
+    region("request-send")
+        .role(Role::Button)
+        .aria_label("Send")
         .relative()
         .flex_none()
+        .w(tokens::SEND_BUTTON_WIDTH)
         .h(tokens::URL_FIELD)
         .flex()
+        .items_center()
+        .justify_center()
+        .gap(space::SM)
+        .pl(space::MD)
+        .pr(space::MD)
+        .text_size(tokens::REQUEST_LINE_TEXT)
+        .font_weight(FontWeight::SEMIBOLD)
         .text_color(brand.on_accent)
         .child(Chamfer::new(cut::CONTROL).fill(brand.accent))
         .child(
-            region("request-send")
-                .role(Role::Button)
-                .aria_label("Send")
-                .flex()
-                .items_center()
-                .gap(space::SM)
-                .pl(space::MD)
-                .pr(space::MD)
-                .text_size(tokens::REQUEST_LINE_TEXT)
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(
-                    Icon::new(IconName::Send)
-                        .size(icon::MD)
-                        .color(brand.on_accent),
-                )
-                .child("Send")
-                .child(accent_keycap())
-                .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx))),
+            Icon::new(IconName::Send)
+                .size(icon::MD)
+                .color(brand.on_accent),
         )
-        .child(div().w(border::THIN).bg(tokens::keycap_on_accent_fill()))
-        .child(
-            region("request-send-options")
-                .role(Role::Button)
-                .aria_label("Send options")
-                .w(tokens::SEND_OPTIONS_WIDTH)
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(
-                    Icon::new(IconName::ChevronDown)
-                        .size(icon::CHIP)
-                        .color(brand.on_accent),
-                ),
-        )
+        .child("Send")
+        .child(accent_keycap())
+        .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx)))
 }
 
 /// The `Ctrl ↵` keycap on an accent button.

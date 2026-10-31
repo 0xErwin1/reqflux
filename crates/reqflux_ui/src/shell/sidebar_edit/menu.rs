@@ -169,8 +169,9 @@ impl Sidebar {
             MenuPage::Actions => self.action_items(node, cx),
             MenuPage::MoveTo => self.move_items(node, cx),
         };
-        option_menu::render(
+        option_menu::render_at(
             ("tree-menu", "tree-menu-backdrop"),
+            self.edit.menu_at,
             &self.edit.menu_focus,
             items,
             Sidebar::close_menu,

@@ -399,3 +399,21 @@ fn the_status_bar_shows_the_last_send(cx: &mut TestAppContext) {
     );
     assert!(cx.debug_bounds("status-last-request").is_some());
 }
+
+#[gpui::test]
+fn send_and_cancel_have_the_same_width(cx: &mut TestAppContext) {
+    let (shell, cx) = render(cx, serve(Server::Silent));
+    let send = match cx.debug_bounds("request-send") {
+        Some(bounds) => bounds,
+        None => panic!("request-send is missing"),
+    };
+    assert!(cx.debug_bounds("request-send-options").is_none());
+    click(cx, "request-send");
+    assert_eq!(response(cx, &shell, PING).as_deref(), Some("Sending"));
+    let cancel = match cx.debug_bounds("request-cancel") {
+        Some(bounds) => bounds,
+        None => panic!("request-cancel is missing"),
+    };
+    assert_eq!(cancel.size, send.size);
+    assert_eq!(cancel.right(), send.right());
+}

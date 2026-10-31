@@ -507,10 +507,12 @@ fn environment_row(
         .flex_none()
         .cursor_pointer()
         .child(Icon::new(IconName::Ellipsis).size(icon::MD).color(muted))
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            cx.stop_propagation();
-            this.open_settings_menu(id, window, cx);
-        }));
+        .on_click(
+            cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+                cx.stop_propagation();
+                this.open_settings_menu(id, event.position(), window, cx);
+            }),
+        );
     let menu = (shell.settings.menu == Some(id)).then(|| environment_menu(shell, id, window, cx));
     text_role::role(
         labeled_row(
@@ -596,8 +598,9 @@ fn environment_menu(shell: &Shell, id: Id, window: &Window, cx: &mut Context<She
             cx,
         ),
     ];
-    option_menu::render(
+    option_menu::render_at(
         ("variables-menu", "variables-menu-backdrop"),
+        shell.settings.menu_at,
         &shell.settings.menu_focus,
         items,
         Shell::close_settings_menu,
@@ -637,6 +640,9 @@ fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
         }))
         .on_action(cx.listener(|this, _: &Escape, window, cx| {
             this.cancel_environment_rename(window, cx);
+        }))
+        .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
+            this.commit_environment_rename(window, cx);
         }))
         .child(
             Input::new(&rename.input)

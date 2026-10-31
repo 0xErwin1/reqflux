@@ -153,3 +153,51 @@ fn the_empty_state_offers_new_by_name(cx: &mut TestAppContext) {
     assert_eq!(name(cx, &shell).as_deref(), Some("Personal"));
     assert_eq!(managed_dirs(managed.path()).len(), 1);
 }
+
+#[gpui::test]
+fn a_click_outside_the_name_field_creates_the_workspace(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let managed = temp_dir();
+    let (shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    with_managed(cx, &shell, managed.path());
+    click(cx, "workspace-selector");
+    click(cx, "workspace-new");
+    type_name(cx, "Billing");
+    let viewport = cx.update(|window, _| window.viewport_size());
+    let outside = gpui::point(viewport.width / 2., viewport.height - gpui::px(4.));
+    cx.simulate_click(outside, gpui::Modifiers::none());
+    cx.run_until_parked();
+
+    assert_eq!(managed_dirs(managed.path()).len(), 1);
+    assert_eq!(name(cx, &shell).as_deref(), Some("Billing"));
+    assert!(bounds(cx, "workspace-new-name").is_none());
+}
+
+#[gpui::test]
+fn a_click_outside_an_empty_name_field_creates_nothing(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let managed = temp_dir();
+    let (shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    with_managed(cx, &shell, managed.path());
+    click(cx, "workspace-selector");
+    click(cx, "workspace-new");
+    let viewport = cx.update(|window, _| window.viewport_size());
+    let outside = gpui::point(viewport.width / 2., viewport.height - gpui::px(4.));
+    cx.simulate_click(outside, gpui::Modifiers::none());
+    cx.run_until_parked();
+
+    assert!(managed_dirs(managed.path()).is_empty());
+    assert_eq!(name(cx, &shell).as_deref(), Some("First"));
+    assert!(bounds(cx, "workspace-new-name").is_none());
+    assert_eq!(field_text(cx, &shell), None);
+}

@@ -1,6 +1,7 @@
 //! Creating a workspace the app keeps from the workspace menu (standalone-workspaces S3, S4):
-//! `New workspace…` opens an inline name field in the menu, `workspace-new-name`; Enter
-//! creates a managed workspace with that name and opens it, Escape closes the field. Recent
+//! `New workspace…` opens an inline name field in the menu, `workspace-new-name`; Enter, or a
+//! click outside the field, creates a managed workspace with that name and opens it, Escape
+//! closes the field. A click outside an empty field closes it. Recent
 //! rows of managed workspaces read `In ReqFlux` in place of their path.
 
 use std::path::PathBuf;
@@ -72,6 +73,20 @@ impl Shell {
         }
     }
 
+    /// A click outside the name field: creates the workspace as Enter does, or closes an
+    /// empty field without the error an empty name gets on Enter.
+    fn blur_new_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let empty = self
+            .new_workspace_name
+            .as_ref()
+            .is_some_and(|input| input.read(cx).value().trim().is_empty());
+        if empty {
+            self.cancel_new_workspace(window, cx);
+        } else {
+            self.commit_new_workspace(window, cx);
+        }
+    }
+
     /// Escape in the name field: closes it and keeps the menu open. Returns whether a field
     /// was open.
     pub(super) fn cancel_new_workspace(
@@ -127,6 +142,9 @@ impl Shell {
                 }))
                 .on_action(cx.listener(|this, _: &Escape, window, cx| {
                     this.cancel_new_workspace(window, cx);
+                }))
+                .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
+                    this.blur_new_workspace(window, cx);
                 }))
                 .child(
                     Input::new(input)

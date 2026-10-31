@@ -8,7 +8,7 @@
 //! opens its name into a field; an environment's `…` menu renames or deletes it, and delete
 //! asks first. Variables are edited by [`super::variables_ops`].
 
-use gpui::{App, AppContext as _, Context, Entity, FocusHandle, Window};
+use gpui::{App, AppContext as _, Context, Entity, FocusHandle, Pixels, Point, Window};
 use gpui_component::input::InputState;
 use reqflux_core::model::Id;
 use reqflux_engine::SecretScope;
@@ -52,6 +52,8 @@ pub(crate) struct SettingsPage {
     section: Section,
     /// The environment whose menu is open.
     pub(crate) menu: Option<Id>,
+    /// Where the open menu sits, in window coordinates: the click on the `…` button.
+    pub(crate) menu_at: Point<Pixels>,
     pub(crate) menu_focus: FocusHandle,
     pub(crate) rename: Option<Rename>,
     /// The environment whose delete waits for a confirmation.
@@ -67,6 +69,7 @@ impl SettingsPage {
         Self {
             section: Section::Globals,
             menu: None,
+            menu_at: Point::default(),
             menu_focus: cx.focus_handle(),
             rename: None,
             confirm: None,
@@ -229,7 +232,7 @@ impl Shell {
         cx.notify();
     }
 
-    /// Enter in the rename field: renames the environment and its file unless the name is
+    /// Enter, or a click outside the rename field: renames the environment and its file unless the name is
     /// unchanged; the active environment follows its new slug.
     pub(crate) fn commit_environment_rename(
         &mut self,
@@ -275,13 +278,16 @@ impl Shell {
         }
     }
 
+    /// Opens the menu of the environment `id` at `position`, in window coordinates.
     pub(crate) fn open_settings_menu(
         &mut self,
         id: Id,
+        position: Point<Pixels>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.settings.menu = Some(id);
+        self.settings.menu_at = position;
         self.settings.menu_focus.focus(window, cx);
         cx.notify();
     }

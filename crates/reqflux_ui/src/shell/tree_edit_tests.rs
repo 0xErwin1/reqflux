@@ -392,3 +392,116 @@ fn clicking_a_request_row_still_opens_it_and_keys_still_navigate(cx: &mut TestAp
     cx.simulate_keystrokes("down down");
     assert_eq!(selected(cx, &shell).as_deref(), Some(AUTH));
 }
+
+#[gpui::test]
+fn a_click_outside_commits_a_new_collection_name(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+
+    click(cx, "sidebar-new-collection");
+    type_text(cx, "Billing");
+    click(cx, "sidebar-footer");
+
+    assert!(
+        bounds(cx, "tree-rename-input").is_none(),
+        "the field closes"
+    );
+    let created = match node_named(cx, &shell, "Billing") {
+        Some(node) => node,
+        None => panic!("Billing is not in the tree"),
+    };
+    assert!(exists(dir.path(), "collections/billing/collection.toml"));
+    present(cx, &format!("tree-row-{}", created.id));
+    assert_eq!(rename_text(cx, &shell), None);
+}
+
+#[gpui::test]
+fn a_click_on_another_row_commits_a_rename(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+
+    open_menu(cx, USERS);
+    click(cx, "tree-menu-rename");
+    type_text(cx, "people");
+    click(cx, &format!("tree-row-{API}"));
+
+    assert!(bounds(cx, "tree-rename-input").is_none());
+    assert_eq!(node(cx, &shell, USERS).name, "people");
+    assert!(exists(dir.path(), "collections/api/people/folder.toml"));
+}
+
+/// Right-clicks the row `id` at `offset` from its top-left corner; returns the point.
+fn right_click_at(
+    cx: &mut VisualTestContext,
+    id: &str,
+    offset: gpui::Point<gpui::Pixels>,
+) -> gpui::Point<gpui::Pixels> {
+    let row = present(cx, &format!("tree-row-{id}"));
+    let at = row.origin + offset;
+    cx.simulate_mouse_down(at, MouseButton::Right, Modifiers::none());
+    cx.simulate_mouse_up(at, MouseButton::Right, Modifiers::none());
+    cx.run_until_parked();
+    at
+}
+
+fn inside_window(cx: &mut VisualTestContext, menu: gpui::Bounds<gpui::Pixels>) {
+    let viewport = cx.update(|window, _| window.viewport_size());
+    assert!(menu.origin.x >= gpui::px(0.) && menu.origin.y >= gpui::px(0.));
+    assert!(
+        menu.bottom_right().x <= viewport.width && menu.bottom_right().y <= viewport.height,
+        "the menu {menu:?} leaves the window {viewport:?}"
+    );
+}
+
+#[gpui::test]
+fn right_click_opens_the_menu_at_the_pointer(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+
+    let at = right_click_at(cx, USERS, gpui::point(gpui::px(40.), gpui::px(6.)));
+    let menu = present(cx, "tree-menu");
+    assert_eq!(menu.origin, at);
+    inside_window(cx, menu);
+
+    click(cx, "tree-menu-move-to");
+    assert_eq!(
+        present(cx, "tree-menu").origin,
+        at,
+        "Move to… stays where the menu opened"
+    );
+}
+
+#[gpui::test]
+fn the_row_button_opens_the_menu_at_the_button(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+
+    click(cx, &format!("tree-row-{USERS}"));
+    let button = present(cx, &format!("tree-row-menu-{USERS}"));
+    click(cx, &format!("tree-row-menu-{USERS}"));
+    let menu = present(cx, "tree-menu");
+    assert_eq!(menu.origin, button.center());
+    inside_window(cx, menu);
+}
+
+#[gpui::test]
+fn a_menu_near_the_window_edge_stays_inside(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+
+    // The menu opened on the row at full size, then the window shrinks under it.
+    let at = right_click_at(cx, API, gpui::point(gpui::px(40.), gpui::px(6.)));
+    let menu = present(cx, "tree-menu");
+    let viewport = cx.update(|window, _| window.viewport_size());
+    cx.simulate_resize(gpui::size(viewport.width, at.y + menu.size.height / 2.));
+    cx.run_until_parked();
+
+    let menu = present(cx, "tree-menu");
+    assert!(menu.origin.y < at.y, "the menu moves up into the window");
+    inside_window(cx, menu);
+}

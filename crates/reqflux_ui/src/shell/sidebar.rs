@@ -18,7 +18,8 @@ use bolt::tokens::{border, chrome, space, text};
 use bolt::{IconName, Island};
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyBinding, MouseButton, ParentElement, Render, Styled, Window, actions, div, prelude::*,
+    KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window, actions, div,
+    prelude::*,
 };
 
 use super::rows::{NameDecorator, RowSlots};
@@ -396,8 +397,8 @@ impl Render for Sidebar {
                         }))
                         .on_mouse_down(
                             MouseButton::Right,
-                            cx.listener(move |this, _event, window, cx| {
-                                this.open_menu(&menu_id, window, cx);
+                            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                                this.open_menu(&menu_id, event.position, window, cx);
                             }),
                         )
                         .into_any_element();

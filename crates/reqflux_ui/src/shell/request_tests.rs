@@ -121,12 +121,7 @@ fn the_request_line_sits_in_the_document_content(cx: &mut TestAppContext) {
     let (_shell, cx) = render(cx);
     click(cx, &format!("tree-row-{INVOICE}"));
     let content = present(cx, "document-content");
-    for part in [
-        "request-method",
-        "request-url",
-        "request-send",
-        "request-send-options",
-    ] {
+    for part in ["request-method", "request-url", "request-send"] {
         let found = present(cx, part);
         assert!(content.contains(&found.origin), "{part} in the content");
     }

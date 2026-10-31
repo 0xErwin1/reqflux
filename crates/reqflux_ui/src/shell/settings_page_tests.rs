@@ -320,3 +320,35 @@ fn the_new_environment_key_opens_the_page_into_rename(cx: &mut TestAppContext) {
             .exists()
     );
 }
+
+#[gpui::test]
+fn a_click_outside_commits_a_new_environment_name(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    click(cx, "rail-environments");
+    click(cx, "variables-new-environment");
+    present(cx, "variables-rename-input");
+
+    super::variables_tests::type_text(cx, "qa");
+    click(cx, "settings-heading");
+
+    assert!(bounds(cx, "variables-rename-input").is_none());
+    assert!(dir.path().join("environments/qa.env.toml").exists());
+    assert!(
+        !dir.path()
+            .join("environments/new-environment.env.toml")
+            .exists()
+    );
+}
+
+#[gpui::test]
+fn the_environment_button_opens_its_menu_at_the_button(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    click(cx, "rail-environments");
+    let button = present(cx, &format!("variables-scope-menu-{DEV}"));
+    click(cx, &format!("variables-scope-menu-{DEV}"));
+    assert_eq!(present(cx, "variables-menu").origin, button.center());
+}

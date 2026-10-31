@@ -13,7 +13,7 @@ use bolt::tokens::{border, chrome, cut, icon, space, text};
 use bolt::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, ParentElement,
-    Role, Styled, Window, prelude::*,
+    Pixels, Point, Role, Styled, Window, prelude::*,
 };
 use gpui_component::input::{Enter, Escape, Input, InputState};
 
@@ -91,6 +91,8 @@ struct PendingRename {
 pub(crate) struct TreeEdit {
     /// The id of the row whose menu is open.
     menu: Option<String>,
+    /// Where the open menu sits, in window coordinates: the pointer when it opened.
+    menu_at: Point<Pixels>,
     /// Whether the open menu shows the actions or the Move to… destinations.
     page: MenuPage,
     /// Focused while the menu is open.
@@ -113,6 +115,7 @@ impl TreeEdit {
     pub(super) fn new(cx: &mut App) -> Self {
         Self {
             menu: None,
+            menu_at: Point::default(),
             page: MenuPage::Actions,
             menu_focus: cx.focus_handle(),
             rename: None,
@@ -235,10 +238,18 @@ impl Sidebar {
         closed
     }
 
-    /// Opens the menu of the row `id` on its actions, selecting it.
-    pub(super) fn open_menu(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+    /// Opens the menu of the row `id` on its actions at `position`, the pointer in window
+    /// coordinates, selecting the row.
+    pub(super) fn open_menu(
+        &mut self,
+        id: &str,
+        position: Point<Pixels>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         self.update_tree(cx, |tree| tree.select(id));
         self.edit.menu = Some(id.to_owned());
+        self.edit.menu_at = position;
         self.edit.page = MenuPage::Actions;
         self.edit.menu_focus.focus(window, cx);
         cx.notify();
@@ -277,7 +288,8 @@ impl Sidebar {
         cx.notify();
     }
 
-    /// Enter in the rename field: renames through the shell unless the name is unchanged.
+    /// Enter, or a click outside the rename field: renames through the shell unless the name
+    /// is unchanged.
     fn commit_rename(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(rename) = self.edit.rename.take() else {
             return;
@@ -426,6 +438,9 @@ impl Sidebar {
                 .on_action(cx.listener(|this, _: &Escape, window, cx| {
                     this.cancel_rename(window, cx);
                 }))
+                .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
+                    this.commit_rename(window, cx);
+                }))
                 .child(
                     Input::new(&rename.input)
                         .appearance(false)
@@ -481,10 +496,12 @@ impl Sidebar {
                     .size(icon::SM)
                     .color(colors.muted),
             )
-            .on_click(cx.listener(move |this, _event, window, cx| {
-                cx.stop_propagation();
-                this.open_menu(&id, window, cx);
-            }))
+            .on_click(
+                cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+                    cx.stop_propagation();
+                    this.open_menu(&id, event.position(), window, cx);
+                }),
+            )
             .into_any_element();
         let mut actions = vec![button];
         if self.edit.menu.as_deref() == Some(node.id.as_str()) {

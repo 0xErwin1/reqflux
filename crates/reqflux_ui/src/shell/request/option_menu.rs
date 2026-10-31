@@ -1,13 +1,15 @@
 //! A pane menu under a row: one row per option, drawn above the islands over a backdrop
 //! that closes it on a click outside. Escape closes it too. The Auth type and Body mode
-//! menus are this menu, and so is the sidebar's row menu.
+//! menus are this menu, anchored under their trigger by [`render`]; the context menus (a
+//! tree row, an environment) are this menu too, opened at the pointer by [`render_at`].
 
 use bolt::chamfer::Chamfer;
 use bolt::tokens::{border, cut, icon, space, text};
 use bolt::{Icon, IconName};
 use gpui::{
-    AnyElement, Context, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
-    ParentElement, Point, Role, Styled, Window, anchored, deferred, div, prelude::*,
+    AnyElement, Context, Div, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
+    MouseButton, ParentElement, Pixels, Point, Role, Stateful, Styled, Window, anchored, deferred,
+    div, prelude::*,
 };
 
 use crate::shell::rows::labeled_row;
@@ -50,13 +52,53 @@ pub(in crate::shell) fn option<V: 'static>(
 /// The open menu `id` of `options`, focused through `focus`, anchored under its row;
 /// Escape and a click outside its `backdrop` run `close`.
 pub(in crate::shell) fn render<V: 'static>(
-    (id, backdrop): (&'static str, &'static str),
+    ids: (&'static str, &'static str),
     focus: &FocusHandle,
     options: Vec<AnyElement>,
     close: fn(&mut V, &mut Window, &mut Context<V>),
     window: &Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
+    let (menu, backdrop) = parts(ids, focus, options, close, window, cx);
+    div()
+        .absolute()
+        .top_full()
+        .left_0()
+        .child(backdrop)
+        .child(deferred(anchored().child(menu)).with_priority(2))
+        .into_any_element()
+}
+
+/// The open context menu `id` of `options` with its top-left corner at `position`, in window
+/// coordinates, moved back inside the window when it would leave it. Opened at the pointer,
+/// as DBFlux does: a right click passes the click point, a `…` button the click on it.
+pub(in crate::shell) fn render_at<V: 'static>(
+    ids: (&'static str, &'static str),
+    position: Point<Pixels>,
+    focus: &FocusHandle,
+    options: Vec<AnyElement>,
+    close: fn(&mut V, &mut Window, &mut Context<V>),
+    window: &Window,
+    cx: &mut Context<V>,
+) -> AnyElement {
+    let (menu, backdrop) = parts(ids, focus, options, close, window, cx);
+    div()
+        .child(backdrop)
+        .child(
+            deferred(anchored().position(position).snap_to_window().child(menu)).with_priority(2),
+        )
+        .into_any_element()
+}
+
+/// The menu `id` and its full-window `backdrop`, drawn under the menu.
+fn parts<V: 'static>(
+    (id, backdrop): (&'static str, &'static str),
+    focus: &FocusHandle,
+    options: Vec<AnyElement>,
+    close: fn(&mut V, &mut Window, &mut Context<V>),
+    window: &Window,
+    cx: &mut Context<V>,
+) -> (Stateful<Div>, AnyElement) {
     let colors = bolt::colors(cx);
     let menu = region(id)
         .role(Role::Menu)
@@ -86,11 +128,6 @@ pub(in crate::shell) fn render<V: 'static>(
             MouseButton::Left,
             cx.listener(move |this, _event, window, cx| close(this, window, cx)),
         );
-    div()
-        .absolute()
-        .top_full()
-        .left_0()
-        .child(deferred(anchored().position(Point::default()).child(backdrop)).with_priority(1))
-        .child(deferred(anchored().child(menu)).with_priority(2))
-        .into_any_element()
+    let backdrop = deferred(anchored().position(Point::default()).child(backdrop)).with_priority(1);
+    (menu, backdrop.into_any_element())
 }

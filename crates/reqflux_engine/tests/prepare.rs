@@ -238,6 +238,30 @@ fn s4_disabled_rows_are_skipped_entirely() {
 }
 
 #[test]
+fn blank_param_and_header_rows_are_not_sent() {
+    let mut doc = get("dsadsadsad");
+    doc.params = vec![KeyValue::new("", "")];
+    doc.headers = vec![KeyValue::new("", "")];
+    let ws = single(doc.clone());
+    let prepared = prepare(&ws);
+    assert_eq!(prepared.request.url, "dsadsadsad");
+    assert_eq!(prepared.request.headers, headers(&[]));
+    let Some(Item::Request(node)) = ws.collections.first().and_then(|node| node.items.first())
+    else {
+        panic!("the request is in the workspace");
+    };
+    assert_eq!(node.request, doc);
+}
+
+#[test]
+fn rows_with_only_a_key_or_a_value_are_still_sent() {
+    let mut doc = get("https://h/p");
+    doc.params = vec![KeyValue::new("flag", ""), KeyValue::new("", "v")];
+    let prepared = prepare(&single(doc));
+    assert_eq!(prepared.request.url, "https://h/p?flag=&=v");
+}
+
+#[test]
 fn s4_secret_without_value_does_not_resolve() {
     let ws = workspace(
         vec![secret("token")],

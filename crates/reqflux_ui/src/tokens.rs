@@ -219,9 +219,6 @@ pub(crate) const URL_FIELD: Pixels = px(32.0);
 /// The side of the draft marker dot on a document tab.
 pub(crate) const DIRTY_DOT: Pixels = px(5.0);
 
-/// The width of the options part of the Send split button.
-pub(crate) const SEND_OPTIONS_WIDTH: Pixels = px(28.0);
-
 /// The text size of the method chip and the Send button.
 pub(crate) const REQUEST_LINE_TEXT: Pixels = px(12.5);
 
@@ -452,6 +449,10 @@ pub(crate) const TREE_DIALOG_BOTTOM_INSET: Pixels = px(18.0);
 pub(crate) const TREE_DIALOG_ROW: Pixels = px(24.0);
 /// The gap above the buttons of the tree's delete dialog.
 pub(crate) const TREE_DIALOG_ACTIONS_GAP: Pixels = px(18.0);
+
+/// The width Send and Cancel share, so the request line keeps its layout while a send is in
+/// flight: the wider of the two, Send with its icon and `Ctrl ↵` keycap, with room to spare.
+pub(crate) const SEND_BUTTON_WIDTH: Pixels = px(140.0);
 
 #[cfg(test)]
 pub(crate) mod tests {
