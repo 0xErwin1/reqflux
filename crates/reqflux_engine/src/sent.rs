@@ -22,7 +22,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use reqflux_http::{PreparedBody, PreparedRequest};
+use reqflux_http::{PreparedBody, PreparedRequest, SecretMask};
 
 /// What a secret is replaced with in a recorded request.
 pub const MASK: &str = "••••••••";
@@ -122,6 +122,12 @@ impl fmt::Debug for Masker {
 }
 
 impl Masker {
+    /// The transport hook that tells which headers a redirect to another origin drops.
+    pub(crate) fn secret_mask(&self) -> SecretMask {
+        let masker = self.clone();
+        Arc::new(move |text| masker.mask(text))
+    }
+
     /// Whether `text` contains a secret value form of two or more characters.
     fn contains_long(&self, text: &str) -> bool {
         self.patterns

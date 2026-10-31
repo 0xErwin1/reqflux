@@ -55,6 +55,13 @@ pub enum HttpError {
         /// The check's refusal.
         reason: String,
     },
+    /// A 307 or 308 to another origin was not followed because the body to resend holds a
+    /// secret.
+    #[error("a redirect to {url} was not followed: the request body holds a secret")]
+    RedirectSecretBody {
+        /// The target, its secrets masked.
+        url: String,
+    },
     /// The caller cancelled the request.
     #[error("request cancelled")]
     Cancelled,

@@ -9,7 +9,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use reqflux_core::model::{Body, Request};
 use reqflux_core::template::{ScopeEntry, ScopeKind, Scopes};
-use reqflux_http::{HttpClient, PreparedBody, PreparedRequest, RequestOptions, Response};
+use reqflux_http::{
+    HttpClient, PreparedBody, PreparedRequest, RedirectRules, RequestOptions, Response,
+};
 use reqflux_script::{
     ConsoleEntry, ConsoleLevel, RequestView, ResponseView, ScriptContext, ScriptOutcome,
     ScriptRequest, ScriptResponse, ScriptStage, SendRequest, VariableScope, VariableWrite,
@@ -20,16 +22,19 @@ use tokio_util::sync::CancellationToken;
 
 use crate::guard::HostGuard;
 use crate::select::Target;
+use crate::sent::Masker;
 
 /// What a script's `pm.sendRequest` needs from the engine (S13): the same
 /// [`HttpClient`] the request path uses and the request's own settings, so a send from a
 /// script respects the same timeout, redirect and TLS choices as the real request, and
-/// passes the execution's host guard first.
+/// passes the execution's host guard first. A redirect to another origin drops the headers
+/// holding a secret of `masker`.
 #[derive(Debug, Clone)]
 pub(crate) struct Transport {
     client: HttpClient,
     options: RequestOptions,
     guard: Option<HostGuard>,
+    masker: Masker,
 }
 
 impl Transport {
@@ -37,12 +42,19 @@ impl Transport {
         client: HttpClient,
         options: RequestOptions,
         guard: Option<HostGuard>,
+        masker: Masker,
     ) -> Self {
         Self {
             client,
             options,
             guard,
+            masker,
         }
+    }
+
+    /// Replaces the secrets a redirect to another origin must not carry.
+    pub(crate) fn set_masker(&mut self, masker: Masker) {
+        self.masker = masker;
     }
 
     /// The execution's host guard, if any.
@@ -281,14 +293,18 @@ fn send_through(runtime: Runtime, transport: Transport) -> SendRequest {
         client,
         options,
         guard,
+        masker,
     } = transport;
     SendRequest::new(move |request: ScriptRequest| {
         if let Some(guard) = &guard {
             guard.check(&request.method, &request.url)?;
         }
-        let redirects = guard
-            .as_ref()
-            .map(|guard| guard.redirect_check(&request.method));
+        let rules = RedirectRules {
+            check: guard
+                .as_ref()
+                .map(|guard| guard.redirect_check(&request.method)),
+            mask: Some(masker.secret_mask()),
+        };
         let prepared = PreparedRequest {
             method: request.method,
             url: request.url,
@@ -303,7 +319,7 @@ fn send_through(runtime: Runtime, transport: Transport) -> SendRequest {
             options,
         };
         runtime
-            .block_on(client.send_checked(prepared, CancellationToken::new(), redirects))
+            .block_on(client.send_with(prepared, CancellationToken::new(), rules))
             .map(script_response)
             .map_err(|error| error.to_string())
     })

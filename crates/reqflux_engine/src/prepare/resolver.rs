@@ -7,6 +7,18 @@ use crate::sent::Secrets;
 
 use super::enabled;
 
+/// Adds to `secrets` every value a name in `secret_names` has in any of `scopes`, enabled or
+/// not.
+pub(super) fn add_secret_values(scopes: &Scopes, secret_names: &[&str], secrets: &mut Secrets) {
+    for kind in ScopeKind::ALL {
+        for entry in &scopes.scope(kind).entries {
+            if secret_names.contains(&entry.key.as_str()) {
+                secrets.add(entry.value.as_str());
+            }
+        }
+    }
+}
+
 /// Resolves texts against fixed scopes and remembers every unresolved name once, in
 /// first-occurrence order.
 pub(super) struct Resolver<'a, D> {
@@ -57,13 +69,7 @@ impl<'a, D: DynamicSource> Resolver<'a, D> {
     /// in scope counts, not only the names this request references: a script can copy a
     /// secret into another variable, and a value can repeat a secret literally.
     pub(super) fn add_secret_values(&self, secret_names: &[&str], secrets: &mut Secrets) {
-        for kind in ScopeKind::ALL {
-            for entry in &self.scopes.scope(kind).entries {
-                if secret_names.contains(&entry.key.as_str()) {
-                    secrets.add(entry.value.as_str());
-                }
-            }
-        }
+        add_secret_values(&self.scopes, secret_names, secrets);
     }
 
     pub(super) fn into_unresolved(self) -> Vec<String> {

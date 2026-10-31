@@ -211,6 +211,21 @@ pub(crate) fn prepare_target(
     })
 }
 
+/// What masks the values of the secret variables in `scope_map`, the scopes a request of
+/// `collection` resolves with: a script's `pm.sendRequest` drops a header holding one on a
+/// redirect to another origin.
+pub(crate) fn scope_masker(
+    workspace: &Workspace,
+    collection: &CollectionNode,
+    environment: Option<&EnvironmentNode>,
+    scope_map: &Scopes,
+) -> Masker {
+    let names = secret_names(workspace, collection, environment);
+    let mut secrets = Secrets::default();
+    resolver::add_secret_values(scope_map, &names, &mut secrets);
+    secrets.masker()
+}
+
 /// The names of the secret variables in the scopes a request resolves with: the globals,
 /// its collection and the selected environment.
 fn secret_names<'a>(

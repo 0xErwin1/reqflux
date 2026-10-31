@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use reqflux_core::model::{Request, Workspace};
 use reqflux_core::template::SystemDynamicSource;
-use reqflux_http::{HttpClient, HttpError, PreparedRequest, Response};
+use reqflux_http::{HttpClient, HttpError, PreparedRequest, RedirectRules, Response};
 use reqflux_script::{RequestView, ScriptContext, ScriptOutcome, ScriptStage};
 use reqflux_store::{ContentHash, Loaded, StoreError, Warning};
 use tokio::runtime::Runtime;
@@ -498,13 +498,16 @@ impl Engine {
         } = prepared;
         let PreparedRequest { method, url, .. } = &request;
         let (method, url) = (method.clone(), url.clone());
-        let redirects = guard.map(|guard| guard.redirect_check(&method));
+        let rules = RedirectRules {
+            check: guard.map(|guard| guard.redirect_check(&method)),
+            mask: Some(masker.secret_mask()),
+        };
         let cancel = CancellationToken::new();
         let client = self.client.clone();
         let token = cancel.clone();
         let handle = self
             .runtime
-            .spawn(async move { client.send_checked(request, token, redirects).await });
+            .spawn(async move { client.send_with(request, token, rules).await });
         Execution {
             method,
             url,
@@ -640,6 +643,12 @@ impl Engine {
             self.client.clone(),
             crate::prepare::request_options(request.settings),
             options.host_guard.clone(),
+            crate::prepare::scope_masker(
+                self.workspace(),
+                target.collection,
+                environment,
+                &scope_view,
+            ),
         );
         let outcome = engine_scripts::run_stage(
             ScriptStage::PreRequest,
@@ -670,6 +679,8 @@ impl Engine {
             &outcome.writes,
             &stored,
         )?;
+        // The test script runs after the send, so its sends know every secret the send did.
+        scripted.transport.set_masker(prepared.masker());
         Ok((prepared, outcome, scripted))
     }
 

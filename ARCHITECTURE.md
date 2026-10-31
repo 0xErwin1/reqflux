@@ -441,6 +441,19 @@ measurably demand it, and then by one-way layers.
   at the position of the first one (the order among their values is kept), and the reason
   phrase is the standard one for the status code rather than the server's own text. Both are
   local to `reqflux_http`; dropping to `hyper` fixes them if they ever matter.
+- `reqflux_http` follows redirects itself (at most 10; `reqwest`'s policy is off), because a
+  `reqwest` policy can follow or stop but cannot change the next request's headers. 301, 302
+  and 303 continue as GET without a body (HEAD stays HEAD); 307 and 308 resend the method and
+  the body, except a multipart or file body, which is streamed once, so that redirect is
+  returned as the response. The target query is the `Location`'s own; the original URL's query
+  is never copied. The timeout bounds the whole chain and the response reports the final URL.
+- A hop to another origin (scheme, host or port) drops `Authorization`, `Cookie`,
+  `Proxy-Authorization` and `WWW-Authenticate`, plus every header, `Referer` included, whose
+  name or value holds a secret of the send. The engine passes the send's `Masker` as that
+  predicate for the main request and every script `pm.sendRequest` in every front end, with or
+  without a host guard. A 307 or 308 to another origin whose body holds a secret is not
+  followed: the send fails with `a redirect to <target, masked> was not followed: the request
+  body holds a secret`. A same-origin hop keeps every header.
 - Responses keep the raw bytes. Pretty-printing, JSON paths and previews are views over them.
 - `reqflux_engine` owns a Tokio runtime. GPUI tasks await Tokio `JoinHandle`s, which are
   executor-agnostic futures, so no GPUI code runs on Tokio and no HTTP code runs on GPUI's
