@@ -800,6 +800,7 @@ field takes keys first. The keymap is not configurable yet.
 | Close workspace | Ctrl+Shift+W | a workspace is open |
 | Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request is open |
 | Show Collections, History, Variables | Ctrl+1, Ctrl+2, Ctrl+3 | a workspace is open |
+| Toggle theme | Ctrl+Shift+T | always |
 
 Every region and tree row has a stable element id (`title-bar`, `sidebar`, `document`,
 `status-bar`, `tree-row-<id>`, `doc-tab-<id>`, `request-tab-<name>`,
@@ -844,6 +845,14 @@ dependency swap, so the copy lives behind a boundary from the start:
   `bolt` for a role (`text strong`, `panel`, `accent tint`) or uses a `bolt` component.
   A guardrail test rejects color literals and bare pixel values outside the token files, as
   DBFlux does.
+- **Palettes.** `Colors::dark()` and `Colors::light()` share one set of roles; a test keeps
+  strong, foreground, muted and the four semantic colors at least 4.5:1 on `panel` in both.
+  `PaletteMode::{Dark, Light, System}` is passed to `bolt::install` and switched at runtime
+  with `bolt::set_mode`, which republishes the palette, loads gpui-component's light or dark
+  theme config and refreshes every window; System follows the window appearance. In light the
+  accent washes use the accent instead of the tint. ReqFlux's method and syntax colors read
+  the active palette. The choice is the `Toggle theme` command (Ctrl+Shift+T, Dark, Light,
+  System) and persists in the app state (`settings` table, schema v5); Dark is the default.
 - Extraction then means moving `crates/bolt` to its own repository, depending on it from
   both products, and deleting DBFlux's copy. Bolt values that change in the meantime are
   changed in both products or recorded as a divergence in `design/system.md`.
