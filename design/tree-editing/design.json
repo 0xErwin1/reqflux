@@ -1,0 +1,28 @@
+{
+  "title": "Collection tree editing",
+  "brief": "Editing the collection tree: context menu on a request and on a folder, inline rename, duplicate, delete confirmation naming how many requests a folder holds, drag to move with a drop target, new request and new folder. Built on the bolt-v2 shell.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    {
+      "file": "01-context-menu-modal.html",
+      "title": "Context menu, inline rename, modal delete",
+      "tradeoff": "Desktop-standard and discoverable by right-click, with a modal that lists what a delete removes; actions stay hidden until right-click and every delete costs a modal",
+      "width": 1440,
+      "height": 5640
+    },
+    {
+      "file": "02-hover-actions-inline.html",
+      "title": "Hover actions, inline confirmation, drag to reorder",
+      "tradeoff": "Actions visible on hover and confirmation without leaving the tree, fast for one-off edits; denser rows, and the inline confirm has less room to list affected requests",
+      "width": 1440,
+      "height": 3760
+    },
+    {
+      "file": "03-organize-document.html",
+      "title": "Organize document with bulk actions",
+      "tradeoff": "Safe bulk moves and deletes with file paths visible and a destination picker; a separate mode, slower for a single quick rename",
+      "width": 1440,
+      "height": 3760
+    }
+  ]
+}

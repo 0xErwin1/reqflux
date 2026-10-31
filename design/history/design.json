@@ -1,0 +1,28 @@
+{
+  "title": "History",
+  "brief": "History rail panel: sent requests grouped by day with method, status and time; selecting one shows the recorded request read-only and its response, with Resend, the deleted-source state and the empty state. Built on the bolt-v2 shell.",
+  "feature": "odd/tasks/design-catch-up.md",
+  "artboards": [
+    {
+      "file": "01-sidebar-readonly-tab.html",
+      "title": "Sidebar list, read-only document tab",
+      "tradeoff": "Familiar and reuses the request document; a read-only tab next to editable ones relies on the banner to tell them apart",
+      "width": 1440,
+      "height": 2820
+    },
+    {
+      "file": "02-history-table-document.html",
+      "title": "History as a document table with detail pane",
+      "tradeoff": "Most data per row (URL, duration, status filters), best for scanning many sends; gives up the sidebar tree and squeezes the recorded response into a side pane",
+      "width": 1440,
+      "height": 2820
+    },
+    {
+      "file": "03-replay-in-request.html",
+      "title": "Sends grouped by request, replayed in place",
+      "tradeoff": "Keeps history next to the request it came from and shows what changed since; deleted sources need a separate read-only fallback, so there are two ways to view a record",
+      "width": 1440,
+      "height": 2820
+    }
+  ]
+}
