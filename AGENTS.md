@@ -21,6 +21,8 @@ on-disk format and the crate boundaries.
 - Secrets never reach a workspace file, a log, an MCP response or an export without explicit
   encryption or a plaintext flag.
 - Update the docs that describe a behavior in the same change as the behavior.
+- Every visual change follows the design: check the artboard under `design/` that covers the
+  screen first, and when the change is not there, update or add the artboard in the same change.
 - Generated artifacts (code, comments, docs, commit messages) are in English.
 
 ## Driving the app
