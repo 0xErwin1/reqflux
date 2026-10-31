@@ -107,6 +107,9 @@ pub(crate) struct Shell {
     /// Why the last workspace the window tried to open did not load; shown in the workspace
     /// menu or the empty state until another opens.
     workspace_error: Option<String>,
+    /// The recent workspace whose open failed last, so its row in the workspace menu can show
+    /// the error and offer Retry; cleared when a workspace opens or the row is removed.
+    pub(super) failed_recent: Option<PathBuf>,
     /// The folder dialogs of the workspace menu: the OS ones in the app, preset answers in
     /// tests.
     picker: Rc<dyn WorkspacePicker>,
@@ -224,6 +227,7 @@ impl Shell {
             workspace_path: None,
             recents: Vec::new(),
             workspace_error: None,
+            failed_recent: None,
             picker: Rc::new(OsPicker),
             workspace_menu_open: false,
             new_workspace_name: None,

@@ -97,7 +97,7 @@ pub(crate) const SIDEBAR_FILTER_BOTTOM: Pixels = px(10.0);
 pub(crate) const SIDEBAR_FOOTER: Pixels = px(40.0);
 
 /// The width of the command palette.
-pub(crate) const PALETTE_WIDTH: Pixels = px(560.0);
+pub(crate) const PALETTE_WIDTH: Pixels = px(640.0);
 
 /// The tallest the command palette's list grows before it scrolls.
 pub(crate) const PALETTE_LIST_HEIGHT: Pixels = px(432.0);
@@ -361,6 +361,27 @@ pub(crate) fn image_size(width: u32, height: u32) -> Size<Pixels> {
 
 /// The size the main window opens at.
 pub(crate) const MAIN_WINDOW_SIZE: Size<Pixels> = size(px(1200.0), px(800.0));
+
+/// The danger wash behind a recent workspace that did not load, in the workspace menu: the
+/// palette's `danger` at 8% opacity.
+pub(crate) fn failed_recent_wash(danger: Hsla) -> Hsla {
+    Hsla { a: 0.08, ..danger }
+}
+
+/// The command palette's query row height (design/command-palette/02-scope-tabs.html).
+pub(crate) const PALETTE_QUERY_ROW: Pixels = px(56.0);
+/// The palette's scope tab row height.
+pub(crate) const PALETTE_TAB_ROW: Pixels = px(40.0);
+/// The height of one scope tab.
+pub(crate) const PALETTE_TAB: Pixels = px(28.0);
+/// The height of a palette row and of its key hint footer.
+pub(crate) const PALETTE_ROW: Pixels = px(38.0);
+/// The horizontal padding of the palette's query row, rows, headers and footer.
+pub(crate) const PALETTE_INSET: Pixels = px(18.0);
+/// The width of the method column of a request row in the palette.
+pub(crate) const PALETTE_METHOD_COLUMN: Pixels = px(44.0);
+/// The square that holds the icon of the palette's empty and no-match states.
+pub(crate) const PALETTE_EMPTY_ICON_BOX: Pixels = px(40.0);
 
 #[cfg(test)]
 pub(crate) mod tests {

@@ -45,11 +45,20 @@ impl Shell {
             Some(path) => {
                 let canonical = match fs::canonicalize(&path) {
                     Ok(canonical) => canonical,
-                    Err(error) => return self.show_workspace_error(open_error(&path, error), cx),
+                    Err(error) => {
+                        self.show_workspace_error(open_error(&path, error), cx);
+                        self.failed_recent = Some(path);
+                        return;
+                    }
                 };
                 match OpenedWorkspace::open(Some(canonical)) {
-                    OpenedWorkspace::Failed { path, error } => {
-                        return self.show_workspace_error(open_error(&path, error), cx);
+                    OpenedWorkspace::Failed {
+                        path: failed,
+                        error,
+                    } => {
+                        self.show_workspace_error(open_error(&failed, error), cx);
+                        self.failed_recent = Some(path);
+                        return;
                     }
                     opened => opened,
                 }
@@ -79,6 +88,7 @@ impl Shell {
         self.load_current_values();
         self.refresh_history(cx);
         self.workspace_error = None;
+        self.failed_recent = None;
         self.record_recent();
         self.refresh_recents();
         self.workspace_menu_open = false;
@@ -126,6 +136,9 @@ impl Shell {
         let (Some(recent), Some(state)) = (self.recents.get(index), self.state.as_mut()) else {
             return;
         };
+        if self.failed_recent.as_ref() == Some(&recent.path) {
+            self.failed_recent = None;
+        }
         if let Err(error) = state.remove_recent_workspace(&recent.path) {
             log::warn!(
                 "cannot remove {} from the recent workspaces: {error}",
@@ -190,6 +203,8 @@ impl Shell {
     pub(super) fn show_workspace_error(&mut self, error: String, cx: &mut Context<Self>) {
         log::warn!("{error}");
         self.workspace_error = Some(error);
+        // Only an open failure belongs to a recent row; the caller marks it after this.
+        self.failed_recent = None;
         cx.notify();
     }
 
