@@ -87,7 +87,7 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
         theme::follow_appearance(window, cx);
         let shell = cx.new(|cx| {
             let mut shell = Shell::with_state(workspace, state, cx);
-            shell.set_config(config_path, startup_theme.warning);
+            shell.set_config(config_path, startup_theme.config);
             shell
         });
         shell.update(cx, |shell, cx| {

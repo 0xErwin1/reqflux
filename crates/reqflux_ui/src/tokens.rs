@@ -331,6 +331,22 @@ pub(crate) const RESPONSE_ERROR_TEXT: Pixels = px(13.0);
 /// The opacity of the danger wash behind the error banner.
 pub(crate) const RESPONSE_ERROR_WASH: f32 = 0.08;
 
+/// The opacity of the danger wash behind the Problems chip while the config did not load.
+pub(crate) const PROBLEMS_CHIP_WASH: f32 = 0.12;
+
+/// The width of the Problems panel and the height of its header.
+pub(crate) const PROBLEMS_PANEL_WIDTH: Pixels = px(540.0);
+pub(crate) const PROBLEMS_HEADER: Pixels = px(44.0);
+
+/// The text size of the Problems panel: its rows, the count in the header, and a row's
+/// location and message.
+pub(crate) const PROBLEMS_TEXT: Pixels = px(12.5);
+pub(crate) const PROBLEMS_COUNT_TEXT: Pixels = px(11.5);
+pub(crate) const PROBLEMS_DETAIL_TEXT: Pixels = px(12.0);
+
+/// The opacity of the danger wash behind the config error row.
+pub(crate) const PROBLEMS_ERROR_WASH: f32 = 0.05;
+
 /// `color` at opacity `alpha`.
 pub(crate) fn wash(color: Hsla, alpha: f32) -> Hsla {
     Hsla { a: alpha, ..color }

@@ -7,7 +7,6 @@ use tempfile::TempDir;
 use super::Shell;
 use super::sidebar::Sidebar;
 use super::sidebar::footer_text;
-use super::status_bar::warnings_label;
 use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::{demo_workspace, write};
 
@@ -122,7 +121,7 @@ fn sidebar_shows_header_filter_rows_and_footer(cx: &mut TestAppContext) {
         "tree-filter",
         "tree-filter-keycap",
         "sidebar-footer",
-        "status-warnings",
+        "status-problems",
     ] {
         assert!(present(cx, selector), "{selector} is missing");
     }
@@ -192,20 +191,17 @@ fn footer_counts_requests_and_collections() {
 }
 
 #[test]
-fn warnings_label_counts_and_is_absent_at_zero() {
-    assert_eq!(warnings_label(0), None);
-    assert_eq!(warnings_label(1).as_deref(), Some("1 warning"));
-    assert_eq!(warnings_label(3).as_deref(), Some("3 warnings"));
+fn the_sidebar_workspace_loads_with_one_warning() {
     let dir = sidebar_workspace();
     let opened = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
     assert_eq!(opened.warning_count(), 1);
 }
 
 #[gpui::test]
-fn status_bar_has_no_warnings_without_load_warnings(cx: &mut TestAppContext) {
+fn status_bar_has_no_problems_without_load_warnings(cx: &mut TestAppContext) {
     let dir = demo_workspace();
     let (_sidebar, cx) = render(cx, &dir);
-    assert!(!present(cx, "status-warnings"));
+    assert!(!present(cx, "status-problems"));
     assert!(present(cx, "collections-label"));
     assert!(present(cx, "status-bar"));
 }

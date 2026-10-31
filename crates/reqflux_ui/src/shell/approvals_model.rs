@@ -139,15 +139,6 @@ fn path_of(url: &str) -> String {
     }
 }
 
-/// `<n> approval(s) pending` for the status bar, or `None` when none is.
-pub(crate) fn pending_label(count: usize) -> Option<String> {
-    match count {
-        0 => None,
-        1 => Some("1 approval pending".to_owned()),
-        n => Some(format!("{n} approvals pending")),
-    }
-}
-
 /// How long a call has waited: `waiting just now`, `waiting <n> min` or `waiting <n> h`.
 pub(crate) fn waiting_label(arrived_at: i64, now: i64) -> String {
     let minutes = now.saturating_sub(arrived_at).max(0) / 60_000;

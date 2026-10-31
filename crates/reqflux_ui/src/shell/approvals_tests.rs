@@ -179,15 +179,10 @@ fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     let automation = gpui_mcp::Automation::isolated();
     cx.update(|window, _| automation.attach(window));
     focus_shell(cx, &shell);
-    assert_eq!(label(&automation, "status-approvals"), None);
     assert_eq!(label(&automation, "approvals-badge"), None);
     assert_eq!(label(&automation, "rail-approvals-badge"), None);
 
     let first = arrive(cx, &shell, request(1, "request_execute"), 1);
-    assert_eq!(
-        label(&automation, "status-approvals").as_deref(),
-        Some("1 approval pending")
-    );
     assert_eq!(label(&automation, "approvals-badge").as_deref(), Some("1"));
     assert_eq!(
         label(&automation, "rail-approvals-badge").as_deref(),
@@ -199,10 +194,6 @@ fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     assert!(shell_focused(cx, &shell), "the focus stays where it was");
 
     let second = arrive(cx, &shell, request(2, "item_rename"), 2);
-    assert_eq!(
-        label(&automation, "status-approvals").as_deref(),
-        Some("2 approvals pending")
-    );
     assert_eq!(label(&automation, "approvals-badge").as_deref(), Some("2"));
     assert_eq!(
         label(&automation, "rail-approvals-badge").as_deref(),
@@ -223,7 +214,6 @@ fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     assert_eq!(decision(cx, first), Some(ApprovalDecision::AllowOnce));
     click(cx, "approval-allow");
     assert_eq!(decision(cx, second), Some(ApprovalDecision::AllowOnce));
-    assert_eq!(label(&automation, "status-approvals"), None);
     assert_eq!(label(&automation, "approvals-badge"), None);
     assert_eq!(label(&automation, "rail-approvals-badge"), None);
 }
@@ -282,20 +272,18 @@ fn the_rail_opens_the_view_with_the_list_and_the_detail(cx: &mut TestAppContext)
 }
 
 #[gpui::test]
-fn the_chip_the_bell_the_palette_and_ctrl_shift_m_open_the_view(cx: &mut TestAppContext) {
+fn the_bell_the_palette_and_ctrl_shift_m_open_the_view(cx: &mut TestAppContext) {
     let (shell, cx, _dirs) = window(cx);
     let client = arrive(cx, &shell, request(1, "item_delete"), 1);
     focus_shell(cx, &shell);
-
-    click(cx, "status-approvals");
-    present(cx, "approvals-view");
-    present(cx, "approval-tool");
-    cx.simulate_keystrokes("ctrl-1");
-    cx.run_until_parked();
-    assert!(bounds(cx, "approvals-view").is_none());
+    assert!(
+        bounds(cx, "status-approvals").is_none(),
+        "the count stays on the bell and the rail, not the status bar"
+    );
 
     click(cx, "approvals");
     present(cx, "approvals-view");
+    present(cx, "approval-tool");
     cx.simulate_keystrokes("ctrl-1");
     cx.run_until_parked();
     assert!(bounds(cx, "approvals-view").is_none());

@@ -679,8 +679,8 @@ The user's configuration is `$XDG_CONFIG_HOME/reqflux/config.toml` (`~/.config/r
 when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `system`, written by
 `Toggle theme` with a format-preserving editor that keeps comments, order and unknown keys) and
 `[mcp]`. A missing file is the defaults; a file that does not parse is reported (path, line and
-column, never the source line) in the window's status bar and by `reqflux mcp`, and the defaults
-apply. Unknown keys under `[mcp]` and `[mcp.workspaces."<id>"]`, and a key that is not a
+column, never the source line) as an error in the window's Problems panel and by `reqflux mcp`,
+and the defaults apply. Unknown keys under `[mcp]` and `[mcp.workspaces."<id>"]`, and a key that is not a
 workspace id, are reported as warnings the same way; they change no rule.
 
 ```toml
@@ -747,12 +747,11 @@ its own open workspace by id through `reqflux_engine::approvals::preview`, which
 request with the named environment without running scripts or sending anything and masks the
 URL, headers and body with that preparation's masker; a secret variable's value is never
 read into it. The detail is read when the call arrives and again on Refresh. There is no modal: a request opens nothing, takes no focus and does not raise the
-window. The count shows in the `status-approvals` chip ("1 approval pending" / "N approvals
-pending", the Bot icon in the tint, only when N > 0) and as a badge on the title bar bell
-(`approvals-badge`) and on the rail's `rail-approvals` (`rail-approvals-badge`). The MCP
+window. The count shows as a badge on the title bar bell (`approvals-badge`) and on the rail's
+`rail-approvals` (`rail-approvals-badge`), only when N > 0; the status bar does not show it. The MCP
 approvals view (`approvals-view`, `shell/approvals_view.rs` and `shell/approvals_detail.rs`,
 artboard `design/bolt-v2/12-agent-approval.html`) opens from the rail button, the bell, the
-chip, the palette ("Open MCP approvals") and Ctrl+Shift+M; while `Panel::Approvals` is the
+palette ("Open MCP approvals") and Ctrl+Shift+M; while `Panel::Approvals` is the
 rail's view the sidebar keeps the collection tree and the view takes the document island. Its
 tab row shows the open requests and the active `MCP approvals` tab (`doc-tab-approvals`;
 `doc-tab-approvals-close`, a request tab or a tree row goes back). The header shows
@@ -838,8 +837,22 @@ the command search in the middle and the approvals bell on the right; the activi
 (Collections, History, Environments, MCP approvals, Audit log, Settings); a sidebar island with
 the collection tree (icons, indent guides, child counts, method labels in Bolt's semantic
 colors) and a request and collection count; a document island; and a status bar that shows
-the last send (`<METHOD> <path> · <status> · <time>`, or `sending` or `failed`) and
-load warnings. In the tree the arrow keys move the selection, Enter or the chevron toggles a
+the last send (`<METHOD> <path> · <status> · <time>`, or `sending` or `failed`) on the left
+and, on the right, the Problems chip (`status-problems`, artboard
+`design/status-bar/02-problems-panel.html`, `shell/problems.rs` and `shell/problems_panel.rs`).
+The chip shows only when there is a problem: `1 error` (`status-problems-errors`) when the
+config file did not load, with a danger wash and icon, then `N warnings`
+(`status-problems-warnings`) for the config file's warnings and the workspace load warnings
+together; warnings alone keep it neutral with a warning icon. A click opens the Problems panel
+(`problems-panel`) anchored above it: a header (`problems-title`, `problems-count`,
+`problems-keycap`), a `CONFIG` section (`problems-config-label`) with the error
+(`problems-config-error`, its title "Config not loaded · defaults in use" and
+`problems-config-error-detail`, which names the file, line and column), and a `WARNINGS · N`
+section (`problems-warnings-label`) with one row per warning (`problems-warning-<n>`, config
+warnings first), its file (`-location`, relative to the workspace for a load warning) over what
+happened (`-message`). Escape, bound in the panel's `Problems` key context, or a click on the
+backdrop (`problems-backdrop`) closes it. `theme::startup` reports the config file as a
+`ConfigReport` (an error, or warnings) that the shell takes through `set_config`. In the tree the arrow keys move the selection, Enter or the chevron toggles a
 folder, and a click or Enter on a request opens it in a document tab, or focuses its tab.
 The sidebar header's `+` (`sidebar-new-collection`) creates a collection. A right click on a
 row, or its `…` button (`tree-row-menu-<id>`), opens a menu (`tree-menu-new-request`,
@@ -876,8 +889,10 @@ Send or Ctrl+Enter sends the active request with the active environment through
 `cx.spawn` and never calls `Engine::wait`, which blocks. While it is in flight, Send turns into
 Cancel; Cancel or Escape cancels it through its token, sending again cancels and replaces it,
 and closing the tab cancels it and drops its response. The response sits under the request:
-the status chip colored by class, the time and size, Body and Headers sub-tabs, a
-Pretty/Raw toggle (Pretty re-indents JSON keeping key order), the body split into lines once
+the Response tab with the status chip colored by class and the time and size, Tests and
+Console tabs beside it when the scripts produced results, the Body / Headers / Cookies views as
+a segmented control, a bottom bar under the body with the Pretty / Raw / Preview switch and the
+line count (Pretty re-indents JSON keeping key order), the body split into lines once
 off the UI thread and drawn with `uniform_list` so only visible lines render, an error banner
 with Retry, and the unresolved variables the send used. Each open request keeps its last
 response in memory, and every send is recorded in history (see "History").

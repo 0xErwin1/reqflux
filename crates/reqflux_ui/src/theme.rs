@@ -20,9 +20,19 @@ pub(crate) const THEME_SETTING: &str = "theme";
 pub(crate) struct Startup {
     /// The palette mode to install.
     pub(crate) mode: PaletteMode,
-    /// Why the config file was not used, when it does not parse, or its warnings (unknown
-    /// `[mcp]` keys); the status bar shows it.
-    pub(crate) warning: Option<String>,
+    /// What went wrong reading the config file; the Problems panel shows it.
+    pub(crate) config: ConfigReport,
+}
+
+/// The problems of the config file at startup.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct ConfigReport {
+    /// Why the file was not used, when it does not parse or cannot be read: the defaults
+    /// apply. Never quotes the file.
+    pub(crate) error: Option<String>,
+    /// What the file sets that applies to nothing (unknown `[mcp]` keys, invalid
+    /// `[mcp.workspaces]` keys); the rest of the file still applies.
+    pub(crate) warnings: Vec<String>,
 }
 
 /// The palette mode of a config file `theme`.
@@ -45,13 +55,13 @@ pub(crate) fn theme_mode(mode: PaletteMode) -> ThemeMode {
 
 /// The mode to start in, from the config file at `config` (`None` when there is no config
 /// directory). A file without `theme` takes the app state's old setting and writes it to the
-/// file once; a file that does not parse gives the defaults and a warning, and is left alone.
-/// Unknown `[mcp]` keys and invalid `[mcp.workspaces]` keys are the warning too, beside the
-/// file's settings.
+/// file once; a file that does not parse gives the defaults and an error, and is left alone.
+/// Unknown `[mcp]` keys and invalid `[mcp.workspaces]` keys are warnings, beside the file's
+/// settings.
 pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startup {
     let defaults = Startup {
         mode: PaletteMode::default(),
-        warning: None,
+        config: ConfigReport::default(),
     };
     let Some(path) = config else {
         return defaults;
@@ -61,7 +71,10 @@ pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startu
         Err(error) => {
             log::warn!("{error}; using the defaults");
             return Startup {
-                warning: Some(error.to_string()),
+                config: ConfigReport {
+                    error: Some(error.to_string()),
+                    warnings: Vec::new(),
+                },
                 ..defaults
             };
         }
@@ -70,7 +83,10 @@ pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startu
         log::warn!("{warning}");
     }
     let defaults = Startup {
-        warning: (!warnings.is_empty()).then(|| warnings.join("; ")),
+        config: ConfigReport {
+            error: None,
+            warnings,
+        },
         ..defaults
     };
     if let Some(mode) = loaded.theme {

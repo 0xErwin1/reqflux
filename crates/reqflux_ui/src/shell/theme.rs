@@ -6,15 +6,15 @@ use std::path::PathBuf;
 use gpui::{Context, Window};
 
 use super::Shell;
-use crate::theme::save_mode;
+use crate::theme::{ConfigReport, save_mode};
 
 impl Shell {
-    /// Sets the config file `Toggle theme` writes to and the warning to show when it did not
-    /// parse at startup. Without a path the choice is not saved; tests pass their own file so
-    /// no test touches the user's config.
-    pub(crate) fn set_config(&mut self, path: Option<PathBuf>, warning: Option<String>) {
+    /// Sets the config file `Toggle theme` writes to and what went wrong reading it at
+    /// startup, for the Problems panel. Without a path the choice is not saved; tests pass
+    /// their own file so no test touches the user's config.
+    pub(crate) fn set_config(&mut self, path: Option<PathBuf>, report: ConfigReport) {
         self.config_path = path;
-        self.config_warning = warning;
+        self.config_report = report;
     }
 
     /// Switches to the mode after the installed one and saves it.

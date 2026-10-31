@@ -24,6 +24,8 @@ mod method_edit;
 mod palette;
 mod palette_match;
 mod path_bar;
+mod problems;
+mod problems_panel;
 mod rail;
 mod request;
 mod response;
@@ -89,6 +91,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
     sidebar::bind_keys(cx);
     commands::bind_keys(cx);
     approvals::bind_keys(cx);
+    problems_panel::bind_keys(cx);
 }
 
 /// The root view of the main window.
@@ -145,8 +148,12 @@ pub(crate) struct Shell {
     state: Option<AppState>,
     /// The user's config file, where `Toggle theme` saves; `None` saves nothing.
     config_path: Option<PathBuf>,
-    /// Why the config file was not used at startup; the status bar shows it.
-    config_warning: Option<String>,
+    /// What went wrong reading the config file at startup; the Problems panel shows it.
+    config_report: crate::theme::ConfigReport,
+    /// Whether the Problems panel over the status bar is open.
+    problems_open: bool,
+    /// Focused while the Problems panel is open, so Escape reaches it.
+    problems_focus: FocusHandle,
     /// The id of the loaded workspace, the key drafts are stored under.
     workspace_id: Option<String>,
     /// The workspace's current values (variables-editor S4), read from the app state and
@@ -235,7 +242,9 @@ impl Shell {
             body_edit: None,
             state,
             config_path: None,
-            config_warning: None,
+            config_report: crate::theme::ConfigReport::default(),
+            problems_open: false,
+            problems_focus: cx.focus_handle(),
             workspace_id,
             current: CurrentValues::default(),
             active_environment: None,
@@ -442,7 +451,7 @@ impl Render for Shell {
             .bg(desk)
             .child(title_bar::render(self, window, cx))
             .child(middle)
-            .child(status_bar::render(self, cx))
+            .child(status_bar::render(self, window, cx))
             .children(palette::render(self, window, cx))
     }
 }
@@ -510,6 +519,8 @@ mod method_edit_tests;
 mod palette_tests;
 #[cfg(test)]
 mod preview_tests;
+#[cfg(test)]
+mod problems_tests;
 #[cfg(test)]
 mod request_tests;
 #[cfg(test)]

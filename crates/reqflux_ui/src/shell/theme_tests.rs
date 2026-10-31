@@ -13,6 +13,7 @@ use tempfile::TempDir;
 
 use super::Shell;
 use super::draft_tests::{render, state_file};
+use crate::theme::ConfigReport;
 use crate::tokens::method_color;
 use crate::workspace_tests::demo_workspace;
 
@@ -71,11 +72,11 @@ fn render_with_config<'a>(
     dir: &TempDir,
     state_path: &Path,
     config_path: &Path,
-    warning: Option<String>,
+    report: ConfigReport,
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     let (shell, cx) = render(cx, dir, state_path);
     shell.update(cx, |shell, _| {
-        shell.set_config(Some(config_path.to_path_buf()), warning);
+        shell.set_config(Some(config_path.to_path_buf()), report);
     });
     cx.run_until_parked();
     (shell, cx)
@@ -86,7 +87,8 @@ fn ctrl_shift_t_cycles_dark_light_system_and_the_palette_follows(cx: &mut TestAp
     let dir = demo_workspace();
     let (_state_dir, state_path) = state_file();
     let (_config_dir, config_path) = config_file();
-    let (shell, cx) = render_with_config(cx, &dir, &state_path, &config_path, None);
+    let (shell, cx) =
+        render_with_config(cx, &dir, &state_path, &config_path, ConfigReport::default());
     focus_shell(cx, &shell);
     assert_eq!(mode(cx), PaletteMode::Dark, "dark is the default");
     assert_eq!(cx.update(|_, cx| *bolt::colors(cx)), Colors::dark());
@@ -147,7 +149,8 @@ fn the_choice_is_installed_again_from_the_same_config_file(cx: &mut TestAppConte
     let (_state_dir, state_path) = state_file();
     let (_config_dir, config_path) = config_file();
     {
-        let (shell, cx) = render_with_config(cx, &dir, &state_path, &config_path, None);
+        let (shell, cx) =
+            render_with_config(cx, &dir, &state_path, &config_path, ConfigReport::default());
         focus_shell(cx, &shell);
         press(cx, "ctrl-shift-t");
         assert_eq!(mode(cx), PaletteMode::Light);
@@ -156,7 +159,7 @@ fn the_choice_is_installed_again_from_the_same_config_file(cx: &mut TestAppConte
 
     let state = open_state(&state_path);
     let startup = crate::theme::startup(Some(&config_path), Some(&state));
-    assert_eq!(startup.warning, None);
+    assert_eq!(startup.config, ConfigReport::default());
     cx.update(|cx| crate::theme::install(startup.mode, cx));
 
     cx.update(|cx| {
@@ -182,7 +185,7 @@ fn startup_reads_the_theme_from_the_config_file() {
     }
     let startup = crate::theme::startup(Some(&config_path), None);
     assert_eq!(startup.mode, PaletteMode::System);
-    assert_eq!(startup.warning, None);
+    assert_eq!(startup.config, ConfigReport::default());
 }
 
 #[test]
@@ -201,12 +204,13 @@ fn an_unknown_mcp_key_is_the_startup_warning_and_the_file_still_applies() {
     }
     let startup = crate::theme::startup(Some(&config_path), None);
     assert_eq!(startup.mode, PaletteMode::Light);
+    assert_eq!(startup.config.error, None, "the file still applies");
     assert_eq!(
-        startup.warning,
-        Some(format!(
+        startup.config.warnings,
+        vec![format!(
             "{}: unknown key `host` in [mcp]; it is ignored",
             config_path.display()
-        ))
+        )]
     );
 }
 
@@ -242,7 +246,7 @@ fn without_a_config_file_the_app_still_defaults_to_dark() {
     let state = open_state(&state_path);
     let startup = crate::theme::startup(Some(&config_path), Some(&state));
     assert_eq!(startup.mode, PaletteMode::Dark);
-    assert_eq!(startup.warning, None);
+    assert_eq!(startup.config, ConfigReport::default());
     assert!(!config_path.exists(), "nothing to migrate writes nothing");
     assert_eq!(crate::theme::startup(None, None).mode, PaletteMode::Dark);
 }
@@ -268,7 +272,8 @@ fn a_config_file_that_does_not_parse_opens_on_the_defaults_and_says_so(cx: &mut 
 
     let startup = crate::theme::startup(Some(&config_path), Some(&state));
     assert_eq!(startup.mode, PaletteMode::Dark, "the defaults");
-    let warning = match startup.warning.clone() {
+    assert!(startup.config.warnings.is_empty());
+    let warning = match startup.config.error.clone() {
         Some(warning) => warning,
         None => panic!("a broken config file must be reported"),
     };
@@ -279,16 +284,26 @@ fn a_config_file_that_does_not_parse_opens_on_the_defaults_and_says_so(cx: &mut 
         "a broken file is never rewritten"
     );
 
-    let (_shell, cx) = render_with_config(cx, &dir, &state_path, &config_path, startup.warning);
+    let (_shell, cx) = render_with_config(cx, &dir, &state_path, &config_path, startup.config);
     let automation = gpui_mcp::Automation::isolated();
     cx.update(|window, _| automation.attach(window));
     cx.run_until_parked();
-    let tree = automation.snapshot();
-    let chip = tree
-        .nodes
-        .get("status-config-warning")
-        .and_then(|chip| chip.label.clone());
-    assert_eq!(chip.as_deref(), Some(warning.as_str()));
+    let label = |id: &str| {
+        automation
+            .snapshot()
+            .nodes
+            .get(id)
+            .and_then(|node| node.label.clone())
+    };
+    assert_eq!(
+        label("status-problems").as_deref(),
+        Some("Problems: 1 error, 0 warnings. Show the problems panel")
+    );
+    super::draft_tests::click(cx, "status-problems");
+    assert_eq!(
+        label("problems-config-error-detail").as_deref(),
+        Some(warning.as_str())
+    );
 }
 
 #[test]
