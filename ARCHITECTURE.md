@@ -925,14 +925,16 @@ shell offline:
 magick -background none assets/icon/reqflux.svg -depth 8 -resize 256x256 assets/icon/reqflux-256.png
 ```
 
-Every push to `main` (and manual dispatch) runs `.github/workflows/nightly.yml`, which
-builds `reqflux` on `ubuntu-latest` and publishes a prerelease tagged `nightly-YYYYMMDD`
-with `reqflux-linux-amd64.tar.gz` attached. The nightly version is the workspace version
-with its pre-release suffix stripped (`0.1.0-dev.0` → `0.1.0`) plus the UTC date and
-short commit as semver build metadata, e.g. `0.1.0-nightly+20260213.928b3d5`. The date
-also forms the tag, so pushes to `main` on the same day replace that day's release, and
-older `nightly-*` releases are deleted, leaving one rolling nightly — the same
-behaviour as DBFlux's nightly.
+`.github/workflows/nightly.yml` runs daily at 03:17 UTC (and on manual dispatch), as DBFlux's
+nightly does. A guard job skips the run when `main` has not advanced since the commit the
+`nightly` tag points at, or when it advanced only in Markdown and `design/` files; a manual
+dispatch always builds. A build compiles `reqflux` on `ubuntu-latest`, moves the single
+`nightly` tag to the built commit, clears the assets of the `nightly` prerelease and uploads
+`reqflux-linux-amd64.tar.gz` there, with the commits since the previous nightly in the
+release body. There is only ever one nightly tag; the dated `nightly-*` tags and releases of
+the earlier scheme are deleted by the first run. The nightly version is the workspace version
+with its pre-release suffix stripped (`0.1.0-dev.0` → `0.1.0`) plus the short commit as
+semver build metadata, e.g. `0.1.0-nightly+928b3d5`.
 
 ## Lessons from DBFlux
 

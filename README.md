@@ -18,10 +18,9 @@ Linux only for now.
 - **Nix**: from a clone of this repository, `nix build .#reqflux` builds the package
   (binary, desktop entry and icons) into `./result`; `nix profile install .#reqflux`
   installs it; `nix run .#reqflux` starts the app directly.
-- **Nightly**: every push to `main` publishes a prerelease tagged `nightly-YYYYMMDD`
-  with `reqflux-linux-amd64.tar.gz` (binary, desktop entry and icons) attached; see the
-  [releases page](https://github.com/0xErwin1/reqflux/releases). Only the newest nightly
-  is kept.
+- **Nightly**: once a day, when `main` has new commits, a prerelease under the single tag
+  `nightly` is replaced with a fresh `reqflux-linux-amd64.tar.gz` (binary, desktop entry and
+  icons); see the [releases page](https://github.com/0xErwin1/reqflux/releases).
 - **Local build**: from the dev shell (`nix develop`), `cargo build --release -p reqflux`
   puts the binary in `target/release/reqflux`.
 

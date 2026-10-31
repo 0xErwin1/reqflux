@@ -1,14 +1,15 @@
 name: Nightly
 
-# Rolling nightly build of the Linux `reqflux` package, modelled on DBFlux's
-# nightly workflow but single-platform: one prerelease per day (tag
-# nightly-YYYYMMDD) holding the newest build from main. A later push to main
-# on the same day replaces that day's release, and older nightlies are pruned,
-# so only one rolling nightly remains.
+# Rolling nightly build of the Linux `reqflux` package, like DBFlux's: one
+# prerelease under the single tag `nightly`, replaced by every new build. It
+# runs once a day and skips when main has not advanced since the commit the
+# `nightly` tag points at, so the tag count never grows and an idle main
+# publishes nothing. A manual dispatch always builds.
 
 on:
-  push:
-    branches: [main]
+  schedule:
+    # 03:17 UTC daily: a low-traffic window, off the top of the hour.
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -22,13 +23,77 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  guard:
+    name: Guard - canonical repo and new commits
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      proceed: ${{ steps.guard.outputs.proceed }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Decide whether to build
+        id: guard
+        env:
+          REPOSITORY: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          # Only the canonical repository runs the schedule; forks do not.
+          if [ "$REPOSITORY" != "0xErwin1/reqflux" ]; then
+            echo "Skipping nightly: not the canonical repository."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # A manual run always builds, even with no new commits.
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "Manual dispatch: building regardless of new commits."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # The `nightly` tag points at the main commit the last nightly was
+          # built from. Skip when main has not advanced since then.
+          CURRENT="$(git rev-parse HEAD)"
+          if ! LAST="$(git rev-parse --verify --quiet 'nightly^{commit}')"; then
+            echo "No previous nightly tag: building."
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$LAST" = "$CURRENT" ]; then
+            echo "No new commits on main since the last nightly ($LAST): skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Prose and designs do not reach the binary, so a range made only of
+          # them would publish the same build again. The tag stays put, so the
+          # next nightly's changes still cover those commits. A failed diff
+          # builds: a broken check costs a build rather than a missed nightly.
+          if ! changed="$(git diff --name-only "$LAST" "$CURRENT")"; then
+            echo "::warning::cannot diff $LAST..$CURRENT; building"
+          elif ! printf '%s\n' "$changed" | grep -qvE '(\.md$|^design/)'; then
+            echo "main advanced $LAST -> $CURRENT with prose and design changes only: skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "main advanced $LAST -> $CURRENT: building."
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
   compute-version:
     name: Compute nightly version
+    needs: guard
+    if: needs.guard.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
       version: ${{ steps.nightly.outputs.version }}
-      tag: ${{ steps.nightly.outputs.tag }}
       short_sha: ${{ steps.nightly.outputs.short_sha }}
       date: ${{ steps.nightly.outputs.date }}
 
@@ -40,25 +105,22 @@ jobs:
         id: nightly
         run: |
           # The nightly version is the workspace version with its pre-release
-          # suffix stripped (0.1.0-dev.0 -> 0.1.0) plus the UTC date and the
-          # short commit as semver build metadata; the `+` metadata does not
-          # affect semver ordering. The tag keeps only the date, so pushes to
-          # main on the same day replace that day's release with the newest
-          # build.
+          # suffix stripped (0.1.0-dev.0 -> 0.1.0) plus the short commit as
+          # semver build metadata, which does not affect semver ordering.
           MATCHES=$(grep -c '^version = "' Cargo.toml)
           if [ "$MATCHES" -ne 1 ]; then
             echo "::error::Expected exactly 1 workspace version line in Cargo.toml, found $MATCHES."
             exit 1
           fi
           BASE=$(grep '^version = "' Cargo.toml | sed 's/.*= *"\(.*\)"/\1/' | sed 's/-[^+]*//')
-          DATE=$(date -u '+%Y%m%d')
           SHORT_SHA=$(git rev-parse --short HEAD)
-          NIGHTLY_VERSION="${BASE}-nightly+${DATE}.${SHORT_SHA}"
-          echo "version=${NIGHTLY_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=nightly-${DATE}" >> "$GITHUB_OUTPUT"
-          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "date=$(date -u '+%Y-%m-%d')" >> "$GITHUB_OUTPUT"
-          echo "Nightly version: ${NIGHTLY_VERSION} (tag nightly-${DATE})"
+          NIGHTLY_VERSION="${BASE}-nightly+${SHORT_SHA}"
+          {
+            echo "version=${NIGHTLY_VERSION}"
+            echo "short_sha=${SHORT_SHA}"
+            echo "date=$(date -u '+%Y-%m-%d')"
+          } >> "$GITHUB_OUTPUT"
+          echo "Nightly version: ${NIGHTLY_VERSION}"
 
   build:
     name: Build Linux
@@ -83,8 +145,8 @@ jobs:
       - name: Set up Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          # Only the nightly (running on main) writes; a cache saved on a tag
-          # ref can never be read back (same rationale as DBFlux's build).
+          # The scheduled run is on main; a cache saved on a tag ref can never
+          # be read back (same rationale as DBFlux's build).
           save-if: github.ref == 'refs/heads/main'
 
       - name: Stamp workspace version
@@ -146,6 +208,13 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          # The previous `nightly` tag scopes the list of changes.
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Download artifact
         uses: actions/download-artifact@v4
         with:
@@ -158,42 +227,70 @@ jobs:
           DATE: ${{ needs.compute-version.outputs.date }}
         run: |
           cat > release_body.md <<EOF
-          > **Nightly build** — built automatically from \`main\` HEAD on every push.
-          > Not recommended for production use. The release for a given day is
-          > replaced by the newest build and older nightlies are deleted.
+          > **Nightly build**: built automatically from \`main\` once a day when it has new
+          > commits. Not recommended for production use. Each build replaces the previous one
+          > under the same \`nightly\` tag.
           >
-          > Commit: \`${SHORT_SHA}\` — ${DATE}
+          > Commit: \`${SHORT_SHA}\` - ${DATE}
 
           EOF
+          # The tag still points at the previous build here, so nightly..HEAD
+          # is what changed on main since then.
+          if git rev-parse --verify --quiet 'nightly^{commit}' >/dev/null; then
+            CHANGES=$(git log --no-merges --format='- %s (%h)' 'nightly..HEAD')
+          else
+            CHANGES=$(git log --no-merges --format='- %s (%h)' -n 30 HEAD)
+          fi
+          if [ -n "$CHANGES" ]; then
+            {
+              echo "## Changes since the previous nightly"
+              echo ""
+              echo "$CHANGES"
+            } >> release_body.md
+          fi
 
-      - name: Replace today's release and prune older nightlies
+      - name: Move the nightly tag to this build
+        run: |
+          set -euo pipefail
+          git tag -f nightly HEAD
+          git push origin refs/tags/nightly --force
+
+      - name: Remove the old dated nightlies and the previous assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.compute-version.outputs.tag }}
         run: |
           set -euo pipefail
 
-          # Today's nightly is replaced: delete the existing release for the
-          # tag (and the tag itself) so the new one can take its place.
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release delete "$TAG" --yes --cleanup-tag
-          fi
-
-          # Keep a single rolling nightly, like DBFlux: delete every other
-          # nightly-* prerelease so the releases page never fills with
-          # superseded builds.
-          OLD_TAGS=$(gh release list --json tagName --jq '.[].tagName' | grep '^nightly-' || true)
+          # Earlier nightlies were dated (nightly-YYYYMMDD): delete their
+          # releases and tags, so only the rolling `nightly` remains.
+          OLD_TAGS=$(git tag --list 'nightly-*')
           while IFS= read -r OLD_TAG; do
             [ -n "$OLD_TAG" ] || continue
-            [ "$OLD_TAG" = "$TAG" ] && continue
-            gh release delete "$OLD_TAG" --yes --cleanup-tag
+            if gh release view "$OLD_TAG" >/dev/null 2>&1; then
+              gh release delete "$OLD_TAG" --yes --cleanup-tag
+            else
+              gh api --method DELETE "repos/${GITHUB_REPOSITORY}/git/refs/tags/${OLD_TAG}"
+            fi
           done <<<"$OLD_TAGS"
+
+          # The rolling release keeps its tag; clear its assets so the upload
+          # below never leaves an older build attached.
+          RELEASE_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/nightly" 2>/dev/null || true)
+          if [ -z "$RELEASE_JSON" ]; then
+            echo "No existing nightly release; nothing to clear."
+            exit 0
+          fi
+          ASSET_IDS=$(jq -r '.assets[].id' <<<"$RELEASE_JSON")
+          while IFS= read -r ASSET_ID; do
+            [ -n "$ASSET_ID" ] || continue
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${ASSET_ID}"
+          done <<<"$ASSET_IDS"
 
       - name: Publish nightly release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ needs.compute-version.outputs.tag }}
-          name: ReqFlux Nightly ${{ needs.compute-version.outputs.tag }}
+          tag_name: nightly
+          name: ReqFlux Nightly
           body_path: release_body.md
           prerelease: true
           files: |
