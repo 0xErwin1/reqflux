@@ -264,8 +264,10 @@ UI tools, driving a running ReqFlux window through its gpui-mcp bridge:
   ui_tree, ui_find, ui_element, ui_element_bounds, ui_wait_for_element
   ui_click, ui_type, ui_key, ui_focus, ui_scroll
 
-Policy: each engine tool has a class. By default read tools run and write, execute and
-destructive tools are refused (\"ask\", and in-app approvals do not exist yet, so ask refuses).
+Policy: every engine tool and every ui_* tool except ui_list_targets, ui_select_target and
+ui_ping has a class. By default read tools run and write, execute and destructive tools \"ask\":
+the running ReqFlux window shows Allow once, Allow for this session or Deny; with no window or
+no answer within 120 s the call is refused. ui_* reads are read, ui_* input is execute.
 Enable them in ~/.config/reqflux/config.toml ($XDG_CONFIG_HOME/reqflux/config.toml):
   [mcp]
   write = \"allow\"                    # allow, ask or deny
@@ -275,11 +277,14 @@ Enable them in ~/.config/reqflux/config.toml ($XDG_CONFIG_HOME/reqflux/config.to
   environments = [\"dev\"]             # absent: any; no environment is always allowed
 [mcp.workspaces.\"<workspace id>\"] in that file and [mcp] in a workspace's reqflux.toml can
 only restrict: the strictest rule wins and every hosts or environments list must allow. The
-file is read before every call. The ui_* tools are outside the policy.
+file is read before every call. hosts and environments do not apply to the ui_* tools. While
+an approval is pending the window pauses its automation bridge, so ui_* tools refuse until it
+is answered: an agent cannot click its own approval.
 
 Audit: every write, execute and destructive call, allowed or refused, appends one JSON line to
 ~/.local/state/reqflux/audit.log ($XDG_STATE_HOME/reqflux/audit.log) with the tool, the
-decision, the ids it targets and the masked URL of an execute, never argument values. A call
+decision (with the approval answer), the ids it targets and the masked URL of an execute,
+never argument values or typed text. A call
 whose line cannot be written is refused.
 
 Without --workspace and a reqflux.toml in the current directory, the engine tools start on the

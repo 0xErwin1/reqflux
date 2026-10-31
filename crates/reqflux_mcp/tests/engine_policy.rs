@@ -189,8 +189,8 @@ async fn mock_server() -> MockServer {
 /// The S6 refusal of `tool` of `class` under the defaults, naming the config file used.
 fn ask_refusal(tool: &str, article: &str, class: &str, paths: &PolicyPaths) -> String {
     format!(
-        "{tool} is {article} {class} tool and {class} is \"ask\" in {} ([mcp] {class}); in-app \
-         approvals do not exist yet, so ask refuses",
+        "{tool} is {article} {class} tool and {class} is \"ask\" in {} ([mcp] {class}); ask needs an approval in the ReqFlux \
+         window",
         paths.config.display()
     )
 }
@@ -238,7 +238,12 @@ async fn the_defaults_refuse_writes_and_execution_and_audit_both() {
         assert_eq!(line["class"], class);
         assert_eq!(line["decision"], "refused");
         assert_eq!(line["workspace_id"], fixture.workspace_id.as_str());
-        assert!(line["reason"].as_str().unwrap().contains("ask refuses"));
+        assert!(
+            line["reason"]
+                .as_str()
+                .unwrap()
+                .contains("ask needs an approval")
+        );
         assert!(line["time"].as_str().unwrap().ends_with('Z'));
     }
     assert_eq!(lines[1]["targets"][0], fixture.request.as_str());

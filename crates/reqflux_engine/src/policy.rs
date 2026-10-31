@@ -237,7 +237,7 @@ impl Policy {
         match rule {
             Rule::Allow => Ok(()),
             Rule::Ask => Err(self.refusal(format!(
-                "{head}; in-app approvals do not exist yet, so ask refuses"
+                "{head}; ask needs an approval in the ReqFlux window"
             ))),
             Rule::Deny => Err(self.refusal(head)),
         }

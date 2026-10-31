@@ -289,8 +289,8 @@ fn without_a_window_ask_refuses_with_the_policy_message() {
     let mut fixture = fixture("http://127.0.0.1:9/x", Duration::from_secs(5));
     let refused = err(create_folder(&mut fixture));
     let policy = format!(
-        "folder_create is a write tool and write is \"ask\" in {} ([mcp] write); in-app \
-         approvals do not exist yet, so ask refuses",
+        "folder_create is a write tool and write is \"ask\" in {} ([mcp] write); ask needs an approval in the ReqFlux \
+         window",
         fixture.paths.config.display()
     );
     assert!(refused.starts_with(&policy), "{refused}");

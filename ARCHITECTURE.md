@@ -26,7 +26,7 @@ names the alternative it rejects and, where relevant, the DBFlux experience behi
 | GPUI | Published `gpui-pre` 0.3.7, `gpui-component` 0.7.0 and `gpui-pre-platform` 0.3.7, the newest the UI automation bridge supports; every other dependency tracks its latest release. `gpui-pre` is patched from the `gpui-mcp` git repository at a pinned rev; nothing is vendored. |
 | Crates | Ten crates in a strict one-way dependency order. Only `bolt`, `reqflux_ui` and `reqflux` link GPUI. |
 | Design system | Bolt, copied from DBFlux, in the product-agnostic `bolt` crate. ReqFlux supplies only its accent and its own tokens, so `bolt` can become a shared library without touching ReqFlux's screens. |
-| UI automation | The upstream `gpui-mcp` bridge is always installed. `reqflux mcp` exposes it as `ui_*` tools beside the engine tools, so agents declare one MCP server; the policy covers the engine tools only. |
+| UI automation | The upstream `gpui-mcp` bridge is always installed. `reqflux mcp` exposes it as `ui_*` tools beside the engine tools, so agents declare one MCP server; the policy covers both, and its `ask` is a prompt in the window. |
 | User configuration | `~/.config/reqflux/config.toml` (theme, MCP policy) belongs to the user, not to a workspace; a workspace can only restrict the MCP policy. |
 
 ## Domain model
@@ -702,7 +702,7 @@ The engine tools are policed (`reqflux_engine::policy`); every tool has a class:
 `folder_create`, `request_create`, `item_rename`, `item_duplicate`, `item_move`, `request_update`,
 `environment_create`, `environment_rename`, `variable_set`), execute (`request_execute`) and
 destructive (`item_delete`, `environment_delete`, `variable_delete`). Each class is `allow`,
-`ask` or `deny`; until in-app approvals exist, `ask` refuses. The effective rule is the strictest
+`ask` or `deny`; `ask` asks the running window (below). The effective rule is the strictest
 of the user's `[mcp]`, the matching `[mcp.workspaces."<id>"]` (the id in any case) and the open
 workspace's `reqflux.toml` `[mcp]`, and the effective `hosts` and `environments` are what every
 list given allows: a workspace, even a cloned repository, can only restrict what the user
@@ -725,10 +725,34 @@ execution, the method and the masked URL. Argument values (documents, variable v
 are never written, and a call whose audit line cannot be written is refused. Read tools are not
 audited.
 
-The `ui_*` tools are not policed: they drive a window the user sees. That is also a way around
-the policy, since `ui_click` on Send sends a request the engine tools would refuse; an agent
-connected to `reqflux mcp` while the window is open has the window's power. Without the window
-running, the `ui_*` tools do nothing.
+The `ui_*` tools are policed too: `ui_tree`, `ui_find`, `ui_element`, `ui_element_bounds` and
+`ui_wait_for_element` are read; `ui_click`, `ui_type`, `ui_key`, `ui_focus` and `ui_scroll` are
+execute, since a click on Send executes a request. `ui_list_targets`, `ui_select_target` and
+`ui_ping` are not. `hosts` and `environments` do not apply to them; an execute-class ui call is
+audited with the target id, never the typed text or keys.
+
+#### Approvals
+
+`ask` is a question to the user in the running window (`reqflux_engine::approvals`). The window
+listens on `$XDG_RUNTIME_DIR/reqflux/approvals-<pid>.sock` (directory 0700, socket and its
+`approvals-<pid>.json` descriptor 0600; peers of another user are refused) for one
+newline-delimited JSON exchange per call: tool, class, workspace, target names and, for an
+execution, the method and the masked URL from a prepare that runs no script, never argument
+values. The window shows `approval-dialog` (Allow once, Allow for this session, Deny; Escape
+denies; requests queue; the `status-approvals` chip counts them) without raising itself. "For
+this session" covers the class and workspace until that `reqflux mcp` exits. No live window
+(no runtime dir, no descriptor of a live pid), no answer within 120 s, or a dropped connection
+refuses the call; a client that gives up withdraws its request from the dialog. The audit line
+records `approved once`, `approved for this session`, `denied in the window`, the timeout or
+`no window is running to approve it`.
+
+An agent can never approve its own call. The gpui-mcp bridge has no input hook and gpui does not
+expose whether an event is synthetic, so while any approval is pending the window shuts its
+bridge down (every `ui_*` call then refuses with "an approval is pending in the window; ui tools
+are paused until it is answered") and installs it again, with a new descriptor and token, when
+the queue empties. `reqflux mcp` follows its selected window to the new bridge by app id and
+pid, choosing the target of that pid that was not already running beside it. The cost is that
+reads pause too; an input-only guard needs one upstream in gpui-mcp.
 
 - **More tools**: runner (run a collection or folder), import and export.
 - **Resources**: requests, collections and environments addressed by id, so an agent can read
@@ -736,8 +760,6 @@ running, the `ui_*` tools do nothing.
 - **Secrets never leave the engine.** Tools return `{{token}}`, not the token. Execution
   resolves secrets inside the engine, and response output redacts any secret value it finds
   echoed back.
-- **Approvals.** With the GUI running, `ask` will show an approval prompt in the app over a
-  local socket; headless, `ask` stays a refusal. An agent can never approve its own call.
 - **Audit viewer.** The rail's Audit log button will read `audit.log`.
 
 The GUI and `reqflux mcp` coordinate through the files themselves: atomic writes and
@@ -952,10 +974,10 @@ agent ── stdio (MCP) ──> reqflux mcp ──┬── reqflux_engine     
   handshake and operations such as reading the element tree, focusing, typing, pressing keys
   and clicking. There is no second process; `gpui-mcp-server` is upstream's own client and
   ReqFlux does not ship it.
-- UI tools are named `ui_*` and are outside the MCP policy (see "Configuration and policy"): a
-  click on Send executes a request just as `request_execute` does, so an agent driving the
-  window is not limited by `[mcp]`. Policing them (tree reads as `read`, input as `execute`)
-  belongs with in-app approvals.
+- UI tools are named `ui_*` and go through the MCP policy (see "Configuration and policy"):
+  reads are class `read`, input is class `execute`, because a click on Send executes a request
+  just as `request_execute` does. While an approval is pending the bridge is down (see
+  "Approvals").
 - With several ReqFlux windows or processes, `ui_list_targets` lists them and `ui_select_target`
   chooses one; a single target is selected automatically.
 - Screenshots need native window capture, which on Linux only works for X11 windows. They are

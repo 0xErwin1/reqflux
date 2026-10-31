@@ -43,7 +43,8 @@ and the GPUI native dependencies (Wayland, X11, xkbcommon, Vulkan, fontconfig, f
 ## Configuration
 
 Your settings live in `~/.config/reqflux/config.toml`, not in any workspace. Agents connected to
-`reqflux mcp` can only read until you allow more there:
+`reqflux mcp` can read; anything else asks you in the running window (Allow once, Allow for
+this session, Deny) and is refused with no window open. Allow more there:
 
 ```toml
 theme = "system"

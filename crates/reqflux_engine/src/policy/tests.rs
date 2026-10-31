@@ -69,8 +69,8 @@ fn ask_refuses_naming_the_class_the_file_and_the_key() {
     assert_eq!(
         message,
         "request_execute is an execute tool and execute is \"ask\" in \
-         /home/u/.config/reqflux/config.toml ([mcp] execute); in-app approvals do not exist \
-         yet, so ask refuses"
+         /home/u/.config/reqflux/config.toml ([mcp] execute); ask needs an approval in the \
+         ReqFlux window"
     );
 }
 
