@@ -417,8 +417,9 @@ fn a_recorded_response_masks_secrets_in_headers_reason_and_text_body() {
     assert_eq!(
         recorded.headers,
         vec![
-            ("set-cookie".to_owned(), MASK.to_owned()),
-            ("Set-Cookie".to_owned(), MASK.to_owned()),
+            // A cookie is stored as received, with only a secret value inside it masked.
+            ("set-cookie".to_owned(), format!("sid={MASK}; Path=/")),
+            ("Set-Cookie".to_owned(), "theme=dark".to_owned()),
             ("x-echo".to_owned(), format!("key {MASK}")),
             ("content-type".to_owned(), "text/plain".to_owned()),
         ]
@@ -447,11 +448,8 @@ fn a_recorded_response_without_secrets_is_unchanged() {
         ],
         "{\"ok\":true} €".as_bytes(),
     );
-    let mut expected = RecordedResponse::from_response(&response);
-    // Cookie values are credentials: always masked whole.
-    if let Some((_, value)) = expected.headers.get_mut(1) {
-        *value = MASK.to_owned();
-    }
+    // A cookie without a secret in it is stored as received, like every other header.
+    let expected = RecordedResponse::from_response(&response);
     assert_eq!(
         RecordedResponse::from_response_masked(&response, &secret_masker()),
         expected

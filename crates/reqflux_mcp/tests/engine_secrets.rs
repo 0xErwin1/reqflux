@@ -401,6 +401,10 @@ fn history_get_masks_a_response_body_and_headers_with_the_secrets_in_scope() {
     assert!(!text.contains("resp-cookie"), "{text}");
     assert_eq!(got["response"]["body"], format!("{{\"key\":\"{MASK}\"}}"));
     assert_eq!(got["response"]["headers"][0][1], format!("got {MASK}"));
+    assert_eq!(
+        got["response"]["headers"][1][1],
+        format!("sid={MASK}; Path=/")
+    );
     assert_eq!(got["response"]["headers"][2][1], "application/json");
 }
 

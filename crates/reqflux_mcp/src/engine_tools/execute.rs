@@ -38,7 +38,7 @@ fn output(executed: &Executed, masker: &Masker) -> Value {
     let headers: Vec<(String, String)> = response
         .headers
         .iter()
-        .map(|(name, value)| (name.clone(), masker.mask(value)))
+        .map(|(name, value)| masker.header_for_agent(name, value))
         .collect();
     let (body, body_bytes, truncated) = match std::str::from_utf8(&response.body) {
         Ok(text) => {

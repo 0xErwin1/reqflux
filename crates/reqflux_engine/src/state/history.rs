@@ -130,7 +130,7 @@ impl RecordedResponse {
     /// The record of `response` with its secrets masked by `masker`, the send's
     /// [`crate::Masker`], so a secret the server echoes back never reaches history in
     /// clear: every header goes through [`crate::Masker::header`] (a credential header such
-    /// as `Set-Cookie` masked whole), and the reason and a UTF-8 text body through
+    /// as `Authorization` masked whole; a `Set-Cookie` is kept as received apart from secret values), and the reason and a UTF-8 text body through
     /// [`crate::Masker::mask`]. A body that is not UTF-8 is stored as received, since the
     /// masker works on text. `size` stays the size received.
     #[must_use]

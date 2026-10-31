@@ -488,6 +488,7 @@ fn mock_server(runtime: &tokio::runtime::Runtime, secret: &str) -> MockServer {
             .respond_with(
                 ResponseTemplate::new(201)
                     .insert_header("x-echo", format!("got {secret}").as_str())
+                    .insert_header("set-cookie", "session=live-sess-41; Path=/; HttpOnly")
                     .set_body_string(format!("{{\"token\":\"{secret}\"}}")),
             )
             .mount(&server)
@@ -547,6 +548,14 @@ fn request_execute_returns_the_response_with_secrets_masked_and_records_nothing(
         .unwrap()
         .clone();
     assert_eq!(echo[1], format!("got {MASK}"));
+    let cookie = result["headers"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|pair| pair[0] == "set-cookie")
+        .unwrap()
+        .clone();
+    assert_eq!(cookie[1], format!("session={MASK}; Path=/; HttpOnly"));
 
     let history = ok(engine_tools::history_list(
         &mut state,

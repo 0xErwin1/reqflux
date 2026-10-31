@@ -291,8 +291,10 @@ masking is available as `Execution::masker()` for any text a front end stores, s
 error of a failed send. A very short secret masks every occurrence of its text, erring on
 the side of hiding. The window records a response through the same masker
 (`RecordedResponse::from_response_masked`), so a secret the server echoes back is stored
-masked: header values (credential headers such as `Set-Cookie` masked whole), the reason
-phrase and a UTF-8 text body. A body that is not UTF-8 is stored as received, since the
+masked: header values (`Authorization`, `Proxy-Authorization` and `Cookie` masked whole),
+the reason phrase and a UTF-8 text body. A `Set-Cookie` is stored as received, apart from a
+secret value inside it, as Postman keeps cookies: it is the user's own data in per-user state,
+so a session cookie sits in the state file in clear. A body that is not UTF-8 is stored as received, since the
 masker works on text. `PreparedRequest`'s `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back
@@ -637,7 +639,8 @@ executed response's headers, body and error text go through the send's masker. H
 (the recorded URL, headers, bodies and error text) is masked again with every secret of the
 workspace now (`Engine::workspace_masker`: the secret variables of the globals, every
 collection and every environment, and the literal auth credentials), credential header values
-(`Set-Cookie` included) whole; when the keyring cannot be read, `history_get` leaves out the
+whole, and a `Set-Cookie` with its cookie value masked but its name and attributes shown
+(`Masker::header_for_agent`; `request_execute` output does the same); when the keyring cannot be read, `history_get` leaves out the
 response body and header values and says why. A load or parse error names the file, line,
 column and the parser's message, never the source line, which can hold a literal secret; this
 holds for `reqflux run` and the window too.
@@ -747,8 +750,8 @@ shows its title and readable text (tags stripped, scripts and styles dropped) an
 anything to render a page. An image over 20 MB or HTML over 5 MB is too large to preview. The
 Cookies sub-tab (`response-tab-cookies`) parses every `Set-Cookie` header into name, value and
 attributes (`response-cookie-<n>`), raw with a warning mark when it does not parse; nothing is
-stored, since the cookie jar comes later. History stores `Set-Cookie` values masked whole
-(see "History").
+stored, since the cookie jar comes later. History keeps `Set-Cookie` headers as received apart
+from secret values; MCP output masks their cookie values (see "History").
 
 The rail's History button (`rail-history`) swaps the sidebar tree for the History panel
 (`history-row-<n>`, newest first, `METHOD path · status · time ago` or `failed`; the 200

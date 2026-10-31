@@ -9,8 +9,11 @@
 //! and JSON-string-escaped. A header name that contains a secret value of two or more
 //! characters is replaced by [`MASK`] whole; shorter secrets never touch names, so a
 //! one-character secret cannot mangle `Content-Type`. The values of `Authorization`,
-//! `Proxy-Authorization`, `Cookie` and `Set-Cookie` are always masked whole, keeping an auth scheme word, since a script can transform a secret (base64, for
-//! example) beyond what text matching finds. A [`Masker`] applies the same replacement to
+//! `Proxy-Authorization` and `Cookie` are always masked whole, keeping an auth scheme word,
+//! since a script can transform a secret (base64, for example) beyond what text matching
+//! finds. A response's `Set-Cookie` is the user's own data and is recorded as received, with
+//! only secret values masked; [`Masker::header_for_agent`] also masks its cookie value,
+//! keeping the name and attributes, for output an agent reads. A [`Masker`] applies the same replacement to
 //! any other text, such as the error of a failed send. Text replacement masks a secret also where something
 //! else produced the same characters, so a very short secret value can mask more than it
 //! produced; that is the safe side and there is no length floor. Only an empty value is
@@ -141,10 +144,39 @@ impl Masker {
     pub fn header(&self, name: &str, value: &str) -> (String, String) {
         (header_name(name, self), header_value(name, value, self))
     }
+
+    /// [`Masker::header`] for output an agent reads: a `Set-Cookie` value also has its cookie
+    /// value masked, keeping the cookie name and attributes, since a session cookie is a
+    /// credential the agent has no reason to hold.
+    #[must_use]
+    pub fn header_for_agent(&self, name: &str, value: &str) -> (String, String) {
+        if name.eq_ignore_ascii_case("set-cookie") {
+            (header_name(name, self), self.set_cookie(value))
+        } else {
+            self.header(name, value)
+        }
+    }
+
+    /// `value`, a `Set-Cookie` value, with the cookie value replaced by [`MASK`] and the name
+    /// and attributes masked by text.
+    fn set_cookie(&self, value: &str) -> String {
+        let (pair, attributes) = match value.split_once(';') {
+            Some((pair, attributes)) => (pair, Some(attributes)),
+            None => (value, None),
+        };
+        let pair = match pair.split_once('=') {
+            Some((cookie, _)) => format!("{}={MASK}", self.mask(cookie)),
+            None => MASK.to_owned(),
+        };
+        match attributes {
+            Some(attributes) => format!("{pair};{}", self.mask(attributes)),
+            None => pair,
+        }
+    }
 }
 
 /// Whether the header `name` carries a credential as its whole value: `Authorization`,
-/// `Proxy-Authorization`, `Cookie` or `Set-Cookie`, in any case.
+/// `Proxy-Authorization` or `Cookie`, in any case.
 #[must_use]
 pub fn is_credential_header(name: &str) -> bool {
     CREDENTIAL_HEADERS
@@ -180,12 +212,7 @@ fn json_escaped(value: &str) -> String {
 }
 
 /// Headers whose whole value is a credential.
-const CREDENTIAL_HEADERS: [&str; 4] = [
-    "authorization",
-    "proxy-authorization",
-    "cookie",
-    "set-cookie",
-];
+const CREDENTIAL_HEADERS: [&str; 3] = ["authorization", "proxy-authorization", "cookie"];
 
 /// The recorded value of the header `name`: a credential header masked whole, keeping the
 /// auth scheme word of `Authorization` and `Proxy-Authorization`; any other masked by text.
@@ -193,7 +220,7 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
     if !is_credential_header(name) {
         return masker.mask(value);
     }
-    let cookie = name.eq_ignore_ascii_case("cookie") || name.eq_ignore_ascii_case("set-cookie");
+    let cookie = name.eq_ignore_ascii_case("cookie");
     let scheme = (!cookie)
         .then(|| value.trim_start().split_once(' '))
         .flatten()

@@ -60,7 +60,7 @@ impl Masking {
     fn headers(&self, headers: &[(String, String)]) -> Vec<(String, String)> {
         headers
             .iter()
-            .map(|(name, value)| self.masker.header(name, value))
+            .map(|(name, value)| self.masker.header_for_agent(name, value))
             .collect()
     }
 }
