@@ -7,30 +7,100 @@
 #[cfg(test)]
 mod tests;
 
+use std::path::PathBuf;
 use std::str::FromStr as _;
 use std::time::Duration;
 
 use gpui_mcp_protocol::{
     BridgeResult, InputCommand, MouseButton, Operation, Point, PointerCommand, PointerScrollDelta,
-    Rect, Role, UiNode, UiTree,
+    ProcessId, Rect, Role, UiNode, UiTree,
 };
 use schemars::JsonSchema;
 use serde::Deserialize;
 use thiserror::Error;
 
-use crate::bridge::{BridgeClient, BridgeSession, CallError, SessionError, TargetId};
+use crate::bridge::{BridgeClient, BridgeSession, CallError, SessionError, TargetId, pid_is_alive};
+
+/// The refusal of a `ui_*` tool while the window's bridge is down for an approval, or while
+/// this server waits for its own (mcp-approvals S5).
+pub const PAUSED: &str =
+    "an approval is pending in the window; ui tools are paused until it is answered";
 
 /// The session one MCP server drives: the bridge target choice lives here.
 #[derive(Debug)]
 pub struct ServerState {
     session: BridgeSession,
+    /// Where windows advertise their approval listener; `None` without approvals.
+    approval_dir: Option<PathBuf>,
 }
 
 impl ServerState {
     /// A state that looks for `app_id` targets through `session`.
     #[must_use]
     pub fn new(session: BridgeSession) -> Self {
-        Self { session }
+        Self {
+            session,
+            approval_dir: None,
+        }
+    }
+
+    /// The same state, telling a bridge paused for an approval from a window that is gone by
+    /// the approval listeners advertised in `dir`.
+    #[must_use]
+    pub fn with_approval_dir(mut self, dir: Option<PathBuf>) -> Self {
+        self.approval_dir = dir;
+        self
+    }
+
+    /// The id of the selected target, once one is chosen.
+    #[must_use]
+    pub fn selected_target(&self) -> Option<String> {
+        self.session.selected().map(ToString::to_string)
+    }
+
+    /// The id of the target a policed call drives, for its approval: the selected one, or
+    /// the only live one, which is selected then as the call itself would.
+    pub(crate) async fn policy_target(&mut self) -> Option<String> {
+        if self.session.selected().is_none()
+            && let Err(error) = self.session.list_targets().await
+        {
+            log::debug!(target: "reqflux_mcp", "could not list the targets: {error}");
+        }
+        self.selected_target()
+    }
+
+    /// A client for the session's target. A window shuts its bridge down while an approval
+    /// is pending (mcp-approvals L5): a target that is gone, or none at all, while that
+    /// window's approval listener is up is refused with [`PAUSED`].
+    async fn client(&mut self) -> Result<BridgeClient, ToolError> {
+        match self.session.client().await {
+            Ok(client) => Ok(client),
+            Err(SessionError::SelectedTargetGone(_)) if self.approval_pending() => {
+                Err(ToolError::Refused(PAUSED.to_owned()))
+            }
+            Err(SessionError::NoTarget { .. })
+                if self
+                    .approval_dir
+                    .as_deref()
+                    .and_then(reqflux_engine::approvals::find_window)
+                    .is_some() =>
+            {
+                Err(ToolError::Refused(PAUSED.to_owned()))
+            }
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    /// Whether the selected target's process still listens for approvals: its bridge is
+    /// down for one, not gone with the window.
+    fn approval_pending(&self) -> bool {
+        let (Some(dir), Some(pid)) = (self.approval_dir.as_deref(), self.session.selected_pid())
+        else {
+            return false;
+        };
+        ProcessId::new(pid).is_some_and(pid_is_alive)
+            && reqflux_engine::approvals::descriptor_path(dir, pid).is_file()
+            && reqflux_engine::approvals::socket_path(dir, pid).exists()
     }
 }
 
@@ -201,7 +271,7 @@ pub async fn select_target(
 ///
 /// Returns a [`ToolError`] when no target is selected or the call fails.
 pub async fn ping(state: &mut ServerState) -> Result<String, ToolError> {
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     match client.call(Operation::Ping).await? {
         BridgeResult::Pong {
             app_id,
@@ -349,7 +419,7 @@ pub async fn click(state: &mut ServerState, args: ClickArgs) -> Result<String, T
     let node = lookup(&tree, &args.id)?;
     let center = bounds(node, &args.id)?.center();
 
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     for click_count in 1..=count {
         for command in [
             PointerCommand::MouseDown {
@@ -379,7 +449,7 @@ pub async fn click(state: &mut ServerState, args: ClickArgs) -> Result<String, T
 ///
 /// Returns a [`ToolError`] with the bridge's message when it refuses.
 pub async fn type_text(state: &mut ServerState, args: TextArgs) -> Result<String, ToolError> {
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     expect_ack(
         client
             .call(Operation::Input {
@@ -398,7 +468,7 @@ pub async fn type_text(state: &mut ServerState, args: TextArgs) -> Result<String
 ///
 /// Returns a [`ToolError`] when no target is selected or the call fails.
 pub async fn key(state: &mut ServerState, args: KeyArgs) -> Result<String, ToolError> {
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     expect_ack(
         client
             .call(Operation::Input {
@@ -419,7 +489,7 @@ pub async fn key(state: &mut ServerState, args: KeyArgs) -> Result<String, ToolE
 ///
 /// Returns a [`ToolError`] when no target is selected or the call fails.
 pub async fn focus(state: &mut ServerState, args: IdArgs) -> Result<String, ToolError> {
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     expect_ack(
         client.call(Operation::Focus { node_id: args.id }).await?,
         "ack",
@@ -448,7 +518,7 @@ pub async fn scroll(state: &mut ServerState, args: ScrollArgs) -> Result<String,
             ));
         }
     };
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     expect_ack(
         client
             .call(Operation::PointerInput {
@@ -561,7 +631,7 @@ fn element_summary(node: &UiNode) -> serde_json::Value {
 
 /// Fetch the latest tree from the selected target.
 async fn fetch_tree(state: &mut ServerState) -> Result<UiTree, ToolError> {
-    let client = state.session.client().await?;
+    let client = state.client().await?;
     match client.call(Operation::GetTree).await? {
         BridgeResult::Tree(tree) => Ok(tree),
         _ => Err(ToolError::UnexpectedResult("a tree")),

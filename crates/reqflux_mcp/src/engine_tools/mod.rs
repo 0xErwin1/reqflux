@@ -40,7 +40,7 @@ pub use environments::{
 };
 pub use execute::request_execute;
 pub use history::{history_get, history_list};
-pub use policy::{PolicyPaths, TOOL_CLASSES, tool_class};
+pub use policy::{PolicyPaths, TOOL_CLASSES, UI_TOOL_CLASSES, tool_class, ui_tool_class};
 pub use request::{request_get, request_update};
 pub use tree::{
     collection_create, folder_create, item_delete, item_duplicate, item_move, item_rename,
@@ -120,6 +120,11 @@ impl EngineState {
     pub fn with_approvals(mut self, approvals: Approvals) -> Self {
         self.approvals = approvals;
         self
+    }
+
+    /// Where and how this state asks for approvals.
+    pub(crate) fn approvals(&self) -> &Approvals {
+        &self.approvals
     }
 
     /// Opens the startup workspace: `flag` when given, else `cwd` when it holds a

@@ -7,7 +7,9 @@
 //! later call of the same class and workspace run without asking until this process exits.
 
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use reqflux_core::model::{Item, Workspace};
@@ -27,6 +29,9 @@ pub struct Approvals {
     /// The (class, workspace id) pairs allowed for this session.
     session: HashSet<(ToolClass, Option<String>)>,
     next_id: u64,
+    /// How many asks of this server a window has not answered yet, shared with the `ui_*`
+    /// input tools so they refuse while one is outstanding (mcp-approvals S5).
+    outstanding: Arc<AtomicUsize>,
 }
 
 impl Approvals {
@@ -52,7 +57,18 @@ impl Approvals {
             limit,
             session: HashSet::new(),
             next_id: 1,
+            outstanding: Arc::new(AtomicUsize::new(0)),
         }
+    }
+
+    /// The runtime dir windows advertise in, when approvals are asked at all.
+    pub(crate) fn dir(&self) -> Option<&Path> {
+        self.dir.as_deref()
+    }
+
+    /// The count of this server's asks no window has answered yet.
+    pub(crate) fn outstanding(&self) -> Arc<AtomicUsize> {
+        Arc::clone(&self.outstanding)
     }
 
     /// Whether `ask` is asked at all; when not, it refuses as the policy says.
@@ -85,7 +101,11 @@ impl Approvals {
             method: ask.method,
             url: ask.url,
         };
-        match approvals::ask(&window.socket, &request, self.limit) {
+        let answer = {
+            let _asking = Outstanding::start(&self.outstanding);
+            approvals::ask(&window.socket, &request, self.limit)
+        };
+        match answer {
             Ok(ApprovalDecision::AllowOnce) => Outcome::AllowedOnce,
             Ok(ApprovalDecision::AllowSession) => {
                 self.session.insert(key);
@@ -101,6 +121,22 @@ impl Approvals {
                 Outcome::NoAnswer(self.limit)
             }
         }
+    }
+}
+
+/// One outstanding ask, counted until it is dropped.
+struct Outstanding<'a>(&'a AtomicUsize);
+
+impl<'a> Outstanding<'a> {
+    fn start(count: &'a AtomicUsize) -> Self {
+        count.fetch_add(1, Ordering::SeqCst);
+        Self(count)
+    }
+}
+
+impl Drop for Outstanding<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 

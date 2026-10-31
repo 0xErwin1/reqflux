@@ -1,5 +1,10 @@
 //! One MCP session's choice of bridge target: automatic with a single live
 //! app, explicit with several, and never a silent switch to another app.
+//!
+//! A window reinstalls its bridge with a new instance id and token after an approval
+//! (mcp-approvals L5), so the selected target's id changes while the window stays. When the
+//! selected id is gone, the session follows the only live target of the same process that
+//! was not already running beside it: another window of that process is never a successor.
 
 use std::path::PathBuf;
 
@@ -7,7 +12,7 @@ use gpui_mcp_protocol::AppId;
 use thiserror::Error;
 
 use super::client::BridgeClient;
-use super::descriptor::{TargetId, TargetSummary};
+use super::descriptor::{TargetId, TargetSummary, ValidatedTarget};
 use super::discover::{DiscoveryError, discover};
 
 /// Why a session could not pick a target to talk to.
@@ -44,6 +49,10 @@ pub struct BridgeSession {
     endpoint_dir: PathBuf,
     app_id: AppId,
     selected: Option<TargetId>,
+    /// The process of the selected target, to follow its window across bridge reinstalls.
+    selected_pid: Option<u32>,
+    /// The other targets of that process last seen live beside it; never its successor.
+    siblings: Vec<TargetId>,
 }
 
 impl BridgeSession {
@@ -55,7 +64,29 @@ impl BridgeSession {
             endpoint_dir,
             app_id,
             selected: None,
+            selected_pid: None,
+            siblings: Vec::new(),
         }
+    }
+
+    /// The process of the selected target, once one is chosen.
+    #[must_use]
+    pub fn selected_pid(&self) -> Option<u32> {
+        self.selected_pid
+    }
+
+    /// Selects `target`, one of the live `targets`.
+    fn select(&mut self, target: &ValidatedTarget, targets: &[ValidatedTarget]) {
+        let id = target.target_id();
+        let pid = target.descriptor().pid;
+        self.siblings = targets
+            .iter()
+            .filter(|other| other.descriptor().pid == pid)
+            .map(ValidatedTarget::target_id)
+            .filter(|other| *other != id)
+            .collect();
+        self.selected = Some(id);
+        self.selected_pid = Some(pid.get());
     }
 
     /// The target the session talks to, once one is chosen.
@@ -73,10 +104,10 @@ impl BridgeSession {
     /// be read.
     pub async fn list_targets(&mut self) -> Result<Vec<TargetSummary>, SessionError> {
         let targets = discover(&self.endpoint_dir, Some(&self.app_id)).await?;
-        if self.selected.is_none() && targets.len() == 1 {
-            self.selected = targets
-                .first()
-                .map(super::descriptor::ValidatedTarget::target_id);
+        if self.selected.is_none()
+            && let [only] = targets.as_slice()
+        {
+            self.select(only, &targets);
         }
         let selected = self.selected.clone();
         Ok(targets
@@ -98,18 +129,17 @@ impl BridgeSession {
     /// be read.
     pub async fn select_target(&mut self, target_id: &TargetId) -> Result<(), SessionError> {
         let targets = discover(&self.endpoint_dir, Some(&self.app_id)).await?;
-        if !targets
+        let target = targets
             .iter()
-            .any(|target| target.target_id() == *target_id)
-        {
-            return Err(SessionError::UnknownTarget(target_id.clone()));
-        }
-        self.selected = Some(target_id.clone());
+            .find(|target| target.target_id() == *target_id)
+            .ok_or_else(|| SessionError::UnknownTarget(target_id.clone()))?;
+        self.select(target, &targets);
         Ok(())
     }
 
     /// A client for the session's target, selecting the only live one when
-    /// nothing is selected.
+    /// nothing is selected, and following the selected window to its new bridge when the
+    /// only live target of the same process replaced it.
     ///
     /// # Errors
     ///
@@ -124,6 +154,7 @@ impl BridgeSession {
             Some(selected) => targets
                 .iter()
                 .position(|target| target.target_id() == *selected)
+                .or_else(|| self.successor(&targets))
                 .ok_or_else(|| SessionError::SelectedTargetGone(selected.clone()))?,
             None => match targets.len() {
                 0 => {
@@ -141,12 +172,25 @@ impl BridgeSession {
             },
         };
         let target = targets
-            .into_iter()
-            .nth(index)
+            .get(index)
+            .cloned()
             .ok_or_else(|| SessionError::NoTarget {
                 app_id: self.app_id.as_str().to_owned(),
             })?;
-        self.selected = Some(target.target_id());
+        self.select(&target, &targets);
         Ok(BridgeClient::new(target))
+    }
+
+    /// The index of the only live target of the selected process that was not live beside
+    /// it, when there is exactly one: the same window's reinstalled bridge.
+    fn successor(&self, targets: &[ValidatedTarget]) -> Option<usize> {
+        let pid = self.selected_pid?;
+        let mut same = targets.iter().enumerate().filter(|(_, target)| {
+            target.descriptor().pid.get() == pid && !self.siblings.contains(&target.target_id())
+        });
+        match (same.next(), same.next()) {
+            (Some((index, _)), None) => Some(index),
+            _ => None,
+        }
     }
 }

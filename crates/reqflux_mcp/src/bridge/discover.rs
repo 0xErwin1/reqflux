@@ -108,7 +108,7 @@ pub async fn discover(
 ///
 /// Linux answers from `/proc`; elsewhere every pid counts as alive and the
 /// connection probe filters dead descriptors.
-fn pid_is_alive(pid: ProcessId) -> bool {
+pub(crate) fn pid_is_alive(pid: ProcessId) -> bool {
     #[cfg(target_os = "linux")]
     {
         Path::new("/proc").join(pid.get().to_string()).exists()

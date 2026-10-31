@@ -18,5 +18,6 @@ pub use descriptor::{
     DescriptorError, InvalidTargetId, MAX_DESCRIPTOR_BYTES, TargetId, TargetSummary,
     ValidatedTarget, read_and_validate,
 };
+pub(crate) use discover::pid_is_alive;
 pub use discover::{DiscoveryError, MAX_DISCOVERY_CANDIDATES, default_endpoint_dir, discover};
 pub use session::{BridgeSession, SessionError};

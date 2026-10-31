@@ -5,7 +5,12 @@
 //! The user's config file is read again before each call, so an edit applies without a
 //! restart; one that does not load leaves the defaults, and every refusal says so. The
 //! workspace overrides come from `[mcp.workspaces."<id>"]` and the open workspace's manifest
-//! as last loaded. The `ui_*` tools are outside the policy.
+//! as last loaded.
+//!
+//! The `ui_*` tools that read the window or drive it are policed too (mcp-approvals S5): reads
+//! of the tree are `read`, input is `execute`. `hosts` and `environments` do not apply to
+//! them: the window sends what it sends. `ui_list_targets`, `ui_select_target` and `ui_ping`
+//! stay outside the policy.
 //!
 //! A class whose rule is `ask` is asked in the running window (mcp-approvals S2); its audit
 //! line records the approval in its reason (S6).
@@ -72,6 +77,29 @@ pub const TOOL_CLASSES: [(&str, ToolClass); 22] = [
     ("environment_delete", ToolClass::Destructive),
     ("variable_delete", ToolClass::Destructive),
 ];
+
+/// The class of every policed `ui_*` tool (mcp-approvals S5).
+pub const UI_TOOL_CLASSES: [(&str, ToolClass); 10] = [
+    ("ui_tree", ToolClass::Read),
+    ("ui_find", ToolClass::Read),
+    ("ui_element", ToolClass::Read),
+    ("ui_element_bounds", ToolClass::Read),
+    ("ui_wait_for_element", ToolClass::Read),
+    ("ui_click", ToolClass::Execute),
+    ("ui_type", ToolClass::Execute),
+    ("ui_key", ToolClass::Execute),
+    ("ui_focus", ToolClass::Execute),
+    ("ui_scroll", ToolClass::Execute),
+];
+
+/// The class of the `ui_*` tool `tool`; `None` for one outside the policy.
+#[must_use]
+pub fn ui_tool_class(tool: &str) -> Option<ToolClass> {
+    UI_TOOL_CLASSES
+        .iter()
+        .find(|(name, _)| *name == tool)
+        .map(|(_, class)| *class)
+}
 
 /// The class of the engine tool `tool`; `None` for a tool outside the policy.
 #[must_use]
@@ -241,6 +269,36 @@ impl EngineState {
         targets: &[&str],
     ) -> Result<(), ToolError> {
         let call = self.call(tool, scope, targets);
+        self.authorize_call(&call, scope)
+    }
+
+    /// Checks the `ui_*` tool `tool` against the open workspace's policy, or the user's
+    /// alone with none open, and audits it unless it is a read (mcp-approvals S5). `target` is
+    /// the bridge target the call drives; it is what the window is asked about, never an
+    /// argument. A tool outside the policy passes.
+    ///
+    /// # Errors
+    ///
+    /// The policy refused the call, or its audit line could not be written.
+    pub(crate) fn authorize_ui(
+        &mut self,
+        tool: &'static str,
+        target: Option<&str>,
+    ) -> Result<(), ToolError> {
+        let Some(class) = ui_tool_class(tool) else {
+            return Ok(());
+        };
+        let call = Call {
+            class,
+            targets: target.into_iter().map(str::to_owned).collect(),
+            ..self.call(tool, Scope::Open, &[])
+        };
+        self.authorize_call(&call, Scope::Open)
+    }
+
+    /// Checks `call` and audits its decision; `ask` goes to the window.
+    fn authorize_call(&mut self, call: &Call, scope: Scope) -> Result<(), ToolError> {
+        let tool = call.tool;
         // The manifest may have changed on disk since the last call: reload it first, so a
         // `[mcp]` restriction added there refuses before anything is written.
         if scope == Scope::Open && self.engine.is_some() {
@@ -254,7 +312,7 @@ impl EngineState {
         match policy.check_class(tool, call.class) {
             Ok(()) => call.audit(&self.paths, Decision::Allowed, None, None),
             Err(refusal) if policy.rule(call.class) == Rule::Ask => {
-                match self.approve(&call, &refusal, None) {
+                match self.approve(call, &refusal, None) {
                     Ok(reason) => call.audit(&self.paths, Decision::Allowed, Some(reason), None),
                     Err(text) => Err(call.refuse(&self.paths, &text, None)),
                 }
@@ -322,5 +380,16 @@ mod tests {
         assert_eq!(names.len(), TOOL_CLASSES.len());
         assert_eq!(tool_class("request_execute"), Some(ToolClass::Execute));
         assert_eq!(tool_class("ui_click"), None);
+    }
+
+    #[test]
+    fn ui_reads_are_read_input_is_execute_and_target_tools_are_unpoliced() {
+        assert_eq!(ui_tool_class("ui_tree"), Some(ToolClass::Read));
+        assert_eq!(ui_tool_class("ui_wait_for_element"), Some(ToolClass::Read));
+        assert_eq!(ui_tool_class("ui_type"), Some(ToolClass::Execute));
+        assert_eq!(ui_tool_class("ui_scroll"), Some(ToolClass::Execute));
+        for tool in ["ui_list_targets", "ui_select_target", "ui_ping"] {
+            assert_eq!(ui_tool_class(tool), None, "{tool}");
+        }
     }
 }

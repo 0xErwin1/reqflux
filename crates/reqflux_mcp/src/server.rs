@@ -7,9 +7,11 @@
 //! error result with the bridge's message, never a panic.
 
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex as StdMutex, PoisonError};
 
 use gpui_mcp_protocol::AppId;
+use reqflux_engine::policy::ToolClass;
 use rmcp::{
     ServerHandler, ServiceExt as _,
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -19,12 +21,12 @@ use rmcp::{
     tool, tool_handler, tool_router,
     transport::stdio,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 use crate::bridge::BridgeSession;
-use crate::engine_tools::EngineState;
+use crate::engine_tools::{EngineState, ui_tool_class};
 use crate::tools::{
-    self, ClickArgs, FindArgs, IdArgs, KeyArgs, ScrollArgs, SelectTargetArgs, ServerState,
+    self, ClickArgs, FindArgs, IdArgs, KeyArgs, PAUSED, ScrollArgs, SelectTargetArgs, ServerState,
     TextArgs, ToolError, WaitArgs,
 };
 
@@ -35,7 +37,40 @@ use crate::tools::{
 pub struct ReqFluxMcp {
     state: Arc<Mutex<ServerState>>,
     pub(crate) engine: Arc<StdMutex<EngineState>>,
+    /// How many of this server's approval asks are unanswered: input tools refuse meanwhile.
+    outstanding: Arc<AtomicUsize>,
     tool_router: ToolRouter<Self>,
+}
+
+impl ReqFluxMcp {
+    /// The bridge session once the policy allows the policed `ui_*` tool `tool` (mcp-approvals
+    /// S5), or the refusal. An input tool refuses without asking while
+    /// one of this server's asks is unanswered, so an agent cannot reach the dialog it waits
+    /// on.
+    async fn ui_state(&self, tool: &'static str) -> Result<MutexGuard<'_, ServerState>, ToolError> {
+        let Some(class) = ui_tool_class(tool) else {
+            return Ok(self.state.lock().await);
+        };
+        if class == ToolClass::Execute && self.outstanding.load(Ordering::SeqCst) > 0 {
+            return Err(ToolError::Refused(PAUSED.to_owned()));
+        }
+        let target = self.state.lock().await.policy_target().await;
+        let engine = Arc::clone(&self.engine);
+        let checked = tokio::task::spawn_blocking(move || {
+            engine
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .authorize_ui(tool, target.as_deref())
+        })
+        .await
+        .unwrap_or_else(|error| {
+            Err(ToolError::Engine(format!(
+                "the policy check of {tool} did not finish: {error}"
+            )))
+        });
+        checked?;
+        Ok(self.state.lock().await)
+    }
 }
 
 #[tool_router]
@@ -43,8 +78,11 @@ impl ReqFluxMcp {
     /// A server that drives the app through `session` and works on `engine`'s workspace.
     #[must_use]
     pub fn new(session: BridgeSession, engine: EngineState) -> Self {
+        let state =
+            ServerState::new(session).with_approval_dir(engine.approvals().dir().map(Into::into));
         Self {
-            state: Arc::new(Mutex::new(ServerState::new(session))),
+            state: Arc::new(Mutex::new(state)),
+            outstanding: engine.approvals().outstanding(),
             engine: Arc::new(StdMutex::new(engine)),
             tool_router: Self::tool_router() + Self::engine_tool_router(),
         }
@@ -85,7 +123,10 @@ impl ReqFluxMcp {
         description = "Return the latest semantic element tree with its generation, ids, labels, roles, bounds and state"
     )]
     async fn ui_tree(&self) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_tree").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::tree(&mut state).await)
     }
 
@@ -97,7 +138,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<FindArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_find").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::find(&mut state, args).await)
     }
 
@@ -109,7 +153,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<IdArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_element").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::element(&mut state, args).await)
     }
 
@@ -121,7 +168,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<IdArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_element_bounds").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::element_bounds(&mut state, args).await)
     }
 
@@ -133,7 +183,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<WaitArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_wait_for_element").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::wait_for_element(&mut state, args).await)
     }
 
@@ -145,7 +198,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<ClickArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_click").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::click(&mut state, args).await)
     }
 
@@ -157,7 +213,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<TextArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_type").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::type_text(&mut state, args).await)
     }
 
@@ -169,7 +228,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<KeyArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_key").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::key(&mut state, args).await)
     }
 
@@ -181,7 +243,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<IdArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_focus").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::focus(&mut state, args).await)
     }
 
@@ -193,7 +258,10 @@ impl ReqFluxMcp {
         &self,
         Parameters(args): Parameters<ScrollArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        let mut state = self.state.lock().await;
+        let mut state = match self.ui_state("ui_scroll").await {
+            Ok(state) => state,
+            Err(error) => return into_result(Err(error)),
+        };
         into_result(tools::scroll(&mut state, args).await)
     }
 }
@@ -214,8 +282,9 @@ impl ServerHandler for ReqFluxMcp {
                  history_*) work on files directly: call workspace_info first; when no \
                  workspace is open, call workspace_open or workspace_create. Auth \
                  secrets show masked; send the mask back to keep a stored value. The \
-                 engine tools follow the user's MCP policy: by default only reads run, \
-                 and a refusal names the setting that refused it."
+                 engine tools and the ui_* reads (read) and input (execute) follow the \
+                 user's MCP policy: by default only reads run, and a refusal names the \
+                 setting that refused it."
                     .to_owned(),
             )
     }
@@ -248,6 +317,9 @@ pub async fn serve(
     running.waiting().await?;
     Ok(())
 }
+
+#[cfg(all(test, unix))]
+mod ui_policy_tests;
 
 #[cfg(test)]
 mod tests {
@@ -339,11 +411,11 @@ mod tests {
         assert_eq!(listed, expected);
     }
 
-    /// The `ui_*` tools are outside the MCP policy: they run under the default one, which
+    /// The target tools are outside the MCP policy: they run under the default one, which
     /// refuses every engine write and execute, and write no audit line.
     #[allow(clippy::unwrap_used)]
     #[tokio::test]
-    async fn the_ui_tools_run_under_the_default_policy_unaudited() {
+    async fn the_target_tools_run_under_the_default_policy_unaudited() {
         let dir = tempfile::TempDir::new().unwrap();
         let audit = dir.path().join("state/reqflux/audit.log");
         let server = ReqFluxMcp::new(
