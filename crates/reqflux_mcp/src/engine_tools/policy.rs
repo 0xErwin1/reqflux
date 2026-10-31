@@ -312,7 +312,7 @@ impl EngineState {
         match policy.check_class(tool, call.class) {
             Ok(()) => call.audit(&self.paths, Decision::Allowed, None, None),
             Err(refusal) if policy.rule(call.class) == Rule::Ask => {
-                match self.approve(call, &refusal, None) {
+                match self.approve(call, &refusal, None, None) {
                     Ok(reason) => call.audit(&self.paths, Decision::Allowed, Some(reason), None),
                     Err(text) => Err(call.refuse(&self.paths, &text, None)),
                 }
@@ -322,15 +322,23 @@ impl EngineState {
     }
 
     /// Asks the window to approve `call`, which the policy refused with `refusal` because
-    /// its rule is `ask`; `sent` is the method and masked URL of an execute. Returns the
-    /// audit reason of the approval, or the refusal text.
+    /// its rule is `ask`; `sent` is the method and masked URL of an execute and
+    /// `environment` the environment it names. Returns the audit reason of the approval, or
+    /// the refusal text.
     pub(super) fn approve(
         &mut self,
         call: &Call,
         refusal: &Refusal,
         sent: Option<(&str, &str)>,
+        environment: Option<&str>,
     ) -> Result<&'static str, String> {
         let workspace = self.engine.as_ref().map(Engine::workspace);
+        let in_workspace = workspace.filter(|_| call.workspace_id.is_some());
+        let policy = ask_rule(
+            &self.paths,
+            in_workspace.map(|w| w.manifest.name.as_str()),
+            call.class,
+        );
         let ask = Ask {
             tool: call.tool,
             class: call.class,
@@ -345,6 +353,9 @@ impl EngineState {
                 .collect(),
             method: sent.map(|(method, _)| method.to_owned()),
             url: sent.map(|(_, url)| url.to_owned()),
+            item_ids: call.targets.clone(),
+            environment: environment.map(str::to_owned),
+            policy,
         };
         self.approvals.approve(ask).result(&refusal.to_string())
     }
@@ -362,9 +373,28 @@ impl EngineState {
             .map_err(|refusal| ToolError::Refused(refusal.to_string()))
     }
 
+    /// Names the MCP client in every later approval request (mcp-approvals S3).
+    pub fn set_client(&mut self, client: Option<String>) {
+        self.approvals.set_client(client);
+    }
+
     /// The ids of a `global`, `collection:<id>` or `environment:<id>` scope argument.
     pub(super) fn scope_target(scope: &str) -> &str {
         scope.split_once(':').map_or("", |(_, id)| id)
+    }
+}
+
+/// The rule that made `class` ask, as the window shows it: `<class> → approval` when the
+/// user's `[mcp]` (or its default) asks, `<class> in <workspace> → approval` when only the
+/// open workspace's override or manifest raised it to `ask`.
+fn ask_rule(paths: &PolicyPaths, workspace: Option<&str>, class: ToolClass) -> String {
+    let loaded = config::load_with_warnings(&paths.config)
+        .map(|(loaded, _)| loaded)
+        .unwrap_or_default();
+    let global = Policy::evaluate(&loaded.mcp, &paths.config, None).rule(class);
+    match workspace {
+        Some(name) if global != Rule::Ask => format!("{} in {name} → approval", class.name()),
+        _ => format!("{} → approval", class.name()),
     }
 }
 

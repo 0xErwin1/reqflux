@@ -7,7 +7,7 @@ use reqflux_engine::{Inspection, Span};
 
 use crate::tokens::variable_wash;
 
-pub(super) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyElement> {
+pub(crate) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyElement> {
     let colors = bolt::colors(cx);
     let tint = bolt::brand(cx).accent_tint;
     inspection

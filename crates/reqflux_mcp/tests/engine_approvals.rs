@@ -218,6 +218,43 @@ async fn allow_once_runs_the_execute_and_audits_approved_once() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn the_request_names_the_client_the_ids_the_environment_and_the_policy() {
+    let server = mock_server().await;
+    let url = format!("{}/ping", server.uri());
+    let mut fixture = tokio::task::block_in_place(|| fixture(&url, Duration::from_secs(5)));
+    let (window, _listener) = window(&fixture, Some(ApprovalDecision::Deny));
+
+    // Without a client name the request carries none: the window says "an agent".
+    tokio::task::block_in_place(|| err(execute(&mut fixture)));
+    fixture.state.set_client(Some("Claude Code".to_owned()));
+    tokio::task::block_in_place(|| {
+        err(engine_tools::request_execute(
+            &mut fixture.state,
+            ExecuteArgs {
+                id: fixture.request.clone(),
+                environment: Some("prod-argument".to_owned()),
+                vars: None,
+            },
+        ))
+    });
+    tokio::task::block_in_place(|| err(create_folder(&mut fixture)));
+
+    let seen = window.seen.lock().unwrap().clone();
+    assert_eq!(seen.len(), 3);
+    let (bare, named, folder) = (&seen[0], &seen[1], &seen[2]);
+    assert_eq!(bare.client, None);
+    assert_eq!(bare.item_ids, vec![fixture.request.clone()]);
+    assert_eq!(bare.environment, None);
+    assert_eq!(bare.policy.as_deref(), Some("execute → approval"));
+    assert!(bare.requested_at.is_some_and(|at| at > 0));
+    assert_eq!(named.client.as_deref(), Some("Claude Code"));
+    assert_eq!(named.environment.as_deref(), Some("prod-argument"));
+    assert_eq!(folder.client.as_deref(), Some("Claude Code"));
+    assert_eq!(folder.item_ids, vec![fixture.collection.clone()]);
+    assert_eq!(folder.policy.as_deref(), Some("write → approval"));
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn deny_refuses_the_execute_sends_nothing_and_audits_it() {
     let server = mock_server().await;
     let url = format!("{}/ping", server.uri());

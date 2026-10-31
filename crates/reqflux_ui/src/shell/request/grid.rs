@@ -430,7 +430,7 @@ fn enable_box(
         }))
 }
 
-pub(super) fn secret_badge(colors: &Colors) -> Div {
+pub(crate) fn secret_badge(colors: &Colors) -> Div {
     div()
         .relative()
         .flex()

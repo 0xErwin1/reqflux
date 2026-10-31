@@ -11,7 +11,7 @@ use gpui::{
     Context, Hsla, InteractiveElement, IntoElement, ParentElement, Styled, div, prelude::*,
 };
 
-use super::approvals_view::pending_label;
+use super::approvals_model::pending_label;
 use super::last_request::{LastKind, summary};
 use super::request::StatusClass;
 use super::{Shell, region};
@@ -65,7 +65,7 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement
                 .child(
                     StatusChip::new("status-approvals", pending)
                         .icon(IconName::Bot)
-                        .icon_color(colors.warning),
+                        .icon_color(brand.accent_tint),
                 )
         }))
         .children(shell.config_warning.as_ref().map(|warning| {

@@ -47,6 +47,7 @@ fn request(id: u64) -> ApprovalRequest {
         targets: vec!["Ping".to_owned()],
         method: Some("GET".to_owned()),
         url: Some("https://example.test/?key=*****".to_owned()),
+        ..ApprovalRequest::default()
     }
 }
 
@@ -183,6 +184,42 @@ fn the_wire_format_is_versioned_snake_case_json() {
         serde_json::to_string(&bare).unwrap(),
         r#"{"version":1,"id":1,"tool":"request_execute","class":"execute","workspace":null,"targets":["Ping"]}"#
     );
+}
+
+#[test]
+fn the_optional_fields_round_trip_and_a_request_without_them_still_parses() {
+    let full = ApprovalRequest {
+        client: Some("Claude Code".to_owned()),
+        item_ids: vec!["01J00000000000000000000013".to_owned()],
+        environment: Some("prod".to_owned()),
+        policy: Some("execute → approval".to_owned()),
+        requested_at: Some(1_700_000_000_000),
+        ..request(7)
+    };
+    let text = serde_json::to_string(&full).unwrap();
+    for field in [
+        r#""client":"Claude Code""#,
+        r#""item_ids":["01J00000000000000000000013"]"#,
+        r#""environment":"prod""#,
+        r#""policy":"execute → approval""#,
+        r#""requested_at":1700000000000"#,
+    ] {
+        assert!(text.contains(field), "{text}");
+    }
+    assert_eq!(
+        serde_json::from_str::<ApprovalRequest>(&text).unwrap(),
+        full
+    );
+    // A version 1 request from before these fields parses with none of them.
+    let old: ApprovalRequest = serde_json::from_str(
+        r#"{"version":1,"id":1,"tool":"item_rename","class":"write","workspace":null,"targets":["Ping"]}"#,
+    )
+    .unwrap();
+    assert_eq!(old.client, None);
+    assert!(old.item_ids.is_empty());
+    assert_eq!(old.environment, None);
+    assert_eq!(old.policy, None);
+    assert_eq!(old.requested_at, None);
 }
 
 #[test]

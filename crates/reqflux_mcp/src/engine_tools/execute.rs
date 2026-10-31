@@ -146,7 +146,7 @@ pub fn request_execute(state: &mut EngineState, args: ExecuteArgs) -> Result<Str
             let sent = preview
                 .as_ref()
                 .map(|(method, url)| (method.as_str(), url.as_str()));
-            match state.approve(&call, &refusal, sent) {
+            match state.approve(&call, &refusal, sent, args.environment.as_deref()) {
                 Ok(reason) => Some(reason),
                 Err(text) => return Err(call.refuse(&paths, &text, sent)),
             }

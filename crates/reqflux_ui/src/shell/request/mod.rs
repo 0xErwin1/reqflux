@@ -17,9 +17,10 @@ mod pane_model;
 mod scripts;
 mod send;
 mod settings;
-mod spans;
+pub(super) mod spans;
 pub(super) mod sub_tabs;
 
+pub(crate) use grid::secret_badge;
 pub(crate) use line::accent_keycap;
 #[cfg(test)]
 pub(crate) use model::count;

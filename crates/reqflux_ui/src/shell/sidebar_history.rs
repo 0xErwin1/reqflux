@@ -26,8 +26,8 @@ pub(crate) enum Panel {
     History,
     /// The Variables panel.
     Variables,
-    /// The MCP approvals view, which the shell shows in place of the sidebar and document
-    /// islands.
+    /// The MCP approvals view, which the shell shows in the document island while the
+    /// sidebar keeps the collection tree.
     Approvals,
 }
 

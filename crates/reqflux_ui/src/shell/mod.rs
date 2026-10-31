@@ -4,6 +4,8 @@
 mod action_strip;
 mod active_environment;
 mod approvals;
+mod approvals_detail;
+mod approvals_model;
 mod approvals_view;
 mod auth_edit;
 mod body_edit;
@@ -270,6 +272,7 @@ impl Shell {
 
     /// Opens the request `id` in a tab, inspecting it when it was not open.
     fn open_document(&mut self, id: &str, cx: &mut Context<Self>) {
+        self.leave_approvals(cx);
         self.close_orphan();
         self.documents.open(id);
         self.drop_stale_url_edit(id);
@@ -381,6 +384,7 @@ impl Shell {
     /// Activates the tab of the request `id`. A cell field that is open commits first,
     /// like clicking another cell does, so switching tabs keeps what was typed.
     fn activate_document(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.leave_approvals(cx);
         self.close_orphan();
         self.documents.activate(id);
         self.auth_menu_open = false;
@@ -426,12 +430,11 @@ impl Render for Shell {
             .pl(chrome::ISLAND_GAP)
             .pr(chrome::ISLAND_GAP)
             .child(rail::render(panel, pending, cx));
+        let middle = middle.child(self.sidebar.clone());
         let middle = if panel == Panel::Approvals {
             middle.child(approvals_view::render(self, cx))
         } else {
-            middle
-                .child(self.sidebar.clone())
-                .child(document::render(self, window, cx))
+            middle.child(document::render(self, window, cx))
         };
         root.size_full()
             .flex()
@@ -477,6 +480,8 @@ fn text_region(id: &'static str) -> Stateful<Div> {
 
 #[cfg(test)]
 mod active_environment_tests;
+#[cfg(test)]
+mod approvals_detail_tests;
 #[cfg(test)]
 mod approvals_tests;
 #[cfg(test)]

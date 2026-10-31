@@ -8,6 +8,11 @@
 //! never waits for the UI. The same timer withdraws a request whose client is gone (it
 //! timed out or exited).
 //!
+//! Each request's detail (the request it targets, what it will send, the variables it uses) is
+//! read from the window's own workspace when it arrives and again on Refresh
+//! ([`super::approvals_model::Detail`]); nothing but names, ids and masked values crosses
+//! the socket.
+//!
 //! While any request is pending the window's UI automation bridge is suspended (see
 //! [`crate::ui_automation::guard_input`]): the bridge offers no way to refuse its input or to
 //! mark the events it injects, so the only way an agent cannot click `Allow` on its own call
@@ -25,6 +30,7 @@ use reqflux_engine::approvals::{
 };
 
 use super::Shell;
+use super::approvals_model::Detail;
 use super::history::now_millis;
 use super::sidebar_history::Panel;
 
@@ -38,7 +44,7 @@ const TICK_POLLS: u32 = 10;
 pub(crate) const APPROVALS_CONTEXT: &str = "Approvals";
 
 /// The placeholder of the reason field.
-const REASON_PLACEHOLDER: &str = "Reason for a denial (optional, sent to the agent)";
+pub(crate) const REASON_PLACEHOLDER: &str = "Reason (sent back to the agent when denying)";
 
 actions!(
     approvals,
@@ -49,13 +55,17 @@ actions!(
         SelectPreviousApproval,
         /// Allows the selected call once.
         AllowSelectedApproval,
+        /// Allows the selected call and later ones of its class and workspace for this
+        /// session.
+        AllowSelectedApprovalForSession,
         /// Denies the selected call.
         DenySelectedApproval,
     ]
 );
 
-/// Binds the keys of the approvals list: `j`/`k` and the arrows move, `a` allows once and
-/// `r` denies. The reason field is outside the list, so its typing never reaches them.
+/// Binds the keys of the approvals list: `j`/`k` and the arrows move, `a` allows once, `s`
+/// allows for this session and `d` denies. The reason field is outside the list, so its
+/// typing never reaches them.
 pub(crate) fn bind_keys(cx: &mut App) {
     let context = Some(APPROVALS_CONTEXT);
     cx.bind_keys([
@@ -64,7 +74,8 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("k", SelectPreviousApproval, context),
         KeyBinding::new("up", SelectPreviousApproval, context),
         KeyBinding::new("a", AllowSelectedApproval, context),
-        KeyBinding::new("r", DenySelectedApproval, context),
+        KeyBinding::new("s", AllowSelectedApprovalForSession, context),
+        KeyBinding::new("d", DenySelectedApproval, context),
     ]);
 }
 
@@ -76,6 +87,8 @@ pub(crate) struct Pending {
     pub(crate) request: ApprovalRequest,
     /// When the request arrived, in milliseconds since the Unix epoch.
     pub(crate) arrived_at: i64,
+    /// What the window read about the call from its own workspace.
+    pub(crate) detail: Detail,
     reply: Reply,
 }
 
@@ -236,10 +249,12 @@ impl Shell {
         for (request, reply) in arrived {
             let key = self.approvals.next_key;
             self.approvals.next_key = key.wrapping_add(1);
+            let detail = Detail::read(&request, &self.workspace);
             self.approvals.queue.push_back(Pending {
                 key,
                 request,
                 arrived_at: now_millis(),
+                detail,
                 reply,
             });
             changed = true;
@@ -276,11 +291,29 @@ impl Shell {
     /// Opens the MCP approvals view and gives its list the keyboard.
     pub(super) fn open_approvals(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.approvals.reason.is_none() {
-            let reason = cx.new(|cx| InputState::new(window, cx).placeholder(REASON_PLACEHOLDER));
+            let reason = cx.new(|cx| InputState::new(window, cx));
             self.approvals.reason = Some(reason);
         }
         self.show_panel(Panel::Approvals, cx);
         self.approvals.focus.focus(window, cx);
+    }
+
+    /// Reads every pending call's detail again from the workspace as it is now, as the view's
+    /// Refresh does. Nothing is answered.
+    pub(super) fn refresh_approvals(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        for pending in &mut self.approvals.queue {
+            pending.detail = Detail::read(&pending.request, &self.workspace);
+        }
+        self.approvals.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// Leaves the MCP approvals view for the collection tree, when it is open: a request
+    /// opened or activated takes the document island back.
+    pub(super) fn leave_approvals(&mut self, cx: &mut Context<Self>) {
+        if self.approvals_open(cx) {
+            self.show_panel(Panel::Collections, cx);
+        }
     }
 
     /// Selects the pending request at `index` and gives the list the keyboard.

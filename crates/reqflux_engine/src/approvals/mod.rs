@@ -11,13 +11,21 @@
 //! [`ApprovalRequest`] line and the window answers one [`ApprovalResponse`] line with the
 //! same `id`. Both carry [`PROTOCOL_VERSION`]. A request names the tool, its class, the
 //! workspace, the targets by name and, for `request_execute`, the method and the masked URL;
-//! never an argument value. [`ask`] is the client's half of one exchange.
+//! never an argument value. Optional fields added within version 1 name the MCP client, the
+//! ids the call targets, the environment, the policy rule that asked and when; an end that
+//! does not know them leaves them out. [`ask`] is the client's half of one exchange.
+//!
+//! [`preview`] is what the window shows of a call from its own copy of the workspace: the
+//! request prepared without its scripts, its secrets masked, and the variables it uses.
 //!
 //! Platforms: the listener uses `interprocess` local sockets, a Unix-domain socket on Unix.
 //! On Linux and the BSDs (macOS included) a connection from another user is refused by its
 //! peer credentials. Elsewhere [`serve`] reports [`ApprovalError::Unsupported`].
 
 mod client;
+mod preview;
+#[cfg(test)]
+mod preview_tests;
 mod serve;
 #[cfg(all(test, unix))]
 mod tests;
@@ -28,6 +36,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 pub use client::{AskError, ask};
+pub use preview::{
+    CallPreview, UsedVariable, VariableSource, breadcrumb, find_environment, preview,
+};
 pub use serve::{ApprovalHandler, ApprovalListener, Reply, serve, serve_in};
 
 /// The protocol version both ends speak.
@@ -46,7 +57,7 @@ pub struct WorkspaceRef {
 }
 
 /// One approval request, from `reqflux mcp` to the window.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApprovalRequest {
     /// [`PROTOCOL_VERSION`].
     pub version: u32,
@@ -66,6 +77,22 @@ pub struct ApprovalRequest {
     /// The URL of a `request_execute`, its secrets masked.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
+    /// The name the MCP client gave in its `initialize` (`clientInfo`), such as
+    /// `Claude Code`; absent when it gave none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub client: Option<String>,
+    /// The ids of the entities the call targets, in the order of `targets`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub item_ids: Vec<String>,
+    /// The environment the call uses, by name or slug as the agent passed it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub environment: Option<String>,
+    /// The policy rule that asked, such as `execute → approval`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy: Option<String>,
+    /// When the client asked, in milliseconds since the Unix epoch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requested_at: Option<i64>,
 }
 
 /// The window's answer to one request.

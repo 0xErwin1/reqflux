@@ -30,6 +30,8 @@ pub struct Approvals {
     /// The (class, workspace id) pairs allowed for this session.
     session: HashSet<(ToolClass, Option<String>)>,
     next_id: u64,
+    /// The name the MCP client gave in its `initialize`, sent with every request.
+    client: Option<String>,
     /// How many asks of this server a window has not answered yet, shared with the `ui_*`
     /// input tools so they refuse while one is outstanding (mcp-approvals S5).
     outstanding: Arc<AtomicUsize>,
@@ -58,6 +60,7 @@ impl Approvals {
             limit,
             session: HashSet::new(),
             next_id: 1,
+            client: None,
             outstanding: Arc::new(AtomicUsize::new(0)),
         }
     }
@@ -70,6 +73,17 @@ impl Approvals {
     /// The count of this server's asks no window has answered yet.
     pub(crate) fn outstanding(&self) -> Arc<AtomicUsize> {
         Arc::clone(&self.outstanding)
+    }
+
+    /// Names the MCP client in every later request: its `clientInfo` title, else its name.
+    pub fn set_client(&mut self, client: Option<String>) {
+        self.client = client.filter(|name| !name.trim().is_empty());
+    }
+
+    /// The MCP client's name, when it gave one.
+    #[cfg(test)]
+    pub(crate) fn client(&self) -> Option<&str> {
+        self.client.as_deref()
     }
 
     /// Whether `ask` is asked at all; when not, it refuses as the policy says.
@@ -101,6 +115,11 @@ impl Approvals {
             targets: ask.targets,
             method: ask.method,
             url: ask.url,
+            client: self.client.clone(),
+            item_ids: ask.item_ids,
+            environment: ask.environment,
+            policy: Some(ask.policy),
+            requested_at: Some(now_millis()),
         };
         let answer = {
             let _asking = Outstanding::start(&self.outstanding);
@@ -152,6 +171,21 @@ pub(crate) struct Ask {
     pub(crate) targets: Vec<String>,
     pub(crate) method: Option<String>,
     pub(crate) url: Option<String>,
+    /// The ids of the targets, so the window can read them from its own workspace.
+    pub(crate) item_ids: Vec<String>,
+    /// The environment the call uses, as the agent named it.
+    pub(crate) environment: Option<String>,
+    /// The rule that asked, such as `execute → approval`.
+    pub(crate) policy: String,
+}
+
+/// Now, in milliseconds since the Unix epoch; 0 before it.
+fn now_millis() -> i64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| {
+            i64::try_from(since.as_millis()).unwrap_or(i64::MAX)
+        })
 }
 
 /// The longest denial reason a refusal carries, in characters.

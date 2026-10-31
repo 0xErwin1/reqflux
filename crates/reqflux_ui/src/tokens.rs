@@ -102,14 +102,73 @@ pub(crate) const PALETTE_WIDTH: Pixels = px(560.0);
 /// The tallest the command palette's list grows before it scrolls.
 pub(crate) const PALETTE_LIST_HEIGHT: Pixels = px(432.0);
 
-/// The width of the label column of the MCP approvals detail.
-pub(crate) const APPROVAL_LABEL: Pixels = px(96.0);
+/// The height of the MCP approvals header: the title, the subtitle and Refresh.
+pub(crate) const APPROVALS_HEADER: Pixels = px(44.0);
 
-/// The height of a button of the MCP approvals detail.
-pub(crate) const APPROVAL_BUTTON: Pixels = px(32.0);
+/// The text size of the MCP approvals title.
+pub(crate) const APPROVALS_TITLE_TEXT: Pixels = px(14.0);
 
-/// The height of the reason field of the MCP approvals detail.
-pub(crate) const APPROVAL_REASON: Pixels = px(36.0);
+/// The width of the pending list of the MCP approvals view.
+pub(crate) const APPROVALS_LIST_WIDTH: Pixels = px(330.0);
+
+/// The text size of a pending row's request line and of its client and wait.
+pub(crate) const APPROVALS_ROW_REQUEST_TEXT: Pixels = px(12.0);
+pub(crate) const APPROVALS_ROW_META_TEXT: Pixels = px(11.5);
+
+/// The height of the selected call's title bar and the text size of its tool name.
+pub(crate) const APPROVAL_TITLE_BAR: Pixels = px(52.0);
+pub(crate) const APPROVAL_TITLE_TEXT: Pixels = px(15.0);
+
+/// The text size of the call id at the right of the title bar.
+pub(crate) const APPROVAL_CALL_ID_TEXT: Pixels = px(11.5);
+
+/// The height and text size of a class or state badge.
+pub(crate) const APPROVAL_BADGE: Pixels = px(20.0);
+pub(crate) const APPROVAL_BADGE_TEXT: Pixels = px(11.0);
+
+/// The opacity of the wash behind a class or state badge, in its color.
+pub(crate) const APPROVAL_BADGE_WASH: f32 = 0.133;
+
+/// The opacity of the wash behind the selected row and the Pending badge, in the tint.
+pub(crate) const APPROVAL_SELECTED_WASH: f32 = 0.12;
+pub(crate) const APPROVAL_PENDING_WASH: f32 = 0.14;
+
+/// The gap between the fields of the detail grid, and between a field's name and value.
+pub(crate) const APPROVAL_FIELD_GAP: Pixels = px(18.0);
+pub(crate) const APPROVAL_FIELD_NAME_GAP: Pixels = px(5.0);
+
+/// The text size of a field name of the detail grid.
+pub(crate) const APPROVAL_FIELD_NAME_TEXT: Pixels = px(11.0);
+
+/// The gap between the sections of the detail, and between a section's caption and box.
+pub(crate) const APPROVAL_SECTION_GAP: Pixels = px(20.0);
+pub(crate) const APPROVAL_CAPTION_GAP: Pixels = px(10.0);
+
+/// The text size of the uppercase section captions.
+pub(crate) const APPROVAL_CAPTION_TEXT: Pixels = px(10.0);
+
+/// The line height of "What it will send", and the gap between its URL, headers and body.
+pub(crate) const APPROVAL_SEND_LINE: Pixels = px(22.75);
+pub(crate) const APPROVAL_SEND_GAP: Pixels = px(8.0);
+
+/// The variables table: its variable and source columns, row height and header text size.
+pub(crate) const APPROVAL_VARIABLE_COLUMN: Pixels = px(160.0);
+pub(crate) const APPROVAL_SOURCE_COLUMN: Pixels = px(120.0);
+pub(crate) const APPROVAL_TABLE_ROW: Pixels = px(30.0);
+pub(crate) const APPROVAL_TABLE_HEADER_TEXT: Pixels = px(11.5);
+pub(crate) const APPROVAL_TABLE_TEXT: Pixels = px(12.5);
+
+/// The padding of the detail's content and action bar.
+pub(crate) const APPROVAL_PADDING: Pixels = px(20.0);
+pub(crate) const APPROVAL_ACTIONS_PADDING_Y: Pixels = px(14.0);
+
+/// The opacity of the danger wash behind Deny.
+pub(crate) const APPROVAL_DENY_WASH: f32 = 0.14;
+
+/// The keycap on Allow once: white over the accent.
+pub(crate) fn approval_keycap_on_accent() -> Hsla {
+    hex_alpha(0xFFFFFF, 0.14)
+}
 
 /// The width of the command search field at the center of the title bar.
 pub(crate) const COMMAND_SEARCH_WIDTH: Pixels = px(420.0);

@@ -1,11 +1,14 @@
 //! The document tab row: one tab per open request with its method label, name and close
 //! button. The active tab is the raised cut chip with strong text; the others are muted.
+//! While the MCP approvals view is open it adds the active `MCP approvals` tab,
+//! `doc-tab-approvals`, and no request tab is active; activating one leaves the view.
 
 use bolt::chamfer::Chamfer;
-use bolt::tokens::{chrome, cut, doc_tab, family, text};
+use bolt::tokens::{chrome, cut, doc_tab, family, icon, text};
 use bolt::{Icon, IconName};
 use gpui::{Context, Div, FontWeight, ParentElement, Role, Stateful, Styled, div, prelude::*};
 
+use super::approvals_view::TITLE;
 use super::documents::{Location, locate};
 use super::drafts::RequestDraft;
 use super::rows::part;
@@ -20,7 +23,12 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         .iter()
         .filter_map(|id| locate(&shell.roots, id).map(|location| (id.clone(), location)))
         .collect();
-    let active = shell.documents.active().map(str::to_owned);
+    let approvals = shell.approvals_open(cx);
+    let active = shell
+        .documents
+        .active()
+        .filter(|_| !approvals)
+        .map(str::to_owned);
 
     region("document-tabs")
         .flex_none()
@@ -37,6 +45,54 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
             let save_error = shell.save_errors.get(&id).map(String::as_str);
             tab(id, &location, is_active, drafted, save_error, cx)
         }))
+        .when(approvals, |row| row.child(approvals_tab(cx)))
+}
+
+/// The active `MCP approvals` tab: the Bot icon in the tint, the title and a close button,
+/// `doc-tab-approvals-close`, that goes back to the collection tree.
+fn approvals_tab(cx: &mut Context<Shell>) -> Stateful<Div> {
+    let colors = bolt::colors(cx);
+    let close = part("doc-tab-approvals-close".to_owned())
+        .role(Role::Button)
+        .aria_label("Close MCP approvals")
+        .flex_none()
+        .cursor_pointer()
+        .child(
+            Icon::new(IconName::CircleX)
+                .size(doc_tab::CLOSE_ICON)
+                .color(colors.muted),
+        )
+        .on_click(cx.listener(|this, _event, window, cx| {
+            cx.stop_propagation();
+            this.leave_approvals(cx);
+            this.restore_focus(window, cx);
+        }));
+    text_role::role(part("doc-tab-approvals".to_owned()), text::BODY, cx)
+        .role(Role::Tab)
+        .aria_label(TITLE)
+        .aria_selected(true)
+        .relative()
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(doc_tab::GAP)
+        .h(chrome::DOC_TAB)
+        .pl(doc_tab::PADDING_X)
+        .pr(doc_tab::PADDING_X)
+        .whitespace_nowrap()
+        .child(Chamfer::new(cut::CONTROL).fill(colors.raised))
+        .child(
+            Icon::new(IconName::Bot)
+                .size(icon::MD)
+                .color(bolt::brand(cx).accent_tint),
+        )
+        .child(
+            div()
+                .text_color(colors.strong)
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(TITLE),
+        )
+        .child(close)
 }
 
 /// The tab of the request `id`: element id `doc-tab-<id>`, label `<METHOD> <name>`, selected

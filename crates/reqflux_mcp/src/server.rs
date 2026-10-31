@@ -18,6 +18,7 @@ use rmcp::{
     model::{
         CallToolResult, ContentBlock, ErrorData, Implementation, ServerCapabilities, ServerConfig,
     },
+    service::{NotificationContext, RoleServer},
     tool, tool_handler, tool_router,
     transport::stdio,
 };
@@ -70,6 +71,20 @@ impl ReqFluxMcp {
         });
         checked?;
         Ok(self.state.lock().await)
+    }
+
+    /// Names `client`, the MCP client's `clientInfo`, in this server's approval requests: its
+    /// title when it gave one, else its name (mcp-approvals S3).
+    fn remember_client(&self, client: &Implementation) {
+        let name = client
+            .title
+            .clone()
+            .filter(|title| !title.trim().is_empty())
+            .unwrap_or_else(|| client.name.clone());
+        self.engine
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .set_client(Some(name));
     }
 }
 
@@ -288,6 +303,12 @@ impl ServerHandler for ReqFluxMcp {
                     .to_owned(),
             )
     }
+
+    async fn on_initialized(&self, context: NotificationContext<RoleServer>) {
+        if let Some(peer) = context.peer.peer_info() {
+            self.remember_client(&peer.client_info);
+        }
+    }
 }
 
 /// A tool result or an `isError` result carrying the failure's message (S8).
@@ -435,6 +456,26 @@ mod tests {
         let result = server.ui_list_targets().await.unwrap();
         assert_eq!(result.is_error, Some(false));
         assert!(!audit.exists());
+    }
+
+    #[test]
+    fn the_client_name_reaches_the_approval_requests() {
+        let server = server();
+        let mut client = Implementation::new("claude-code", "2.0.0");
+        server.remember_client(&client);
+        let named = |server: &ReqFluxMcp| {
+            server
+                .engine
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .approvals()
+                .client()
+                .map(str::to_owned)
+        };
+        assert_eq!(named(&server).as_deref(), Some("claude-code"));
+        client.title = Some("Claude Code".to_owned());
+        server.remember_client(&client);
+        assert_eq!(named(&server).as_deref(), Some("Claude Code"));
     }
 
     #[test]

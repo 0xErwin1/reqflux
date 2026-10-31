@@ -25,7 +25,7 @@ use crate::workspace_tests::demo_workspace;
 type Answer = JoinHandle<Result<ApprovalResponse, AskError>>;
 
 /// Starts the shell's approval listener in a temporary runtime dir, held for the test.
-fn listen(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> TempDir {
+pub(super) fn listen(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> TempDir {
     let runtime = match TempDir::new() {
         Ok(dir) => dir,
         Err(error) => panic!("runtime dir: {error}"),
@@ -43,7 +43,7 @@ fn listen(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> TempDir {
     runtime
 }
 
-fn socket(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> PathBuf {
+pub(super) fn socket(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> PathBuf {
     match cx.update(|_, cx| shell.read(cx).approvals.socket().map(Path::to_path_buf)) {
         Some(socket) => socket,
         None => panic!("the window does not listen"),
@@ -64,16 +64,17 @@ fn request(id: u64, tool: &str) -> ApprovalRequest {
         targets: vec!["Ping".to_owned(), "API".to_owned()],
         method: execute.then(|| "POST".to_owned()),
         url: execute.then(|| "https://example.test/?key=*****".to_owned()),
+        ..ApprovalRequest::default()
     }
 }
 
 /// Asks the window on its own thread, as `reqflux mcp` does, waiting up to `limit`.
-fn ask(socket: PathBuf, request: ApprovalRequest, limit: Duration) -> Answer {
+pub(super) fn ask(socket: PathBuf, request: ApprovalRequest, limit: Duration) -> Answer {
     thread::spawn(move || approvals::ask(&socket, &request, limit))
 }
 
 /// Runs the shell's poll until `done` holds, or fails after 10 s.
-fn wait_for(
+pub(super) fn wait_for(
     cx: &mut VisualTestContext,
     shell: &Entity<Shell>,
     what: &str,
@@ -91,12 +92,15 @@ fn wait_for(
     }
 }
 
-fn pending(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> usize {
+pub(super) fn pending(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> usize {
     cx.update(|_, cx| shell.read(cx).approvals.pending())
 }
 
 /// Waits for the client thread's answer while the shell keeps running.
-fn answer(cx: &mut VisualTestContext, client: Answer) -> Result<ApprovalResponse, AskError> {
+pub(super) fn answer(
+    cx: &mut VisualTestContext,
+    client: Answer,
+) -> Result<ApprovalResponse, AskError> {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !client.is_finished() {
         assert!(Instant::now() < deadline, "the client never got an answer");
@@ -110,7 +114,7 @@ fn answer(cx: &mut VisualTestContext, client: Answer) -> Result<ApprovalResponse
     }
 }
 
-fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
+pub(super) fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
     automation
         .snapshot()
         .nodes
@@ -119,7 +123,7 @@ fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
 }
 
 /// The decision the client got, if it got one.
-fn decision(cx: &mut VisualTestContext, client: Answer) -> Option<ApprovalDecision> {
+pub(super) fn decision(cx: &mut VisualTestContext, client: Answer) -> Option<ApprovalDecision> {
     answer(cx, client).ok().map(|response| response.decision)
 }
 
@@ -147,7 +151,7 @@ fn selected(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<u64> {
 }
 
 /// Asks the window and waits until it has `count` pending requests.
-fn arrive(
+pub(super) fn arrive(
     cx: &mut VisualTestContext,
     shell: &Entity<Shell>,
     request: ApprovalRequest,
@@ -253,25 +257,16 @@ fn the_rail_opens_the_view_with_the_list_and_the_detail(cx: &mut TestAppContext)
     );
     let row = label(&automation, "approvals-row-1").unwrap_or_default();
     assert!(row.contains("request_execute"), "{row}");
-    assert!(row.contains("Demo · waiting"), "{row}");
+    assert!(row.contains("an agent · waiting just now"), "{row}");
     for (id, text) in [
         ("approval-tool", "request_execute"),
-        ("approval-class", "execute"),
-        ("approval-workspace", "Demo"),
+        ("approval-class", "Execute"),
         ("approval-targets", "Ping, API"),
         ("approval-method", "POST"),
         ("approval-url", "https://example.test/?key=*****"),
     ] {
         assert_eq!(label(&automation, id).as_deref(), Some(text), "{id}");
     }
-    assert!(
-        label(&automation, "approval-requested-at").is_some_and(|text| text.ends_with("UTC")),
-        "requested at"
-    );
-    assert!(
-        label(&automation, "approval-waiting").is_some_and(|text| !text.is_empty()),
-        "waiting"
-    );
     for id in [
         "approval-reason",
         "approval-deny",
@@ -402,9 +397,9 @@ fn calls_list_longest_wait_first_and_keys_move_allow_and_deny(cx: &mut TestAppCo
     assert_eq!(decision(cx, second), Some(ApprovalDecision::AllowOnce));
     assert_eq!(selected(cx, &shell), Some(3), "answering selects the next");
 
-    // `r` typed in the reason field is text, not a denial.
+    // `d` typed in the reason field is text, not a denial.
     click(cx, "approval-reason");
-    cx.simulate_keystrokes("r");
+    cx.simulate_keystrokes("d");
     for _ in 0..3 {
         cx.executor().advance_clock(POLL);
         cx.run_until_parked();
@@ -412,7 +407,7 @@ fn calls_list_longest_wait_first_and_keys_move_allow_and_deny(cx: &mut TestAppCo
     assert_eq!(pending(cx, &shell), 2);
 
     click(cx, "approvals-row-1");
-    cx.simulate_keystrokes("r");
+    cx.simulate_keystrokes("d");
     assert_eq!(decision(cx, first), Some(ApprovalDecision::Deny));
     assert_eq!(selected(cx, &shell), Some(3));
     click(cx, "approval-allow");
