@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use reqflux_core::model::Id;
 pub use reqflux_core::model::{McpOverride, Rule};
 
 /// The palette mode the window starts in: `theme = "dark" | "light" | "system"`.
@@ -87,6 +88,19 @@ pub struct McpConfig {
     pub workspaces: BTreeMap<String, McpOverride>,
 }
 
+impl McpConfig {
+    /// The `[mcp.workspaces]` entry of the workspace `id`, with its key as written. A key
+    /// matches when it is the same id in any case; a key that is not an id matches nothing.
+    #[must_use]
+    pub fn workspace(&self, id: &str) -> Option<(&str, &McpOverride)> {
+        let id = id.parse::<Id>().ok()?;
+        self.workspaces
+            .iter()
+            .find(|(key, _)| key.parse::<Id>().is_ok_and(|key| key == id))
+            .map(|(key, level)| (key.as_str(), level))
+    }
+}
+
 /// Why the config file could not be located, read, parsed or written. Every variant past
 /// the first names the file.
 #[derive(Debug, thiserror::Error)]
@@ -150,6 +164,69 @@ pub fn load(path: &Path) -> Result<UserConfig, ConfigError> {
         path: path.to_owned(),
         location: crate::toml_error_location(&text, &error),
     })
+}
+
+/// Reads the config file at `path`, as [`load`] does, with a warning for each `[mcp]` key it
+/// does not know and each `[mcp.workspaces]` key that is not a workspace id. A warning names
+/// the key and the file; it does not change what the file means.
+pub fn load_with_warnings(path: &Path) -> Result<(UserConfig, Vec<String>), ConfigError> {
+    let Some(text) = read_text(path)? else {
+        return Ok((UserConfig::default(), Vec::new()));
+    };
+    let config: UserConfig = toml::from_str(&text).map_err(|error| ConfigError::Parse {
+        path: path.to_owned(),
+        location: crate::toml_error_location(&text, &error),
+    })?;
+    let mut warnings = Vec::new();
+    if let Ok(table) = toml::from_str::<toml::Table>(&text)
+        && let Some(mcp) = table.get("mcp").and_then(toml::Value::as_table)
+    {
+        warnings.extend(
+            mcp.keys()
+                .filter(|key| !MCP_KEYS.contains(&key.as_str()))
+                .map(|key| unknown_key(path, key, "[mcp]")),
+        );
+    }
+    for (key, level) in &config.mcp.workspaces {
+        let table = format!("[mcp.workspaces.\"{key}\"]");
+        if key.parse::<Id>().is_err() {
+            warnings.push(format!(
+                "{}: {table} is not a workspace id, so it applies to no workspace",
+                path.display()
+            ));
+        }
+        warnings.extend(override_warnings(level, path, &table));
+    }
+    Ok((config, warnings))
+}
+
+/// The keys `[mcp]` knows.
+const MCP_KEYS: [&str; 7] = [
+    "read",
+    "write",
+    "execute",
+    "destructive",
+    "hosts",
+    "environments",
+    "workspaces",
+];
+
+/// A warning for each key of `level`, the table `table` of the file `path`, that this build
+/// does not know.
+#[must_use]
+pub fn override_warnings(level: &McpOverride, path: &Path, table: &str) -> Vec<String> {
+    level
+        .unknown
+        .keys()
+        .map(|key| unknown_key(path, key, table))
+        .collect()
+}
+
+fn unknown_key(path: &Path, key: &str, table: &str) -> String {
+    format!(
+        "{}: unknown key `{key}` in {table}; it is ignored",
+        path.display()
+    )
 }
 
 /// Sets `theme` in the config file at `path`, creating the file and its directory when

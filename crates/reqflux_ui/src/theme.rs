@@ -20,7 +20,8 @@ pub(crate) const THEME_SETTING: &str = "theme";
 pub(crate) struct Startup {
     /// The palette mode to install.
     pub(crate) mode: PaletteMode,
-    /// Why the config file was not used, when it does not parse; the status bar shows it.
+    /// Why the config file was not used, when it does not parse, or its warnings (unknown
+    /// `[mcp]` keys); the status bar shows it.
     pub(crate) warning: Option<String>,
 }
 
@@ -45,6 +46,8 @@ pub(crate) fn theme_mode(mode: PaletteMode) -> ThemeMode {
 /// The mode to start in, from the config file at `config` (`None` when there is no config
 /// directory). A file without `theme` takes the app state's old setting and writes it to the
 /// file once; a file that does not parse gives the defaults and a warning, and is left alone.
+/// Unknown `[mcp]` keys and invalid `[mcp.workspaces]` keys are the warning too, beside the
+/// file's settings.
 pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startup {
     let defaults = Startup {
         mode: PaletteMode::default(),
@@ -53,7 +56,7 @@ pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startu
     let Some(path) = config else {
         return defaults;
     };
-    let loaded = match config::load(path) {
+    let (loaded, warnings) = match config::load_with_warnings(path) {
         Ok(loaded) => loaded,
         Err(error) => {
             log::warn!("{error}; using the defaults");
@@ -62,6 +65,13 @@ pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startu
                 ..defaults
             };
         }
+    };
+    for warning in &warnings {
+        log::warn!("{warning}");
+    }
+    let defaults = Startup {
+        warning: (!warnings.is_empty()).then(|| warnings.join("; ")),
+        ..defaults
     };
     if let Some(mode) = loaded.theme {
         return Startup {

@@ -649,3 +649,100 @@ async fn a_redirect_outside_hosts_is_refused_and_audited() {
     assert_eq!(lines[1]["method"], "GET");
     assert_eq!(lines[1]["url"], target.as_str());
 }
+
+fn open(fixture: &mut Fixture, root: &Path) -> Result<String, ToolError> {
+    engine_tools::workspace_open(
+        &mut fixture.state,
+        engine_tools::PathArgs {
+            path: root.display().to_string(),
+        },
+    )
+}
+
+#[test]
+fn workspace_open_honours_a_per_workspace_read_deny() {
+    let mut fixture = fixture("http://127.0.0.1:9/x", Some(common::ALLOW_ALL));
+    let other = fixture.root.with_file_name("other");
+    ok(engine_tools::workspace_create(
+        &mut fixture.state,
+        WorkspaceCreateArgs {
+            path: other.display().to_string(),
+            name: "Other".to_owned(),
+        },
+    ));
+    let key = fixture.workspace_id.to_ascii_lowercase();
+    common::write_config(
+        &fixture.paths,
+        &format!(
+            "{}[mcp.workspaces.\"{key}\"]\nread = \"deny\"\n",
+            common::ALLOW_ALL
+        ),
+    );
+    let root = fixture.root.clone();
+    let refused = err(open(&mut fixture, &root));
+    assert!(
+        refused.ends_with(&format!("([mcp.workspaces.\"{key}\"] read)")),
+        "{refused}"
+    );
+    assert!(!refused.contains("Demo"), "{refused}");
+    assert_eq!(
+        ok(engine_tools::workspace_info(&mut fixture.state))["name"],
+        "Other",
+        "the open workspace stays"
+    );
+
+    common::write_config(&fixture.paths, common::ALLOW_ALL);
+    let manifest = fixture.root.join("reqflux.toml");
+    let mut text = std::fs::read_to_string(&manifest).unwrap();
+    text.push_str("\n[mcp]\nread = \"deny\"\n");
+    std::fs::write(&manifest, text).unwrap();
+    let refused = err(open(&mut fixture, &root));
+    assert!(
+        refused.ends_with(&format!("{} ([mcp] read)", manifest.display())),
+        "{refused}"
+    );
+    assert_eq!(
+        ok(engine_tools::workspace_info(&mut fixture.state))["name"],
+        "Other"
+    );
+}
+
+#[test]
+fn an_unknown_mcp_key_warns() {
+    let mut fixture = fixture(
+        "http://127.0.0.1:9/x",
+        Some("[mcp]\nhost = [\"api.example.com\"]\n"),
+    );
+    let manifest = fixture.root.join("reqflux.toml");
+    let mut text = std::fs::read_to_string(&manifest).unwrap();
+    text.push_str("\n[mcp]\nexcute = \"deny\"\n");
+    std::fs::write(&manifest, text).unwrap();
+
+    let refused = err(create_collection(&mut fixture));
+    assert!(
+        refused.starts_with(&ask_refusal(
+            "collection_create",
+            "a",
+            "write",
+            &fixture.paths
+        )),
+        "the policy is unchanged: {refused}"
+    );
+    let config_warning = format!(
+        "warning: {}: unknown key `host` in [mcp]; it is ignored",
+        fixture.paths.config.display()
+    );
+    let manifest_warning = format!(
+        "warning: {}: unknown key `excute` in [mcp]; it is ignored",
+        manifest.display()
+    );
+    assert!(refused.contains(&config_warning), "{refused}");
+    assert!(refused.contains(&manifest_warning), "{refused}");
+    assert_eq!(
+        fixture.state.policy_warnings(),
+        vec![
+            config_warning.trim_start_matches("warning: ").to_owned(),
+            manifest_warning.trim_start_matches("warning: ").to_owned(),
+        ]
+    );
+}

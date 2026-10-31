@@ -143,11 +143,16 @@ impl Call {
     }
 }
 
-/// The policy for one call, from the config file as it is now and `engine`'s manifest.
+/// The policy for one call, from the config file as it is now and `engine`'s manifest, with
+/// the warnings of both in every refusal.
 pub(super) fn evaluate(paths: &PolicyPaths, engine: Option<&Engine>) -> Policy {
-    let (loaded, load_error) = match config::load(&paths.config) {
-        Ok(loaded) => (loaded, None),
-        Err(error) => (config::UserConfig::default(), Some(error.to_string())),
+    let (loaded, load_error, mut warnings) = match config::load_with_warnings(&paths.config) {
+        Ok((loaded, warnings)) => (loaded, None, warnings),
+        Err(error) => (
+            config::UserConfig::default(),
+            Some(error.to_string()),
+            Vec::new(),
+        ),
     };
     let id = engine.map(|engine| engine.workspace().manifest.id.to_string());
     let manifest_path = engine.map(|engine| engine.root().join("reqflux.toml"));
@@ -159,11 +164,38 @@ pub(super) fn evaluate(paths: &PolicyPaths, engine: Option<&Engine>) -> Policy {
         }),
         _ => None,
     };
-    let policy = Policy::evaluate(&loaded.mcp, &paths.config, scope);
+    if let Some(scope) = scope
+        && let Some(manifest) = scope.manifest
+    {
+        warnings.extend(config::override_warnings(
+            manifest,
+            scope.manifest_path,
+            "[mcp]",
+        ));
+    }
+    let policy = Policy::evaluate(&loaded.mcp, &paths.config, scope).with_warnings(&warnings);
     match load_error {
         Some(error) => policy.with_load_error(&error),
         None => policy,
     }
+}
+
+/// The warnings of the config file and of `engine`'s manifest `[mcp]`: unknown keys and
+/// `[mcp.workspaces]` keys that are not ids.
+pub(super) fn warnings(paths: &PolicyPaths, engine: Option<&Engine>) -> Vec<String> {
+    let mut warnings = config::load_with_warnings(&paths.config)
+        .map(|(_, warnings)| warnings)
+        .unwrap_or_default();
+    if let Some(engine) = engine
+        && let Some(manifest) = engine.workspace().manifest.mcp.as_ref()
+    {
+        warnings.extend(config::override_warnings(
+            manifest,
+            &engine.root().join("reqflux.toml"),
+            "[mcp]",
+        ));
+    }
+    warnings
 }
 
 impl EngineState {
@@ -217,6 +249,19 @@ impl EngineState {
             Ok(()) => call.audit(&self.paths, Decision::Allowed, None, None),
             Err(refusal) => Err(call.refuse(&self.paths, &refusal.to_string(), None)),
         }
+    }
+
+    /// Checks `tool`, a read, against `engine`, a workspace loaded but not open yet, so a
+    /// read deny in `[mcp.workspaces."<id>"]` or its manifest refuses before anything of it
+    /// is returned.
+    ///
+    /// # Errors
+    ///
+    /// The policy refused the read.
+    pub(super) fn authorize_read_of(&self, tool: &str, engine: &Engine) -> Result<(), ToolError> {
+        evaluate(&self.paths, Some(engine))
+            .check_class(tool, ToolClass::Read)
+            .map_err(|refusal| ToolError::Refused(refusal.to_string()))
     }
 
     /// The ids of a `global`, `collection:<id>` or `environment:<id>` scope argument.

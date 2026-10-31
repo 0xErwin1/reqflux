@@ -7,7 +7,9 @@
 //! rule of every level (`deny` > `ask` > `allow`), and a host or environment must be in every
 //! list given. Until in-app approvals exist, `ask` refuses. A refusal names the class or the
 //! host or environment, the rule or list that refused it and the file and table it comes
-//! from. Front ends that will ask the user (a future GUI approval) reuse the same evaluation.
+//! from, followed by any warning about the files it was read from. A
+//! `[mcp.workspaces]` key matches the workspace id in any case. Front ends that will ask the
+//! user (a future GUI approval) reuse the same evaluation.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -133,6 +135,7 @@ pub struct Policy {
     hosts: Vec<AllowList>,
     environments: Vec<AllowList>,
     load_error: Option<String>,
+    warnings: Vec<String>,
 }
 
 impl Policy {
@@ -169,13 +172,14 @@ impl Policy {
             hosts: Vec::new(),
             environments: Vec::new(),
             load_error: None,
+            warnings: Vec::new(),
         };
         policy.restrict_lists(config.hosts.as_ref(), config.environments.as_ref(), &global);
         if let Some(scope) = workspace {
-            if let Some(level) = config.workspaces.get(scope.id) {
+            if let Some((key, level)) = config.workspace(scope.id) {
                 let origin = Origin {
                     path: config_path.to_owned(),
-                    table: format!("[mcp.workspaces.\"{}\"]", scope.id),
+                    table: format!("[mcp.workspaces.\"{key}\"]"),
                 };
                 policy.restrict(level, &origin);
             }
@@ -195,6 +199,14 @@ impl Policy {
     #[must_use]
     pub fn with_load_error(mut self, error: &str) -> Self {
         self.load_error = Some(error.to_owned());
+        self
+    }
+
+    /// The same policy, with every refusal also naming `warnings` (unknown or invalid keys
+    /// in the files it was read from). They change no rule or list.
+    #[must_use]
+    pub fn with_warnings(mut self, warnings: &[String]) -> Self {
+        self.warnings.extend_from_slice(warnings);
         self
     }
 
@@ -330,12 +342,16 @@ impl Policy {
     }
 
     fn refusal(&self, message: String) -> Refusal {
-        let message = match &self.load_error {
+        let mut message = match &self.load_error {
             Some(error) => {
                 format!("{message}; the config file failed to load, so the defaults apply: {error}")
             }
             None => message,
         };
+        for warning in &self.warnings {
+            message.push_str("; warning: ");
+            message.push_str(warning);
+        }
         Refusal { message }
     }
 }

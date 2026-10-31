@@ -330,3 +330,31 @@ fn environment_lists_intersect_and_no_environment_is_always_allowed() {
             .is_ok()
     );
 }
+
+#[test]
+fn a_workspace_override_matches_its_id_in_any_case() {
+    let key = WORKSPACE_ID.to_ascii_lowercase();
+    let policy = scoped(
+        &format!("[mcp.workspaces.\"{key}\"]\nread = \"deny\"\n"),
+        None,
+    );
+    assert_eq!(policy.rule(ToolClass::Read), Rule::Deny);
+    let message = refusal(policy.check_class("request_get", ToolClass::Read));
+    assert!(
+        message.ends_with(&format!("([mcp.workspaces.\"{key}\"] read)")),
+        "{message}"
+    );
+}
+
+#[test]
+fn warnings_are_named_in_every_refusal_and_change_no_rule() {
+    let policy =
+        global("").with_warnings(&["/c: unknown key `host` in [mcp]; it is ignored".to_owned()]);
+    assert_eq!(policy.rule(ToolClass::Read), Rule::Allow);
+    assert_eq!(policy.rule(ToolClass::Write), Rule::Ask);
+    let message = refusal(policy.check_class("item_rename", ToolClass::Write));
+    assert!(
+        message.ends_with("; warning: /c: unknown key `host` in [mcp]; it is ignored"),
+        "{message}"
+    );
+}

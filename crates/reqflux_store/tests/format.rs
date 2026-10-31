@@ -134,3 +134,21 @@ fn a_parse_error_never_quotes_an_unknown_variant() {
         "the expected values stay: {shown}"
     );
 }
+
+#[test]
+fn a_parse_error_never_quotes_a_number() {
+    // A number of the wrong type: serde quotes integers and floats in backticks.
+    for (text, value) in [
+        ("follow_redirects = 4111111111111111\n", "4111111111111111"),
+        ("timeout_ms = 4111.1111\n", "4111.1111"),
+    ] {
+        let error = match toml::from_str::<reqflux_core::model::Settings>(text) {
+            Ok(_) => panic!("a number of the wrong type must not parse"),
+            Err(error) => error,
+        };
+        let shown = reqflux_store::toml_error_location(text, &error);
+        assert!(!shown.contains(value), "{shown}");
+        assert!(shown.contains("`…`"), "the value is masked: {shown}");
+        assert!(shown.starts_with("line 1, column"), "{shown}");
+    }
+}

@@ -56,6 +56,9 @@ fn run(args: McpArgs) -> Result<(), Failure> {
     engine
         .open_startup(args.workspace.as_deref(), &cwd, &recent_workspaces())
         .map_err(|error| Failure::Usage(error.to_string()))?;
+    for warning in engine.policy_warnings() {
+        eprintln!("warning: {warning}");
+    }
     let endpoint_dir =
         default_endpoint_dir().map_err(|error| Failure::Execution(error.to_string()))?;
     let runtime = tokio::runtime::Builder::new_current_thread()

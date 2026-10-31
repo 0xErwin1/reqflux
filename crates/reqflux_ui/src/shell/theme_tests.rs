@@ -186,6 +186,31 @@ fn startup_reads_the_theme_from_the_config_file() {
 }
 
 #[test]
+fn an_unknown_mcp_key_is_the_startup_warning_and_the_file_still_applies() {
+    let (_config_dir, config_path) = config_file();
+    if let Err(error) = config::set_theme(&config_path, ThemeMode::Light) {
+        panic!("write the config: {error}");
+    }
+    let mut text = match std::fs::read_to_string(&config_path) {
+        Ok(text) => text,
+        Err(error) => panic!("read the config: {error}"),
+    };
+    text.push_str("[mcp]\nhost = [\"api.example.com\"]\n");
+    if let Err(error) = std::fs::write(&config_path, text) {
+        panic!("write the config: {error}");
+    }
+    let startup = crate::theme::startup(Some(&config_path), None);
+    assert_eq!(startup.mode, PaletteMode::Light);
+    assert_eq!(
+        startup.warning,
+        Some(format!(
+            "{}: unknown key `host` in [mcp]; it is ignored",
+            config_path.display()
+        ))
+    );
+}
+
+#[test]
 fn the_old_app_state_setting_moves_to_the_config_file_once() {
     let (_state_dir, state_path) = state_file();
     let (_config_dir, config_path) = config_file();

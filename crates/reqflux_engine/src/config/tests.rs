@@ -225,3 +225,74 @@ fn set_theme_refuses_a_file_that_does_not_parse() {
     ));
     assert_eq!(read(&path), broken, "a broken file is left alone");
 }
+
+const WORKSPACE_KEY: &str = "01J0000000000000000000000W";
+
+fn loaded_with_warnings(path: &Path) -> (UserConfig, Vec<String>) {
+    match load_with_warnings(path) {
+        Ok(loaded) => loaded,
+        Err(error) => panic!("load: {error}"),
+    }
+}
+
+#[test]
+fn an_unknown_mcp_key_warns() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    write(
+        &path,
+        &format!(
+            "[mcp]\nhost = [\"api.example.com\"]\nwrite = \"allow\"\n\n[mcp.workspaces.\"{WORKSPACE_KEY}\"]\nexcute = \"deny\"\n"
+        ),
+    );
+    let (config, warnings) = loaded_with_warnings(&path);
+    assert_eq!(config.mcp.write, Some(Rule::Allow));
+    assert_eq!(config.mcp.hosts, None, "a misspelled key sets nothing");
+    let shown = path.display();
+    assert_eq!(
+        warnings,
+        vec![
+            format!("{shown}: unknown key `host` in [mcp]; it is ignored"),
+            format!(
+                "{shown}: unknown key `excute` in [mcp.workspaces.\"{WORKSPACE_KEY}\"]; it is ignored"
+            ),
+        ]
+    );
+
+    let manifest: McpOverride = match toml::from_str("hosts = [\"a\"]\nwrtie = \"deny\"\n") {
+        Ok(manifest) => manifest,
+        Err(error) => panic!("parse: {error}"),
+    };
+    assert_eq!(
+        override_warnings(&manifest, Path::new("/ws/reqflux.toml"), "[mcp]"),
+        vec!["/ws/reqflux.toml: unknown key `wrtie` in [mcp]; it is ignored".to_owned()]
+    );
+}
+
+#[test]
+fn an_invalid_workspace_key_warns() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    write(&path, "[mcp.workspaces.billing]\nread = \"deny\"\n");
+    let (_, warnings) = loaded_with_warnings(&path);
+    assert_eq!(
+        warnings,
+        vec![format!(
+            "{}: [mcp.workspaces.\"billing\"] is not a workspace id, so it applies to no workspace",
+            path.display()
+        )]
+    );
+}
+
+#[test]
+fn a_clean_config_has_no_warnings() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    write(
+        &path,
+        &format!(
+            "theme = \"light\"\n[mcp]\nread = \"allow\"\n[mcp.workspaces.\"{WORKSPACE_KEY}\"]\nwrite = \"deny\"\n"
+        ),
+    );
+    assert_eq!(loaded_with_warnings(&path).1, Vec::<String>::new());
+}

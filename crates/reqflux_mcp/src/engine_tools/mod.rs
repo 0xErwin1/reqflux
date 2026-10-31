@@ -150,10 +150,22 @@ impl EngineState {
 
     /// Opens the workspace at `root`, keeping the open one when it fails.
     fn open(&mut self, root: &Path) -> Result<(), ToolError> {
-        let engine = Engine::open_with_secrets(root, Arc::clone(&self.secrets))
-            .map_err(|error| ToolError::Engine(format!("{}: {error}", root.display())))?;
-        self.engine = Some(engine);
+        self.engine = Some(self.load(root)?);
         Ok(())
+    }
+
+    /// The workspace at `root`, loaded without opening it.
+    fn load(&self, root: &Path) -> Result<Engine, ToolError> {
+        Engine::open_with_secrets(root, Arc::clone(&self.secrets))
+            .map_err(|error| ToolError::Engine(format!("{}: {error}", root.display())))
+    }
+
+    /// The warnings of the user's config file and the open workspace's manifest `[mcp]`:
+    /// unknown keys and `[mcp.workspaces]` keys that are not workspace ids. The server
+    /// prints them at startup; every refusal names them too.
+    #[must_use]
+    pub fn policy_warnings(&self) -> Vec<String> {
+        policy::warnings(&self.paths, self.engine.as_ref())
     }
 
     /// The open engine as loaded, without reloading.
@@ -285,10 +297,13 @@ pub struct EntryArgs {
 ///
 /// # Errors
 ///
-/// The workspace does not load; the open one stays open.
+/// The workspace does not load, or the policy refuses reading it (its
+/// `[mcp.workspaces."<id>"]` or manifest `[mcp]` denies read); the open one stays open.
 pub fn workspace_open(state: &mut EngineState, args: PathArgs) -> Result<String, ToolError> {
     state.authorize("workspace_open", Scope::Global, &[])?;
-    state.open(Path::new(&args.path))?;
+    let engine = state.load(Path::new(&args.path))?;
+    state.authorize_read_of("workspace_open", &engine)?;
+    state.engine = Some(engine);
     summary(state.engine()?)
 }
 
