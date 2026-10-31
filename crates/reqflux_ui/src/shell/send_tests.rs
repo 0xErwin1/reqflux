@@ -219,11 +219,17 @@ fn busy_script(millis: u64) -> String {
 }
 
 /// S14: a slow pre-request script never blocks the window. Dispatching Ctrl+Enter returns
-/// at once (preparing runs on GPUI's background executor), the shell still answers while
-/// the send is in flight, and the send settles to its response.
+/// before the script could have finished (preparing runs on GPUI's background executor),
+/// the shell still answers while the send is in flight, and the send settles to its
+/// response.
+///
+/// The script busy-loops on wall-clock time, so running it on the UI thread would make the
+/// dispatch last at least `SCRIPT_MS` however fast the machine is. Bounding the dispatch by
+/// `SCRIPT_MS` itself therefore proves the script ran elsewhere without assuming how quick
+/// the rest of the dispatch is; `SCRIPT_MS` stays below the 5 s sandbox time limit.
 #[gpui::test]
 fn a_slow_pre_request_script_does_not_block_the_window(cx: &mut TestAppContext) {
-    const SCRIPT_MS: u64 = 400;
+    const SCRIPT_MS: u64 = 2_000;
     let (shell, cx) = render_files(
         cx,
         serve(Server::Ok),
@@ -238,7 +244,7 @@ fn a_slow_pre_request_script_does_not_block_the_window(cx: &mut TestAppContext) 
     });
     let dispatched = started.elapsed();
     assert!(
-        dispatched < Duration::from_millis(SCRIPT_MS / 2),
+        dispatched < Duration::from_millis(SCRIPT_MS),
         "ctrl-enter blocked for {dispatched:?} on the pre-request script"
     );
     // The window answers at once: the send is in flight and a sub-tab can be selected.

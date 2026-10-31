@@ -123,9 +123,11 @@ fn finish(
     }
 }
 
-/// Blanks the wall-clock time of a response, which two sends never share.
-fn without_elapsed(executed: &mut reqflux_engine::Executed) {
+/// Blanks what two sends never share: the elapsed time and the `date` header, whose
+/// one-second resolution differs whenever the two sends straddle a second boundary.
+fn without_timing(executed: &mut reqflux_engine::Executed) {
     executed.response.elapsed = Duration::ZERO;
+    executed.response.headers.retain(|(name, _)| name != "date");
 }
 
 /// A script that busy-loops for `millis` of wall-clock time, so a blocked executor shows up
@@ -260,8 +262,8 @@ fn finish_returns_the_same_executed_as_execute_blocking() {
     let engine = engine(root);
     let mut expected = execute(&engine, "api/r");
     let mut executed = finish(&rt, &engine, "api/r");
-    without_elapsed(&mut expected);
-    without_elapsed(&mut executed);
+    without_timing(&mut expected);
+    without_timing(&mut executed);
     assert_eq!(executed, expected);
     assert!(executed.scripts.tests.iter().all(|test| test.passed));
 }
@@ -283,8 +285,8 @@ fn finish_keeps_a_failing_test_beside_a_successful_response() {
     let engine = engine(root);
     let mut expected = execute(&engine, "api/r");
     let mut executed = finish(&rt, &engine, "api/r");
-    without_elapsed(&mut expected);
-    without_elapsed(&mut executed);
+    without_timing(&mut expected);
+    without_timing(&mut executed);
     assert_eq!(executed, expected);
     assert_eq!(executed.response.status, 201);
     let test = &executed.scripts.tests[0];

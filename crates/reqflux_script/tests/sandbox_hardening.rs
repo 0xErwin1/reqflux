@@ -128,11 +128,15 @@ fn memory_limit_covers_array_buffers() {
     }
 }
 
+/// Each step adds a 1 MiB buffer, so a container reaches the heap cap in a few dozen
+/// cheap allocations: the run ends on the memory limit long before the wall-clock time
+/// limit, even on a heavily loaded machine. Many small elements took about 0.8 s in a
+/// debug build, close enough to the 5 s time limit that load turned it into a Timeout.
 #[test]
 fn growth_oom_reports_the_memory_limit() {
     for script in [
-        "const a = []; for (;;) { a.push([1, 2, 3]); }",
-        "const m = new Map(); for (;;) { m.set(m.size, 'x'.repeat(1000)); }",
+        "const a = []; for (;;) { a.push(new ArrayBuffer(1 << 20)); }",
+        "const m = new Map(); for (;;) { m.set(m.size, new ArrayBuffer(1 << 20)); }",
     ] {
         let error = run(script, &context(ScriptStage::Test)).unwrap_err();
         assert_eq!(
