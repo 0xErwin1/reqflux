@@ -2,21 +2,30 @@
 //! in the app state, the rail's History button lists it in the sidebar island, a row
 //! reopens its recorded response, and Resend sends the recorded document again.
 
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use std::path::Path;
+use std::thread;
+
 use gpui::{Entity, TestAppContext, VisualTestContext};
-use reqflux_engine::MASK;
-use reqflux_engine::state::{HistoryEntry, HistoryOutcome};
+use reqflux_engine::state::{AppState, HistoryEntry, HistoryOutcome};
+use reqflux_engine::{MASK, SecretKey, SecretScope};
 use tempfile::TempDir;
 
 use super::Shell;
 use super::draft_tests::{bounds, click, present, render, state_file};
 use super::send_tests::{Server, closed_port, response, serve, settle};
+use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::{demo_workspace, write};
 
 const COLLECTION: &str = "01J00000000000000000000081";
 const PING: &str = "01J00000000000000000000082";
 const OTHER: &str = "01J00000000000000000000083";
 const KEYED: &str = "01J00000000000000000000084";
+const ECHO: &str = "01J00000000000000000000085";
 const TOKEN: &str = "s3cret-token";
+const WORKSPACE: &str = "01J00000000000000000000900";
+const API_KEY: &str = "k-echoed-SECRET";
 
 /// A workspace whose collection `API` holds `GET Ping` at `/ping` with a bearer token and
 /// `POST Other` at `/other`, both on `port`.
@@ -330,4 +339,153 @@ fn a_send_and_the_tree_still_work_after_history(cx: &mut TestAppContext) {
     assert!(bounds(cx, "response-history-label").is_none());
     click(cx, &format!("tree-row-{PING}"));
     present(cx, &format!("doc-tab-{PING}"));
+}
+
+/// Starts a server that answers every request `401` with the request body echoed in an
+/// `x-echo` header and in the text body `invalid key <body>`; returns its port.
+fn serve_echo() -> u16 {
+    let listener = match TcpListener::bind("127.0.0.1:0") {
+        Ok(listener) => listener,
+        Err(error) => panic!("bind: {error}"),
+    };
+    let port = match listener.local_addr() {
+        Ok(address) => address.port(),
+        Err(error) => panic!("address: {error}"),
+    };
+    thread::spawn(move || {
+        for mut stream in listener.incoming().flatten() {
+            thread::spawn(move || {
+                let mut received = Vec::new();
+                let mut byte = [0_u8; 1];
+                while !received.ends_with(b"\r\n\r\n") {
+                    match stream.read(&mut byte) {
+                        Ok(1) => received.extend_from_slice(&byte),
+                        Ok(_) | Err(_) => return,
+                    }
+                }
+                let head = String::from_utf8_lossy(&received).to_ascii_lowercase();
+                let length = head
+                    .lines()
+                    .find_map(|line| line.strip_prefix("content-length:"))
+                    .and_then(|value| value.trim().parse::<usize>().ok())
+                    .unwrap_or(0);
+                let mut body = vec![0_u8; length];
+                if let Err(error) = stream.read_exact(&mut body) {
+                    eprintln!("read: {error}");
+                    return;
+                }
+                let body = String::from_utf8_lossy(&body);
+                let text = format!("invalid key {body}");
+                let reply = format!(
+                    "HTTP/1.1 401 Unauthorized\r\nx-echo: {body}\r\ncontent-type: text/plain\r\n\
+                     content-length: {}\r\nconnection: close\r\n\r\n{text}",
+                    text.len()
+                );
+                if let Err(error) = stream.write_all(reply.as_bytes()) {
+                    eprintln!("write: {error}");
+                }
+            });
+        }
+    });
+    port
+}
+
+/// A workspace whose `POST Echo` sends the secret global `apiKey` as its body to `port`.
+fn echo_workspace(port: u16) -> TempDir {
+    let dir = history_workspace(port);
+    let root = dir.path();
+    write(
+        root,
+        "reqflux.toml",
+        &format!(
+            "id = \"{WORKSPACE}\"\nname = \"Demo\"\nformat = 1\n\n\
+             [[globals]]\nkey = \"apiKey\"\nsecret = true\n"
+        ),
+    );
+    write(
+        root,
+        "collections/api/echo.req.toml",
+        &format!(
+            "id = \"{ECHO}\"\nname = \"Echo\"\nmethod = \"POST\"\n\
+             url = \"http://127.0.0.1:{port}/echo\"\n\n\
+             [body]\nmode = \"raw\"\nlanguage = \"text\"\ntext = \"{{{{apiKey}}}}\"\n"
+        ),
+    );
+    dir
+}
+
+/// Puts `value` in the secret store as the global `key` of the loaded workspace.
+fn store_secret(cx: &mut VisualTestContext, shell: &Entity<Shell>, key: &str, value: &str) {
+    cx.update(|_, cx| {
+        if let OpenedWorkspace::Loaded(engine) = &shell.read(cx).workspace {
+            let key = SecretKey {
+                workspace_id: engine.workspace().manifest.id,
+                scope: SecretScope::Global,
+                key: key.to_owned(),
+            };
+            if let Err(error) = engine.secret_store().set(&key, value) {
+                panic!("secret store: {error}");
+            }
+        } else {
+            panic!("no workspace");
+        }
+    });
+}
+
+/// The response of the newest entry, read from the state file itself.
+fn stored_response(state_path: &Path) -> reqflux_engine::state::RecordedResponse {
+    let state = match AppState::open(state_path) {
+        Ok(state) => state,
+        Err(error) => panic!("open state: {error}"),
+    };
+    let entries = match state.history(WORKSPACE, 10) {
+        Ok(entries) => entries,
+        Err(error) => panic!("history: {error}"),
+    };
+    match entries.into_iter().next().map(|entry| entry.record.outcome) {
+        Some(HistoryOutcome::Response(response)) => response,
+        other => panic!("expected a response: {other:?}"),
+    }
+}
+
+#[gpui::test]
+fn an_echoed_secret_is_stored_masked_in_the_response(cx: &mut TestAppContext) {
+    let dir = echo_workspace(serve_echo());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    store_secret(cx, &shell, "apiKey", API_KEY);
+    assert_eq!(send(cx, &shell, ECHO).as_deref(), Some("401 Unauthorized"));
+
+    let stored = stored_response(&state_path);
+    let body = String::from_utf8_lossy(&stored.body).into_owned();
+    assert_eq!(body, format!("invalid key {MASK}"));
+    let echo = stored
+        .headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("x-echo"))
+        .map(|(_, value)| value.clone());
+    assert_eq!(echo, Some(MASK.to_owned()));
+    assert!(!format!("{stored:?}").contains(API_KEY), "{stored:?}");
+}
+
+#[gpui::test]
+fn a_response_without_secrets_is_stored_as_received(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, OTHER).as_deref(), Some("200 OK"));
+    let stored = stored_response(&state_path);
+    assert_eq!(stored.body, super::send_tests::JSON.as_bytes().to_vec());
+    assert_eq!(stored.reason.as_deref(), Some("OK"));
+    let names: Vec<_> = stored
+        .headers
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert!(names.contains(&"content-type"), "{names:?}");
+    assert!(
+        stored
+            .headers
+            .contains(&("content-type".to_owned(), "application/json".to_owned()))
+    );
 }

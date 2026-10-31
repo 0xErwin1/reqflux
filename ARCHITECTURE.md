@@ -289,8 +289,11 @@ values and body; the values of `Authorization`, `Proxy-Authorization` and `Cooki
 masked (keeping the scheme word), so a credential a script assembled is masked too. The same
 masking is available as `Execution::masker()` for any text a front end stores, such as the
 error of a failed send. A very short secret masks every occurrence of its text, erring on
-the side of hiding. Response bodies are stored as received: they are the user's own data in
-per-user state. `PreparedRequest`'s `Debug` prints no URL, header value or body.
+the side of hiding. The window records a response through the same masker
+(`RecordedResponse::from_response_masked`), so a secret the server echoes back is stored
+masked: header values (credential headers such as `Set-Cookie` masked whole), the reason
+phrase and a UTF-8 text body. A body that is not UTF-8 is stored as received, since the
+masker works on text. `PreparedRequest`'s `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back
   and returns the new file hash, and `Engine::request_base_hash`, which reports the hash
@@ -744,8 +747,8 @@ shows its title and readable text (tags stripped, scripts and styles dropped) an
 anything to render a page. An image over 20 MB or HTML over 5 MB is too large to preview. The
 Cookies sub-tab (`response-tab-cookies`) parses every `Set-Cookie` header into name, value and
 attributes (`response-cookie-<n>`), raw with a warning mark when it does not parse; nothing is
-stored, since the cookie jar comes later. History stores `Set-Cookie` values through the send's
-masker.
+stored, since the cookie jar comes later. History stores `Set-Cookie` values masked whole
+(see "History").
 
 The rail's History button (`rail-history`) swaps the sidebar tree for the History panel
 (`history-row-<n>`, newest first, `METHOD path · status · time ago` or `failed`; the 200

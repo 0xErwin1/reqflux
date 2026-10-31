@@ -7,14 +7,19 @@
     reason = "test helpers fail the calling test"
 )]
 
+mod common;
+
 use std::path::{Path, PathBuf};
+
+use common::{collection, post, prepare, request, workspace};
+use reqflux_core::model::Variable;
 
 use pretty_assertions::assert_eq;
 use reqflux_engine::state::{
     AppState, Draft, HISTORY_MAX_BODY_BYTES, HISTORY_MAX_ENTRIES, HistoryLimits, HistoryOutcome,
     HistoryRecord, RecordedResponse, StateError,
 };
-use reqflux_engine::{SentBody, SentRequest};
+use reqflux_engine::{MASK, SentBody, SentRequest};
 
 fn state_path(dir: &tempfile::TempDir) -> PathBuf {
     dir.path().join("state.sqlite3")
@@ -367,39 +372,92 @@ fn a_utf8_body_is_cut_on_a_character_boundary() {
     assert_eq!(stored(binary_id).body.len(), HISTORY_MAX_BODY_BYTES);
 }
 
-#[test]
-fn a_recorded_set_cookie_value_goes_through_the_masker() {
-    let response = reqflux_engine::Response {
-        status: 200,
-        reason: Some("OK".to_owned()),
+fn echo_response(headers: Vec<(String, String)>, body: &[u8]) -> reqflux_engine::Response {
+    reqflux_engine::Response {
+        status: 401,
+        reason: Some("Unauthorized".to_owned()),
         version: "1.1".to_owned(),
-        headers: vec![
-            ("set-cookie".to_owned(), "sid=s3cret; Path=/".to_owned()),
-            ("Set-Cookie".to_owned(), "theme=dark".to_owned()),
-            ("x-echo".to_owned(), "s3cret".to_owned()),
-        ],
-        body: b"s3cret".to_vec(),
+        headers,
+        body: body.to_vec(),
         final_url: "http://h/".to_owned(),
         elapsed: std::time::Duration::from_millis(5),
+    }
+}
+
+/// The masker of a send whose secret variable `token` is `s3cret`.
+fn secret_masker() -> reqflux_engine::Masker {
+    let ws = workspace(
+        vec![Variable {
+            secret: true,
+            ..Variable::new("token", "s3cret")
+        }],
+        vec![collection(
+            "c",
+            vec![request("r", post("https://api.test/"))],
+        )],
+    );
+    prepare(&ws).masker()
+}
+
+#[test]
+fn a_recorded_response_masks_secrets_in_headers_reason_and_text_body() {
+    let response = reqflux_engine::Response {
+        reason: Some("bad s3cret".to_owned()),
+        ..echo_response(
+            vec![
+                ("set-cookie".to_owned(), "sid=s3cret; Path=/".to_owned()),
+                ("Set-Cookie".to_owned(), "theme=dark".to_owned()),
+                ("x-echo".to_owned(), "key s3cret".to_owned()),
+                ("content-type".to_owned(), "text/plain".to_owned()),
+            ],
+            b"invalid key s3cret",
+        )
     };
-    let recorded = RecordedResponse::from_response_masking_cookies(&response, |text| {
-        text.replace("s3cret", "••••")
-    });
+    let recorded = RecordedResponse::from_response_masked(&response, &secret_masker());
     assert_eq!(
         recorded.headers,
         vec![
-            ("set-cookie".to_owned(), "sid=••••; Path=/".to_owned()),
-            ("Set-Cookie".to_owned(), "theme=dark".to_owned()),
-            ("x-echo".to_owned(), "s3cret".to_owned()),
+            ("set-cookie".to_owned(), MASK.to_owned()),
+            ("Set-Cookie".to_owned(), MASK.to_owned()),
+            ("x-echo".to_owned(), format!("key {MASK}")),
+            ("content-type".to_owned(), "text/plain".to_owned()),
         ]
     );
-    // The body is the user's own data and stays as received.
-    assert_eq!(recorded.body, b"s3cret".to_vec());
+    assert_eq!(recorded.body, format!("invalid key {MASK}").into_bytes());
+    assert_eq!(recorded.reason, Some(format!("bad {MASK}")));
+    // The size is the response's as received.
+    assert_eq!(recorded.size, 18);
+    assert!(!format!("{recorded:?}").contains("s3cret"));
+}
+
+#[test]
+fn a_recorded_binary_body_is_stored_as_received() {
+    let body = [0xff, 0xfe, b's', b'3', b'c', b'r', b'e', b't'];
+    let response = echo_response(Vec::new(), &body);
+    let recorded = RecordedResponse::from_response_masked(&response, &secret_masker());
+    assert_eq!(recorded.body, body.to_vec());
+}
+
+#[test]
+fn a_recorded_response_without_secrets_is_unchanged() {
+    let response = echo_response(
+        vec![
+            ("x-echo".to_owned(), "plain".to_owned()),
+            ("Set-Cookie".to_owned(), "theme=dark".to_owned()),
+        ],
+        "{\"ok\":true} €".as_bytes(),
+    );
+    let mut expected = RecordedResponse::from_response(&response);
+    // Cookie values are credentials: always masked whole.
+    if let Some((_, value)) = expected.headers.get_mut(1) {
+        *value = MASK.to_owned();
+    }
     assert_eq!(
-        RecordedResponse {
-            headers: response.headers.clone(),
-            ..recorded
-        },
-        RecordedResponse::from_response(&response)
+        RecordedResponse::from_response_masked(&response, &secret_masker()),
+        expected
+    );
+    assert_eq!(
+        RecordedResponse::from_response_masked(&response, &reqflux_engine::Masker::default()),
+        expected
     );
 }

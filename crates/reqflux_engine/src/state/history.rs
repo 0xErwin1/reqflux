@@ -3,7 +3,7 @@
 use rusqlite::{OptionalExtension, Row, params};
 
 use super::{AppState, StateError, query_error};
-use crate::sent::{SentBody, SentRequest};
+use crate::sent::{Masker, SentBody, SentRequest};
 
 /// The history table of schema version 2. Request headers and response headers are JSON
 /// arrays of `[name, value]` pairs in order; `request_body_kind` is `none`, `text` or
@@ -127,20 +127,23 @@ impl RecordedResponse {
         }
     }
 
-    /// [`RecordedResponse::from_response`] with every `Set-Cookie` value passed through
-    /// `mask`, the send's [`crate::Masker`], so a cookie that carries a secret value is
-    /// stored masked like the request (response-preview S5). Other headers and the body
-    /// are the user's own data and stay as received.
+    /// The record of `response` with its secrets masked by `masker`, the send's
+    /// [`crate::Masker`], so a secret the server echoes back never reaches history in
+    /// clear: every header goes through [`crate::Masker::header`] (a credential header such
+    /// as `Set-Cookie` masked whole), and the reason and a UTF-8 text body through
+    /// [`crate::Masker::mask`]. A body that is not UTF-8 is stored as received, since the
+    /// masker works on text. `size` stays the size received.
     #[must_use]
-    pub fn from_response_masking_cookies(
-        response: &reqflux_http::Response,
-        mask: impl Fn(&str) -> String,
-    ) -> Self {
+    pub fn from_response_masked(response: &reqflux_http::Response, masker: &Masker) -> Self {
         let mut recorded = Self::from_response(response);
-        for (name, value) in &mut recorded.headers {
-            if name.eq_ignore_ascii_case("set-cookie") {
-                *value = mask(value);
-            }
+        recorded.reason = recorded.reason.map(|reason| masker.mask(&reason));
+        recorded.headers = recorded
+            .headers
+            .iter()
+            .map(|(name, value)| masker.header(name, value))
+            .collect();
+        if let Ok(text) = std::str::from_utf8(&recorded.body) {
+            recorded.body = masker.mask(text).into_bytes();
         }
         recorded
     }

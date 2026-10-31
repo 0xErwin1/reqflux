@@ -308,8 +308,8 @@ fn spawn(
     let scripts = execution.scripts.clone();
     // The redacted request as sent, kept for a failure, which consumes the execution.
     let sent = execution.sent.clone();
-    // A transport error can echo the URL with a query secret, and a cookie can carry a
-    // secret value: history keeps both masked.
+    // A transport error can echo the URL with a query secret, and a response can echo a
+    // secret in its headers or body: history keeps them masked.
     let masker = execution.masker();
     let key = id.to_owned();
     let wait = cx.spawn(async move |this, cx| {
@@ -325,9 +325,8 @@ fn spawn(
                 let writes = scripts.writes.clone();
                 let recorded = (
                     sent,
-                    HistoryOutcome::Response(RecordedResponse::from_response_masking_cookies(
-                        &response,
-                        |text| masker.mask(text),
+                    HistoryOutcome::Response(RecordedResponse::from_response_masked(
+                        &response, &masker,
                     )),
                 );
                 // Splitting a large body into lines stays off the UI thread.
