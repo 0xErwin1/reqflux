@@ -3,6 +3,11 @@
 //! [`install`] attaches a `gpui-mcp` bridge to a window so `reqflux mcp`, running as
 //! the same user, can discover it, read its rendered element tree and inject
 //! input. See "UI automation" in ARCHITECTURE.md for the trust model.
+//!
+//! [`guard_input`] suspends a window's bridge while the window asks the user to approve an
+//! agent's call (mcp-approvals S4). The bridge has no hook to refuse its input, and the
+//! events it injects reach GPUI the way programmatic ones do, indistinguishable from the
+//! user's; stopping its listener is the only way the agent cannot answer for the user.
 
 use std::collections::HashMap;
 
@@ -12,12 +17,19 @@ use gpui_mcp::{AppId, BridgeConfig, BridgeHandle};
 const APP_ID: &str = "reqflux";
 const DISPLAY_NAME: &str = "ReqFlux";
 
-/// Bridge handles keyed by the window they serve.
+/// The bridge of one window and the configuration it was installed with, to install it
+/// again after [`guard_input`] lifts; `None` while suspended.
+struct Bridge {
+    handle: Option<BridgeHandle>,
+    config: BridgeConfig,
+}
+
+/// Bridges keyed by the window they serve.
 ///
 /// `BridgeHandle` is not `Send` and stops its listener when dropped, so the
 /// handles are owned on the foreground thread for as long as their window exists.
 #[derive(Default)]
-struct Bridges(HashMap<WindowId, BridgeHandle>);
+struct Bridges(HashMap<WindowId, Bridge>);
 
 impl Global for Bridges {}
 
@@ -34,29 +46,71 @@ pub(crate) fn install(window: &mut Window, cx: &mut App) {
             return;
         }
     };
-    let config = BridgeConfig::new(app_id, DISPLAY_NAME);
+    install_with(window, cx, BridgeConfig::new(app_id, DISPLAY_NAME));
+}
 
-    let handle = match BridgeHandle::install(window, cx, config) {
-        Ok(handle) => handle,
+/// Installs the bridge configured by `config` into `window`.
+pub(crate) fn install_with(window: &mut Window, cx: &mut App, config: BridgeConfig) {
+    let handle = start(window, cx, &config);
+    let window_id = window.window_handle().window_id();
+    registry(cx).0.insert(window_id, Bridge { handle, config });
+}
+
+/// Starts a bridge configured by `config` in `window`; `None`, logged, when it fails.
+fn start(window: &mut Window, cx: &App, config: &BridgeConfig) -> Option<BridgeHandle> {
+    match BridgeHandle::install(window, cx, config.clone()) {
+        Ok(handle) => {
+            log::info!(
+                "UI automation bridge listening, descriptor {}",
+                handle.endpoint_path().display()
+            );
+            Some(handle)
+        }
         Err(error) => {
             log::error!("UI automation bridge failed to start: {error}");
-            return;
+            None
         }
-    };
+    }
+}
 
-    log::info!(
-        "UI automation bridge listening, descriptor {}",
-        handle.endpoint_path().display()
-    );
-
+/// Suspends the bridge of `window` while `guarded`, so no agent can read or drive the
+/// window, and starts it again when not. Its listener stops and its descriptor goes, so a
+/// client sees the window as gone until the guard lifts; it comes back under a new
+/// descriptor. Does nothing for a window without a bridge.
+pub(crate) fn guard_input(window: &mut Window, cx: &mut App, guarded: bool) {
+    if !cx.has_global::<Bridges>() {
+        return;
+    }
     let window_id = window.window_handle().window_id();
-    registry(cx).0.insert(window_id, handle);
+    let Some(bridge) = cx.global_mut::<Bridges>().0.get_mut(&window_id) else {
+        return;
+    };
+    if guarded {
+        if let Some(handle) = bridge.handle.take() {
+            handle.shutdown();
+            log::info!("UI automation bridge suspended while an approval is pending");
+        }
+        return;
+    }
+    if bridge.handle.is_some() {
+        return;
+    }
+    let config = bridge.config.clone();
+    let handle = start(window, cx, &config);
+    if let Some(bridge) = cx.global_mut::<Bridges>().0.get_mut(&window_id) {
+        bridge.handle = handle;
+    }
 }
 
 fn registry(cx: &mut App) -> &mut Bridges {
     if !cx.has_global::<Bridges>() {
         cx.on_window_closed(|cx, window_id| {
-            if let Some(handle) = cx.default_global::<Bridges>().0.remove(&window_id) {
+            if let Some(handle) = cx
+                .default_global::<Bridges>()
+                .0
+                .remove(&window_id)
+                .and_then(|bridge| bridge.handle)
+            {
                 handle.shutdown();
             }
         })
@@ -65,8 +119,10 @@ fn registry(cx: &mut App) -> &mut Bridges {
         // The platform can exit without closing windows one by one, so the
         // descriptors would outlive the process without this.
         cx.on_app_quit(|cx| {
-            for (_, handle) in cx.default_global::<Bridges>().0.drain() {
-                handle.shutdown();
+            for (_, bridge) in cx.default_global::<Bridges>().0.drain() {
+                if let Some(handle) = bridge.handle {
+                    handle.shutdown();
+                }
             }
             async {}
         })

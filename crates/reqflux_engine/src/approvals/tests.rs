@@ -168,3 +168,35 @@ fn the_wire_format_is_versioned_snake_case_json() {
         r#"{"version":1,"id":1,"tool":"request_execute","class":"execute","workspace":null,"targets":["Ping"]}"#
     );
 }
+
+#[test]
+fn a_held_reply_learns_when_the_client_is_gone() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let fake = Fake::new(None);
+    let listener = serve_in(temp.path(), 1, fake.clone()).unwrap();
+    let socket = listener.socket().to_path_buf();
+    let client = std::thread::spawn(move || ask(&socket, &request(3), Duration::from_millis(400)));
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while fake.held.lock().unwrap().is_empty() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the request never arrived"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert!(
+        !fake.held.lock().unwrap().iter().any(Reply::is_closed),
+        "the client still waits"
+    );
+    assert!(client.join().unwrap().is_err());
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    while !fake.held.lock().unwrap().iter().all(Reply::is_closed) {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the reply never closed"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    let reply = fake.held.lock().unwrap().pop().unwrap();
+    assert!(!reply.send(ApprovalDecision::AllowOnce));
+}

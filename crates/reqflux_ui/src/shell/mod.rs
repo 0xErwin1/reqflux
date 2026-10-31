@@ -3,6 +3,8 @@
 
 mod action_strip;
 mod active_environment;
+mod approval_dialog;
+mod approvals;
 mod auth_edit;
 mod body_edit;
 mod cell_edit;
@@ -170,6 +172,8 @@ pub(crate) struct Shell {
     focus: FocusHandle,
     /// The command palette, while it is open.
     palette: Option<Palette>,
+    /// The approval requests from `reqflux mcp` and the listener they arrive on.
+    approvals: approvals::Approvals,
     /// The read-only view of a history entry whose request no longer exists, shown over
     /// the tabs until a request is opened or activated.
     orphan: Option<history::Orphan>,
@@ -242,6 +246,7 @@ impl Shell {
             method_menu_focus: cx.focus_handle(),
             focus: cx.focus_handle(),
             palette: None,
+            approvals: approvals::Approvals::default(),
             orphan: None,
             preview_host: PreviewHost::default(),
             _sidebar_events: sidebar_events,
@@ -429,6 +434,7 @@ impl Render for Shell {
             )
             .child(status_bar::render(self, cx))
             .children(palette::render(self, window, cx))
+            .children(approval_dialog::render(self, window, cx))
     }
 }
 
@@ -465,6 +471,8 @@ fn text_region(id: &'static str) -> Stateful<Div> {
 
 #[cfg(test)]
 mod active_environment_tests;
+#[cfg(test)]
+mod approvals_tests;
 #[cfg(test)]
 mod auth_edit_tests;
 #[cfg(test)]

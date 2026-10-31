@@ -25,11 +25,17 @@ const ACCEPT_POLL: Duration = Duration::from_millis(25);
 /// How long a client has to send its request line once connected.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// How often a connection waiting for the window's answer checks that its client is still
+/// there.
+const CLIENT_POLL: Duration = Duration::from_millis(50);
+
 /// What the window implements to answer approval requests.
 ///
 /// [`ApprovalHandler::request`] runs on the connection's thread and must not block: the
 /// window queues the request and answers later through `reply`. Dropping `reply` without an
-/// answer closes the connection, which the client takes as no answer.
+/// answer closes the connection, which the client takes as no answer. A client that gives up
+/// (it timed out or exited) sends nothing; [`Reply::is_closed`] reports it, so the window
+/// can withdraw the request.
 pub trait ApprovalHandler: Send + Sync + 'static {
     /// A new request; answer it with [`Reply::send`].
     fn request(&self, request: ApprovalRequest, reply: Reply);
@@ -39,12 +45,19 @@ pub trait ApprovalHandler: Send + Sync + 'static {
 #[derive(Debug)]
 pub struct Reply {
     sender: mpsc::Sender<ApprovalDecision>,
+    closed: Arc<AtomicBool>,
 }
 
 impl Reply {
     /// Answers the request with `decision`; `false` when the connection is already gone.
     pub fn send(self, decision: ApprovalDecision) -> bool {
         self.sender.send(decision).is_ok()
+    }
+
+    /// Whether the client is gone: it closed the connection, so no answer can reach it.
+    #[must_use]
+    pub fn is_closed(&self) -> bool {
+        self.closed.load(Ordering::Relaxed)
     }
 }
 
@@ -273,10 +286,27 @@ fn connection(stream: Stream, owner: u32, handler: &dyn ApprovalHandler) -> io::
     }
     let id = request.id;
     let (sender, receiver) = mpsc::channel();
-    handler.request(request, Reply { sender });
-    let Ok(decision) = receiver.recv() else {
-        return Ok(());
+    let closed = Arc::new(AtomicBool::new(false));
+    handler.request(
+        request,
+        Reply {
+            sender,
+            closed: Arc::clone(&closed),
+        },
+    );
+    reader.get_ref().set_recv_timeout(Some(CLIENT_POLL))?;
+    let decision = loop {
+        match receiver.recv_timeout(CLIENT_POLL) {
+            Ok(decision) => break decision,
+            Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        if client_is_gone(reader.get_mut()) {
+            closed.store(true, Ordering::Relaxed);
+            return Ok(());
+        }
     };
+    reader.get_ref().set_recv_timeout(None)?;
     let response = ApprovalResponse {
         version: PROTOCOL_VERSION,
         id,
@@ -287,4 +317,19 @@ fn connection(stream: Stream, owner: u32, handler: &dyn ApprovalHandler) -> io::
     let stream = reader.get_mut();
     stream.write_all(text.as_bytes())?;
     stream.flush()
+}
+
+/// Whether the client of `stream` is gone, waiting at most its receive timeout: it closed
+/// the connection, or sent more than its one request line, which the protocol does not allow.
+#[cfg(unix)]
+fn client_is_gone(stream: &mut Stream) -> bool {
+    let mut byte = [0_u8; 1];
+    match stream.read(&mut byte) {
+        Err(error) => !matches!(
+            error.kind(),
+            io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut | io::ErrorKind::Interrupted
+        ),
+        // Zero bytes is the end of the stream; any byte breaks the protocol.
+        Ok(0 | 1..) => true,
+    }
 }

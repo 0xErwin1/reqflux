@@ -90,6 +90,9 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
             shell.set_config(config_path, startup_theme.warning);
             shell
         });
+        shell.update(cx, |shell, cx| {
+            shell.listen_for_approvals(reqflux_engine::approvals::serve, window, cx);
+        });
         let focus = shell.read(cx).initial_focus();
         focus.focus(window, cx);
         cx.new(|cx| Root::new(shell, window, cx))

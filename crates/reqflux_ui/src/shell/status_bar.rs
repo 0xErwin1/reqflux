@@ -1,6 +1,6 @@
 //! The status bar: chips on the desk. It shows the last send of the window, when there is
-//! one, the load warnings count, when there are warnings, and why the config file was not
-//! used, when it did not parse.
+//! one, the load warnings count, when there are warnings, the pending approvals count, when
+//! an agent waits for one, and why the config file was not used, when it did not parse.
 
 use std::time::Instant;
 
@@ -9,6 +9,7 @@ use bolt::controls::StatusChip;
 use bolt::tokens::{Colors, chrome};
 use gpui::{App, Hsla, IntoElement, ParentElement, Styled};
 
+use super::approval_dialog::pending_label;
 use super::last_request::{LastKind, summary};
 use super::request::StatusClass;
 use super::{Shell, region};
@@ -52,6 +53,11 @@ pub(super) fn render(shell: &Shell, cx: &App) -> impl IntoElement {
                     .icon_color(colors.warning)
             }),
         )
+        .children(pending_label(shell.approvals.pending()).map(|pending| {
+            StatusChip::new("status-approvals", pending)
+                .icon(IconName::TriangleAlert)
+                .icon_color(colors.warning)
+        }))
         .children(shell.config_warning.as_ref().map(|warning| {
             StatusChip::new("status-config-warning", "Config not loaded")
                 .label(warning.clone())
