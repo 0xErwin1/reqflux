@@ -92,6 +92,7 @@ commands! {
     ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", loaded;
     ShowVariables: ShowVariables, "show-variables", "Show Variables", "ctrl-3", loaded;
     ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", always;
+    OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", always;
 }
 
 actions!(
@@ -221,6 +222,7 @@ impl Shell {
             CommandId::ShowHistory => self.switch_panel(Panel::History, window, cx),
             CommandId::ShowVariables => self.switch_panel(Panel::Variables, window, cx),
             CommandId::ToggleTheme => self.toggle_theme(window, cx),
+            CommandId::OpenApprovals => self.open_approvals(window, cx),
         }
     }
 

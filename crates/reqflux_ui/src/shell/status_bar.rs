@@ -1,15 +1,17 @@
 //! The status bar: chips on the desk. It shows the last send of the window, when there is
 //! one, the load warnings count, when there are warnings, the pending approvals count, when
-//! an agent waits for one, and why the config file was not used, when it did not parse.
+//! an agent waits for one (a click opens the MCP approvals view), and why the config file was not used, when it did not parse.
 
 use std::time::Instant;
 
 use bolt::IconName;
 use bolt::controls::StatusChip;
 use bolt::tokens::{Colors, chrome};
-use gpui::{App, Hsla, IntoElement, ParentElement, Styled};
+use gpui::{
+    Context, Hsla, InteractiveElement, IntoElement, ParentElement, Styled, div, prelude::*,
+};
 
-use super::approval_dialog::pending_label;
+use super::approvals_view::pending_label;
 use super::last_request::{LastKind, summary};
 use super::request::StatusClass;
 use super::{Shell, region};
@@ -23,7 +25,7 @@ pub(crate) fn warnings_label(count: usize) -> Option<String> {
     }
 }
 
-pub(super) fn render(shell: &Shell, cx: &App) -> impl IntoElement {
+pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
     let colors = bolt::colors(cx);
     let brand = bolt::brand(cx);
     let last = shell.last_send.as_ref().and_then(|last| {
@@ -54,9 +56,17 @@ pub(super) fn render(shell: &Shell, cx: &App) -> impl IntoElement {
             }),
         )
         .children(pending_label(shell.approvals.pending()).map(|pending| {
-            StatusChip::new("status-approvals", pending)
-                .icon(IconName::TriangleAlert)
-                .icon_color(colors.warning)
+            div()
+                .id("status-approvals-open")
+                .cursor_pointer()
+                .on_click(cx.listener(|this, _event, window, cx| {
+                    this.open_approvals(window, cx);
+                }))
+                .child(
+                    StatusChip::new("status-approvals", pending)
+                        .icon(IconName::Bot)
+                        .icon_color(colors.warning),
+                )
         }))
         .children(shell.config_warning.as_ref().map(|warning| {
             StatusChip::new("status-config-warning", "Config not loaded")

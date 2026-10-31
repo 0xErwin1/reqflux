@@ -3,7 +3,8 @@
 //! answer to a decision and the reason of the call's audit line.
 //!
 //! No live window, no answer within the limit (120 seconds), a dropped connection or an
-//! answer that is not a response refuses the call. "Allow for this session" lets every
+//! answer that is not a response refuses the call. A denial carries the reason the user
+//! typed, if any: "denied in the window: <reason>". "Allow for this session" lets every
 //! later call of the same class and workspace run without asking until this process exits.
 
 use std::collections::HashSet;
@@ -105,13 +106,15 @@ impl Approvals {
             let _asking = Outstanding::start(&self.outstanding);
             approvals::ask(&window.socket, &request, self.limit)
         };
-        match answer {
-            Ok(ApprovalDecision::AllowOnce) => Outcome::AllowedOnce,
-            Ok(ApprovalDecision::AllowSession) => {
+        match answer.map(|answer| (answer.decision, answer.reason)) {
+            Ok((ApprovalDecision::AllowOnce, _)) => Outcome::AllowedOnce,
+            Ok((ApprovalDecision::AllowSession, _)) => {
                 self.session.insert(key);
                 Outcome::AllowedSession
             }
-            Ok(ApprovalDecision::Deny) => Outcome::Denied,
+            Ok((ApprovalDecision::Deny, reason)) => {
+                Outcome::Denied(reason.as_deref().and_then(clean_reason))
+            }
             Err(AskError::Unreachable(error)) => {
                 log::debug!(target: "reqflux_mcp", "the approval window is unreachable: {error}");
                 Outcome::NoWindow
@@ -151,12 +154,28 @@ pub(crate) struct Ask {
     pub(crate) url: Option<String>,
 }
 
+/// The longest denial reason a refusal carries, in characters.
+const MAX_REASON: usize = 200;
+
+/// `reason` as a refusal carries it: without control characters, trimmed and cut to
+/// [`MAX_REASON`] characters; `None` when nothing is left.
+fn clean_reason(reason: &str) -> Option<String> {
+    let kept: String = reason
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect();
+    let cut: String = kept.trim().chars().take(MAX_REASON).collect();
+    let cut = cut.trim_end();
+    (!cut.is_empty()).then(|| cut.to_owned())
+}
+
 /// How an approval ended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Outcome {
     AllowedOnce,
     AllowedSession,
-    Denied,
+    /// Denied in the window, with the reason the user gave, cleaned.
+    Denied(Option<String>),
     NoAnswer(Duration),
     NoWindow,
     /// Approvals are off: the policy's refusal stands as is.
@@ -170,7 +189,8 @@ impl Outcome {
         match self {
             Self::AllowedOnce => Ok("approved once"),
             Self::AllowedSession => Ok("approved for this session"),
-            Self::Denied => Err(format!("{policy}; denied in the window")),
+            Self::Denied(None) => Err(format!("{policy}; denied in the window")),
+            Self::Denied(Some(reason)) => Err(format!("{policy}; denied in the window: {reason}")),
             Self::NoAnswer(limit) => Err(format!(
                 "{policy}; no answer from the window within {}",
                 seconds(limit)

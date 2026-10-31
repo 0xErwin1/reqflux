@@ -90,6 +90,10 @@ pub struct ApprovalResponse {
     pub id: u64,
     /// The decision.
     pub decision: ApprovalDecision,
+    /// Why the user denied the call, as they typed it; absent when they gave none. The
+    /// client cleans it before it shows it to anyone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
 }
 
 /// The descriptor a listening window writes beside its socket.

@@ -102,14 +102,14 @@ pub(crate) const PALETTE_WIDTH: Pixels = px(560.0);
 /// The tallest the command palette's list grows before it scrolls.
 pub(crate) const PALETTE_LIST_HEIGHT: Pixels = px(432.0);
 
-/// The width of the approval dialog.
-pub(crate) const APPROVAL_WIDTH: Pixels = px(520.0);
+/// The width of the label column of the MCP approvals detail.
+pub(crate) const APPROVAL_LABEL: Pixels = px(96.0);
 
-/// The width of the label column of the approval dialog.
-pub(crate) const APPROVAL_LABEL: Pixels = px(88.0);
-
-/// The height of a button of the approval dialog.
+/// The height of a button of the MCP approvals detail.
 pub(crate) const APPROVAL_BUTTON: Pixels = px(32.0);
+
+/// The height of the reason field of the MCP approvals detail.
+pub(crate) const APPROVAL_REASON: Pixels = px(36.0);
 
 /// The width of the command search field at the center of the title bar.
 pub(crate) const COMMAND_SEARCH_WIDTH: Pixels = px(420.0);

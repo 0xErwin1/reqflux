@@ -4,8 +4,8 @@
 //! the same user, can discover it, read its rendered element tree and inject
 //! input. See "UI automation" in ARCHITECTURE.md for the trust model.
 //!
-//! [`guard_input`] suspends a window's bridge while the window asks the user to approve an
-//! agent's call (mcp-approvals S4). The bridge has no hook to refuse its input, and the
+//! [`guard_input`] suspends a window's bridge while any agent call waits for the user's
+//! approval (mcp-approvals S4). The bridge has no hook to refuse its input, and the
 //! events it injects reach GPUI the way programmatic ones do, indistinguishable from the
 //! user's; stopping its listener is the only way the agent cannot answer for the user.
 

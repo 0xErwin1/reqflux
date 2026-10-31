@@ -44,14 +44,20 @@ pub trait ApprovalHandler: Send + Sync + 'static {
 /// The answer channel of one request.
 #[derive(Debug)]
 pub struct Reply {
-    sender: mpsc::Sender<ApprovalDecision>,
+    sender: mpsc::Sender<(ApprovalDecision, Option<String>)>,
     closed: Arc<AtomicBool>,
 }
 
 impl Reply {
     /// Answers the request with `decision`; `false` when the connection is already gone.
     pub fn send(self, decision: ApprovalDecision) -> bool {
-        self.sender.send(decision).is_ok()
+        self.answer(decision, None)
+    }
+
+    /// Answers the request with `decision` and `reason`, why the user decided so; `false`
+    /// when the connection is already gone.
+    pub fn answer(self, decision: ApprovalDecision, reason: Option<String>) -> bool {
+        self.sender.send((decision, reason)).is_ok()
     }
 
     /// Whether the client is gone: it closed the connection, so no answer can reach it.
@@ -295,9 +301,9 @@ fn connection(stream: Stream, owner: u32, handler: &dyn ApprovalHandler) -> io::
         },
     );
     reader.get_ref().set_recv_timeout(Some(CLIENT_POLL))?;
-    let decision = loop {
+    let (decision, reason) = loop {
         match receiver.recv_timeout(CLIENT_POLL) {
-            Ok(decision) => break decision,
+            Ok(answer) => break answer,
             Err(mpsc::RecvTimeoutError::Disconnected) => return Ok(()),
             Err(mpsc::RecvTimeoutError::Timeout) => {}
         }
@@ -311,6 +317,7 @@ fn connection(stream: Stream, owner: u32, handler: &dyn ApprovalHandler) -> io::
         version: PROTOCOL_VERSION,
         id,
         decision,
+        reason,
     };
     let mut text = serde_json::to_string(&response).map_err(io::Error::other)?;
     text.push('\n');

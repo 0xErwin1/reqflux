@@ -45,7 +45,7 @@ pub struct ReqFluxMcp {
 impl ReqFluxMcp {
     /// The bridge session once the policy allows the policed `ui_*` tool `tool` (mcp-approvals
     /// S5), or the refusal. An input tool refuses without asking while
-    /// one of this server's asks is unanswered, so an agent cannot reach the dialog it waits
+    /// one of this server's asks is unanswered, so an agent cannot reach the approval it waits
     /// on.
     async fn ui_state(&self, tool: &'static str) -> Result<MutexGuard<'_, ServerState>, ToolError> {
         let Some(class) = ui_tool_class(tool) else {

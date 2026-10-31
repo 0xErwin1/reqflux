@@ -266,8 +266,9 @@ UI tools, driving a running ReqFlux window through its gpui-mcp bridge:
 
 Policy: every engine tool and every ui_* tool except ui_list_targets, ui_select_target and
 ui_ping has a class. By default read tools run and write, execute and destructive tools \"ask\":
-the running ReqFlux window shows Allow once, Allow for this session or Deny; with no window or
-no answer within 120 s the call is refused. ui_* reads are read, ui_* input is execute.
+the running ReqFlux window lists the call in its MCP approvals view (Ctrl+Shift+M), where you
+Allow once, Allow for this session or Deny with an optional reason the agent gets back; with no
+window or no answer within 120 s the call is refused. ui_* reads are read, ui_* input is execute.
 Enable them in ~/.config/reqflux/config.toml ($XDG_CONFIG_HOME/reqflux/config.toml):
   [mcp]
   write = \"allow\"                    # allow, ask or deny

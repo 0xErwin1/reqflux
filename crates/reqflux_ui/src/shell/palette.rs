@@ -285,7 +285,6 @@ pub(super) fn render(
             this.run_palette_row(index, window, cx);
         }))
         .on_action(cx.listener(|this, _: &Escape, window, cx| {
-            // A pending approval takes Escape before the palette.
             this.cancel_active(window, cx);
         }))
         .child(field)

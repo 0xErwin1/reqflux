@@ -3,8 +3,8 @@
 
 mod action_strip;
 mod active_environment;
-mod approval_dialog;
 mod approvals;
+mod approvals_view;
 mod auth_edit;
 mod body_edit;
 mod cell_edit;
@@ -74,7 +74,7 @@ use self::response::PreviewHost;
 use self::send::{RequestSend, SHELL_CONTEXT};
 use self::sidebar::{OpenRequest, Sidebar};
 use self::sidebar_edit::TreeCommand;
-use self::sidebar_history::OpenHistory;
+use self::sidebar_history::{OpenHistory, Panel};
 use self::sidebar_variables::VariablesCommand;
 use self::tree_model::Node;
 use self::url_edit::UrlEdit;
@@ -86,6 +86,7 @@ use crate::workspace::OpenedWorkspace;
 pub(crate) fn bind_keys(cx: &mut App) {
     sidebar::bind_keys(cx);
     commands::bind_keys(cx);
+    approvals::bind_keys(cx);
 }
 
 /// The root view of the main window.
@@ -246,7 +247,7 @@ impl Shell {
             method_menu_focus: cx.focus_handle(),
             focus: cx.focus_handle(),
             palette: None,
-            approvals: approvals::Approvals::default(),
+            approvals: approvals::Approvals::new(cx.focus_handle()),
             orphan: None,
             preview_host: PreviewHost::default(),
             _sidebar_events: sidebar_events,
@@ -414,27 +415,32 @@ impl Render for Shell {
                 this.open_palette(window, cx);
             }));
         let root = commands::on_actions(root, cx);
-        let colors = bolt::colors(cx);
+        let desk = bolt::colors(cx).desk;
+        let panel = self.sidebar.read(cx).panel;
+        let pending = self.approvals.pending();
+        let middle = div()
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .gap(chrome::ISLAND_GAP)
+            .pl(chrome::ISLAND_GAP)
+            .pr(chrome::ISLAND_GAP)
+            .child(rail::render(panel, pending, cx));
+        let middle = if panel == Panel::Approvals {
+            middle.child(approvals_view::render(self, cx))
+        } else {
+            middle
+                .child(self.sidebar.clone())
+                .child(document::render(self, window, cx))
+        };
         root.size_full()
             .flex()
             .flex_col()
-            .bg(colors.desk)
+            .bg(desk)
             .child(title_bar::render(self, window, cx))
-            .child(
-                div()
-                    .flex_1()
-                    .min_h_0()
-                    .flex()
-                    .gap(chrome::ISLAND_GAP)
-                    .pl(chrome::ISLAND_GAP)
-                    .pr(chrome::ISLAND_GAP)
-                    .child(rail::render(self.sidebar.read(cx).panel, cx))
-                    .child(self.sidebar.clone())
-                    .child(document::render(self, window, cx)),
-            )
+            .child(middle)
             .child(status_bar::render(self, cx))
             .children(palette::render(self, window, cx))
-            .children(approval_dialog::render(self, window, cx))
     }
 }
 

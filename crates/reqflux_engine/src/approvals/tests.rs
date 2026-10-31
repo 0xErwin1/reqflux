@@ -108,7 +108,8 @@ fn a_decision_round_trips_with_the_request_unchanged() {
         let fake = Fake::new(Some(decision));
         let listener = serve_in(temp.path(), 1, fake.clone()).unwrap();
         let answer = ask(listener.socket(), &request(7), Duration::from_secs(5)).unwrap();
-        assert_eq!(answer, decision);
+        assert_eq!(answer.decision, decision);
+        assert_eq!(answer.reason, None);
         assert_eq!(fake.seen.lock().unwrap().as_slice(), &[request(7)]);
     }
 }
@@ -154,11 +155,26 @@ fn the_wire_format_is_versioned_snake_case_json() {
         version: PROTOCOL_VERSION,
         id: 3,
         decision: ApprovalDecision::AllowSession,
+        reason: None,
     };
     assert_eq!(
         serde_json::to_string(&response).unwrap(),
         r#"{"version":1,"id":3,"decision":"allow_session"}"#
     );
+    let denied = ApprovalResponse {
+        version: PROTOCOL_VERSION,
+        id: 4,
+        decision: ApprovalDecision::Deny,
+        reason: Some("not now".to_owned()),
+    };
+    assert_eq!(
+        serde_json::to_string(&denied).unwrap(),
+        r#"{"version":1,"id":4,"decision":"deny","reason":"not now"}"#
+    );
+    // A version 1 response without a reason still parses: the field is optional.
+    let parsed: ApprovalResponse =
+        serde_json::from_str(r#"{"version":1,"id":5,"decision":"deny"}"#).unwrap();
+    assert_eq!(parsed.reason, None);
     let mut bare = request(1);
     bare.method = None;
     bare.url = None;
@@ -199,4 +215,23 @@ fn a_held_reply_learns_when_the_client_is_gone() {
     }
     let reply = fake.held.lock().unwrap().pop().unwrap();
     assert!(!reply.send(ApprovalDecision::AllowOnce));
+}
+
+/// Denies every request with a fixed reason.
+struct Refuser(&'static str);
+
+impl ApprovalHandler for Refuser {
+    fn request(&self, _request: ApprovalRequest, reply: Reply) {
+        assert!(reply.answer(ApprovalDecision::Deny, Some(self.0.to_owned())));
+    }
+}
+
+#[test]
+fn a_denial_carries_its_reason_to_the_client() {
+    let temp = tempfile::TempDir::new().unwrap();
+    let listener = serve_in(temp.path(), 1, Arc::new(Refuser("too broad"))).unwrap();
+    let answer = ask(listener.socket(), &request(9), Duration::from_secs(5)).unwrap();
+    assert_eq!(answer.id, 9);
+    assert_eq!(answer.decision, ApprovalDecision::Deny);
+    assert_eq!(answer.reason.as_deref(), Some("too broad"));
 }

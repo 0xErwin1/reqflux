@@ -6,7 +6,6 @@ use std::time::{Duration, Instant};
 
 use gpui::{Context, Task, Window};
 use reqflux_core::model::Request;
-use reqflux_engine::approvals::ApprovalDecision;
 use reqflux_engine::state::{HistoryOutcome, RecordedResponse};
 use reqflux_engine::{
     CancellationToken, ExecuteOptions, Executed, Execution, HttpError, ScriptOutcome,
@@ -87,16 +86,14 @@ impl Shell {
         }
     }
 
-    /// Escape: denies the approval request the dialog shows, else closes the command
+    /// Escape: closes the command
     /// palette, or the workspace, environment, auth type, body
     /// mode or method menu when one is open,
     /// else the sidebar's row menu or delete confirmation (clearing its error), else cancels
     /// the send in flight of the active request. The binding takes Escape before the menu's
     /// own key handler.
     pub(super) fn cancel_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.approvals.pending() > 0 {
-            self.answer_approval(ApprovalDecision::Deny, window, cx);
-        } else if self.palette.is_some() {
+        if self.palette.is_some() {
             self.close_palette(window, cx);
         } else if self.workspace_menu_open {
             if !self.cancel_new_workspace(window, cx) {

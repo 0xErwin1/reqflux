@@ -8,9 +8,7 @@ use std::time::Duration;
 use interprocess::local_socket::traits::Stream as _;
 use interprocess::local_socket::{GenericFilePath, Stream, ToFsName as _};
 
-use super::{
-    ApprovalDecision, ApprovalRequest, ApprovalResponse, MAX_LINE_BYTES, PROTOCOL_VERSION,
-};
+use super::{ApprovalRequest, ApprovalResponse, MAX_LINE_BYTES, PROTOCOL_VERSION};
 
 /// Why an exchange produced no decision.
 #[derive(Debug, thiserror::Error)]
@@ -26,7 +24,7 @@ pub enum AskError {
 }
 
 /// Sends `request` to the window listening on `socket` and waits up to `limit` for its
-/// decision.
+/// response: the decision and, for a denial, the reason the user gave.
 ///
 /// # Errors
 ///
@@ -35,7 +33,7 @@ pub fn ask(
     socket: &Path,
     request: &ApprovalRequest,
     limit: Duration,
-) -> Result<ApprovalDecision, AskError> {
+) -> Result<ApprovalResponse, AskError> {
     let name = socket
         .to_fs_name::<GenericFilePath>()
         .map_err(AskError::Unreachable)?;
@@ -66,5 +64,5 @@ pub fn ask(
             "the answer is not a response to this request".to_owned(),
         ));
     }
-    Ok(response.decision)
+    Ok(response)
 }

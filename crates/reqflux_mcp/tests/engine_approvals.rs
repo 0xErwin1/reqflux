@@ -233,6 +233,52 @@ async fn deny_refuses_the_execute_sends_nothing_and_audits_it() {
     assert_eq!(lines[0]["reason"].as_str().unwrap(), refused);
 }
 
+/// A window that denies every request with `reason`.
+struct Refuser(String);
+
+impl ApprovalHandler for Refuser {
+    fn request(&self, _request: ApprovalRequest, reply: Reply) {
+        assert!(reply.answer(ApprovalDecision::Deny, Some(self.0.clone())));
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_denial_reason_reaches_the_refusal_and_the_audit_line_cleaned() {
+    let server = mock_server().await;
+    let url = format!("{}/ping", server.uri());
+    let mut fixture = tokio::task::block_in_place(|| fixture(&url, Duration::from_secs(5)));
+    let reason = format!("  not on\nprod\u{7}{}  ", "x".repeat(300));
+    let _listener = approvals::serve_in(
+        &fixture.runtime,
+        std::process::id(),
+        Arc::new(Refuser(reason)),
+    )
+    .expect("the fake window listens");
+
+    let refused = tokio::task::block_in_place(|| err(execute(&mut fixture)));
+    let expected = format!("denied in the window: not onprod{}", "x".repeat(190));
+    assert!(refused.ends_with(&expected), "{refused}");
+    assert!(server.received_requests().await.unwrap().is_empty());
+    let lines = audit(&fixture.paths);
+    assert_eq!(lines.len(), 1, "{lines:?}");
+    assert_eq!(lines[0]["decision"], "refused");
+    assert_eq!(lines[0]["reason"].as_str().unwrap(), refused);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_blank_denial_reason_is_left_out() {
+    let mut fixture =
+        tokio::task::block_in_place(|| fixture("http://127.0.0.1:9/x", Duration::from_secs(5)));
+    let _listener = approvals::serve_in(
+        &fixture.runtime,
+        std::process::id(),
+        Arc::new(Refuser(" \n ".to_owned())),
+    )
+    .expect("the fake window listens");
+    let refused = tokio::task::block_in_place(|| err(execute(&mut fixture)));
+    assert!(refused.ends_with("; denied in the window"), "{refused}");
+}
+
 #[test]
 fn allow_session_is_cached_for_the_class_and_workspace() {
     let mut fixture = fixture("http://127.0.0.1:9/x", Duration::from_secs(5));

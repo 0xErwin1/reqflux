@@ -1,6 +1,6 @@
 //! In-app approvals (mcp-approvals S3, S4): requests from a client over the window's socket
-//! show as a dialog, queue, are answered or withdrawn, and the automation bridge cannot
-//! answer them.
+//! are counted in the status bar, the bell and the rail, listed in the MCP approvals view,
+//! answered or withdrawn there, and the automation bridge cannot answer them.
 
 use std::io::{Read as _, Write as _};
 use std::os::unix::net::UnixStream;
@@ -11,7 +11,8 @@ use std::time::{Duration, Instant};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use gpui_mcp::{AppId, BridgeConfig};
 use reqflux_engine::approvals::{
-    self, ApprovalDecision, ApprovalRequest, AskError, PROTOCOL_VERSION, WorkspaceRef,
+    self, ApprovalDecision, ApprovalRequest, ApprovalResponse, AskError, PROTOCOL_VERSION,
+    WorkspaceRef,
 };
 use tempfile::TempDir;
 
@@ -21,7 +22,7 @@ use super::draft_tests::{bounds, click, present, render, state_file};
 use super::send_tests::{self, PING, Server, serve, settle};
 use crate::workspace_tests::demo_workspace;
 
-type Answer = JoinHandle<Result<ApprovalDecision, AskError>>;
+type Answer = JoinHandle<Result<ApprovalResponse, AskError>>;
 
 /// Starts the shell's approval listener in a temporary runtime dir, held for the test.
 fn listen(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> TempDir {
@@ -95,7 +96,7 @@ fn pending(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> usize {
 }
 
 /// Waits for the client thread's answer while the shell keeps running.
-fn answer(cx: &mut VisualTestContext, client: Answer) -> Result<ApprovalDecision, AskError> {
+fn answer(cx: &mut VisualTestContext, client: Answer) -> Result<ApprovalResponse, AskError> {
     let deadline = Instant::now() + Duration::from_secs(10);
     while !client.is_finished() {
         assert!(Instant::now() < deadline, "the client never got an answer");
@@ -117,6 +118,48 @@ fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
         .and_then(|node| node.label.clone())
 }
 
+/// The decision the client got, if it got one.
+fn decision(cx: &mut VisualTestContext, client: Answer) -> Option<ApprovalDecision> {
+    answer(cx, client).ok().map(|response| response.decision)
+}
+
+/// Gives the focus to the shell, as the window has it before anything else is focused.
+fn focus_shell(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+    cx.update(|window, cx| {
+        let focus = shell.read(cx).focus.clone();
+        focus.focus(window, cx);
+    });
+}
+
+fn shell_focused(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
+    cx.update(|window, cx| shell.read(cx).focus.is_focused(window))
+}
+
+/// The request id of the selected call of the view.
+fn selected(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<u64> {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .approvals
+            .selected()
+            .map(|request| request.id)
+    })
+}
+
+/// Asks the window and waits until it has `count` pending requests.
+fn arrive(
+    cx: &mut VisualTestContext,
+    shell: &Entity<Shell>,
+    request: ApprovalRequest,
+    count: usize,
+) -> Answer {
+    let client = ask(socket(cx, shell), request, Duration::from_secs(30));
+    wait_for(cx, shell, "the request arrives", |shell| {
+        shell.approvals.pending() == count
+    });
+    client
+}
+
 /// A shell on the demo workspace that listens for approvals.
 fn window(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext, Vec<TempDir>) {
     let dir = demo_workspace();
@@ -127,25 +170,90 @@ fn window(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext, Ve
 }
 
 #[gpui::test]
-fn a_request_shows_the_dialog_with_its_text_and_the_chip(cx: &mut TestAppContext) {
+fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     let (shell, cx, _dirs) = window(cx);
     let automation = gpui_mcp::Automation::isolated();
     cx.update(|window, _| automation.attach(window));
-    assert!(bounds(cx, "approval-dialog").is_none());
+    focus_shell(cx, &shell);
     assert_eq!(label(&automation, "status-approvals"), None);
+    assert_eq!(label(&automation, "approvals-badge"), None);
+    assert_eq!(label(&automation, "rail-approvals-badge"), None);
 
-    let client = ask(
-        socket(cx, &shell),
-        request(1, "request_execute"),
-        Duration::from_secs(30),
+    let first = arrive(cx, &shell, request(1, "request_execute"), 1);
+    assert_eq!(
+        label(&automation, "status-approvals").as_deref(),
+        Some("1 approval pending")
     );
-    wait_for(cx, &shell, "the request arrives", |shell| {
-        shell.approvals.pending() == 1
-    });
-    present(cx, "approval-dialog");
-    for id in ["approval-allow", "approval-allow-session", "approval-deny"] {
-        present(cx, id);
+    assert_eq!(label(&automation, "approvals-badge").as_deref(), Some("1"));
+    assert_eq!(
+        label(&automation, "rail-approvals-badge").as_deref(),
+        Some("1")
+    );
+    assert!(bounds(cx, "approvals-view").is_none(), "nothing opens");
+    assert!(bounds(cx, "approval-dialog").is_none(), "no modal");
+    assert!(bounds(cx, "approval-backdrop").is_none(), "no backdrop");
+    assert!(shell_focused(cx, &shell), "the focus stays where it was");
+
+    let second = arrive(cx, &shell, request(2, "item_rename"), 2);
+    assert_eq!(
+        label(&automation, "status-approvals").as_deref(),
+        Some("2 approvals pending")
+    );
+    assert_eq!(label(&automation, "approvals-badge").as_deref(), Some("2"));
+    assert_eq!(
+        label(&automation, "rail-approvals-badge").as_deref(),
+        Some("2")
+    );
+
+    // Escape no longer answers anything.
+    cx.simulate_keystrokes("escape");
+    for _ in 0..3 {
+        cx.executor().advance_clock(POLL);
+        cx.run_until_parked();
     }
+    assert_eq!(pending(cx, &shell), 2);
+    assert!(!first.is_finished() && !second.is_finished());
+
+    click(cx, "rail-approvals");
+    click(cx, "approval-allow");
+    assert_eq!(decision(cx, first), Some(ApprovalDecision::AllowOnce));
+    click(cx, "approval-allow");
+    assert_eq!(decision(cx, second), Some(ApprovalDecision::AllowOnce));
+    assert_eq!(label(&automation, "status-approvals"), None);
+    assert_eq!(label(&automation, "approvals-badge"), None);
+    assert_eq!(label(&automation, "rail-approvals-badge"), None);
+}
+
+#[gpui::test]
+fn the_rail_opens_the_view_with_the_list_and_the_detail(cx: &mut TestAppContext) {
+    let (shell, cx, _dirs) = window(cx);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    click(cx, "rail-approvals");
+    present(cx, "approvals-view");
+    assert_eq!(
+        label(&automation, "approvals-empty").as_deref(),
+        Some("No agent call is waiting")
+    );
+    assert_eq!(
+        label(&automation, "approvals-pending-label").as_deref(),
+        Some("Pending · 0")
+    );
+    assert!(
+        label(&automation, "approvals-footer").is_some_and(|text| text.contains("audit log")),
+        "the footer names the audit log"
+    );
+
+    let client = arrive(cx, &shell, request(1, "request_execute"), 1);
+    assert!(bounds(cx, "approvals-empty").is_none());
+    present(cx, "approvals-list");
+    assert_eq!(
+        label(&automation, "approvals-pending-label").as_deref(),
+        Some("Pending · 1")
+    );
+    let row = label(&automation, "approvals-row-1").unwrap_or_default();
+    assert!(row.contains("request_execute"), "{row}");
+    assert!(row.contains("Demo · waiting"), "{row}");
     for (id, text) in [
         ("approval-tool", "request_execute"),
         ("approval-class", "execute"),
@@ -156,112 +264,163 @@ fn a_request_shows_the_dialog_with_its_text_and_the_chip(cx: &mut TestAppContext
     ] {
         assert_eq!(label(&automation, id).as_deref(), Some(text), "{id}");
     }
-    assert_eq!(
-        label(&automation, "status-approvals").as_deref(),
-        Some("1 approval pending")
+    assert!(
+        label(&automation, "approval-requested-at").is_some_and(|text| text.ends_with("UTC")),
+        "requested at"
     );
+    assert!(
+        label(&automation, "approval-waiting").is_some_and(|text| !text.is_empty()),
+        "waiting"
+    );
+    for id in [
+        "approval-reason",
+        "approval-deny",
+        "approval-allow-session",
+        "approval-allow",
+    ] {
+        present(cx, id);
+    }
 
     click(cx, "approval-allow");
-    assert_eq!(answer(cx, client).ok(), Some(ApprovalDecision::AllowOnce));
-    assert!(bounds(cx, "approval-dialog").is_none());
-    assert_eq!(label(&automation, "status-approvals"), None);
+    assert_eq!(decision(cx, client), Some(ApprovalDecision::AllowOnce));
+    present(cx, "approvals-empty");
 }
 
 #[gpui::test]
-fn requests_queue_and_each_button_sends_its_decision(cx: &mut TestAppContext) {
+fn the_chip_the_bell_the_palette_and_ctrl_shift_m_open_the_view(cx: &mut TestAppContext) {
+    let (shell, cx, _dirs) = window(cx);
+    let client = arrive(cx, &shell, request(1, "item_delete"), 1);
+    focus_shell(cx, &shell);
+
+    click(cx, "status-approvals");
+    present(cx, "approvals-view");
+    present(cx, "approval-tool");
+    cx.simulate_keystrokes("ctrl-1");
+    cx.run_until_parked();
+    assert!(bounds(cx, "approvals-view").is_none());
+
+    click(cx, "approvals");
+    present(cx, "approvals-view");
+    cx.simulate_keystrokes("ctrl-1");
+    cx.run_until_parked();
+    assert!(bounds(cx, "approvals-view").is_none());
+
+    cx.simulate_keystrokes("ctrl-shift-m");
+    cx.run_until_parked();
+    present(cx, "approvals-view");
+    cx.simulate_keystrokes("ctrl-1");
+    cx.run_until_parked();
+    assert!(bounds(cx, "approvals-view").is_none());
+
+    cx.simulate_keystrokes("ctrl-k");
+    cx.run_until_parked();
+    cx.simulate_input("Open MCP approvals");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    present(cx, "approvals-view");
+
+    click(cx, "approval-deny");
+    assert_eq!(decision(cx, client), Some(ApprovalDecision::Deny));
+}
+
+#[gpui::test]
+fn each_button_sends_its_decision_and_a_denial_its_reason(cx: &mut TestAppContext) {
+    let (shell, cx, _dirs) = window(cx);
+    let first = arrive(cx, &shell, request(1, "request_execute"), 1);
+    let second = arrive(cx, &shell, request(2, "item_rename"), 2);
+    let third = arrive(cx, &shell, request(3, "item_delete"), 3);
+    click(cx, "rail-approvals");
+
+    click(cx, "approval-allow-session");
+    assert_eq!(decision(cx, first), Some(ApprovalDecision::AllowSession));
+
+    click(cx, "approval-reason");
+    cx.simulate_input("not on prod");
+    cx.run_until_parked();
+    click(cx, "approval-deny");
+    let denied = answer(cx, second).ok();
+    assert_eq!(
+        denied.as_ref().map(|r| r.decision),
+        Some(ApprovalDecision::Deny)
+    );
+    assert_eq!(
+        denied.and_then(|response| response.reason).as_deref(),
+        Some("not on prod")
+    );
+
+    // The reason field is empty again for the next call: a bare denial has no reason.
+    click(cx, "approval-deny");
+    let bare = answer(cx, third).ok();
+    assert_eq!(
+        bare.as_ref().map(|r| r.decision),
+        Some(ApprovalDecision::Deny)
+    );
+    assert_eq!(bare.and_then(|response| response.reason), None);
+    assert_eq!(pending(cx, &shell), 0);
+}
+
+#[gpui::test]
+fn calls_list_longest_wait_first_and_keys_move_allow_and_deny(cx: &mut TestAppContext) {
     let (shell, cx, _dirs) = window(cx);
     let automation = gpui_mcp::Automation::isolated();
     cx.update(|window, _| automation.attach(window));
-    let socket = socket(cx, &shell);
-    let limit = Duration::from_secs(30);
-    let first = ask(socket.clone(), request(1, "request_execute"), limit);
-    wait_for(cx, &shell, "the first request", |shell| {
-        shell.approvals.pending() == 1
-    });
-    let second = ask(socket.clone(), request(2, "item_rename"), limit);
-    wait_for(cx, &shell, "the second request", |shell| {
-        shell.approvals.pending() == 2
-    });
-    let third = ask(socket, request(3, "item_delete"), limit);
-    wait_for(cx, &shell, "the third request", |shell| {
-        shell.approvals.pending() == 3
-    });
+    let first = arrive(cx, &shell, request(1, "request_execute"), 1);
+    let second = arrive(cx, &shell, request(2, "item_rename"), 2);
+    let third = arrive(cx, &shell, request(3, "item_delete"), 3);
+    click(cx, "rail-approvals");
+    for (n, tool) in [
+        (1, "request_execute"),
+        (2, "item_rename"),
+        (3, "item_delete"),
+    ] {
+        let row = label(&automation, &format!("approvals-row-{n}")).unwrap_or_default();
+        assert!(row.contains(tool), "row {n}: {row}");
+    }
     assert_eq!(
-        label(&automation, "status-approvals").as_deref(),
-        Some("3 approvals pending")
+        selected(cx, &shell),
+        Some(1),
+        "the longest wait is selected"
     );
-    assert_eq!(
-        label(&automation, "approval-tool").as_deref(),
-        Some("request_execute")
-    );
-    assert!(bounds(cx, "approval-method").is_some());
 
-    click(cx, "approval-allow-session");
-    assert_eq!(answer(cx, first).ok(), Some(ApprovalDecision::AllowSession));
+    cx.simulate_keystrokes("j");
+    assert_eq!(selected(cx, &shell), Some(2));
+    cx.simulate_keystrokes("down");
+    assert_eq!(selected(cx, &shell), Some(3));
+    cx.simulate_keystrokes("k");
+    assert_eq!(selected(cx, &shell), Some(2));
+    cx.simulate_keystrokes("up");
+    assert_eq!(selected(cx, &shell), Some(1));
+    click(cx, "approvals-row-2");
+    assert_eq!(selected(cx, &shell), Some(2));
     assert_eq!(
         label(&automation, "approval-tool").as_deref(),
         Some("item_rename")
     );
-    assert!(
-        bounds(cx, "approval-method").is_none(),
-        "only request_execute has a method"
-    );
-    assert!(bounds(cx, "approval-url").is_none());
 
-    click(cx, "approval-deny");
-    assert_eq!(answer(cx, second).ok(), Some(ApprovalDecision::Deny));
+    cx.simulate_keystrokes("a");
+    assert_eq!(decision(cx, second), Some(ApprovalDecision::AllowOnce));
+    assert_eq!(selected(cx, &shell), Some(3), "answering selects the next");
+
+    // `r` typed in the reason field is text, not a denial.
+    click(cx, "approval-reason");
+    cx.simulate_keystrokes("r");
+    for _ in 0..3 {
+        cx.executor().advance_clock(POLL);
+        cx.run_until_parked();
+    }
+    assert_eq!(pending(cx, &shell), 2);
+
+    click(cx, "approvals-row-1");
+    cx.simulate_keystrokes("r");
+    assert_eq!(decision(cx, first), Some(ApprovalDecision::Deny));
+    assert_eq!(selected(cx, &shell), Some(3));
     click(cx, "approval-allow");
-    assert_eq!(answer(cx, third).ok(), Some(ApprovalDecision::AllowOnce));
-    assert_eq!(pending(cx, &shell), 0);
+    assert_eq!(decision(cx, third), Some(ApprovalDecision::AllowOnce));
 }
 
 #[gpui::test]
-fn escape_denies_the_request_shown(cx: &mut TestAppContext) {
-    let (shell, cx, _dirs) = window(cx);
-    cx.update(|window, cx| {
-        let focus = shell.read(cx).focus.clone();
-        focus.focus(window, cx);
-    });
-    let client = ask(
-        socket(cx, &shell),
-        request(1, "item_delete"),
-        Duration::from_secs(30),
-    );
-    wait_for(cx, &shell, "the request", |shell| {
-        shell.approvals.pending() == 1
-    });
-    cx.simulate_keystrokes("escape");
-    assert_eq!(answer(cx, client).ok(), Some(ApprovalDecision::Deny));
-    assert_eq!(pending(cx, &shell), 0);
-}
-
-#[gpui::test]
-fn escape_denies_before_it_closes_the_palette(cx: &mut TestAppContext) {
-    let (shell, cx, _dirs) = window(cx);
-    cx.update(|window, cx| {
-        let focus = shell.read(cx).focus.clone();
-        focus.focus(window, cx);
-    });
-    cx.simulate_keystrokes("ctrl-k");
-    cx.run_until_parked();
-    let client = ask(
-        socket(cx, &shell),
-        request(1, "item_delete"),
-        Duration::from_secs(30),
-    );
-    wait_for(cx, &shell, "the request", |shell| {
-        shell.approvals.pending() == 1
-    });
-    cx.simulate_keystrokes("escape");
-    assert_eq!(answer(cx, client).ok(), Some(ApprovalDecision::Deny));
-    assert!(cx.update(|_, cx| shell.read(cx).palette.is_some()));
-    cx.simulate_keystrokes("escape");
-    cx.run_until_parked();
-    assert!(cx.update(|_, cx| shell.read(cx).palette.is_none()));
-}
-
-#[gpui::test]
-fn a_request_whose_client_timed_out_leaves_the_queue(cx: &mut TestAppContext) {
+fn a_request_whose_client_timed_out_leaves_the_list(cx: &mut TestAppContext) {
     let (shell, cx, _dirs) = window(cx);
     let socket = socket(cx, &shell);
     let gone = ask(
@@ -276,15 +435,17 @@ fn a_request_whose_client_timed_out_leaves_the_queue(cx: &mut TestAppContext) {
     wait_for(cx, &shell, "the second request", |shell| {
         shell.approvals.pending() == 2
     });
+    click(cx, "rail-approvals");
+    present(cx, "approvals-row-2");
     assert!(matches!(answer(cx, gone), Err(AskError::NoAnswer(_))));
     wait_for(cx, &shell, "the timed-out request leaves", |shell| {
         shell.approvals.pending() == 1
     });
-    let shown = cx.update(|_, cx| shell.read(cx).approvals.shown().map(|r| r.id));
-    assert_eq!(shown, Some(2));
+    assert!(bounds(cx, "approvals-row-2").is_none());
+    assert_eq!(selected(cx, &shell), Some(2));
     click(cx, "approval-deny");
-    assert_eq!(answer(cx, waiting).ok(), Some(ApprovalDecision::Deny));
-    assert!(bounds(cx, "approval-dialog").is_none());
+    assert_eq!(decision(cx, waiting), Some(ApprovalDecision::Deny));
+    present(cx, "approvals-empty");
 }
 
 /// The descriptor the bridge advertises in `dir`, if any.
@@ -398,14 +559,17 @@ fn the_automation_bridge_cannot_answer_a_pending_request(cx: &mut TestAppContext
     wait_for(cx, &shell, "the request", |shell| {
         shell.approvals.pending() == 1
     });
+    click(cx, "rail-approvals");
     let allow = present(cx, "approval-allow").center();
     assert_eq!(bridge_descriptor(endpoints.path()), None);
     for operation in click_at(f32::from(allow.x), f32::from(allow.y)) {
         assert!(drive(cx, &before, operation).is_err());
     }
-    let escape = serde_json::json!({ "kind": "input",
-        "command": { "kind": "key", "keystroke": "escape" } });
-    assert!(drive(cx, &before, escape).is_err());
+    for keystroke in ["a", "escape"] {
+        let key = serde_json::json!({ "kind": "input",
+            "command": { "kind": "key", "keystroke": keystroke } });
+        assert!(drive(cx, &before, key).is_err(), "{keystroke}");
+    }
     for _ in 0..5 {
         cx.executor().advance_clock(POLL);
         cx.run_until_parked();
@@ -414,7 +578,7 @@ fn the_automation_bridge_cannot_answer_a_pending_request(cx: &mut TestAppContext
     assert!(!client.is_finished());
 
     click(cx, "approval-deny");
-    assert_eq!(answer(cx, client).ok(), Some(ApprovalDecision::Deny));
+    assert_eq!(decision(cx, client), Some(ApprovalDecision::Deny));
     let Some(after) = bridge_descriptor(endpoints.path()) else {
         panic!("the bridge did not come back");
     };

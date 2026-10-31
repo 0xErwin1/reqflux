@@ -1,10 +1,13 @@
 //! The title bar: the workspace and environment over the sidebar column, the command search
 //! at the center, and the approvals bell on the right. The environment selector opens the
 //! environment menu, the workspace selector the workspace menu and the search the command
-//! palette; the bell does nothing yet.
+//! palette; the bell opens the MCP approvals view and carries the pending count as a badge,
+//! `approvals-badge`.
 
+use bolt::chamfer::Chamfer;
+use bolt::controls::badge_text;
 use bolt::controls::{Field, IconButton};
-use bolt::tokens::{border, chrome, field, icon, space};
+use bolt::tokens::{border, chrome, cut, family, field, icon, rail, space};
 use bolt::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Stateful,
@@ -224,11 +227,37 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         )
         .child(
             div().flex_1().min_w_0().flex().justify_end().child(
-                div().pr(space::MD).child(IconButton::new(
-                    "approvals",
-                    IconName::Bell,
-                    "Approvals",
-                )),
+                div()
+                    .pr(space::MD)
+                    .child(bell(shell.approvals.pending(), cx)),
             ),
         )
+}
+
+/// The approvals bell, `approvals`, with the pending count on its badge.
+fn bell(pending: usize, cx: &mut Context<Shell>) -> impl IntoElement {
+    let brand = bolt::brand(cx);
+    let badge = badge_text(Some(pending)).map(|count| {
+        text_region("approvals-badge")
+            .aria_label(count.clone())
+            .absolute()
+            .top(rail::BADGE_INSET)
+            .right(rail::BADGE_INSET)
+            .pl(rail::BADGE_PADDING_X)
+            .pr(rail::BADGE_PADDING_X)
+            .font_family(family::INTERFACE)
+            .text_size(rail::BADGE_FONT)
+            .line_height(rail::BADGE_LINE_HEIGHT)
+            .font_weight(FontWeight::BOLD)
+            .text_color(brand.on_accent)
+            .child(Chamfer::new(cut::KEYCAP).fill(brand.accent))
+            .child(div().relative().child(count))
+    });
+    div()
+        .relative()
+        .child(
+            IconButton::new("approvals", IconName::Bell, "Approvals")
+                .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx))),
+        )
+        .children(badge)
 }

@@ -738,13 +738,29 @@ listens on `$XDG_RUNTIME_DIR/reqflux/approvals-<pid>.sock` (directory 0700, sock
 `approvals-<pid>.json` descriptor 0600; peers of another user are refused) for one
 newline-delimited JSON exchange per call: tool, class, workspace, target names and, for an
 execution, the method and the masked URL from a prepare that runs no script, never argument
-values. The window shows `approval-dialog` (Allow once, Allow for this session, Deny; Escape
-denies; requests queue; the `status-approvals` chip counts them) without raising itself. "For
+values. There is no modal: a request opens nothing, takes no focus and does not raise the
+window. The count shows in the `status-approvals` chip ("1 approval pending" / "N approvals
+pending", only when N > 0) and as a badge on the title bar bell (`approvals-badge`) and on the
+rail's `rail-approvals` (`rail-approvals-badge`). The MCP approvals view (`approvals-view`,
+`shell/approvals_view.rs`) opens from the rail button, the bell, the chip, the palette ("Open
+MCP approvals") and Ctrl+Shift+M; it takes the place of the sidebar and document islands while
+`Panel::Approvals` is the rail's view. On the left, `approvals-list`: the header
+`approvals-pending-label` ("Pending · N"), a row per call longest wait first
+(`approvals-row-<n>`: the tool in mono, the class badge, "workspace · waiting N min") and a
+footer saying decisions are written to the audit log. On the right, the selected call
+(`approval-tool`, `approval-class`, `approval-workspace`, `approval-targets`, `approval-method`,
+`approval-url`, `approval-requested-at`, `approval-waiting`), the reason field
+`approval-reason` and `approval-deny`, `approval-allow-session`, `approval-allow`; with nothing
+pending, `approvals-empty`. With the list focused `j`/`k` and the arrows move, `a` allows once
+and `r` denies; the reason field sits outside the list, so typing never answers. Escape answers
+nothing. Answering a call selects the next. A denial carries the trimmed reason in the
+response's optional `reason` (protocol version 1); `reqflux mcp` strips control characters,
+cuts it to 200 characters and refuses with "denied in the window: <reason>". "For
 this session" covers the class and workspace until that `reqflux mcp` exits. No live window
 (no runtime dir, no descriptor of a live pid), no answer within 120 s, or a dropped connection
-refuses the call; a client that gives up withdraws its request from the dialog. The audit line
-records `approved once`, `approved for this session`, `denied in the window`, the timeout or
-`no window is running to approve it`.
+refuses the call; a client that gives up withdraws its request from the list. The audit line
+records `approved once`, `approved for this session`, `denied in the window` (with the reason),
+the timeout or `no window is running to approve it`.
 
 An agent can never approve its own call. The gpui-mcp bridge has no input hook and gpui does not
 expose whether an event is synthetic, so while any approval is pending the window shuts its
@@ -902,6 +918,7 @@ field takes keys first. The keymap is not configurable yet.
 | Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request is open |
 | Show Collections, History, Variables | Ctrl+1, Ctrl+2, Ctrl+3 | a workspace is open |
 | Toggle theme | Ctrl+Shift+T | always |
+| Open MCP approvals | Ctrl+Shift+M | always |
 
 Every region and tree row has a stable element id (`title-bar`, `sidebar`, `document`,
 `status-bar`, `tree-row-<id>`, `doc-tab-<id>`, `request-tab-<name>`,
