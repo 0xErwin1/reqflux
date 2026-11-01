@@ -331,7 +331,9 @@ fn an_environment_change_during_a_send_leaves_it_alone(cx: &mut TestAppContext) 
 /// flight: the save writes both edits and the response still lands.
 #[gpui::test]
 fn saving_while_a_drafted_send_is_in_flight_keeps_the_response(cx: &mut TestAppContext) {
-    let port = slow_server(Duration::from_millis(300));
+    // Long enough that the send is still in flight at the save on a loaded machine (300 ms
+    // was not: a full parallel build made the response land first); `settle` waits up to 10 s.
+    let port = slow_server(Duration::from_millis(2000));
     let dir = workspace(port);
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
