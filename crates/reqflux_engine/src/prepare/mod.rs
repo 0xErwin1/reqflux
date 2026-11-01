@@ -368,8 +368,7 @@ pub(crate) fn request_options(settings: Settings) -> RequestOptions {
 /// The enabled rows of a param or header table. A row with an empty key and an empty value
 /// is a blank line in the editor, not a pair, and is never sent.
 pub(super) fn enabled(rows: &[KeyValue]) -> impl Iterator<Item = &KeyValue> {
-    rows.iter()
-        .filter(|row| row.enabled && !(row.key.is_empty() && row.value.is_empty()))
+    rows.iter().filter(|row| reqflux_core::query::is_sent(row))
 }
 
 /// Whether `headers` has one named `name`, compared case-insensitively.

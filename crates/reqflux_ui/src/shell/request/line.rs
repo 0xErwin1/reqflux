@@ -1,7 +1,8 @@
 //! The request line: the method chip, which opens the method menu, the URL with its references styled, and
 //! the Send button, which sends the request, or the Cancel button while it is in flight; both
 //! have the same width, so the line does not move. Clicking the URL swaps it for an editable
-//! field.
+//! field drawn in the same place, padding, font and height, so the text does not move.
+//! Enter in the field commits the URL and sends the request.
 
 use bolt::chamfer::Chamfer;
 use bolt::controls::Keycap;
@@ -180,6 +181,8 @@ fn editing_method(input: Entity<InputState>, cx: &mut Context<Shell>) -> Statefu
             Input::new(&input)
                 .appearance(false)
                 .bordered(false)
+                .p_0()
+                .h_full()
                 .flex_1()
                 .min_w_0()
                 .text_size(tokens::REQUEST_LINE_TEXT)
@@ -188,15 +191,16 @@ fn editing_method(input: Entity<InputState>, cx: &mut Context<Shell>) -> Statefu
         )
 }
 
-/// The URL field, element id `request-url`: the URL as written, styled by its references,
-/// which a click swaps for the editable field `request-url-input`. While the field of this
-/// request is open, it takes the URL's place and takes Enter and Escape while focused.
+/// The URL field, element id `request-url`: the URL as written with the params that are sent
+/// appended, styled by its references, in `request-url-text`, which a click swaps for the
+/// editable field `request-url-input`. While the field of this request is open, it takes the
+/// URL's place and takes Enter and Escape while focused.
 fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
     if let Some(edit) = shell.url_edit.as_ref().filter(|edit| edit.request_id == id) {
         return editing_url(edit.input.clone(), cx);
     }
     let colors = bolt::colors(cx);
-    let url = shell.displayed_url(id);
+    let url = shell.shown_url(id);
     let request = id.to_owned();
     region("request-url")
         .role(Role::Label)
@@ -220,7 +224,16 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
                 .fill(colors.background)
                 .edge(colors.line, border::THIN),
         )
-        .children(spans::render(&state.inspection, &url, cx))
+        .child(
+            region("request-url-text")
+                .flex_1()
+                .min_w_0()
+                .h_full()
+                .flex()
+                .items_center()
+                .overflow_hidden()
+                .children(spans::render(&state.inspection, &url, cx)),
+        )
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.start_url_edit(&request, window, cx);
         }))
@@ -249,11 +262,11 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
         )
         .on_action(cx.listener(|this, action: &Enter, window, cx| {
             // Ctrl+Enter maps to the input's `secondary-enter` while the field has focus:
-            // it sends instead of committing.
+            // it sends with the field open; Enter commits it and sends.
             if action.secondary {
                 this.send_active(window, cx);
             } else {
-                this.commit_url_edit(window, cx);
+                this.commit_url_edit_and_send(window, cx);
             }
         }))
         .on_action(cx.listener(|this, _: &Escape, window, cx| {
@@ -264,6 +277,8 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
                 .id("request-url-input")
                 .appearance(false)
                 .bordered(false)
+                .p_0()
+                .h_full()
                 .flex_1()
                 .min_w_0()
                 .text_size(tokens::URL_TEXT)

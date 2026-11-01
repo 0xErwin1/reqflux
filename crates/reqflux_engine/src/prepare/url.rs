@@ -10,17 +10,9 @@ pub(super) fn with_query(base: String, query: &[(String, String)]) -> String {
 }
 
 /// Appends `query` to `base` as written, without encoding, after the same separator as
-/// [`with_query`]; front ends show requests this way.
+/// [`with_query`] and before a `#fragment`; front ends show requests this way.
 pub(super) fn append(base: String, query: &[(String, String)]) -> String {
-    if query.is_empty() {
-        return base;
-    }
-    let pairs: Vec<String> = query
-        .iter()
-        .map(|(key, value)| format!("{key}={value}"))
-        .collect();
-    let separator = if base.contains('?') { '&' } else { '?' };
-    format!("{base}{separator}{}", pairs.join("&"))
+    reqflux_core::query::append(base, query)
 }
 
 /// Percent-encodes every byte except the RFC 3986 unreserved characters.

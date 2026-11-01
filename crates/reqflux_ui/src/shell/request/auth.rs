@@ -188,6 +188,9 @@ fn input_field(input: &Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<
     part("request-auth-input".to_owned())
         .flex_1()
         .min_w_0()
+        .h_full()
+        .flex()
+        .items_center()
         .on_action(cx.listener(|this, action: &Enter, window, cx| {
             // Ctrl+Enter maps to the input's `secondary-enter` while the field has focus: it
             // sends instead of committing.
@@ -204,6 +207,8 @@ fn input_field(input: &Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<
             Input::new(input)
                 .appearance(false)
                 .bordered(false)
+                .p_0()
+                .h_full()
                 .text_size(tokens::GRID_TEXT)
                 .font_family(family::MONO)
                 .text_color(colors.strong),
@@ -277,8 +282,9 @@ fn field_row(
         .into_any_element();
     }
     let (shown, value) = if field.masked {
-        let value = div()
+        let value = part(format!("{well_id}-text"))
             .flex_1()
+            .h_full()
             .flex()
             .items_center()
             .justify_between()
@@ -287,10 +293,12 @@ fn field_row(
             .child(secret_badge(bolt::colors(cx)));
         (MASK.to_owned(), value)
     } else {
-        let value = div()
+        let value = part(format!("{well_id}-text"))
             .flex_1()
             .min_w_0()
+            .h_full()
             .flex()
+            .items_center()
             .overflow_hidden()
             .children(spans::render(inspection, &field.value, cx));
         (field.value.clone(), value)

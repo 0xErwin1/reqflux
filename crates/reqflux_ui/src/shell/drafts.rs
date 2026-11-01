@@ -173,7 +173,9 @@ impl Shell {
     }
 
     /// Puts `url` into the draft of the request `id`, creating the draft from the saved
-    /// request when there is none, and persists it in the app state.
+    /// request when there is none, and persists it in the app state. Tests use it to make a
+    /// draft without going through the URL field's query sync.
+    #[cfg(test)]
     pub(super) fn set_draft_url(&mut self, id: &str, url: String, cx: &mut Context<Self>) {
         self.edit_draft(id, |request| request.url = url, cx);
     }
@@ -359,7 +361,9 @@ impl Shell {
         }
     }
 
-    /// The URL the request line of `id` shows as written: the draft's when it has one.
+    /// The URL as written in the request of `id`, the draft's when it has one, without its
+    /// params; the request line shows `shown_url` instead.
+    #[cfg(test)]
     pub(super) fn displayed_url(&self, id: &str) -> String {
         match self.drafts.get(id) {
             Some(draft) => draft.request.url.clone(),

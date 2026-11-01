@@ -80,6 +80,14 @@ fn url_appends_params_after_an_ampersand_when_it_has_a_query() {
 }
 
 #[test]
+fn url_puts_the_params_before_the_fragment() {
+    let mut request_doc = get("https://h/p#top");
+    request_doc.params = vec![KeyValue::new("a", "{{one}}")];
+    let inspection = inspect(&single(request_doc));
+    assert_eq!(inspection.url, "https://h/p?a={{one}}#top");
+}
+
+#[test]
 fn url_without_enabled_params_is_the_request_url() {
     let mut request_doc = get("https://h/p");
     request_doc.params = vec![disabled("a", "1")];

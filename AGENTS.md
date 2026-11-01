@@ -10,6 +10,11 @@ on-disk format and the crate boundaries.
 - `bolt` is the design system shared with DBFlux. It never names ReqFlux, HTTP or a ReqFlux type;
   ReqFlux-specific tokens and the brand live in `reqflux_ui`. Screens use `bolt` roles and
   components, never gpui-component `Theme` fields or raw colors.
+- `bolt` is a component library, not a palette. A control a screen needs (button, field,
+  select, segmented control, tabs, menu, chip, badge, grid, splitter, dialog, empty state) comes
+  from `bolt`; when it is missing or lacks an option, add it to `bolt`, matching DBFlux's
+  component and sizes, never a copy in `reqflux_ui`. A size that two screens share is a `bolt`
+  token, not a `reqflux_ui` one.
 - `reqflux_engine` is the only API the UI, MCP and CLI use. Never reimplement engine logic in a
   front end.
 - No source file over 1000 lines. Split by responsibility before you reach it;

@@ -17,6 +17,7 @@ use self::controls::{Badge, badge, choice, hint, link, radio_group, row};
 use super::body::controls::well;
 use super::pane_model::settings_rows;
 use crate::shell::Shell;
+use crate::shell::rows::part;
 use crate::shell::setting_edit::Toggle;
 use crate::tokens;
 
@@ -128,22 +129,34 @@ fn timeout_control(
                 this.discard_cell_edit(window, cx);
             }))
             .child(
-                div().flex_1().min_w_0().child(
-                    Input::new(&input)
-                        .appearance(false)
-                        .bordered(false)
-                        .text_size(tokens::GRID_TEXT)
-                        .font_family(family::MONO)
-                        .text_color(colors.foreground),
-                ),
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .h_full()
+                    .flex()
+                    .items_center()
+                    .child(
+                        Input::new(&input)
+                            .appearance(false)
+                            .bordered(false)
+                            .p_0()
+                            .h_full()
+                            .text_size(tokens::GRID_TEXT)
+                            .font_family(family::MONO)
+                            .text_color(colors.foreground),
+                    ),
             )
             .child(unit),
         None => {
             let request = request_id.to_owned();
+            let text = part("request-setting-timeout-text".to_owned())
+                .flex_1()
+                .h_full()
+                .flex()
+                .items_center();
             let value = match settings.timeout_ms {
-                Some(ms) => div().flex_1().child(ms.to_string()),
-                None => div()
-                    .flex_1()
+                Some(ms) => text.child(ms.to_string()),
+                None => text
                     .text_color(colors.muted)
                     .child(DEFAULT_TIMEOUT_MS.to_string()),
             };

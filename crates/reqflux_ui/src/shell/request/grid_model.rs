@@ -1,6 +1,10 @@
-//! The Params and Headers grids without GPUI: row ids, automation labels, secret masking and
-//! the unresolved-row decision, all from the spans the engine reports.
+//! The Params and Headers grids without elements: row ids, automation labels, secret masking,
+//! the unresolved-row decision, all from the spans the engine reports, and the delete icon's
+//! colors.
 
+use bolt::controls::{IconButtonVariant, icon_button_colors};
+use bolt::tokens::Colors;
+use gpui::Hsla;
 use reqflux_engine::Span;
 
 /// What a secret value shows instead of anything it resolves to.
@@ -61,9 +65,29 @@ pub(crate) fn masked_text(spans: &[Span]) -> String {
     shown
 }
 
+/// The delete icon of a grid row at rest and under the pointer: the ghost icon button's icon
+/// role, muted, then the body text color.
+pub(crate) fn delete_icon_colors(colors: &Colors) -> (Hsla, Hsla) {
+    let rest = icon_button_colors(IconButtonVariant::Ghost, colors).icon;
+    (rest, colors.foreground)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_delete_icon_uses_the_ghost_icon_role_and_brightens_on_hover() {
+        for colors in [Colors::dark(), Colors::light()] {
+            let (rest, hover) = delete_icon_colors(&colors);
+            assert_eq!(
+                rest,
+                icon_button_colors(IconButtonVariant::Ghost, &colors).icon
+            );
+            assert_eq!(rest, colors.muted);
+            assert_eq!(hover, colors.foreground);
+        }
+    }
 
     fn reference(name: &str, resolves: bool, secret: bool) -> Span {
         Span::Reference {

@@ -192,3 +192,7 @@ impl Shell {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "cell_edit_tests.rs"]
+mod tests;

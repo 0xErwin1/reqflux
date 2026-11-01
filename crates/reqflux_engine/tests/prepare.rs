@@ -373,6 +373,16 @@ fn s6_params_append_with_ampersand_when_the_url_has_a_query() {
 }
 
 #[test]
+fn s6_params_go_before_the_fragment() {
+    let mut doc = get("https://h/p?fixed=1#top");
+    doc.params = vec![KeyValue::new("q", "a b")];
+    assert_eq!(
+        prepare(&single(doc)).request.url,
+        "https://h/p?fixed=1&q=a%20b#top"
+    );
+}
+
+#[test]
 fn s6_no_params_leave_the_url_unchanged() {
     assert_eq!(
         prepare(&single(get("https://h/p"))).request.url,

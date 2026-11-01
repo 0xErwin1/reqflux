@@ -18,12 +18,17 @@ use gpui_component::input::{Enter, Escape, Input};
 use reqflux_core::model::KeyValue;
 use reqflux_engine::Inspection;
 
-use super::grid_model::{has_unresolved, masked_text, placeholder, row_id, row_label, value_hint};
+use super::grid_model::{
+    delete_icon_colors, has_unresolved, masked_text, placeholder, row_id, row_label, value_hint,
+};
 use super::spans;
 use crate::shell::Shell;
 use crate::shell::cell_edit::{CellEdit, CellField};
 use crate::shell::rows::{labeled_row, part};
 use crate::tokens;
+
+/// The hover group of a row's delete control.
+const DELETE_GROUP: &str = "request-grid-delete";
 
 /// A grid column: fixed width, or the value column, which fills the rest.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -213,7 +218,7 @@ fn data_row(
             let colors = bolt::colors(cx);
             cell.text_color(tone(colors, colors.strong))
                 .when(off, |this| this.line_through())
-                .child(row.key.clone())
+                .child(cell_text(table, n, CellField::Key).child(row.key.clone()))
                 .into_any_element()
         }
     };
@@ -233,12 +238,13 @@ fn data_row(
                             .color(colors.muted),
                     )
                 });
+            let text = cell_text(table, n, CellField::Value);
             let value = if secret {
                 value
-                    .child(masked_text(&value_spans))
+                    .child(text.child(masked_text(&value_spans)))
                     .child(part(format!("request-{table}-secret-{n}")).child(secret_badge(colors)))
             } else {
-                value.children(spans::render(inspection, &row.value, cx))
+                value.child(text.children(spans::render(inspection, &row.value, cx)))
             };
             value.into_any_element()
         }
@@ -275,7 +281,8 @@ fn data_row(
 }
 
 /// The delete control in the actions cell of the 1-based row `n` of `table`, element id
-/// `request-<table>-delete-<n>`: clicking it removes the row from the request's draft.
+/// `request-<table>-delete-<n>`: a muted trash icon that turns to the body color under the
+/// pointer; clicking it removes the row from the request's draft.
 fn delete_control(
     request_id: &str,
     table: &str,
@@ -283,12 +290,14 @@ fn delete_control(
     key: &str,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let (rest, hover) = delete_icon_colors(bolt::colors(cx));
     let request = request_id.to_owned();
     let table = table.to_owned();
     part(format!("request-{table}-delete-{n}"))
         .role(Role::Button)
         .aria_label(format!("Delete {key}"))
+        .group(DELETE_GROUP)
+        .relative()
         .cursor_pointer()
         .flex_none()
         .w(tokens::GRID_ACTIONS_COLUMN)
@@ -299,7 +308,22 @@ fn delete_control(
         .child(
             Icon::new(IconName::Trash)
                 .size(tokens::GRID_ACTION_ICON)
-                .color(colors.line_2),
+                .color(rest),
+        )
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .flex()
+                .items_center()
+                .justify_center()
+                .invisible()
+                .group_hover(DELETE_GROUP, |style| style.visible())
+                .child(
+                    Icon::new(IconName::Trash)
+                        .size(tokens::GRID_ACTION_ICON)
+                        .color(hover),
+                ),
         )
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.delete_grid_row(&request, &table, n, window, cx);
@@ -380,17 +404,40 @@ fn cell_shell(table: &str, n: usize, field: CellField, line: Hsla) -> Stateful<D
     column.shape(part(format!("request-{table}-{name}-{n}")), line)
 }
 
+/// The text of the key or value cell of row `n` of `table`, element id
+/// `request-<table>-<field>-<n>-text`: where the open field's text starts too.
+fn cell_text(table: &str, n: usize, field: CellField) -> Stateful<Div> {
+    let name = match field {
+        CellField::Key => "key",
+        CellField::Value => "value",
+    };
+    part(format!("request-{table}-{name}-{n}-text"))
+        .flex_1()
+        .min_w_0()
+        .h_full()
+        .flex()
+        .items_center()
+        .overflow_hidden()
+}
+
 /// The open field in the place of the cell `edit` replaces, element id `request-cell-input`
-/// on the input: the cell becomes a well, the background with a tint focus ring. Enter
-/// commits the text into the draft and Escape drops what was typed, as the URL field does. A
-/// secret value keeps its badge next to the field, which opens empty with a placeholder.
+/// on the input: the cell becomes a well, the background with a tint focus ring drawn over
+/// the cell's own lines, so the text keeps the place it had. Enter commits the text into the
+/// draft and Escape drops what was typed, as the URL field does. A secret value keeps its
+/// badge next to the field, which opens empty with a placeholder.
 fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     let tint = bolt::brand(cx).accent_tint;
     let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line);
-    cell.bg(colors.background)
-        .border(border::FOCUS_RING)
-        .border_color(tint)
+    cell.relative()
+        .bg(colors.background)
+        .child(
+            div()
+                .absolute()
+                .inset_0()
+                .border(border::FOCUS_RING)
+                .border_color(tint),
+        )
         .font_family(family::MONO)
         .text_size(tokens::GRID_TEXT)
         .text_color(colors.foreground)
@@ -411,6 +458,8 @@ fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
                 .id("request-cell-input")
                 .appearance(false)
                 .bordered(false)
+                .p_0()
+                .h_full()
                 .flex_1()
                 .min_w_0()
                 .text_size(tokens::GRID_TEXT)
