@@ -87,12 +87,12 @@ gpui-platform = { package = "gpui-pre-platform", version = "=0.3.9", default-fea
 # DBFlux's vendored copies of upstream gpui-mcp, built against the same patched
 # gpui-pre. The `file://` URL stands until the DBFlux branch is published; then
 # it becomes the published repository at the same rev.
-gpui-mcp = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f", default-features = false, features = ["gpui-pre"] }
-gpui-mcp-protocol = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f" }
+gpui-mcp = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78", default-features = false, features = ["gpui-pre"] }
+gpui-mcp-protocol = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78" }
 
 # Bolt, the design system shared with DBFlux, from the same DBFlux rev as the GPUI stack.
 # ReqFlux installs it with its own brand.
-bolt = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f" }
+bolt = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -119,10 +119,10 @@ let_underscore_must_use = "warn"
 # The `file://` URL stands until the DBFlux branch is published; then it
 # becomes the published repository at the same rev.
 [patch.crates-io]
-gpui-pre = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f" }
-gpui-base = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f" }
-gpui-component = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f" }
-gpui-pre-linux = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "36283ce83890517d347beeeeca685dd2f5ccc04f" }
+gpui-pre = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78" }
+gpui-base = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78" }
+gpui-component = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78" }
+gpui-pre-linux = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "2e5e4b1faad4e884d0412a88710f92f97c5a3b78" }
 
 # Line tables keep backtraces usable at a fraction of the link time and
 # memory that full debug info costs with GPUI in the graph.
