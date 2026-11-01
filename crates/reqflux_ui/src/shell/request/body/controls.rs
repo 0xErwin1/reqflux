@@ -139,6 +139,18 @@ pub(in crate::shell::request) fn well(id: String, cx: &App) -> Stateful<Div> {
         )
 }
 
+/// The focus ring `id` of an editor box: the accent edge over the box's plain one, drawn only
+/// while the editor has focus.
+pub(in crate::shell::request) fn focus_ring(id: String, cx: &App) -> Stateful<Div> {
+    let accent = bolt::brand(cx).accent_tint;
+    part(id)
+        .absolute()
+        .top_0()
+        .left_0()
+        .size_full()
+        .child(Chamfer::new(cut::CONTROL).edge(accent, border::FOCUS_RING))
+}
+
 /// A multi-line field well `id`, sized by its content, for the raw text and the GraphQL
 /// query.
 pub(in crate::shell::request) fn text_well(id: String, cx: &App) -> Stateful<Div> {

@@ -68,6 +68,15 @@ impl RequestSend {
         self.running.as_ref().map(|running| running.cancel.clone())
     }
 
+    /// A send showing `completed`, the last recorded response of a request just opened in
+    /// its own tab (request-pane-feedback S12).
+    pub(crate) fn recorded(completed: Completed) -> Self {
+        Self {
+            state: SendState::Done(completed),
+            ..Self::default()
+        }
+    }
+
     /// A send showing `completed`, reopened from history as `reopened`.
     pub(crate) fn reopened(completed: Completed, reopened: Reopened) -> Self {
         Self {

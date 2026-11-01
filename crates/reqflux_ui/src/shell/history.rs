@@ -218,6 +218,7 @@ impl Shell {
         if let Err(error) = state.record_history(workspace_id, record) {
             log::warn!("cannot record the send of {request_id} in history: {error}");
         }
+        self.split.forget_recorded();
         self.refresh_history(cx);
     }
 
@@ -308,6 +309,28 @@ impl Shell {
         self.method_menu_open = false;
         self.refresh_history(cx);
         cx.notify();
+    }
+
+    /// Shows the last recorded send of the request `id` in its tab when it has no send in
+    /// this session (request-pane-feedback S12): its response, masked as history stored it,
+    /// or its failure. A request never sent keeps no send.
+    pub(super) fn seed_recorded_send(&mut self, id: &str, cx: &mut Context<Self>) {
+        if self.sends.contains_key(id) {
+            return;
+        }
+        let (Some(state), Some(workspace_id)) = (self.state.as_ref(), self.workspace_id.as_deref())
+        else {
+            return;
+        };
+        match state.last_history_of(workspace_id, id) {
+            Ok(Some(entry)) => {
+                self.sends
+                    .insert(id.to_owned(), RequestSend::recorded(completed_of(&entry)));
+                cx.notify();
+            }
+            Ok(None) => {}
+            Err(error) => log::warn!("cannot read the last send of {id}: {error}"),
+        }
     }
 
     /// Whether the history tab is the active document.

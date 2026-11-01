@@ -9,6 +9,13 @@
 //! `response-expand`, and any drag restore it too. Each pane keeps at least
 //! [`tokens::SPLIT_PANE_MIN`]. The height and the collapsed flag are per user: the app state
 //! settings [`HEIGHT_SETTING`] and [`COLLAPSED_SETTING`] hold them across restarts.
+//!
+//! A request not sent in this session shows its last recorded send from history; one never
+//! sent shows neither the gutter nor the response: its pane takes the whole height
+//! (request-pane-feedback S12, frame D). The first send brings both in at the stored
+//! position.
+
+use std::collections::HashSet;
 
 use bolt::tokens::{Colors, border, family, icon, space};
 use bolt::{Icon, IconName};
@@ -39,6 +46,9 @@ pub(super) struct Split {
     height: Option<Pixels>,
     dragging: bool,
     focus: FocusHandle,
+    /// The requests whose last recorded send was looked up, so a never-sent request reads
+    /// the history once, not on every frame; recording a send clears it.
+    recorded: HashSet<String>,
 }
 
 /// What the gutter drags.
@@ -52,7 +62,18 @@ impl Split {
             height: None,
             dragging: false,
             focus,
+            recorded: HashSet::new(),
         }
+    }
+
+    /// Marks the last recorded send of `id` as looked up; `true` when it was not yet.
+    pub(super) fn mark_recorded(&mut self, id: &str) -> bool {
+        self.recorded.insert(id.to_owned())
+    }
+
+    /// Looks the last recorded sends up again, after history changed.
+    pub(super) fn forget_recorded(&mut self) {
+        self.recorded.clear();
     }
 
     /// Takes the position stored in `state`, keeping the default for what is missing or
@@ -183,7 +204,8 @@ impl Shell {
 }
 
 /// The split of the request `id`: its `request` parts in the request pane, the gutter, and
-/// the response of `send` or, while collapsed, its bar.
+/// the response of `send` or, while collapsed, its bar. Without a `send` the request pane
+/// fills the split alone.
 pub(super) fn render(
     id: &str,
     request: impl IntoIterator<Item = impl IntoElement>,
@@ -211,6 +233,25 @@ pub(super) fn render(
         .min_w_0()
         .overflow_hidden()
         .children(request);
+    let Some(send) = send else {
+        if !split.recorded.contains(id) {
+            let id = id.to_owned();
+            let shell = cx.entity();
+            cx.defer(move |cx| {
+                shell.update(cx, |shell, cx| {
+                    shell.split.recorded.insert(id.clone());
+                    shell.seed_recorded_send(&id, cx);
+                });
+            });
+        }
+        return region("request-response-area")
+            .flex_1()
+            .min_h_0()
+            .min_w_0()
+            .flex()
+            .flex_col()
+            .child(request_pane.flex_1().min_h_0());
+    };
     let request_pane = match (split.collapsed, split.height) {
         (true, _) => request_pane.flex_1().min_h_0(),
         (false, Some(height)) => request_pane.flex_none().h(split.request_height(height)),
@@ -221,14 +262,14 @@ pub(super) fn render(
             .min_h(tokens::SPLIT_PANE_MIN),
     };
     let response: AnyElement = if split.collapsed {
-        response_bar(send, cx).into_any_element()
+        response_bar(Some(send), cx).into_any_element()
     } else {
         region("response-area")
             .flex_1()
             .min_h(tokens::SPLIT_PANE_MIN)
             .flex()
             .flex_col()
-            .child(response::render(id, send, cx))
+            .child(response::render(id, Some(send), cx))
             .into_any_element()
     };
 

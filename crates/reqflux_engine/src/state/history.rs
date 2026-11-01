@@ -292,6 +292,35 @@ impl AppState {
         Ok(entries)
     }
 
+    /// The newest entry of the request `request_id` in `workspace_id`, if it was ever sent:
+    /// the response its tab shows when it is opened.
+    ///
+    /// # Errors
+    ///
+    /// The read failed or the entry is unreadable.
+    pub fn last_history_of(
+        &self,
+        workspace_id: &str,
+        request_id: &str,
+    ) -> Result<Option<HistoryEntry>, StateError> {
+        let row = self
+            .conn
+            .query_row(
+                &format!(
+                    "SELECT {COLUMNS} FROM history WHERE workspace_id = ?1 AND request_id = ?2 \
+                     ORDER BY id DESC LIMIT 1"
+                ),
+                params![workspace_id, request_id],
+                entry_from_row,
+            )
+            .optional();
+        match row {
+            Ok(Some(row)) => self.decoded(Ok(row)).map(Some),
+            Ok(None) => Ok(None),
+            Err(source) => Err(query_error(&self.path)(source)),
+        }
+    }
+
     /// The entry with id `id`, if any.
     ///
     /// # Errors
@@ -460,4 +489,62 @@ fn encode_headers(headers: &[(String, String)]) -> Result<String, String> {
 
 fn decode_headers(text: &str) -> Result<Vec<(String, String)>, String> {
     serde_json::from_str(text).map_err(|error| format!("unreadable headers: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn record(request_id: &str, status: u16) -> HistoryRecord {
+        HistoryRecord {
+            sent_at: 1_000,
+            request_id: request_id.to_owned(),
+            request_name: "Request".to_owned(),
+            request_path: "api/r".to_owned(),
+            document: "name = \"Request\"\n".to_owned(),
+            sent: SentRequest {
+                method: "GET".to_owned(),
+                url: "https://example.test/".to_owned(),
+                headers: Vec::new(),
+                body: SentBody::None,
+            },
+            outcome: HistoryOutcome::Response(RecordedResponse {
+                status,
+                reason: None,
+                headers: Vec::new(),
+                body: Vec::new(),
+                truncated: false,
+                elapsed_ms: 1,
+                size: 0,
+            }),
+        }
+    }
+
+    fn status(entry: Option<HistoryEntry>) -> Option<u16> {
+        entry.and_then(|entry| match entry.record.outcome {
+            HistoryOutcome::Response(response) => Some(response.status),
+            HistoryOutcome::Failed { .. } => None,
+        })
+    }
+
+    #[test]
+    fn the_last_entry_of_a_request_is_its_newest_in_its_workspace() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut state = AppState::open(&dir.path().join("state.sqlite3")).unwrap();
+        assert_eq!(state.last_history_of("ws", "a").unwrap(), None);
+
+        state.record_history("ws", record("a", 200)).unwrap();
+        state.record_history("ws", record("a", 404)).unwrap();
+        state.record_history("ws", record("b", 500)).unwrap();
+        state.record_history("other", record("a", 201)).unwrap();
+
+        assert_eq!(status(state.last_history_of("ws", "a").unwrap()), Some(404));
+        assert_eq!(status(state.last_history_of("ws", "b").unwrap()), Some(500));
+        assert_eq!(state.last_history_of("ws", "c").unwrap(), None);
+        assert_eq!(
+            state.history("ws", 10).unwrap().len(),
+            3,
+            "reading changes nothing"
+        );
+    }
 }

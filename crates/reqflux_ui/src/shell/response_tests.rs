@@ -79,13 +79,17 @@ fn line_tops(cx: &mut VisualTestContext, count: usize) -> Vec<Pixels> {
 }
 
 #[gpui::test]
-fn a_request_never_sent_shows_the_empty_state(cx: &mut TestAppContext) {
+fn a_request_never_sent_shows_no_response(cx: &mut TestAppContext) {
     let (_, cx) = render(cx, serve(Server::Ok));
-    let request = present(cx, "request-pane");
-    let empty = present(cx, "response-empty");
-    assert!(empty.origin.y >= request.bottom());
-    assert!(absent(cx, "response-status"));
-    assert!(absent(cx, "response-body"));
+    present(cx, "request-pane");
+    for id in [
+        "response",
+        "response-empty",
+        "response-status",
+        "response-body",
+    ] {
+        assert!(absent(cx, id), "{id} shows before a send");
+    }
 }
 
 #[gpui::test]

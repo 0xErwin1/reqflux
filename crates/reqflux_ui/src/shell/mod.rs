@@ -317,6 +317,11 @@ impl Shell {
                 Err(error) => log::warn!("cannot inspect request {id}: {error}"),
             }
         }
+        // Seed the last recorded send now, so its first frame already shows the response
+        // instead of the never-sent layout; the split's own lookup then finds it done.
+        if self.split.mark_recorded(id) {
+            self.seed_recorded_send(id, cx);
+        }
         cx.notify();
     }
 

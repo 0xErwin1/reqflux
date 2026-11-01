@@ -241,6 +241,42 @@ fn typing_in_the_raw_editor_lands_in_the_draft(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_raw_editor_shows_its_focus_ring_only_while_it_has_focus(cx: &mut TestAppContext) {
+    let dir = json_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    // Focus changes reach the editor only in the active window, as in the app.
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    open_body(cx);
+    let ring = "request-body-input-focus-ring";
+    assert!(bounds(cx, ring).is_none(), "no ring before editing");
+
+    click(cx, "request-body-code");
+    assert!(
+        bounds(cx, ring).is_some(),
+        "the focused editor has the ring"
+    );
+
+    click(cx, "request-url");
+    assert!(
+        bounds(cx, "request-body-input").is_some(),
+        "the editor stays open"
+    );
+    assert!(
+        bounds(cx, ring).is_none(),
+        "leaving the editor drops the ring"
+    );
+    assert!(
+        draft_body(cx, &shell).is_none(),
+        "moving the focus edits nothing"
+    );
+
+    click(cx, "request-body-input");
+    assert!(bounds(cx, ring).is_some(), "coming back shows it again");
+}
+
+#[gpui::test]
 fn the_urlencoded_grid_edits_the_draft(cx: &mut TestAppContext) {
     let dir =
         body_workspace("mode = \"urlencoded\"\n\n[[body.fields]]\nkey = \"a\"\nvalue = \"1\"\n");

@@ -2,7 +2,8 @@
 //! the multi-line editor the raw body uses, whose text lands in the draft's scripts as it
 //! is typed. Enter inserts a newline, Ctrl+Enter sends and Escape gives the focus back to
 //! the shell, keeping the text, which is already in the draft. The delete button removes
-//! the script; saving then deletes its sidecar.
+//! the script; saving then deletes its sidecar. The editor stays open when the focus moves
+//! elsewhere, but its focus ring shows only while it has the focus (S11).
 
 use gpui::{AppContext as _, Context, Entity, Subscription, Window};
 use gpui_component::input::{InputEvent, TextareaState};
@@ -64,7 +65,9 @@ pub(crate) struct ScriptEdit {
     pub(crate) request_id: String,
     pub(crate) slot: ScriptSlot,
     pub(crate) input: Entity<TextareaState>,
-    /// Puts the text into the draft on every change.
+    /// Whether the editor has the focus, which its ring shows.
+    pub(crate) focused: bool,
+    /// Puts the text into the draft on every change and follows the focus.
     _change: Subscription,
 }
 
@@ -101,21 +104,30 @@ impl Shell {
             state.set_value(text, window, cx);
             state.focus(window, cx);
         });
-        let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| {
-            if matches!(event, InputEvent::Change)
-                && let Some((id, slot)) = this
+        let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| match event {
+            InputEvent::Change => {
+                if let Some((id, slot)) = this
                     .script_edit
                     .as_ref()
                     .map(|edit| (edit.request_id.clone(), edit.slot))
-            {
-                let value = input.read(cx).value().to_string();
-                this.set_draft_script(&id, slot, value, cx);
+                {
+                    let value = input.read(cx).value().to_string();
+                    this.set_draft_script(&id, slot, value, cx);
+                }
             }
+            InputEvent::Focus | InputEvent::Blur => {
+                if let Some(edit) = this.script_edit.as_mut() {
+                    edit.focused = matches!(event, InputEvent::Focus);
+                    cx.notify();
+                }
+            }
+            InputEvent::PressEnter { .. } => {}
         });
         self.script_edit = Some(ScriptEdit {
             request_id: id.to_owned(),
             slot,
             input,
+            focused: true,
             _change: change,
         });
         cx.notify();
@@ -126,6 +138,11 @@ impl Shell {
         self.script_edit
             .as_ref()
             .is_some_and(|edit| edit.request_id == id && edit.slot == slot)
+    }
+
+    /// Whether the editor over the script `slot` of the request `id` has the focus.
+    pub(super) fn script_edit_focused(&self, id: &str, slot: ScriptSlot) -> bool {
+        self.script_edit_of(id, slot) && self.script_edit.as_ref().is_some_and(|edit| edit.focused)
     }
 
     /// Puts `value` into the script `slot` of the request `id`'s draft. The text the

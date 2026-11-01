@@ -170,6 +170,40 @@ fn writing_a_test_lands_in_the_draft_survives_a_restart_and_saves_its_sidecar(
 }
 
 #[gpui::test]
+fn the_editor_shows_its_focus_ring_only_while_it_has_focus(cx: &mut TestAppContext) {
+    let dir = scripts_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    // Focus changes reach the editor only in the active window, as in the app.
+    cx.update(|window, _| window.activate_window());
+    cx.run_until_parked();
+    open_scripts(cx);
+    let ring = "request-script-pre-focus-ring";
+    assert!(bounds(cx, ring).is_none(), "no ring before editing");
+
+    click(cx, "request-script-pre-line-1");
+    assert!(
+        bounds(cx, ring).is_some(),
+        "the focused editor has the ring"
+    );
+
+    click(cx, "request-url");
+    assert!(
+        bounds(cx, "request-script-pre-input").is_some(),
+        "the editor stays open"
+    );
+    assert!(
+        bounds(cx, ring).is_none(),
+        "leaving the editor drops the ring"
+    );
+    assert!(!has_draft(cx, &shell), "moving the focus edits nothing");
+
+    click(cx, "request-script-pre-input");
+    assert!(bounds(cx, ring).is_some(), "coming back shows it again");
+    assert!(bounds(cx, "request-script-test-focus-ring").is_none());
+}
+
+#[gpui::test]
 fn emptying_or_deleting_a_script_deletes_its_sidecar_on_save(cx: &mut TestAppContext) {
     let dir = scripts_workspace();
     let (_state_dir, state_path) = state_file();

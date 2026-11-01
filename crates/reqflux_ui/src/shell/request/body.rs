@@ -13,7 +13,7 @@ use gpui_component::input::{Enter, Escape, Textarea};
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
 
-use self::controls::{segment, select, text_well, track, well};
+use self::controls::{focus_ring, segment, select, text_well, track, well};
 use super::pane_model::body_mode;
 use super::{body_menu, code, grid};
 use crate::shell::Shell;
@@ -135,7 +135,8 @@ fn mode_row(
 }
 
 /// The open raw text editor of the request `request_id`, `request-body-input`. Ctrl+Enter
-/// sends before the editor turns it into a newline; Escape leaves the editor.
+/// sends before the editor turns it into a newline; Escape leaves the editor. Its focus ring,
+/// `request-body-input-focus-ring`, shows only while it has the focus.
 fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<AnyElement> {
     let edit = shell
         .body_edit
@@ -165,6 +166,9 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
                     .font_family(family::MONO)
                     .text_color(colors.foreground),
             )
+            .when(edit.focused, |well| {
+                well.child(focus_ring("request-body-input-focus-ring".to_owned(), cx))
+            })
             .into_any_element(),
     )
 }

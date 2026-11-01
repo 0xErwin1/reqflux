@@ -1,7 +1,8 @@
 //! The Scripts pane, as artboard request-panes/01 frame B draws it: a note on which script
 //! runs, then the pre-request and test scripts stacked, each in an editor box with a header
 //! strip (its name, its sidecar file and a delete button) over the script with line numbers,
-//! the open editor, or an empty state whose button starts one. Every edit lands in the
+//! the open editor, or an empty state whose button starts one. The accent focus ring,
+//! `request-script-<slot>-focus-ring`, shows only while the open editor has the focus. Every edit lands in the
 //! request's draft; see [`crate::shell::scripts_edit`].
 
 use bolt::chamfer::Chamfer;
@@ -14,6 +15,7 @@ use gpui::{
 use gpui_component::input::{Enter, Escape, Textarea};
 use reqflux_engine::Inspection;
 
+use super::body::controls::focus_ring;
 use super::code;
 use crate::shell::Shell;
 use crate::shell::rows::part;
@@ -92,7 +94,6 @@ fn editor_box(
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let colors = *bolt::colors(cx);
-    let accent = bolt::brand(cx).accent_tint;
     let editing = shell
         .script_edit
         .as_ref()
@@ -178,22 +179,24 @@ fn editor_box(
         }
         (None, None) => empty_state(id, slot, cx),
     };
-    let focused = shell.script_edit_of(id, slot);
+    let focused = shell.script_edit_focused(id, slot);
     part(format!("request-script-{slot_id}-editor"))
         .relative()
         .flex()
         .flex_col()
-        .child(if focused {
+        .child(
             Chamfer::new(cut::CONTROL)
                 .fill(colors.background)
-                .edge(accent, border::FOCUS_RING)
-        } else {
-            Chamfer::new(cut::CONTROL)
-                .fill(colors.background)
-                .edge(colors.line, border::THIN)
-        })
+                .edge(colors.line, border::THIN),
+        )
         .child(header)
         .child(body)
+        .when(focused, |editor| {
+            editor.child(focus_ring(
+                format!("request-script-{slot_id}-focus-ring"),
+                cx,
+            ))
+        })
         .into_any_element()
 }
 

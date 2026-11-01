@@ -2,7 +2,9 @@
 //! language of a raw body, and clicking the raw text
 //! swaps it for a multi-line editor whose text lands in the draft as it is typed, as the
 //! URL field's does. Enter inserts a newline, Ctrl+Enter sends and Escape gives the focus
-//! back to the shell, keeping the text, which is already in the draft. The urlencoded and
+//! back to the shell, keeping the text, which is already in the draft. The editor stays open
+//! when the focus moves elsewhere; its focus ring shows only while it has the focus (S11).
+//! The urlencoded and
 //! form-data grids edit through the grid cells with the table `body`. GraphQL and binary
 //! bodies stay read-only.
 
@@ -113,7 +115,9 @@ pub(crate) fn body_cell(
 pub(crate) struct BodyEdit {
     pub(crate) request_id: String,
     pub(crate) input: Entity<TextareaState>,
-    /// Puts the text into the draft on every change.
+    /// Whether the editor has the focus, which its ring shows.
+    pub(crate) focused: bool,
+    /// Puts the text into the draft on every change and follows the focus.
     _change: Subscription,
 }
 
@@ -216,17 +220,25 @@ impl Shell {
             state.set_value(text, window, cx);
             state.focus(window, cx);
         });
-        let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| {
-            if matches!(event, InputEvent::Change)
-                && let Some(id) = this.body_edit.as_ref().map(|edit| edit.request_id.clone())
-            {
-                let value = input.read(cx).value().to_string();
-                this.set_draft_body_text(&id, value, cx);
+        let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| match event {
+            InputEvent::Change => {
+                if let Some(id) = this.body_edit.as_ref().map(|edit| edit.request_id.clone()) {
+                    let value = input.read(cx).value().to_string();
+                    this.set_draft_body_text(&id, value, cx);
+                }
             }
+            InputEvent::Focus | InputEvent::Blur => {
+                if let Some(edit) = this.body_edit.as_mut() {
+                    edit.focused = matches!(event, InputEvent::Focus);
+                    cx.notify();
+                }
+            }
+            InputEvent::PressEnter { .. } => {}
         });
         self.body_edit = Some(BodyEdit {
             request_id: id.to_owned(),
             input,
+            focused: true,
             _change: change,
         });
         cx.notify();
