@@ -894,14 +894,13 @@ sidebar `Island`, tree rows as `ListRow` with the selection bar, document tabs, 
 (the new-collection button, the row `…` button, the action strip, the delete dialog),
 `Kbd`, `menu_frame`/`menu_row` for the tree menu and the Move to… list, and `Modal` (danger,
 without a header) for the delete dialog. Its sizes are DBFlux's: title bar 44, rail 46 with
-38 px buttons, command search 420 by 30, bell 34 by 30, sidebar 290 with a 46 px header and
+38 px buttons, command search 420 by 30 (shrinking to 160 on a narrow window), bell 34 by 30, sidebar 290 with a 46 px header and
 footer, tree rows 26, document tabs 46 and 30, action strip 32 with 24 px buttons, status
 bar 38 with 26 px chips; the Problems panel is DBFlux's notifications popover (46 px header)
 at 540 wide, and the delete dialog is 480 wide with 28 px request rows. The path bar (28)
-and the method column stay ReqFlux tokens. Pieces `bolt` cannot draw yet carry a
-`// bolt gap:` comment: the activity rail, command search, bell and status chip (DBFlux's
-`dbflux_components` composites), ids on `Kbd` and on a `menu_row` shortcut, the frameless
-input padding, and the menu check mark.
+and the method column stay ReqFlux tokens. No `// bolt gap:` stand-in remains: every piece,
+including the approvals bell (`approvals`, a button named "Approvals") and the History empty
+state's send hint (`history-empty-action-0`, keycap `history-empty-key-0`), comes from `bolt`.
 
 The document island shows the open requests as tabs, the path bar of the active one
 (collection, folders, request), and the request, editable as "Drafts and saving" describes:
@@ -944,9 +943,7 @@ column's name (`request-<table>-value-hint`); an open cell is a well with a tint
 The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem tokens, `Button`,
 `Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
 `field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL
-field and Send 30, result rows 28, body-format footer 36. Pieces `bolt` cannot draw yet carry a
-`// bolt gap:` comment (segmented control ids and counts, debug selectors, the splitter, a
-multi-line editor, a menu check mark).
+field and Send 30, result rows 28, body-format footer 36. No `// bolt gap:` stand-in remains.
 
 The views and overlays draw with DBFlux's `bolt` too. The MCP approvals view uses
 `ApprovalsMetrics`, DBFlux's own approvals sizes (pending list 380 wide, 52 px detail title,
@@ -959,10 +956,8 @@ panel uses the tree's `ShellMetrics` and `TreeMetrics` (header and footer 46, ro
 and footer) with document tabs as scope tabs. The settings page draws `Island`s, `ListRow`
 nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox`, `Badge`
 for `file` and `KEYRING`, and `Button`. The workspace and environment menus are
-`menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. Pieces
-`bolt` cannot draw yet carry a `// bolt gap:` comment: ids on `Badge`, `Kbd`, `EmptyState`
-and a `Button`'s keycap (so `approval-*-key` and `history-resend-keycap` are gone until `Kbd`
-takes one), the menu check mark, and the frameless input padding. `reqflux_ui::theme`
+`menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. No
+`// bolt gap:` stand-in remains. `reqflux_ui::theme`
 installs `bolt`'s `ModalSeams` as DBFlux's theme does: ReqFlux's modal actions bound in the
 `Modal` key context (Escape cancels, Enter confirms, the arrows, Page Up, Page Down, Home and
 End scroll), the `Esc` keycap and the close button, so every `bolt` modal answers its keys.

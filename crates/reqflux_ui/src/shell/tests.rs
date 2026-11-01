@@ -131,6 +131,33 @@ fn loaded_state_has_an_empty_document(cx: &mut TestAppContext) {
     assert!(cx.debug_bounds("document-message").is_none());
 }
 
+#[gpui::test]
+fn the_command_search_shrinks_on_a_narrow_window(cx: &mut TestAppContext) {
+    let dir = demo_workspace();
+    let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
+    let cx = render(cx, workspace);
+
+    cx.simulate_resize(size(px(1400.0), px(800.0)));
+    cx.run_until_parked();
+    assert_eq!(bounds(cx, "command-search").size.width, px(420.0));
+
+    cx.simulate_resize(size(px(640.0), px(800.0)));
+    cx.run_until_parked();
+    let search = bounds(cx, "command-search");
+    let context = bounds(cx, "title-context");
+    let bell = bounds(cx, "approvals");
+    assert!(search.size.width < px(420.0), "shrinks: {search:?}");
+    assert!(
+        search.size.width >= px(160.0),
+        "keeps its minimum: {search:?}"
+    );
+    assert!(context.origin.x + context.size.width <= search.origin.x);
+    assert!(
+        search.origin.x + search.size.width <= bell.origin.x,
+        "{context:?} {search:?} {bell:?}"
+    );
+}
+
 #[test]
 fn chrome_labels_follow_the_design() {
     use super::title_bar::*;

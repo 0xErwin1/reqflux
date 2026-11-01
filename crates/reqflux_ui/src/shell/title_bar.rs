@@ -212,7 +212,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .child(context(shell, window, cx))
         .child(command_search(cx))
         .child(
-            div().flex_1().min_w_0().flex().justify_end().child(
+            div().flex_1().flex().justify_end().child(
                 div()
                     .pr(ShellMetrics::TITLE_BAR_PADDING_X)
                     .child(bell(shell.approvals.pending(), cx)),
@@ -221,39 +221,31 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
 }
 
 /// The command search, `command-search`: a trigger, not an editor, that opens the command
-/// palette, with the palette's keys on its keycap `command-search-key`. The wrapper lets it
-/// shrink on a narrow window instead of covering the workspace selector.
+/// palette, with the palette's keys on its keycap `command-search-key`. It shrinks on a narrow
+/// window, down to `bolt`'s minimum, instead of covering the workspace selector.
 fn command_search(cx: &mut Context<Shell>) -> impl IntoElement {
     let shell = cx.entity().downgrade();
-    div().flex_shrink(1.0).min_w_0().overflow_hidden().child(
-        CommandSearch::new("command-search", COMMAND_SEARCH)
-            .shortcut([COMMAND_SEARCH_KEYS])
-            .on_open(move |window, cx| {
-                if let Err(error) = shell.update(cx, |this, cx| this.open_palette(window, cx)) {
-                    log::warn!("the command search outlived the shell: {error}");
-                }
-            }),
-    )
+    CommandSearch::new("command-search", COMMAND_SEARCH)
+        .shortcut([COMMAND_SEARCH_KEYS])
+        .shrinkable(true)
+        .on_open(move |window, cx| {
+            if let Err(error) = shell.update(cx, |this, cx| this.open_palette(window, cx)) {
+                log::warn!("the command search outlived the shell: {error}");
+            }
+        })
 }
 
-/// The approvals bell, `approvals`: `bolt`'s notification bell with the pending count on its
-/// badge, `approvals-badge`, in the accent while an approval waits.
-// bolt gap: NotificationBell sets no Button role, so it leaves the automation tree; a labeled
-// button wrapper carries the id and the role until it does.
+/// The approvals bell, `approvals`: `bolt`'s notification bell, a button named "Approvals",
+/// with the pending count on its badge, `approvals-badge`, in the accent while an approval
+/// waits.
 fn bell(pending: usize, cx: &mut Context<Shell>) -> impl IntoElement {
     let urgency = if pending > 0 {
         BellUrgency::Approval
     } else {
         BellUrgency::None
     };
-    region("approvals")
-        .role(Role::Button)
-        .aria_label("Approvals")
-        .flex_none()
-        .child(
-            NotificationBell::new("approvals-bell", "Approvals", pending)
-                .badge_id("approvals-badge")
-                .urgency(urgency)
-                .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx))),
-        )
+    NotificationBell::new("approvals", "Approvals", pending)
+        .badge_id("approvals-badge")
+        .urgency(urgency)
+        .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx)))
 }

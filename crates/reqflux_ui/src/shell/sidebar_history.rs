@@ -13,7 +13,7 @@
 //! `EmptyState` for the panel without sends.
 
 use bolt::Colors;
-use bolt::composites::{EmptyState, ListRow};
+use bolt::composites::{EmptyState, EmptyStateAction, ListRow};
 use bolt::controls::{Input, InputState};
 use bolt::primitives::{Icon, TextVariant};
 use bolt::tokens::{HeaderMetrics, ShellMetrics, Spacing, TreeMetrics};
@@ -25,7 +25,7 @@ use gpui_kit_assets::IconName;
 
 use super::request::{StatusClass, ui};
 use super::rows::{labeled_row, part};
-use super::sidebar::{Sidebar, keycap};
+use super::sidebar::Sidebar;
 use super::{region, text_region};
 use crate::tokens::{self, method_hue};
 
@@ -183,7 +183,7 @@ impl Sidebar {
                     .child("HISTORY"),
             );
         if self.history.is_empty() {
-            return vec![header.into_any_element(), empty(cx).into_any_element()];
+            return vec![header.into_any_element(), empty().into_any_element()];
         }
         let footer = text_region("history-footer")
             .flex_none()
@@ -210,37 +210,28 @@ impl Sidebar {
 }
 
 /// The empty state `history-empty`, `bolt`'s `EmptyState` with the History icon, the title
-/// `history-empty-title` and the explanation `history-empty-text`, over the send hint with
-/// its keycap.
-// bolt gap: an EmptyStateAction's label names no accessible node, so the send hint stays a
-// labeled caption beside the state instead of its action.
-fn empty(cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+/// `history-empty-title` and the explanation `history-empty-text`, with the send hint as its
+/// action, `history-empty-action-0`, and its keycap `history-empty-key-0`.
+fn empty() -> impl IntoElement {
     div()
         .flex_1()
         .flex()
         .flex_col()
         .items_center()
         .justify_center()
-        .gap(Spacing::MD)
         .pl(Spacing::XL)
         .pr(Spacing::XL)
         .child(
             div().flex_none().child(
                 EmptyState::new(ui::icon(IconName::RotateCcwClock), EMPTY_TEXT)
                     .title(EMPTY)
+                    .action(EmptyStateAction::new(
+                        ui::icon(IconName::Send),
+                        EMPTY_HINT,
+                        ["Ctrl ↵"],
+                    ))
                     .id("history-empty"),
             ),
-        )
-        .child(
-            ui::role(text_region("history-empty-hint"), TextVariant::Caption, cx)
-                .aria_label(EMPTY_HINT)
-                .flex()
-                .items_center()
-                .gap(Spacing::XXS)
-                .text_color(colors.foreground)
-                .child(EMPTY_HINT)
-                .child(keycap("history-empty-hint-keycap", "Ctrl ↵")),
         )
 }
 

@@ -284,8 +284,8 @@ fn the_empty_panel_explains_history(cx: &mut TestAppContext) {
         label(cx, "history-empty-text"),
         "Every send is recorded here with its response, grouped by day. Secrets are never stored."
     );
-    assert_eq!(label(cx, "history-empty-hint"), "Send the open request");
-    present(cx, "history-empty-hint-keycap");
+    assert_eq!(label(cx, "history-empty-action-0"), "Send the open request");
+    present(cx, "history-empty-key-0");
     assert!(
         bounds(cx, "history-filter").is_none(),
         "no filter without rows"
