@@ -7,17 +7,17 @@
 pub(super) mod controls;
 
 use bolt::controls::{InputEnter, InputEscape};
-use bolt::primitives::Icon;
+use bolt::primitives::{Icon, SegmentedItem};
 use bolt::tokens::{Borders, EditorMetrics, Fields, ResultMetrics, Spacing};
 use bolt_legacy::IconName;
-use gpui::{AnyElement, Context, ParentElement, Role, Styled, Window, div, prelude::*};
+use gpui::{AnyElement, Context, ParentElement, SharedString, Styled, Window, div, prelude::*};
 use gpui_component::input::Textarea;
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
 
 use self::controls::{focus_ring, select, text_well, well};
 use super::pane_model::body_mode;
-use super::segmented::{segment, track};
+use super::segmented::control;
 use super::{body_menu, code, grid, ui};
 use crate::shell::Shell;
 use crate::shell::body_edit::{BODY_MODES, body_hint, body_kind};
@@ -71,26 +71,19 @@ fn mode_row(
     let segments: Vec<_> = BODY_MODES
         .into_iter()
         .map(|(kind, name)| {
-            let request = request_id.to_owned();
-            let counts = row_count(body)
-                .filter(|count| *count > 0 && kind == current)
-                .map(|count| (count.to_string(), muted))
-                .into_iter()
-                .collect();
-            segment(
-                format!("body-mode-{kind}"),
-                name,
-                Some(mode_icon(kind)),
-                counts,
-                kind == current,
-                Role::Tab,
-                cx,
-            )
-            .on_click(cx.listener(move |this, _event, window, cx| {
-                this.set_body_mode(&request, kind, window, cx);
-            }))
+            let item = SegmentedItem::new(kind, name)
+                .element_id(format!("body-mode-{kind}"))
+                .icon(ui::icon(mode_icon(kind)));
+            match row_count(body).filter(|count| *count > 0 && kind == current) {
+                Some(count) => item.count(count.to_string()),
+                None => item,
+            }
         })
         .collect();
+    let request = request_id.to_owned();
+    let on_select = cx.listener(move |this, kind: &SharedString, window, cx| {
+        this.set_body_mode(&request, kind, window, cx);
+    });
     let language = match body {
         Body::Raw { language, .. } => Some(
             div()
@@ -101,7 +94,6 @@ fn mode_row(
                         "request-body-language".to_owned(),
                         None,
                         language_name(*language),
-                        cx,
                     )
                     .on_click(cx.listener(|this, _event, window, cx| {
                         this.toggle_body_menu(window, cx);
@@ -131,7 +123,14 @@ fn mode_row(
         .pr(Spacing::MD)
         .border_t(Borders::THIN)
         .border_color(line)
-        .child(track("request-body-mode", Role::TabList, segments, cx).aria_label(body_mode(body)))
+        .child(control(
+            "request-body-mode",
+            Some(body_mode(body).into()),
+            true,
+            segments,
+            current,
+            on_select,
+        ))
         .children(language)
         .children(hint)
         .into_any_element()

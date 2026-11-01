@@ -5,8 +5,9 @@
 //! `approvals-badge`.
 //!
 //! The bar, the command search and the bell are drawn as DBFlux's title bar draws them.
-// bolt gap: the command search and the notification bell are DBFlux's `dbflux_components`
-// composites, not `bolt` ones; `command_search` and `bell` go once `bolt` has them.
+// bolt gap: `bolt::composites::CommandSearch` names its keycap `<id>-key` with no accessible
+// label and has no Button role, and `NotificationBell` names its badge `notifications-badge`
+// with no accessible label; `command_search` and `bell` go once they do.
 
 use bolt::primitives::{Chamfer, Icon, Kbd, status_diamond};
 use bolt::tokens::{
@@ -268,7 +269,6 @@ fn command_search(cx: &mut Context<Shell>) -> impl IntoElement {
                 .text_ellipsis()
                 .child(COMMAND_SEARCH),
         )
-        // bolt gap: Kbd takes no element id; the wrapper keeps `command-search-keycap`.
         .child(
             text_region("command-search-keycap")
                 .aria_label(COMMAND_SEARCH_KEYS)

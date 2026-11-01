@@ -286,22 +286,17 @@ fn delete_control(
     let request = request_id.to_owned();
     let table = table.to_owned();
     let id = format!("request-{table}-delete-{n}");
-    let selector = id.clone();
-    Column::Actions
-        .cell(line)
-        // bolt gap: the Button sets no debug selector (see `ui::tagged`).
-        .debug_selector(move || selector)
-        .child(
-            Button::new(id, "")
-                .ghost()
-                .inline()
-                .icon_only()
-                .icon(ui::icon(IconName::Trash))
-                .aria_label(format!("Delete {key}"))
-                .on_click(cx.listener(move |this, _event, window, cx| {
-                    this.delete_grid_row(&request, &table, n, window, cx);
-                })),
-        )
+    Column::Actions.cell(line).child(
+        Button::new(id, "")
+            .ghost()
+            .inline()
+            .icon_only()
+            .icon(ui::icon(IconName::Trash))
+            .aria_label(format!("Delete {key}"))
+            .on_click(cx.listener(move |this, _event, window, cx| {
+                this.delete_grid_row(&request, &table, n, window, cx);
+            })),
+    )
 }
 
 /// The add row under the grid of `table`, element id `request-<table>-add`: a grid row with
@@ -455,7 +450,7 @@ fn enable_box(
     let request = request_id.to_owned();
     let table = table.to_owned();
     let id = format!("request-{table}-enabled-{n}");
-    ui::tagged(id.clone()).child(
+    div().flex_none().child(
         Checkbox::new(gpui::ElementId::Name(id.into()))
             .checked(enabled)
             .aria_label(format!("Enable {key}"))

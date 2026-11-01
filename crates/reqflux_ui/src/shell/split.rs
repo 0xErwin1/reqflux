@@ -1,10 +1,10 @@
 //! The split between the request and its response (request-pane-feedback S6, artboard
-//! request-panes/01-stacked-grip): the request pane on top, a 9 px gutter with a dotted grip,
-//! element id `request-response-split`, and the response under it. The panes are
-//! `request-area` and `response-area`.
+//! request-panes/01-stacked-grip): the request pane on top, `bolt`'s splitter (a 6 px gutter
+//! with a dotted grip), element id `request-response-split`, and the response under it. The
+//! panes are `request-area` and `response-area`.
 //!
 //! Dragging the gutter sets the request pane's height; Up and Down move it by
-//! [`tokens::SPLIT_STEP`] while the gutter has focus. Enter or a double click collapses the
+//! `SplitterMetrics::KEY_STEP` while the gutter has focus. Enter or a double click collapses the
 //! response to its bar, element id `response-bar`, and restores it; the bar's expand button,
 //! `response-expand`, and any drag restore it too. Each pane keeps at least
 //! [`tokens::SPLIT_PANE_MIN`]. The height and the collapsed flag are per user: the app state
@@ -18,19 +18,20 @@
 use std::collections::HashSet;
 
 use bolt::Colors;
+use bolt::composites::{SplitAxis, Splitter};
 use bolt::controls::Button;
 use bolt::primitives::Icon;
-use bolt::tokens::{Borders, ButtonMetrics, Fields, HeaderMetrics, ResultMetrics, Spacing};
+use bolt::tokens::{
+    Borders, ButtonMetrics, Fields, HeaderMetrics, ResultMetrics, Spacing, SplitterMetrics,
+};
 use bolt_legacy::IconName;
 use gpui::{
-    AnyElement, ClickEvent, Context, CursorStyle, Div, DragMoveEvent, Empty, FocusHandle,
-    FontWeight, Hsla, KeyDownEvent, MouseButton, ParentElement, Pixels, Role, Stateful, Styled,
-    Window, canvas, div, prelude::*,
+    AnyElement, Context, Div, FocusHandle, FontWeight, Hsla, MouseButton, ParentElement, Pixels,
+    Stateful, Styled, canvas, div, prelude::*,
 };
 use reqflux_engine::state::AppState;
 
 use super::request::{Completed, SendState, StatusClass, elapsed_text, size_text, ui};
-use super::rows::part;
 use super::send::RequestSend;
 use super::{Shell, region, response};
 use crate::tokens;
@@ -47,6 +48,8 @@ pub(super) struct Split {
     collapsed: bool,
     /// The split's height at the last layout; `None` before the first one.
     height: Option<Pixels>,
+    /// The split's top in the window at the last layout.
+    top: Pixels,
     dragging: bool,
     focus: FocusHandle,
     /// The requests whose last recorded send was looked up, so a never-sent request reads
@@ -54,15 +57,13 @@ pub(super) struct Split {
     recorded: HashSet<String>,
 }
 
-/// What the gutter drags.
-struct SplitDrag;
-
 impl Split {
     pub(super) fn new(focus: FocusHandle) -> Self {
         Self {
             request: tokens::SPLIT_DEFAULT_REQUEST,
             collapsed: false,
             height: None,
+            top: Pixels::ZERO,
             dragging: false,
             focus,
             recorded: HashSet::new(),
@@ -147,7 +148,7 @@ impl Split {
 
 /// `request` kept [`tokens::SPLIT_PANE_MIN`] away from both ends of a split `height` tall.
 fn fit(request: Pixels, height: Pixels) -> Pixels {
-    let room = (height - tokens::SPLIT_GUTTER).max(Pixels::ZERO);
+    let room = (height - SplitterMetrics::GUTTER).max(Pixels::ZERO);
     let max = room - tokens::SPLIT_PANE_MIN;
     if max < tokens::SPLIT_PANE_MIN {
         return room * 0.5;
@@ -187,11 +188,11 @@ impl Shell {
         cx.notify();
     }
 
-    /// Follows a drag of the gutter to `y`, measured from the split's top.
-    fn drag_split(&mut self, y: Pixels, height: Pixels, cx: &mut Context<Self>) {
-        self.split.height = Some(height);
+    /// Follows a drag of the gutter to `y`, in window coordinates.
+    fn drag_split(&mut self, y: Pixels, cx: &mut Context<Self>) {
         self.split.dragging = true;
-        self.split.set_request(y - tokens::SPLIT_GUTTER * 0.5);
+        let y = y - self.split.top;
+        self.split.set_request(y - SplitterMetrics::GUTTER * 0.5);
         cx.notify();
     }
 
@@ -214,7 +215,6 @@ pub(super) fn render(
     request: impl IntoIterator<Item = impl IntoElement>,
     send: Option<&RequestSend>,
     shell: &Shell,
-    window: &Window,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
     let split = &shell.split;
@@ -222,7 +222,8 @@ pub(super) fn render(
     let measure = canvas(
         move |bounds, _window, cx| {
             entity.update(cx, |shell, _cx| {
-                shell.split.height = Some(bounds.size.height)
+                shell.split.top = bounds.top();
+                shell.split.height = Some(bounds.size.height);
             });
         },
         |_, _, _, _| {},
@@ -285,14 +286,8 @@ pub(super) fn render(
         .flex_col()
         .child(measure)
         .child(request_pane)
-        .child(gutter(shell, window, cx))
+        .child(gutter(shell, cx))
         .child(response)
-        .on_drag_move(
-            cx.listener(|this, event: &DragMoveEvent<SplitDrag>, _window, cx| {
-                let y = event.event.position.y - event.bounds.top();
-                this.drag_split(y, event.bounds.size.height, cx);
-            }),
-        )
         .on_mouse_up(
             MouseButton::Left,
             cx.listener(|this, _event, _window, cx| this.end_split_drag(cx)),
@@ -303,86 +298,24 @@ pub(super) fn render(
         )
 }
 
-/// The gutter, element id `request-response-split`: a panel strip with a line on top (the
-/// response draws the one under it) and the dotted grip, tinted on hover, focus and drag.
-// bolt gap: bolt has no splitter; this gutter moves there with the sidebar's.
-fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<Div> {
+/// The gutter, element id `request-response-split`: `bolt`'s splitter across the split.
+// bolt gap: Splitter takes no accessible name or value, so the gutter no longer reports
+// "Resize request and response" or the request pane's share.
+fn gutter(shell: &Shell, cx: &mut Context<Shell>) -> Splitter {
     let split = &shell.split;
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand::brand(cx).accent_tint;
-    let lit = split.dragging || split.focus.is_focused(window);
-    let wash = tokens::wash(tint, tokens::SPLIT_HOVER_WASH);
-    let percent = split
-        .height
-        .filter(|height| *height > Pixels::ZERO)
-        .map(|height| {
-            let request = if split.collapsed {
-                height
-            } else {
-                split.request_height(height)
-            };
-            (request / height * 100.0).round()
-        });
-    let dots = (0..tokens::SPLIT_GRIP_DOTS).map(|_| {
-        div()
-            .size(tokens::SPLIT_GRIP_DOT)
-            .bg(if lit { tint } else { colors.line_2 })
-            .group_hover("request-response-split", |style| style.bg(tint))
-    });
-    let grip = div()
-        .flex()
-        .items_center()
-        .gap(tokens::SPLIT_GRIP_GAP)
-        .children(dots);
-
-    part("request-response-split".to_owned())
-        .group("request-response-split")
-        .role(Role::Splitter)
-        .aria_label("Resize request and response")
-        .aria_orientation(gpui::Orientation::Horizontal)
-        .when_some(percent, |this, percent| {
-            this.aria_numeric_value(f64::from(percent))
-        })
+    let (on_drag, on_step, on_toggle) = (cx.entity(), cx.entity(), cx.entity());
+    Splitter::new("request-response-split", SplitAxis::Vertical)
+        .active(split.dragging)
         .track_focus(&split.focus)
-        .relative()
-        .flex_none()
-        .h(tokens::SPLIT_GUTTER)
-        .flex()
-        .items_center()
-        .justify_center()
-        .bg(if lit { wash } else { colors.panel })
-        .hover(|style| style.bg(wash))
-        .border_t(Borders::THIN)
-        .border_color(colors.line)
-        .cursor(CursorStyle::ResizeRow)
-        .child(grip)
-        .when(split.dragging, |this| {
-            this.child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .right_0()
-                    .top(tokens::SPLIT_DRAG_LINE_TOP)
-                    .h(Borders::MEDIUM)
-                    .bg(tint),
-            )
+        .on_drag(move |y, _window, cx| {
+            on_drag.update(cx, |shell, cx| shell.drag_split(y, cx));
         })
-        .on_drag(SplitDrag, |_, _, _, cx| cx.new(|_| Empty))
-        .on_click(cx.listener(|this, event: &ClickEvent, window, cx| {
-            this.split.focus.focus(window, cx);
-            if event.click_count() == 2 {
-                this.toggle_response(cx);
-            }
-        }))
-        .on_key_down(cx.listener(|this, event: &KeyDownEvent, _window, cx| {
-            match event.keystroke.key.as_str() {
-                "up" => this.step_split(-tokens::SPLIT_STEP, cx),
-                "down" => this.step_split(tokens::SPLIT_STEP, cx),
-                "enter" => this.toggle_response(cx),
-                _ => return,
-            }
-            cx.stop_propagation();
-        }))
+        .on_step(move |delta, _window, cx| {
+            on_step.update(cx, |shell, cx| shell.step_split(delta, cx));
+        })
+        .on_toggle_collapse(move |_window, cx| {
+            on_toggle.update(cx, |shell, cx| shell.toggle_response(cx));
+        })
 }
 
 /// The collapsed response, element id `response-bar`: the expand button, the response's
@@ -487,14 +420,12 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
 }
 
 /// The ghost button that restores the collapsed response, element id `response-expand`.
-fn expand_button(cx: &mut Context<Shell>) -> Div {
-    ui::tagged("response-expand").child(
-        Button::new("response-expand", "Expand response")
-            .ghost()
-            .icon_only()
-            .icon(ui::icon(IconName::ChevronUp))
-            .on_click(cx.listener(|this, _event, _window, cx| this.expand_response(cx))),
-    )
+fn expand_button(cx: &mut Context<Shell>) -> Button {
+    Button::new("response-expand", "Expand response")
+        .ghost()
+        .icon_only()
+        .icon(ui::icon(IconName::ChevronUp))
+        .on_click(cx.listener(|this, _event, _window, cx| this.expand_response(cx)))
 }
 
 /// The status color of a status class, as the response's status chip draws it.

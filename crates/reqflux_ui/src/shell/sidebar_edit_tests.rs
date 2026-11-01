@@ -208,7 +208,7 @@ fn the_delete_dialog_lists_the_requests_and_flags_drafts(cx: &mut TestAppContext
     present(cx, &format!("tree-delete-draft-{LIST}"));
     absent(cx, &format!("tree-delete-draft-{HEALTH}"));
     absent(cx, &format!("tree-delete-item-{TOKEN}"));
-    // The Esc keycap is the one `bolt`'s Button draws, which has no element id yet.
+    present(cx, "tree-delete-cancel-key");
     click(cx, "tree-delete-cancel");
 
     // The draft warns but does not block.

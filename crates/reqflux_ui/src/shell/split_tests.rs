@@ -278,7 +278,8 @@ fn the_gutter_sits_between_the_request_and_the_response(cx: &mut TestAppContext)
     let request = present(cx, "request-area");
     let gutter = present(cx, SPLIT);
     let response = present(cx, "response");
-    assert_eq!(gutter.size.height, px(9.));
+    // `bolt`'s splitter, `SplitterMetrics::GUTTER` (was 9).
+    assert_eq!(gutter.size.height, px(6.));
     assert_eq!(request.size.height, px(306.));
     assert_eq!(gutter.top(), request.bottom());
     assert_eq!(response.top(), gutter.bottom());

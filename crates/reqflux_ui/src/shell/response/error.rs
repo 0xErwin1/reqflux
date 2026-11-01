@@ -63,13 +63,11 @@ fn results(failure: &Failure, cx: &App) -> Option<AnyElement> {
 }
 
 /// The primary Retry button, element id `response-retry`.
-fn retry(id: &str, cx: &mut Context<Shell>) -> Div {
+fn retry(id: &str, cx: &mut Context<Shell>) -> Button {
     let id = id.to_owned();
-    ui::tagged("response-retry").child(
-        Button::new("response-retry", "Retry")
-            .primary()
-            .icon(ui::icon(IconName::RotateCcw))
-            .kbd("Ctrl ↵")
-            .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx))),
-    )
+    Button::new("response-retry", "Retry")
+        .primary()
+        .icon(ui::icon(IconName::RotateCcw))
+        .kbd("Ctrl ↵")
+        .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx)))
 }

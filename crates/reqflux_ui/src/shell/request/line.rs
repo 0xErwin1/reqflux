@@ -4,12 +4,12 @@
 //! field drawn in the same place, padding, font and height, so the text does not move.
 //! Enter in the field commits the URL and sends the request.
 
-use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape, InputState};
+use bolt::controls::{Button, GpuiInput, Input, InputEnter, InputEscape, InputState};
 use bolt::primitives::{Chamfer, Icon, TextVariant};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
 use bolt_legacy::IconName;
 use gpui::{
-    Context, Div, Entity, FontWeight, ParentElement, Role, Stateful, Styled, Window, div,
+    Context, Div, Entity, FontWeight, ParentElement, Pixels, Role, Stateful, Styled, Window, div,
     prelude::*,
 };
 
@@ -48,23 +48,21 @@ pub(super) fn render(
 /// The Cancel button shown while the request is in flight, element id `request-cancel`.
 fn cancel(id: &str, cx: &mut Context<Shell>) -> Div {
     let id = id.to_owned();
-    ui::tagged("request-cancel")
-        .w(tokens::SEND_BUTTON_WIDTH)
-        .child(
-            Button::new("request-cancel", "Cancel")
-                .secondary()
-                .icon(ui::icon(IconName::Loader))
-                .kbd("Esc")
-                .w_full()
-                .on_click(cx.listener(move |this, _event, _window, cx| this.cancel(&id, cx))),
-        )
+    div().flex_none().w(tokens::SEND_BUTTON_WIDTH).child(
+        Button::new("request-cancel", "Cancel")
+            .secondary()
+            .icon(ui::icon(IconName::Loader))
+            .kbd("Esc")
+            .w_full()
+            .on_click(cx.listener(move |this, _event, _window, cx| this.cancel(&id, cx))),
+    )
 }
 
 /// The method chip, element id `request-method`, showing the draft's verb, else the file's.
 /// A click opens the method menu under it; while the custom verb field of this request is
 /// open, the field takes the chip's place.
-// bolt gap: drawn as the trigger of `bolt::controls::Dropdown`, whose open state and item
-// ids the shell cannot own; see `body::controls::select`.
+// bolt gap: drawn as `bolt::controls::SelectTrigger` draws its field, whose label takes no
+// color, weight or face, while the verb is bold mono in its method's hue.
 fn method(
     id: &str,
     state: &RequestState,
@@ -238,34 +236,27 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
         .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.discard_url_edit(window, cx);
         }))
-        // bolt gap: bolt's Input without its appearance keeps gpui-component's padding and
-        // its own text size, so the text would move from where the URL shows it.
+        // The frameless input keeps the URL's text size and the field's padding, so the text
+        // stays where the URL shows it.
         .child(
-            GpuiInput::new(&input)
+            Input::new(&input)
                 .id("request-url-input")
                 .appearance(false)
-                .bordered(false)
-                .p_0()
-                .h_full()
-                .flex_1()
-                .min_w_0()
+                .padding(Pixels::ZERO, Pixels::ZERO)
                 .text_size(TextVariant::Code.density_size(cx))
-                .font_family(bolt::fonts::editor_family(cx))
-                .font_weight(FontWeight::MEDIUM),
+                .w_full(),
         )
 }
 
 /// The Send button, element id `request-send`, which sends the request `id`.
 fn send(id: &str, cx: &mut Context<Shell>) -> Div {
     let id = id.to_owned();
-    ui::tagged("request-send")
-        .w(tokens::SEND_BUTTON_WIDTH)
-        .child(
-            Button::new("request-send", "Send")
-                .primary()
-                .icon(ui::icon(IconName::Send))
-                .kbd("Ctrl ↵")
-                .w_full()
-                .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx))),
-        )
+    div().flex_none().w(tokens::SEND_BUTTON_WIDTH).child(
+        Button::new("request-send", "Send")
+            .primary()
+            .icon(ui::icon(IconName::Send))
+            .kbd("Ctrl ↵")
+            .w_full()
+            .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx))),
+    )
 }

@@ -388,15 +388,12 @@ fn text_label(paragraphs: &[String]) -> String {
 /// `Open in browser`, element id `response-preview-open`.
 fn open_button(id: &str, cx: &mut Context<Shell>) -> AnyElement {
     let id = id.to_owned();
-    ui::tagged("response-preview-open")
-        .child(
-            Button::new("response-preview-open", "Open in browser")
-                .secondary()
-                .icon(ui::icon(IconName::ExternalLink))
-                .on_click(cx.listener(move |this, _event, _window, cx| {
-                    this.open_preview_in_browser(&id, cx);
-                })),
-        )
+    Button::new("response-preview-open", "Open in browser")
+        .secondary()
+        .icon(ui::icon(IconName::ExternalLink))
+        .on_click(cx.listener(move |this, _event, _window, cx| {
+            this.open_preview_in_browser(&id, cx);
+        }))
         .into_any_element()
 }
 

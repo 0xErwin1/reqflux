@@ -630,8 +630,8 @@ fn cell(
         && let Some(edit) = shell.cell_edit.as_ref()
     {
         let foreground = bolt::colors(cx).foreground;
-        // bolt gap: bolt's Input without its appearance keeps gpui-component's padding and
-        // text size, so the open cell is gpui-component's frameless input.
+        // bolt gap: bolt's frameless Input draws its text in the medium weight with no
+        // option, so the open cell is gpui-component's frameless input.
         return base
             .on_action(cx.listener(|this, action: &Enter, window, cx| {
                 if action.secondary {
@@ -708,7 +708,8 @@ fn enable_box(scope: SecretScope, n: usize, variable: &Variable, cx: &mut Contex
 /// The `stored in` toggle `variables-secret-<n>`: the `file` badge, or the `KEYRING` badge
 /// while the variable is secret, as `variables-stored-<n>`. A click moves the value between
 /// them.
-// bolt gap: Badge takes no element id, so a labeled wrapper carries `variables-stored-<n>`.
+// bolt gap: an id on Badge names no accessible node, so a labeled wrapper carries
+// `variables-stored-<n>` and the label the automation tree reads.
 fn stored_toggle(
     scope: SecretScope,
     n: usize,

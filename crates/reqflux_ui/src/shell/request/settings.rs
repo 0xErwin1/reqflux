@@ -9,7 +9,7 @@ mod controls;
 use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
 use bolt::primitives::{Chamfer, ChamferRing};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
-use gpui::{AnyElement, Context, Entity, ParentElement, Styled, div, prelude::*};
+use gpui::{AnyElement, Context, Entity, ParentElement, SharedString, Styled, div, prelude::*};
 use reqflux_core::model::Settings;
 use reqflux_engine::DEFAULT_TIMEOUT_MS;
 
@@ -217,21 +217,29 @@ fn toggle_row(
     let choices: Vec<_> = CHOICES
         .into_iter()
         .map(|(part, choice_label, choice_value)| {
-            let request = request_id.to_owned();
             // Both settings default to on.
             let note = choice_value.is_none().then_some("on");
             choice(
+                part,
                 format!("request-setting-{name}-{part}"),
                 choice_label,
                 note,
-                value == choice_value,
-                cx,
             )
-            .on_click(cx.listener(move |this, _event, window, cx| {
-                this.set_setting(&request, toggle, choice_value, window, cx);
-            }))
         })
         .collect();
+    let active = CHOICES
+        .into_iter()
+        .find(|(_, _, choice_value)| *choice_value == value)
+        .map_or("default", |(part, ..)| part);
+    let request = request_id.to_owned();
+    let on_select = cx.listener(move |this, part: &SharedString, window, cx| {
+        if let Some((_, _, choice_value)) = CHOICES
+            .into_iter()
+            .find(|(choice_part, ..)| *choice_part == part.as_ref())
+        {
+            this.set_setting(&request, toggle, choice_value, window, cx);
+        }
+    });
     let weakened = toggle == Toggle::VerifyTls && value == Some(false);
     let state = match value {
         None => Badge::Default,
@@ -264,10 +272,11 @@ fn toggle_row(
         .items_center()
         .gap(Spacing::SM)
         .child(radio_group(
-            format!("request-setting-{name}"),
+            &format!("request-setting-{name}"),
             label,
             choices,
-            cx,
+            active,
+            on_select,
         ))
         .child(badge(format!("request-setting-{name}-badge"), state))
         .children(reset);

@@ -355,7 +355,8 @@ fn filter(cx: &App) -> impl IntoElement {
 }
 
 /// The keycap `key` that tests and the automation tree find by `id`.
-// bolt gap: Kbd takes no element id; drop the wrapper once it does.
+// bolt gap: an id on Kbd names no accessible node, so a labeled region carries the id and
+// the key the automation tree reads.
 pub(super) fn keycap(id: &'static str, key: &'static str) -> impl IntoElement {
     text_region(id)
         .aria_label(key)

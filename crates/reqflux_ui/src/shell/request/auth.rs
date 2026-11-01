@@ -7,12 +7,12 @@
 
 use bolt::composites::field_row as bolt_field_row;
 use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
-use bolt::primitives::TextVariant;
+use bolt::primitives::{SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ModalMetrics, Spacing};
 use bolt_legacy::IconName;
 use gpui::{
-    AnyElement, App, Context, Div, Entity, ParentElement, Role, Stateful, Styled, Window, div,
-    prelude::*,
+    AnyElement, App, Context, Div, Entity, ParentElement, SharedString, Stateful, Styled, Window,
+    div, prelude::*,
 };
 use reqflux_core::model::{ApiKeyLocation, Auth};
 use reqflux_engine::Inspection;
@@ -21,7 +21,7 @@ use super::body::controls::{select, well};
 use super::grid::secret;
 use super::grid_model::MASK;
 use super::pane_model::{AuthField, auth_fields, auth_type};
-use super::segmented::{segment, track};
+use super::segmented::control;
 use super::{auth_menu, code, spans, ui};
 use crate::shell::Shell;
 use crate::shell::documents::locate;
@@ -100,24 +100,28 @@ fn source_row(request_id: &str, auth: &Auth, shell: &Shell, cx: &mut Context<She
     ];
     let segments: Vec<_> = sources
         .into_iter()
-        .map(|(id, label, icon_name, inherit)| {
-            let request = request_id.to_owned();
-            segment(
-                format!("auth-source-{id}"),
-                label,
-                Some(icon_name),
-                Vec::new(),
-                inherit == inherits,
-                Role::Tab,
-                cx,
-            )
-            .on_click(cx.listener(move |this, _event, window, cx| {
-                this.set_auth_source(&request, inherit, window, cx);
-            }))
+        .map(|(id, label, icon_name, _)| {
+            SegmentedItem::new(id, label)
+                .element_id(format!("auth-source-{id}"))
+                .icon(ui::icon(icon_name))
         })
         .collect();
-    let mut content =
-        vec![track("request-auth-source", Role::TabList, segments, cx).into_any_element()];
+    let request = request_id.to_owned();
+    let on_select = cx.listener(move |this, id: &SharedString, window, cx| {
+        this.set_auth_source(&request, id.as_ref() == "inherit", window, cx);
+    });
+    let active = if inherits { "inherit" } else { "request" };
+    let mut content = vec![
+        control(
+            "request-auth-source",
+            None,
+            true,
+            segments,
+            active,
+            on_select,
+        )
+        .into_any_element(),
+    ];
     if inherits {
         content.push(hint(
             "request-auth-hint",
@@ -145,16 +149,16 @@ fn type_row(
     let control = div()
         .relative()
         .child(
-            select(
-                "request-auth-type".to_owned(),
-                Some(IconName::Key),
-                auth_type(auth).to_owned(),
-                cx,
-            )
-            .w(tokens::AUTH_MENU_WIDTH)
-            .on_click(cx.listener(|this, _event, window, cx| {
-                this.toggle_auth_menu(window, cx);
-            })),
+            div().w(tokens::AUTH_MENU_WIDTH).child(
+                select(
+                    "request-auth-type".to_owned(),
+                    Some(IconName::Key),
+                    auth_type(auth).to_owned(),
+                )
+                .on_click(cx.listener(|this, _event, window, cx| {
+                    this.toggle_auth_menu(window, cx);
+                })),
+            ),
         )
         .when(shell.auth_menu_open, |anchor| {
             anchor.child(auth_menu::render(request_id, auth, shell, window, cx))
@@ -208,28 +212,40 @@ fn location_control(request_id: &str, auth: &Auth, cx: &mut Context<Shell>) -> A
         Auth::ApiKey { location, .. } => Some(*location),
         _ => None,
     };
-    let segments: Vec<_> = [
+    let locations = [
         ("header", "Header", ApiKeyLocation::Header, IconName::List),
         ("query", "Query", ApiKeyLocation::Query, IconName::Hash),
-    ]
-    .into_iter()
-    .map(|(id, label, location, icon_name)| {
-        let request = request_id.to_owned();
-        segment(
-            format!("auth-location-{id}"),
-            label,
-            Some(icon_name),
-            Vec::new(),
-            current == Some(location),
-            Role::Tab,
-            cx,
-        )
-        .on_click(cx.listener(move |this, _event, window, cx| {
+    ];
+    let segments: Vec<_> = locations
+        .into_iter()
+        .map(|(id, label, _, icon_name)| {
+            SegmentedItem::new(id, label)
+                .element_id(format!("auth-location-{id}"))
+                .icon(ui::icon(icon_name))
+        })
+        .collect();
+    let active = locations
+        .into_iter()
+        .find(|(.., location, _)| current == Some(*location))
+        .map_or("", |(id, ..)| id);
+    let request = request_id.to_owned();
+    let on_select = cx.listener(move |this, id: &SharedString, window, cx| {
+        if let Some((.., location, _)) = locations
+            .into_iter()
+            .find(|(location_id, ..)| *location_id == id.as_ref())
+        {
             this.set_api_key_location(&request, location, window, cx);
-        }))
-    })
-    .collect();
-    track("request-auth-location", Role::TabList, segments, cx).into_any_element()
+        }
+    });
+    control(
+        "request-auth-location",
+        None,
+        true,
+        segments,
+        active,
+        on_select,
+    )
+    .into_any_element()
 }
 
 /// The row of `field`, `request-auth-field-<label>`, with its value in the well

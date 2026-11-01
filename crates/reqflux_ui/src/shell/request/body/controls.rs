@@ -2,59 +2,27 @@
 //! `request::segmented`): a select that opens a pane menu, and the field wells a value shows
 //! in until a click opens its editor, drawn as `bolt::controls::Input` draws its field.
 
-use bolt::primitives::{Chamfer, ChamferRing, Icon};
+use bolt::controls::SelectTrigger;
+use bolt::primitives::{Chamfer, ChamferRing};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
 use bolt_legacy::IconName;
-use gpui::{App, Div, ParentElement, Role, SharedString, Stateful, Styled, div, prelude::*};
+use gpui::{App, Div, ElementId, ParentElement, SharedString, Stateful, Styled};
 
 use crate::shell::request::ui;
 use crate::shell::rows::part;
 
-/// A select `id` showing `value`, with an optional leading icon and a trailing chevron: a
-/// button that opens its menu, drawn as the trigger of `bolt::controls::Dropdown`.
-// bolt gap: Dropdown owns its open state and its items' ids, while these menus are the
-// shell's (their ids, Escape and the backdrop are tested); a stateless select trigger in
-// bolt would replace this.
+/// A select `id` showing `value`, with an optional leading icon: `bolt`'s select trigger, a
+/// button that opens the shell's menu.
 pub(in crate::shell::request) fn select(
     id: String,
     leading: Option<IconName>,
     value: impl Into<SharedString>,
-    cx: &App,
-) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let value = value.into();
-    part(id)
-        .role(Role::Button)
-        .aria_label(value.clone())
-        .relative()
-        .flex_none()
-        .flex()
-        .items_center()
-        .gap(Fields::GAP)
-        .h(Fields::HEIGHT)
-        .pl(Fields::PADDING_X)
-        .pr(Fields::PADDING_X)
-        .font_family(bolt::fonts::ui_family(cx))
-        .text_size(Fields::TEXT)
-        .text_color(colors.strong)
-        .whitespace_nowrap()
-        .cursor_pointer()
-        .child(
-            Chamfer::new(ChamferCut::CONTROL)
-                .fill(colors.raised)
-                .border(colors.line_2),
-        )
-        .children(leading.map(|name| {
-            Icon::new(ui::icon(name))
-                .size(Fields::LEADING_ICON)
-                .color(colors.muted)
-        }))
-        .child(div().flex_1().min_w_0().overflow_hidden().child(value))
-        .child(
-            Icon::new(ui::icon(IconName::ChevronDown))
-                .size(Fields::CHEVRON)
-                .color(colors.muted),
-        )
+) -> SelectTrigger {
+    let trigger = SelectTrigger::new(ElementId::Name(id.into()), value);
+    match leading {
+        Some(name) => trigger.leading_icon(ui::icon(name)),
+        None => trigger,
+    }
 }
 
 /// A field well `id`: a field high sunken box with an edge, in mono, around the value its

@@ -5,15 +5,14 @@
 
 use bolt::composites::field_row;
 use bolt::controls::Button;
-use bolt::primitives::{Badge as BoltBadge, BadgeTone};
+use bolt::primitives::{Badge as BoltBadge, BadgeTone, SegmentedItem};
 use bolt::tokens::{ModalMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Div, Hsla, ParentElement, Role, SharedString, Stateful, Styled, div,
+    AnyElement, App, Div, Hsla, ParentElement, Role, SharedString, Stateful, Styled, Window, div,
     prelude::*,
 };
 
-use crate::shell::request::segmented::{segment, track};
-use crate::shell::request::ui;
+use crate::shell::request::segmented::control;
 use crate::shell::rows::part;
 
 /// The state a row's badge shows.
@@ -61,31 +60,31 @@ pub(super) fn hint(id: String, text: String, color: Hsla, cx: &App) -> AnyElemen
         .into_any_element()
 }
 
-/// The radio group `id`, named `label`, around `choices`.
+/// The radio group `id`, named `label`, of `choices`, `active` raised; `on_select` gets the
+/// choice clicked.
 pub(super) fn radio_group(
-    id: String,
+    id: &str,
     label: &'static str,
-    choices: impl IntoIterator<Item = Stateful<Div>>,
-    cx: &App,
+    choices: Vec<SegmentedItem>,
+    active: &'static str,
+    on_select: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
 ) -> Stateful<Div> {
-    track(id, Role::RadioGroup, choices, cx).aria_label(label)
+    control(id, Some(label.into()), false, choices, active, on_select)
 }
 
-/// A choice `id` named `label` in a radio group, raised when `selected`, with an optional
+/// The choice `part`, element id `id`, named `label` in a radio group, with an optional
 /// muted `note` after its name.
 pub(super) fn choice(
+    part: &'static str,
     id: String,
     label: &'static str,
     note: Option<&'static str>,
-    selected: bool,
-    cx: &App,
-) -> Stateful<Div> {
-    let muted = bolt::colors(cx).muted;
-    let counts = note
-        .map(|note| (note.to_owned(), muted))
-        .into_iter()
-        .collect();
-    segment(id, label, None, counts, selected, Role::RadioButton, cx)
+) -> SegmentedItem {
+    let item = SegmentedItem::new(part, label).element_id(id);
+    match note {
+        Some(note) => item.count(note),
+        None => item,
+    }
 }
 
 /// The badge `id` showing `badge`.
@@ -107,11 +106,9 @@ pub(super) fn link(
     id: String,
     label: impl Into<SharedString>,
     on_click: impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut App) + 'static,
-) -> Div {
-    ui::tagged(id.clone()).child(
-        Button::new(gpui::ElementId::Name(id.into()), label)
-            .ghost()
-            .inline()
-            .on_click(on_click),
-    )
+) -> Button {
+    Button::new(gpui::ElementId::Name(id.into()), label)
+        .ghost()
+        .inline()
+        .on_click(on_click)
 }

@@ -14,9 +14,9 @@
 
 use bolt::Colors;
 use bolt::composites::{EmptyState, ListRow};
-use bolt::controls::{GpuiInput, InputState};
-use bolt::primitives::{Chamfer, Icon, TextVariant};
-use bolt::tokens::{ChamferCut, Fields, HeaderMetrics, ShellMetrics, Spacing, TreeMetrics};
+use bolt::controls::{Input, InputState};
+use bolt::primitives::{Icon, TextVariant};
+use bolt::tokens::{HeaderMetrics, ShellMetrics, Spacing, TreeMetrics};
 use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Hsla, IntoElement, ParentElement, RenderOnce,
@@ -211,9 +211,9 @@ impl Sidebar {
 
 /// The empty state, `bolt`'s `EmptyState` with the History icon, the title and the
 /// explanation, over the send hint with its keycap.
-// bolt gap: EmptyState takes no element id and its parts and action keys none either, so the
-// title, text and hint carry their ids on labeled nodes beside it, and the hint draws its
-// action as EmptyState draws one.
+// bolt gap: EmptyState's title, text and action keys take no element id and name no
+// accessible node, so the title, text and hint carry their ids on labeled nodes beside it,
+// and the hint draws its action as EmptyState draws one.
 fn empty(cx: &App) -> impl IntoElement {
     let colors = bolt::colors(cx);
     region("history-empty")
@@ -303,10 +303,7 @@ impl RenderOnce for HistoryList {
     }
 }
 
-/// The filter field, `history-filter`, drawn as the tree's filter: the search icon and the
-/// text field on the field well.
-// bolt gap: bolt's Input without its appearance keeps gpui-component's padding and text size,
-// so the field draws its frame around a frameless input.
+/// The filter field, `history-filter`: `bolt`'s field with the search icon before the text.
 fn filter(input: &Entity<InputState>, cx: &App) -> impl IntoElement {
     let colors = bolt::colors(cx);
     div()
@@ -314,38 +311,15 @@ fn filter(input: &Entity<InputState>, cx: &App) -> impl IntoElement {
         .pl(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
         .pr(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
         .pb(ShellMetrics::SIDEBAR_FILTER_PADDING_BOTTOM)
+        .font_family(bolt::fonts::ui_family(cx))
         .child(
-            region("history-filter")
-                .role(Role::TextInput)
+            Input::new(input)
+                .id("history-filter")
                 .aria_label(FILTER_PLACEHOLDER)
-                .relative()
-                .flex()
-                .items_center()
-                .gap(Fields::GAP)
-                .h(Fields::HEIGHT)
-                .pl(Fields::PADDING_X)
-                .pr(Fields::PADDING_X)
-                .font_family(bolt::fonts::ui_family(cx))
-                .text_size(Fields::TEXT)
-                .child(
-                    Chamfer::new(ChamferCut::CONTROL)
-                        .fill(colors.background)
-                        .border(colors.line),
-                )
-                .child(
+                .prefix(
                     Icon::new(ui::icon(IconName::Search))
                         .size(ShellMetrics::SIDEBAR_FILTER_ICON)
                         .color(colors.muted),
-                )
-                .child(
-                    GpuiInput::new(input)
-                        .appearance(false)
-                        .bordered(false)
-                        .p_0()
-                        .flex_1()
-                        .min_w_0()
-                        .text_size(Fields::TEXT)
-                        .text_color(colors.foreground),
                 ),
         )
 }

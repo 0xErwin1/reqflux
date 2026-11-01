@@ -5,13 +5,12 @@
 //! `request-script-<slot>-focus-ring`, shows only while the open editor has the focus. Every edit lands in the
 //! request's draft; see [`crate::shell::scripts_edit`].
 
+use bolt::composites::EmptyState;
 use bolt::controls::{Button, InputEnter, InputEscape};
 use bolt::primitives::{Chamfer, Icon, TextVariant};
-use bolt::tokens::{
-    Borders, ChamferCut, EditorMetrics, Fields, HeaderMetrics, NavigationMetrics, Spacing,
-};
+use bolt::tokens::{Borders, ChamferCut, EditorMetrics, Fields, HeaderMetrics, Spacing};
 use bolt_legacy::IconName;
-use gpui::{AnyElement, Context, FontWeight, ParentElement, Role, Styled, div, prelude::*};
+use gpui::{AnyElement, Context, ParentElement, Role, Styled, div, prelude::*};
 use gpui_component::input::Textarea;
 use reqflux_engine::Inspection;
 
@@ -108,19 +107,17 @@ fn editor_box(
     let delete = text.map(|_| {
         let request = id.to_owned();
         let delete_id = format!("request-script-{slot_id}-delete");
-        ui::tagged(delete_id.clone()).child(
-            Button::new(
-                gpui::ElementId::Name(delete_id.into()),
-                format!("Delete {} script", heading.to_lowercase()),
-            )
-            .ghost()
-            .inline()
-            .icon_only()
-            .icon(ui::icon(IconName::Trash))
-            .on_click(cx.listener(move |this, _event, window, cx| {
-                this.delete_script(&request, slot, window, cx);
-            })),
+        Button::new(
+            gpui::ElementId::Name(delete_id.into()),
+            format!("Delete {} script", heading.to_lowercase()),
         )
+        .ghost()
+        .inline()
+        .icon_only()
+        .icon(ui::icon(IconName::Trash))
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            this.delete_script(&request, slot, window, cx);
+        }))
     });
     let header = part(format!("request-script-{slot_id}-header"))
         .flex()
@@ -211,13 +208,8 @@ fn editor_box(
 }
 
 /// The empty state `request-script-<slot>-empty` of the missing script `slot`, whose
-/// button `request-script-<slot>-create` opens an empty editor. Drawn as
-/// `bolt::composites::EmptyState` draws its content.
-// bolt gap: EmptyState's actions are key hints, not buttons; this goes once it takes a
-// button.
+/// button `request-script-<slot>-create` opens an empty editor.
 fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand::brand(cx).accent_tint;
     let (_, title, hint, action) = copy(slot);
     let slot_id = slot.id();
     let icon_name = match slot {
@@ -226,42 +218,21 @@ fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElemen
     };
     let request = id.to_owned();
     let create = format!("request-script-{slot_id}-create");
-    part(format!("request-script-{slot_id}-empty"))
-        .role(Role::Label)
-        .aria_label(title)
-        .flex()
-        .flex_col()
-        .items_center()
-        .gap(NavigationMetrics::EMPTY_GAP)
+    let button = Button::new(gpui::ElementId::Name(create.into()), action)
+        .primary()
+        .icon(ui::icon(IconName::Pencil))
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            this.start_script_edit(&request, slot, window, cx);
+        }));
+    div()
         .p(Spacing::LG)
-        .text_center()
         .child(
-            Icon::new(ui::icon(icon_name))
-                .size(NavigationMetrics::EMPTY_ICON)
-                .color(tint),
-        )
-        .child(
-            div()
-                .text_size(NavigationMetrics::EMPTY_TITLE_FONT)
-                .font_weight(FontWeight::BOLD)
-                .text_color(colors.strong)
-                .child(title),
-        )
-        .child(
-            div()
-                .text_size(NavigationMetrics::EMPTY_BODY_FONT)
-                .text_color(colors.muted)
-                .child(hint),
-        )
-        .child(
-            ui::tagged(create.clone()).child(
-                Button::new(gpui::ElementId::Name(create.into()), action)
-                    .primary()
-                    .icon(ui::icon(IconName::Pencil))
-                    .on_click(cx.listener(move |this, _event, window, cx| {
-                        this.start_script_edit(&request, slot, window, cx);
-                    })),
-            ),
+            EmptyState::new(ui::icon(icon_name), hint)
+                .id(gpui::ElementId::Name(
+                    format!("request-script-{slot_id}-empty").into(),
+                ))
+                .title(title)
+                .primary_action(button),
         )
         .into_any_element()
 }

@@ -5,9 +5,8 @@
 //! its response under it across the draggable split (see `split`). While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
 
+use bolt::composites::Island;
 use bolt::tokens::Borders;
-// bolt gap: Island is in DBFlux's dbflux_components, not in bolt.
-use bolt_legacy::Island;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
 
 use super::documents::locate;
@@ -50,7 +49,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
                         let send = shell.sends.get(id);
                         let sending = send.is_some_and(|send| send.state.is_sending());
                         let request = request::render(id, state, sending, shell, window, cx);
-                        content.child(split::render(id, request, send, shell, window, cx))
+                        content.child(split::render(id, request, send, shell, cx))
                     }
                     None => content,
                 })

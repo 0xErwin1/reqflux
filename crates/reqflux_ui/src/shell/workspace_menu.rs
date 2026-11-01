@@ -104,8 +104,6 @@ pub(super) fn action_row(
 }
 
 /// A menu action row, followed by the key of the command `key` runs, `<id>-keycap`.
-// bolt gap: menu_row draws its shortcut as plain text without an element id, and Kbd takes
-// none, so the keycap is a Kbd in a wrapper that carries `<id>-keycap`.
 fn menu_action(
     id: &str,
     icon_name: IconName,
@@ -117,14 +115,15 @@ fn menu_action(
     let row = action_row(id, icon_name, label, action, cx);
     match key.and_then(command) {
         Some(command) => row.child(
-            ui::tagged(format!("{id}-keycap")).child(Kbd::new(
+            Kbd::new(
                 command
                     .key
                     .split('-')
                     .map(key_label)
                     .collect::<Vec<_>>()
                     .join(" "),
-            )),
+            )
+            .id(gpui::ElementId::Name(format!("{id}-keycap").into())),
         ),
         None => row,
     }

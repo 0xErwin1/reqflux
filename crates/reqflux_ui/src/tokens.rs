@@ -232,23 +232,10 @@ pub(crate) const TREE_DIALOG_TOP: Pixels = px(250.0);
 /// flight: the wider of the two, Send with its icon and `Ctrl ↵` keycap, with room to spare.
 pub(crate) const SEND_BUTTON_WIDTH: Pixels = px(140.0);
 
-/// The request/response split (request-panes/01): the gutter's height, the least height of
-/// each pane, the request pane's height before the user moves it and the step of Up and Down
-/// on the focused gutter.
-pub(crate) const SPLIT_GUTTER: Pixels = px(9.0);
+/// The request/response split (request-panes/01): the least height of each pane and the
+/// request pane's height before the user moves it. The gutter is `bolt`'s splitter.
 pub(crate) const SPLIT_PANE_MIN: Pixels = px(120.0);
 pub(crate) const SPLIT_DEFAULT_REQUEST: Pixels = px(306.0);
-pub(crate) const SPLIT_STEP: Pixels = px(16.0);
-
-/// The gutter's grip: a row of square dots and the gap between them.
-pub(crate) const SPLIT_GRIP_DOTS: usize = 5;
-pub(crate) const SPLIT_GRIP_DOT: Pixels = px(2.0);
-pub(crate) const SPLIT_GRIP_GAP: Pixels = px(4.0);
-
-/// The tint wash of the gutter on hover, focus and drag, and how far from its top the tint
-/// line sits while dragged.
-pub(crate) const SPLIT_HOVER_WASH: f32 = 0.06;
-pub(crate) const SPLIT_DRAG_LINE_TOP: Pixels = px(3.0);
 
 /// The Params and Headers grid columns (request-panes/01) `bolt`'s data grid has no
 /// equivalent for: the enable, key, description and actions columns (the value fills the

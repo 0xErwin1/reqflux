@@ -67,9 +67,10 @@ fn command_icon(id: CommandId) -> IconName {
 }
 
 /// `bolt`'s keycap `key`, found by tests as `id`.
-// bolt gap: Kbd takes no element id, so a wrapper carries it.
 fn keycap(id: String, key: String) -> AnyElement {
-    ui::tagged(id).child(Kbd::new(key)).into_any_element()
+    Kbd::new(key)
+        .id(gpui::ElementId::Name(id.into()))
+        .into_any_element()
 }
 
 /// The keycaps of `key`, one per part as DBFlux's palette draws them: `ctrl-shift-r` is
@@ -321,8 +322,8 @@ fn render_tab(scope: Scope, active: bool, count: usize, cx: &mut Context<Shell>)
 
 /// The empty or no-match state `palette-empty`, `bolt`'s `EmptyState`, its title
 /// `palette-empty-title`.
-// bolt gap: EmptyState takes no element id and its title none either, so the title carries
-// its id on a labeled node over it.
+// bolt gap: EmptyState's title takes no element id and names no accessible node, so the
+// title carries its id on a labeled node over it.
 fn render_empty(listing: &Listing, workspace_open: bool) -> AnyElement {
     let noun = listing.scope.noun();
     let (title, hint) = if listing.text.is_empty() {

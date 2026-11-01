@@ -145,8 +145,8 @@ impl Shell {
                 .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
                     this.blur_new_workspace(window, cx);
                 }))
-                // bolt gap: bolt's Input without its appearance keeps gpui-component's padding
-                // and text size.
+                // bolt gap: bolt's frameless Input draws its text in the medium weight with no
+                // option.
                 .child(
                     GpuiInput::new(input)
                         .appearance(false)

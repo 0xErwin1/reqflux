@@ -1,16 +1,18 @@
 //! The response views row, `Body`, `Headers <n>` and `Cookies <n>` with the content type,
 //! and the Headers grid.
 
+use bolt::primitives::SegmentedItem;
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
 use bolt_legacy::IconName;
 use gpui::{
-    AnyElement, App, Context, Div, FontWeight, ParentElement, Role, Styled, div, prelude::*,
+    AnyElement, App, Context, Div, FontWeight, ParentElement, SharedString, Styled, div, prelude::*,
 };
 
 use super::cookies::cookie_count;
 use super::model::{BodyView, ResponseTab};
 use crate::shell::request::Received;
-use crate::shell::request::segmented::{segment, track};
+use crate::shell::request::segmented::control;
+use crate::shell::request::ui;
 use crate::shell::rows::labeled_row;
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region};
@@ -49,38 +51,45 @@ pub(super) fn render(
     let headers = received.headers.len().to_string();
     let cookie_count = cookie_count(&received.headers).to_string();
     let views = [
-        (ResponseTab::Body, "Body", IconName::Braces, Vec::new()),
+        (ResponseTab::Body, "body", "Body", IconName::Braces, None),
         (
             ResponseTab::Headers,
+            "headers",
             "Headers",
             IconName::List,
-            vec![(headers, colors.muted)],
+            Some(headers),
         ),
         (
             ResponseTab::Cookies,
+            "cookies",
             "Cookies",
             IconName::Cookie,
-            vec![(cookie_count, colors.muted)],
+            Some(cookie_count),
         ),
     ];
+    let active = views
+        .iter()
+        .find(|(view_tab, ..)| *view_tab == tab)
+        .map_or("", |(_, key, ..)| *key);
+    let keys = views.clone().map(|(view_tab, key, ..)| (view_tab, key));
     let segments: Vec<_> = views
         .into_iter()
-        .map(|(view_tab, label, icon_name, counts)| {
-            let request = id.to_owned();
-            segment(
-                format!("response-tab-{}", label.to_lowercase()),
-                label,
-                Some(icon_name),
-                counts,
-                tab == view_tab,
-                Role::Tab,
-                cx,
-            )
-            .on_click(cx.listener(move |this, _event, _window, cx| {
-                this.select_response_tab(&request, view_tab, cx);
-            }))
+        .map(|(_, key, label, icon_name, count)| {
+            let item = SegmentedItem::new(key, label)
+                .element_id(format!("response-tab-{key}"))
+                .icon(ui::icon(icon_name));
+            match count {
+                Some(count) => item.count(count),
+                None => item,
+            }
         })
         .collect();
+    let request = id.to_owned();
+    let on_select = cx.listener(move |this, picked: &SharedString, _window, cx| {
+        if let Some((view_tab, _)) = keys.iter().find(|(_, key)| *key == picked.as_ref()) {
+            this.select_response_tab(&request, *view_tab, cx);
+        }
+    });
     div()
         .flex_none()
         .h(ResultMetrics::VIEW_ROW_HEIGHT)
@@ -91,7 +100,14 @@ pub(super) fn render(
         .pr(Spacing::MD)
         .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(track("response-views", Role::TabList, segments, cx))
+        .child(control(
+            "response-views",
+            None,
+            true,
+            segments,
+            active,
+            on_select,
+        ))
         .children(received.content_type().map(|content_type| {
             div()
                 .whitespace_nowrap()

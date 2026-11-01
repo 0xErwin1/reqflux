@@ -299,9 +299,7 @@ impl Sidebar {
         .into_any_element()
     }
 
-    /// `tree-delete-cancel`: the ghost button with its Esc keycap.
-    // bolt gap: the keycap a Button draws has no element id, so `tree-delete-cancel-key` is
-    // gone until Kbd takes one.
+    /// `tree-delete-cancel`: the ghost button with its Esc keycap, `tree-delete-cancel-key`.
     fn cancel_button(&self, cx: &mut Context<Self>) -> AnyElement {
         Button::new("tree-delete-cancel", "Cancel")
             .ghost()

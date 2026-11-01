@@ -4,8 +4,9 @@
 //! pending count as a badge. The active one is marked; the others do nothing yet.
 //!
 //! The rail is drawn as DBFlux's activity rail draws it.
-// bolt gap: the activity rail, its buttons and the count badge are DBFlux's
-// `dbflux_components` composites, not `bolt` ones; this module goes once `bolt` has them.
+// bolt gap: `bolt::composites::ActivityRail` names its count badge `rail-<id>-count` with
+// no accessible label (the count leaves the automation tree), sets no selector on its root
+// and no Button role on its buttons; this module goes once it does.
 
 use bolt::primitives::{Chamfer, Icon};
 use bolt::tokens::{ButtonMetrics, ChamferCut, ShellMetrics};

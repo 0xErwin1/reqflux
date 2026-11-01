@@ -7,11 +7,12 @@
 use std::time::Instant;
 
 use bolt::Colors;
-use bolt::primitives::{Chamfer, Icon};
-use bolt::tokens::{ChamferCut, Fields, ShellMetrics};
+use bolt::composites::StatusChip;
+use bolt::primitives::Icon;
+use bolt::tokens::{Fields, ShellMetrics};
 use bolt_legacy::IconName;
 use gpui::{
-    Context, Div, Hsla, IntoElement, ParentElement, Role, Stateful, Styled, Window, div, prelude::*,
+    Context, FontWeight, Hsla, IntoElement, ParentElement, Role, Styled, Window, div, prelude::*,
 };
 
 use super::last_request::{LastKind, summary};
@@ -19,7 +20,6 @@ use super::problems::{Problems, count};
 use super::request::{StatusClass, ui};
 use super::rows::labeled_row;
 use super::{Shell, problems_panel, region};
-use crate::tokens;
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
     let colors = bolt::colors(cx);
@@ -44,43 +44,26 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .text_color(colors.muted)
         .children(last.map(|(text, kind)| {
             let (icon, color) = last_icon(kind, &colors, tint);
-            chip(
-                labeled_row("status-last-request".to_owned(), text.clone()),
-                colors.panel,
-            )
-            .child(
-                Icon::new(ui::icon(icon))
-                    .size(ShellMetrics::STATUS_ICON)
-                    .color(color),
-            )
-            .child(
-                div()
-                    .font_family(bolt::fonts::editor_family(cx))
-                    .text_color(colors.foreground)
-                    .child(text),
-            )
+            StatusChip::new("status-last-request")
+                .build(cx)
+                .role(Role::Label)
+                .aria_label(text.clone())
+                .child(
+                    Icon::new(ui::icon(icon))
+                        .size(ShellMetrics::STATUS_ICON)
+                        .color(color),
+                )
+                .child(
+                    div()
+                        .font_family(bolt::fonts::editor_family(cx))
+                        .text_color(colors.foreground)
+                        .child(text),
+                )
         }))
         .child(div().flex_1())
         .when(!problems.is_empty(), |bar| {
             bar.child(problems_chip(shell, &problems, window, cx))
         })
-}
-
-/// A chip of the bar on `fill`: 26 px, cut 6, 12 px padding, 8 px gap, as DBFlux draws its
-/// status chips.
-// bolt gap: the status chip is DBFlux's status bar's own, not a `bolt` component.
-fn chip(element: Stateful<Div>, fill: Hsla) -> Stateful<Div> {
-    element
-        .relative()
-        .flex()
-        .flex_none()
-        .items_center()
-        .gap(ShellMetrics::STATUS_CHIP_GAP)
-        .h(ShellMetrics::STATUS_CHIP_HEIGHT)
-        .pl(ShellMetrics::STATUS_CHIP_PADDING_X)
-        .pr(ShellMetrics::STATUS_CHIP_PADDING_X)
-        .whitespace_nowrap()
-        .child(Chamfer::new(ChamferCut::CONTROL).fill(fill))
 }
 
 /// The Problems chip: the alert icon, then `1 error` in danger and `3 warnings` in the body
@@ -97,22 +80,25 @@ fn problems_chip(
     let errors = problems.has_error().then(|| count(1, "error"));
     let warnings =
         (!problems.warnings.is_empty()).then(|| count(problems.warnings.len(), "warning"));
-    let (fill, icon_color) = if problems.has_error() {
+    // Any error washes the chip in danger; its text keeps the body color and weight.
+    let (chip, icon_color) = if problems.has_error() {
         (
-            tokens::wash(colors.danger, ShellMetrics::STATUS_CHIP_ALPHA),
+            StatusChip::new("status-problems")
+                .tone(colors.danger)
+                .wash(true),
             colors.danger,
         )
     } else {
-        (colors.panel, colors.warning)
+        (StatusChip::new("status-problems"), colors.warning)
     };
     let separator = errors.is_some() && warnings.is_some();
-    let chip =
-        chip(
-            labeled_row("status-problems".to_owned(), problems.chip_label()),
-            fill,
-        )
+    let chip = chip
+        .clickable(true)
+        .build(cx)
         .role(Role::Button)
+        .aria_label(problems.chip_label())
         .text_color(colors.foreground)
+        .font_weight(FontWeight::NORMAL)
         .cursor_pointer()
         .child(
             Icon::new(ui::icon(IconName::TriangleAlert))

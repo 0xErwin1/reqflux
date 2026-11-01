@@ -54,7 +54,8 @@ pub(super) fn class_tone(class: &str) -> BadgeTone {
 }
 
 /// `bolt`'s badge printing `label` in `tone`, found by tests as `id`.
-// bolt gap: Badge takes no element id, so a labeled wrapper carries it.
+// bolt gap: an id on Badge names no accessible node, so a labeled wrapper carries the id
+// and the label the automation tree reads.
 pub(super) fn badge(id: String, label: String, tone: BadgeTone) -> AnyElement {
     labeled_row(id, label.clone())
         .flex_none()
@@ -68,9 +69,10 @@ pub(super) fn class_badge(id: String, class: &str) -> AnyElement {
 }
 
 /// `bolt`'s keycap `key`, found by tests as `id`.
-// bolt gap: Kbd takes no element id, so a wrapper carries it.
 pub(super) fn keycap(id: impl Into<String>, key: &'static str) -> AnyElement {
-    ui::tagged(id).child(Kbd::new(key)).into_any_element()
+    Kbd::new(key)
+        .id(gpui::ElementId::Name(id.into().into()))
+        .into_any_element()
 }
 
 /// The view in the document island.

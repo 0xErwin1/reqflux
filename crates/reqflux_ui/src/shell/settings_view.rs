@@ -538,8 +538,9 @@ fn environment_menu(shell: &Shell, id: Id, window: &Window, cx: &mut Context<She
 }
 
 /// The rename field of the environment `id`, `variables-rename-input`, over its hint.
-// bolt gap: bolt's Input without its appearance keeps gpui-component's padding and text size,
-// so the field draws its focused frame around a frameless input, as the tree's rename does.
+// bolt gap: bolt's frameless Input draws its text in the medium weight with no option, so
+// the field draws its focused frame around gpui-component's frameless input, as the tree's
+// rename does.
 fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
     let rename = shell
         .settings

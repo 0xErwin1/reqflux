@@ -283,8 +283,9 @@ fn menu_row(
     let muted = bolt::colors(cx).muted;
     bolt_menu_row(id, &item, false, cx)
         .aria_label(label)
-        // bolt gap: menu_row draws its shortcut without an element id, so the key is drawn
-        // here as menu_row draws it; pass it as `MenuItem::shortcut` once that takes an id.
+        // bolt gap: menu_row names its shortcut `<row id>-key` with no accessible label, while
+        // this menu's keys are `tree-menu-key-<key>` labeled with the key, so the key is
+        // drawn here as menu_row draws it.
         .children(key.map(|(id, key)| {
             part(id)
                 .role(Role::Label)

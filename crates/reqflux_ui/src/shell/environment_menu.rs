@@ -4,15 +4,11 @@
 //! the menu.
 
 use bolt::composites::{MenuItem, menu_frame, menu_row, render_menu_header};
-use bolt::primitives::Icon;
-use bolt::tokens::MenuMetrics;
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, InteractiveElement, IntoElement, KeyDownEvent, MouseButton, ParentElement,
     Point, Role, Styled, Window, anchored, deferred, div, prelude::*,
 };
 
-use super::request::ui;
 use super::title_bar::ENVIRONMENT_PLACEHOLDER;
 use super::{Shell, region};
 use crate::tokens;
@@ -33,35 +29,30 @@ fn environments(workspace: &OpenedWorkspace) -> Vec<(String, String)> {
     found
 }
 
-/// The row that makes `slug` active, `None` being No environment.
-// bolt gap: menu_row has no check mark, so the selected row adds the check here, drawn as
-// the row draws its icons; pass it to `MenuItem` once it takes one.
+/// The row that makes `slug` active, `None` being No environment, checked when `selected`.
 fn option(
     slug: Option<String>,
     name: String,
     selected: bool,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let tint = bolt::brand::brand(cx).accent_tint;
     // `environment-none` cannot collide with an environment, whose slug may well be `none`.
     let id = slug.as_deref().map_or_else(
         || "environment-none".to_owned(),
         |slug| format!("environment-option-{slug}"),
     );
-    menu_row(id, &MenuItem::new(name.clone()), selected, cx)
-        .aria_label(name)
-        .aria_selected(selected)
-        .when(selected, |row| {
-            row.child(
-                Icon::new(ui::icon(IconName::Check))
-                    .size(MenuMetrics::ICON)
-                    .color(tint),
-            )
-        })
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.close_environment_menu(window, cx);
-            this.set_environment(slug.clone(), cx);
-        }))
+    menu_row(
+        id,
+        &MenuItem::new(name.clone()).checked(selected),
+        selected,
+        cx,
+    )
+    .aria_label(name)
+    .aria_selected(selected)
+    .on_click(cx.listener(move |this, _event, window, cx| {
+        this.close_environment_menu(window, cx);
+        this.set_environment(slug.clone(), cx);
+    }))
 }
 
 /// The open menu, drawn above the islands and anchored under the button, over a backdrop

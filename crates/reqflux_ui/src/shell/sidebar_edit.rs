@@ -441,8 +441,8 @@ impl Sidebar {
                 .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
                     this.commit_rename(window, cx);
                 }))
-                // bolt gap: bolt's Input without its appearance keeps gpui-component's padding
-                // and text size, so the name would move from where the row shows it.
+                // bolt gap: bolt's frameless Input draws its text in the medium weight with no
+                // option, so the name would change weight from how the row shows it.
                 .child(
                     GpuiInput::new(&rename.input)
                         .appearance(false)

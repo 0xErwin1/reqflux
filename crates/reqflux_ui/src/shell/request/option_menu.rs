@@ -13,8 +13,8 @@ use gpui::{
 use crate::shell::region;
 use crate::tokens;
 
-/// The option row `id` named `name`, highlighted when `selected`; a click runs `pick`.
-// bolt gap: menu_row has no check mark, so the selected option shows the highlight only.
+/// The option row `id` named `name`, highlighted and checked when `selected`; a click runs
+/// `pick`.
 pub(in crate::shell) fn option<V: 'static>(
     id: String,
     name: String,
@@ -22,11 +22,16 @@ pub(in crate::shell) fn option<V: 'static>(
     pick: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    menu_row(id, &MenuItem::new(name.clone()), selected, cx)
-        .aria_label(name)
-        .aria_selected(selected)
-        .on_click(cx.listener(move |this, _event, window, cx| pick(this, window, cx)))
-        .into_any_element()
+    menu_row(
+        id,
+        &MenuItem::new(name.clone()).checked(selected),
+        selected,
+        cx,
+    )
+    .aria_label(name)
+    .aria_selected(selected)
+    .on_click(cx.listener(move |this, _event, window, cx| pick(this, window, cx)))
+    .into_any_element()
 }
 
 /// The open context menu `id` of `rows` with its top-left corner at `position`, in window

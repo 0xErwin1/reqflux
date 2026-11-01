@@ -1,14 +1,14 @@
 //! The bottom bar of the response body, element id `response-footer`: the `Pretty` / `Raw` /
 //! `Preview` switch and the line count of a text body.
 
-use bolt::primitives::{Icon, TextVariant};
+use bolt::primitives::{Icon, SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ResultMetrics};
 use bolt_legacy::IconName;
-use gpui::{Context, Div, ParentElement, Role, Stateful, Styled, prelude::*};
+use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
 
 use super::model::BodyView;
 use super::sub_tabs::effective_view;
-use crate::shell::request::segmented::{segment, track};
+use crate::shell::request::segmented::control;
 use crate::shell::request::{Received, ui};
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region, text_region};
@@ -29,24 +29,29 @@ pub(super) fn render(
     if received.preview.is_some() {
         views.push((BodyView::Preview, "Preview", IconName::Eye));
     }
+    let active = views
+        .iter()
+        .find(|(view, ..)| *view == selected)
+        .map_or(String::new(), |(_, label, _)| label.to_lowercase());
+    let keys: Vec<_> = views
+        .iter()
+        .map(|(view, label, _)| (*view, label.to_lowercase()))
+        .collect();
     let segments: Vec<_> = views
         .into_iter()
-        .map(|(view, label, icon_name)| {
-            let request = id.to_owned();
-            segment(
-                format!("response-view-{}", label.to_lowercase()),
-                label,
-                Some(icon_name),
-                Vec::new(),
-                selected == view,
-                Role::Tab,
-                cx,
-            )
-            .on_click(cx.listener(move |this, _event, _window, cx| {
-                this.select_body_view(&request, view, cx);
-            }))
+        .map(|(_, label, icon_name)| {
+            let key = label.to_lowercase();
+            SegmentedItem::new(key.clone(), label)
+                .element_id(format!("response-view-{key}"))
+                .icon(ui::icon(icon_name))
         })
         .collect();
+    let request = id.to_owned();
+    let on_select = cx.listener(move |this, picked: &SharedString, _window, cx| {
+        if let Some((view, _)) = keys.iter().find(|(_, key)| key == picked.as_ref()) {
+            this.select_body_view(&request, *view, cx);
+        }
+    });
     let lines = match selected {
         BodyView::Preview => None,
         view => received.text.lines(view).map(|(lines, _)| lines.len()),
@@ -61,7 +66,14 @@ pub(super) fn render(
         .pr(ResultMetrics::FOOTER_PADDING_X)
         .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(track("response-format", Role::TabList, segments, cx))
+        .child(control(
+            "response-format",
+            None,
+            true,
+            segments,
+            active,
+            on_select,
+        ))
         .children(lines.map(|count| {
             let label = match count {
                 1 => "1 line".to_owned(),

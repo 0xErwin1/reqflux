@@ -1,23 +1,14 @@
 //! What the request and response panes need to draw with `bolt`: an icon of the Lucide
-//! catalog as a `bolt` icon source, a `bolt` text role applied to a container, and the
-//! wrapper that keeps an element id findable by tests around a `bolt` component.
+//! catalog as a `bolt` icon source and a `bolt` text role applied to a container.
 
 use bolt::icon::IconSource;
 use bolt::primitives::{TextDefaultColor, TextVariant};
 use bolt_legacy::IconName;
-use gpui::{App, Div, InteractiveElement, Styled, div};
+use gpui::{App, Styled};
 
 /// The `bolt` icon source of the Lucide icon `name`.
 pub(crate) fn icon(name: IconName) -> IconSource {
     IconSource::Svg(name.path())
-}
-
-/// A wrapper that tests find by `id` around a `bolt` component given the same element id.
-// bolt gap: Button, Checkbox and the other id-bearing components set no debug selector, so
-// tests cannot find them by their element id; drop this wrapper once they do.
-pub(crate) fn tagged(id: impl Into<String>) -> Div {
-    let selector = id.into();
-    div().flex_none().debug_selector(move || selector)
 }
 
 /// `element` with the family, size, weight and default color of the `bolt` text role

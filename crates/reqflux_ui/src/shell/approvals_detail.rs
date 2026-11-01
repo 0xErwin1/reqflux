@@ -658,9 +658,7 @@ enum Action {
 }
 
 /// The button of `action`: Deny in danger, Allow for this session secondary, Allow once
-/// primary; each with its key on a keycap.
-// bolt gap: the keycap a Button draws has no element id, so `approval-deny-key`,
-// `approval-allow-session-key` and `approval-allow-key` are gone until Kbd takes one.
+/// primary; each with its key on a keycap, `<button id>-key`.
 fn button(action: Action, cx: &mut Context<Shell>) -> AnyElement {
     use reqflux_engine::approvals::ApprovalDecision;
     let (id, label, key, decision) = match action {
