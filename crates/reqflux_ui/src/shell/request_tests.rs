@@ -363,10 +363,14 @@ fn grid_cells_share_their_edges_as_drawn(cx: &mut TestAppContext) {
         "the value fills the rest"
     );
     assert_eq!(description.size.width, gpui::px(230.));
-    assert_eq!(delete.left(), description.right());
-    assert_eq!(delete.size.width, gpui::px(34.));
-    assert_eq!(delete.right(), row.right());
-    for cell in [key, value, description, delete] {
+    // `request-headers-delete-<n>` is bolt's Button, centered in the last 34 px column.
+    assert_eq!(row.right() - description.right(), gpui::px(34.));
+    assert_eq!(
+        delete.left() - description.right(),
+        row.right() - delete.right(),
+        "the delete button is centered in its column"
+    );
+    for cell in [key, value, description] {
         assert_eq!((cell.top(), cell.size.height), (row.top(), row.size.height));
     }
 }
