@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - App settings: settings window</title>
+<style>
+body{margin:0;background:#09090B}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.in14{clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;background:#100F13}
+.edge{display:flex;padding:1px;background:rgba(255,255,255,.05)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap;cursor:pointer}
+:focus-visible{outline:2px solid #9DB1FF;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition-duration:.01ms!important}}
+.cap{font-family:Archivo,system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+.ttl{font-size:20px;font-weight:700;color:#F7F4F7;margin:0}
+.ds{color:#8E8996;font-size:12px}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#C6C3CC}
+.sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px;white-space:nowrap}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.btn.p{background:#2B45B8;color:#FFF;font-weight:700}
+.btn:disabled{opacity:.45;cursor:default}
+.ib{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:0;background:transparent;color:#8E8996}
+.seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 12px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7}
+.seg.dis{opacity:.45}
+.nav a{display:flex;align-items:center;gap:10px;height:32px;padding:0 16px;font-size:13px;color:#C6C3CC;text-decoration:none}
+.nav a[aria-current]{background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset;color:#F7F4F7}
+.nav a .ico{width:15px;height:15px;color:#8E8996}
+.nav a[aria-current] .ico{color:#9DB1FF}
+.fr{display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:center;padding:14px 0;border-bottom:1px solid #18161B}
+.fr .l{display:flex;flex-direction:column;gap:3px}
+.fr .l b{font-weight:600;color:#F7F4F7;font-size:13px}
+.gh{display:flex;align-items:center;height:34px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;color:#F7F4F7;font-weight:600;border-bottom:1px solid #232128}
+.gr{display:flex;align-items:center;height:31px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dia{display:inline-block;width:7px;height:7px;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.badge{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em}
+.ban{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:rgba(255,107,94,.12);box-shadow:#FF6B5E 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px}
+.diamond{color:#9DB1FF}
+.frame{position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;align-items:center;justify-content:center;background:radial-gradient(#232128 1px,transparent 1px) 0 0/22px 22px #09090B;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px}
+.state{position:absolute;top:10px;left:16px;font-size:11px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+  <symbol id="i-workspace" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+</svg>
+
+<!-- Direction 1: a separate App settings window, as DBFlux's settings window (crates/dbflux_ui_windows/src/settings): search over a section nav, one section per page, a footer with Revert and Save that writes config.toml through the format-preserving editor. The rail's Settings button opens it; Escape closes it and asks when there are unsaved changes.
+     Frame A: MCP policy page with one unsaved change. Frame B: General page while config.toml does not parse. Frame C: MCP Workspaces page, per-workspace overrides editable.
+     bolt: modal shell, tree_nav (section nav), field_row, segmented_control (rules, theme), dropdown (font size), input, list_row, button, badge, banner. bolt gap: none. -->
+
+<main>
+<section class="frame" aria-label="Frame A: MCP policy, one unsaved change">
+  <span class="state cap">A · MCP policy · unsaved change</span>
+  <div role="dialog" aria-label="ReqFlux settings" class="c14" style="width:1180px;height:820px;display:flex;flex-direction:column;background:#050507;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.55) 0 30px 80px">
+    <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 16px;flex-shrink:0">
+      <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-gear"/></svg><span style="font-weight:600;color:#F7F4F7">Settings</span>
+      <span style="flex-grow:1"></span><button id="settings-close" aria-label="Close settings" class="c6 ib"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-x"/></svg></button>
+    </div>
+    <div style="flex-grow:1;min-height:0;display:flex;gap:8px;padding:0 8px">
+      <div class="c14 edge"><nav class="in14 nav" aria-label="Settings sections" style="width:230px;display:flex;flex-direction:column">
+        <div style="padding:10px 12px"><label class="c6 field" style="height:28px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-search"/></svg><span style="color:#8E8996">Search settings</span></label></div>
+        <div style="padding:8px 16px 6px"><span class="cap">App</span></div>
+        <a id="nav-general" href="#"><svg class="ico" aria-hidden="true"><use href="#i-sun"/></svg>General</a>
+        <div style="padding:12px 16px 6px"><span class="cap">MCP</span></div>
+        <a id="nav-mcp-policy" href="#" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-bot"/></svg>Policy<span class="diamond" style="margin-left:auto;font-size:10px" title="Unsaved">◆</span></a>
+        <a id="nav-mcp-workspaces" href="#"><svg class="ico" aria-hidden="true"><use href="#i-workspace"/></svg>Workspaces<span class="m" style="margin-left:auto;font-size:11px;color:#8E8996">2</span></a>
+        <span style="flex-grow:1"></span>
+        <div style="padding:12px 16px;display:flex;flex-direction:column;gap:4px"><span class="cap">Config file</span><span id="config-path" class="m" style="font-size:11.5px;color:#C6C3CC">~/.config/reqflux/config.toml</span></div>
+      </nav></div>
+      <div class="c14 edge" style="flex-grow:1;min-width:0"><section class="in14" style="flex-grow:1;display:flex;flex-direction:column">
+        <div style="padding:22px 28px 14px;border-bottom:1px solid #232128;display:flex;flex-direction:column;gap:4px">
+          <h1 class="ttl">MCP policy</h1>
+          <span class="ds" style="font-size:13px">What agents may do through <span class="m">reqflux mcp</span>. A workspace and its manifest can only restrict these rules.</span>
+        </div>
+        <div style="flex-grow:1;min-height:0;overflow:hidden;padding:4px 28px">
+          <h2 class="cap" style="margin:14px 0 2px">Tool classes</h2>
+          <div class="fr"><div class="l"><b>Read</b><span class="ds">List and show requests, environments, history</span></div><div style="display:flex;align-items:center;gap:12px"><div id="rule-read" class="c6 seg" role="radiogroup" aria-label="Read"><span class="on" role="radio" aria-checked="true">Allow</span><span role="radio" aria-checked="false">Ask</span><span role="radio" aria-checked="false">Deny</span></div><span class="ds">Default</span></div></div>
+          <div class="fr"><div class="l"><b>Write</b><span class="ds">Create and edit requests and variables</span></div><div style="display:flex;align-items:center;gap:12px"><div id="rule-write" class="c6 seg" role="radiogroup" aria-label="Write"><span role="radio" aria-checked="false">Allow</span><span class="on" role="radio" aria-checked="true">Ask</span><span role="radio" aria-checked="false">Deny</span></div><span class="ds">Default</span></div></div>
+          <div class="fr"><div class="l"><b>Execute</b><span class="ds">Send a request with <span class="m">request_execute</span></span></div><div style="display:flex;align-items:center;gap:12px"><div id="rule-execute" class="c6 seg" role="radiogroup" aria-label="Execute"><span class="on" role="radio" aria-checked="true">Allow</span><span role="radio" aria-checked="false">Ask</span><span role="radio" aria-checked="false">Deny</span></div><span style="font-size:12px;color:#9DB1FF">◆ Unsaved · was Ask</span></div></div>
+          <div class="fr"><div class="l"><b>Destructive</b><span class="ds">Delete requests, folders, environments</span></div><div style="display:flex;align-items:center;gap:12px"><div id="rule-destructive" class="c6 seg" role="radiogroup" aria-label="Destructive"><span role="radio" aria-checked="false">Allow</span><span role="radio" aria-checked="false">Ask</span><span class="on" role="radio" aria-checked="true">Deny</span></div></div></div>
+          <h2 class="cap" style="margin:22px 0 2px">Where execute may go</h2>
+          <div class="fr" style="align-items:start"><div class="l"><b>Hosts</b><span class="ds">Empty list: any host</span></div>
+            <div id="hosts-list" style="display:flex;flex-direction:column;max-width:520px">
+              <div class="gr"><span style="flex-grow:1;color:#F7F4F7">api.staging.billing.dev</span><button aria-label="Remove api.staging.billing.dev" class="ib" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></div>
+              <div class="gr"><span style="flex-grow:1;color:#F7F4F7">localhost:8080</span><button aria-label="Remove localhost:8080" class="ib" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></div>
+              <div style="display:flex;gap:8px;padding-top:8px"><label id="hosts-add" class="c6 field m" style="flex-grow:1"><span style="color:#8E8996">Add a host, e.g. api.example.com</span></label><button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-plus"/></svg>Add</button></div>
+            </div></div>
+          <div class="fr" style="align-items:start;border-bottom:0"><div class="l"><b>Environments</b><span class="ds">Environment slugs; empty list: any</span></div>
+            <div id="environments-list" style="display:flex;flex-direction:column;max-width:520px">
+              <div class="gr"><span style="flex-grow:1;display:flex;align-items:center;gap:8px;color:#F7F4F7"><span class="dia" style="background:#6EA8FF"></span>dev</span><button aria-label="Remove dev" class="ib" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></div>
+              <div class="gr"><span style="flex-grow:1;display:flex;align-items:center;gap:8px;color:#F7F4F7"><span class="dia" style="background:#FFC23D"></span>staging</span><button aria-label="Remove staging" class="ib" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></div>
+              <div style="display:flex;gap:8px;padding-top:8px"><label id="environments-add" class="c6 field m" style="flex-grow:1"><span style="color:#8E8996">Add an environment slug</span></label><button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-plus"/></svg>Add</button></div>
+            </div></div>
+        </div>
+        <footer style="display:flex;align-items:center;gap:8px;height:52px;padding:0 20px;border-top:1px solid #232128;flex-shrink:0">
+          <span class="ds">Saving keeps the comments and key order of config.toml.</span><span style="flex-grow:1"></span>
+          <button id="settings-revert" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-revert"/></svg>Revert</button>
+          <button id="settings-save" class="c6 btn p">Save</button>
+        </footer>
+      </section></div>
+    </div>
+    <div style="height:8px;flex-shrink:0"></div>
+  </div>
+</section>
+
+<section class="frame" aria-label="Frame B: General, config.toml does not parse">
+  <span class="state cap">B · General · config.toml does not parse</span>
+  <div role="dialog" aria-label="ReqFlux settings" class="c14" style="width:1180px;height:820px;display:flex;flex-direction:column;background:#050507;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.55) 0 30px 80px">
+    <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 16px;flex-shrink:0">
+      <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-gear"/></svg><span style="font-weight:600;color:#F7F4F7">Settings</span>
+      <span style="flex-grow:1"></span><button aria-label="Close settings" class="c6 ib"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-x"/></svg></button>
+    </div>
+    <div style="flex-grow:1;min-height:0;display:flex;gap:8px;padding:0 8px">
+      <div class="c14 edge"><nav class="in14 nav" aria-label="Settings sections" style="width:230px;display:flex;flex-direction:column">
+        <div style="padding:10px 12px"><label class="c6 field" style="height:28px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-search"/></svg><span style="color:#8E8996">Search settings</span></label></div>
+        <div style="padding:8px 16px 6px"><span class="cap">App</span></div>
+        <a href="#" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-sun"/></svg>General</a>
+        <div style="padding:12px 16px 6px"><span class="cap">MCP</span></div>
+        <a href="#"><svg class="ico" aria-hidden="true"><use href="#i-bot"/></svg>Policy<svg class="ico" aria-hidden="true" style="margin-left:auto;width:13px;height:13px;color:#FF6B5E"><use href="#i-alert"/></svg></a>
+        <a href="#"><svg class="ico" aria-hidden="true"><use href="#i-workspace"/></svg>Workspaces</a>
+        <span style="flex-grow:1"></span>
+        <div style="padding:12px 16px;display:flex;flex-direction:column;gap:4px"><span class="cap">Config file</span><span class="m" style="font-size:11.5px;color:#C6C3CC">~/.config/reqflux/config.toml</span></div>
+      </nav></div>
+      <div class="c14 edge" style="flex-grow:1;min-width:0"><section class="in14" style="flex-grow:1;display:flex;flex-direction:column">
+        <div style="padding:22px 28px 14px;border-bottom:1px solid #232128;display:flex;flex-direction:column;gap:4px">
+          <h1 class="ttl">General</h1><span class="ds" style="font-size:13px">How ReqFlux looks on this machine.</span>
+        </div>
+        <div style="padding:16px 28px 4px">
+          <div id="config-error" class="c8 ban" role="alert"><svg class="ico" aria-hidden="true" style="width:16px;height:16px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg>
+            <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1"><b>config.toml does not parse, so ReqFlux runs on the defaults.</b><span style="color:#C6C3CC"><span class="m">~/.config/reqflux/config.toml</span>, line 14, column 9. Fix the file, then reload. Settings are read-only until it parses, so nothing overwrites your file.</span></div>
+            <button id="config-open" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open file</button>
+            <button id="config-reload" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-refresh"/></svg>Reload</button>
+          </div>
+        </div>
+        <div style="flex-grow:1;padding:4px 28px">
+          <h2 class="cap" style="margin:14px 0 2px">Appearance</h2>
+          <div class="fr"><div class="l"><b>Theme</b><span class="ds">System follows the OS appearance</span></div><div id="theme" class="c6 seg dis" role="radiogroup" aria-label="Theme" aria-disabled="true"><span class="on" role="radio" aria-checked="true">Dark</span><span role="radio" aria-checked="false">Light</span><span role="radio" aria-checked="false">System</span></div></div>
+          <div class="fr"><div class="l"><b>Interface font size</b><span class="ds">Text in panels, tabs and menus; data follows it</span></div><div style="display:flex;align-items:center;gap:12px;opacity:.45"><span id="font-size" class="c6 sel" style="width:120px" aria-disabled="true">13 px<svg class="ico" aria-hidden="true" style="margin-left:auto;width:13px;height:13px;color:#8E8996"><use href="#i-down"/></svg></span><span class="ds">Default</span></div></div>
+        </div>
+        <footer style="display:flex;align-items:center;gap:8px;height:52px;padding:0 20px;border-top:1px solid #232128;flex-shrink:0">
+          <span class="ds">Defaults in use: dark, 13 px, read Allow, the other classes Ask.</span><span style="flex-grow:1"></span>
+          <button class="c6 btn" disabled>Revert</button><button class="c6 btn p" disabled>Save</button>
+        </footer>
+      </section></div>
+    </div>
+    <div style="height:8px;flex-shrink:0"></div>
+  </div>
+</section>
+
+<section class="frame" aria-label="Frame C: MCP workspaces, editable overrides">
+  <span class="state cap">C · MCP workspaces · editable overrides</span>
+  <div role="dialog" aria-label="ReqFlux settings" class="c14" style="width:1180px;height:820px;display:flex;flex-direction:column;background:#050507;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.55) 0 30px 80px">
+    <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 16px;flex-shrink:0">
+      <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-gear"/></svg><span style="font-weight:600;color:#F7F4F7">Settings</span>
+      <span style="flex-grow:1"></span><button aria-label="Close settings" class="c6 ib"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-x"/></svg></button>
+    </div>
+    <div style="flex-grow:1;min-height:0;display:flex;gap:8px;padding:0 8px">
+      <div class="c14 edge"><nav class="in14 nav" aria-label="Settings sections" style="width:230px;display:flex;flex-direction:column">
+        <div style="padding:10px 12px"><label class="c6 field" style="height:28px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-search"/></svg><span style="color:#8E8996">Search settings</span></label></div>
+        <div style="padding:8px 16px 6px"><span class="cap">App</span></div>
+        <a href="#"><svg class="ico" aria-hidden="true"><use href="#i-sun"/></svg>General</a>
+        <div style="padding:12px 16px 6px"><span class="cap">MCP</span></div>
+        <a href="#"><svg class="ico" aria-hidden="true"><use href="#i-bot"/></svg>Policy</a>
+        <a href="#" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-workspace"/></svg>Workspaces<span class="m" style="margin-left:auto;font-size:11px;color:#8E8996">2</span></a>
+        <span style="flex-grow:1"></span>
+        <div style="padding:12px 16px;display:flex;flex-direction:column;gap:4px"><span class="cap">Config file</span><span class="m" style="font-size:11.5px;color:#C6C3CC">~/.config/reqflux/config.toml</span></div>
+      </nav></div>
+      <div class="c14 edge" style="flex-grow:1;min-width:0"><section class="in14" style="flex-grow:1;display:flex">
+        <div style="width:260px;flex-shrink:0;border-right:1px solid #232128;display:flex;flex-direction:column">
+          <div style="padding:12px"><button id="overrides-add" class="c6 btn p"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-plus"/></svg>Override a workspace</button></div>
+          <div id="overrides-list">
+            <div style="background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset;display:flex;flex-direction:column;gap:3px;padding:10px 14px;border-bottom:1px solid #18161B"><span style="color:#F7F4F7;font-weight:600">billing</span><span class="m" style="font-size:11px;color:#8E8996">01J9ZK4Q7M2W8D3F5H6R1T0BXE</span></div>
+            <div style="display:flex;flex-direction:column;gap:3px;padding:10px 14px;border-bottom:1px solid #18161B"><span style="color:#F7F4F7;font-weight:600">payments-sandbox</span><span class="m" style="font-size:11px;color:#8E8996">01JA3C8N5P0V2X7Y9K4G6S1QDM</span></div>
+            <div style="display:flex;flex-direction:column;gap:3px;padding:10px 14px;border-bottom:1px solid #18161B"><span style="display:flex;align-items:center;gap:6px;color:#FFC23D;font-weight:600"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-alert"/></svg>Unknown workspace</span><span class="m" style="font-size:11px;color:#8E8996">01HZX0F2B9Q4R6T8V1W3Y5A7CE</span><span class="ds">Not in recents; kept as written</span></div>
+          </div>
+        </div>
+        <div style="flex-grow:1;min-width:0;display:flex;flex-direction:column">
+          <div style="padding:22px 28px 14px;border-bottom:1px solid #232128;display:flex;flex-direction:column;gap:4px">
+            <h1 class="ttl">billing</h1>
+            <span class="ds" style="font-size:13px">Restricts the policy for this workspace only. A rule looser than the policy has no effect, so only stricter choices are offered.</span>
+          </div>
+          <div style="flex-grow:1;padding:4px 28px">
+            <div class="fr" style="grid-template-columns:200px 1fr"><div class="l"><b>Read</b><span class="ds">Policy: Allow</span></div><div id="override-read" class="c6 seg" role="radiogroup" aria-label="Read override"><span class="on" role="radio" aria-checked="true">Inherit</span><span role="radio" aria-checked="false">Ask</span><span role="radio" aria-checked="false">Deny</span></div></div>
+            <div class="fr" style="grid-template-columns:200px 1fr"><div class="l"><b>Write</b><span class="ds">Policy: Ask</span></div><div id="override-write" class="c6 seg" role="radiogroup" aria-label="Write override"><span role="radio" aria-checked="false">Inherit</span><span role="radio" aria-checked="false">Ask</span><span class="on" role="radio" aria-checked="true">Deny</span></div></div>
+            <div class="fr" style="grid-template-columns:200px 1fr"><div class="l"><b>Execute</b><span class="ds">Policy: Allow (unsaved)</span></div><div id="override-execute" class="c6 seg" role="radiogroup" aria-label="Execute override"><span role="radio" aria-checked="false">Inherit</span><span class="on" role="radio" aria-checked="true">Ask</span><span role="radio" aria-checked="false">Deny</span></div></div>
+            <div class="fr" style="grid-template-columns:200px 1fr"><div class="l"><b>Destructive</b><span class="ds">Policy: Deny</span></div><span class="ds">Already the strictest rule</span></div>
+            <div class="fr" style="grid-template-columns:200px 1fr;align-items:start"><div class="l"><b>Hosts</b><span class="ds">Narrows the policy's hosts</span></div><div style="max-width:460px"><div class="gr"><span style="flex-grow:1;color:#F7F4F7">localhost:8080</span><button aria-label="Remove localhost:8080" class="ib" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></div><div style="display:flex;gap:8px;padding-top:8px"><label class="c6 field m" style="flex-grow:1"><span style="color:#8E8996">Add a host</span></label><button class="c6 btn">Add</button></div></div></div>
+            <div class="fr" style="grid-template-columns:200px 1fr;border-bottom:0"><div class="l"><b>Environments</b><span class="ds">Narrows the policy's environments</span></div><span class="ds">Inherit: dev, staging</span></div>
+          </div>
+          <footer style="display:flex;align-items:center;gap:8px;height:52px;padding:0 20px;border-top:1px solid #232128;flex-shrink:0">
+            <button id="override-remove" class="c6 btn" style="color:#FF6B5E"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg>Remove override</button><span style="flex-grow:1"></span>
+            <button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-revert"/></svg>Revert</button><button class="c6 btn p">Save</button>
+          </footer>
+        </div>
+      </section></div>
+    </div>
+    <div style="height:8px;flex-shrink:0"></div>
+  </div>
+</section>
+</main>
+</body></html>

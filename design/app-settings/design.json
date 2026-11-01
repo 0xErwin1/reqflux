@@ -1,0 +1,10 @@
+{
+  "title": "App settings",
+  "brief": "App settings opened from the rail's Settings button: theme (dark, light, system), interface font size, and the MCP policy of config.toml (read, write, execute, destructive as Allow, Ask or Deny; hosts; environments; per-workspace overrides), the config file path, and the state where config.toml does not parse. Built on the bolt-v2 shell, DBFlux's settings window and design/variables/01-settings-page.html. Each artboard stacks its states as 900 px frames.",
+  "feature": "odd/tasks/app-pending.md",
+  "artboards": [
+    { "file": "01-settings-window.html", "title": "Settings window", "tradeoff": "Same shape as DBFlux's settings window (search, section nav, Revert and Save footer) and editable per-workspace overrides on their own page; a modal over the app, and a third settings surface beside the workspace page", "width": 1440, "height": 2700 },
+    { "file": "02-workspace-page-app-section.html", "title": "Workspace settings page with an App section", "tradeoff": "One settings place: the built workspace page gains App > General and App > MCP policy, writes at once like variables; overrides are read-only there (edit config.toml by hand), and app and workspace settings share one nav", "width": 1440, "height": 1800 },
+    { "file": "03-policy-matrix-tab.html", "title": "Policy matrix tab", "tradeoff": "Settings as a document tab: global, per-workspace and effective policy side by side with a config.toml diff before Save; dense, grows wide past three or four overrides, and needs a grid cell with an inline dropdown that bolt lacks", "width": 1440, "height": 1800 }
+  ]
+}
