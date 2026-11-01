@@ -1,13 +1,13 @@
 //! The sidebar island: the `COLLECTIONS` header with the new-collection button, the filter
 //! field, the error of the last failed tree operation, the collection tree and a footer with
-//! the request and collection counts, or the row being dragged and how to cancel. The filter does
-//! nothing yet. While the rail's History view is active, the History panel of
+//! the counts of the requests and collections shown, or the row being dragged and how to
+//! cancel. The filter narrows the tree: see [`filter`]. While the rail's History view is active, the History panel of
 //! [`super::sidebar_history`] takes the tree's place; its Environments view opens the
 //! workspace settings page, which the shell draws in place of the sidebar.
 //!
 //! The tree keeps keyboard focus as a whole; its rows are not focusable. Navigation runs
 //! through the actions below, bound in the `SidebarTree` key context, which also rename (F2),
-//! duplicate (Ctrl+D) and delete (Delete) the selected row.
+//! duplicate (Ctrl+D) and delete (Delete) the selected row, and focus the filter (`/`).
 //!
 //! Clicking a request row, or Enter on a selected one, emits [`OpenRequest`]; the shell
 //! subscribes to it and opens the request in a document tab. The sidebar knows nothing of
@@ -15,8 +15,8 @@
 
 use bolt::composites::Island;
 use bolt::controls::Button;
-use bolt::primitives::{Chamfer, Icon, Kbd, TextVariant};
-use bolt::tokens::{Borders, ChamferCut, Fields, HeaderMetrics, ShellMetrics, TreeMetrics};
+use bolt::primitives::{Kbd, TextVariant};
+use bolt::tokens::{Borders, HeaderMetrics, ShellMetrics, TreeMetrics};
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
     KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window, actions, div,
@@ -33,6 +33,10 @@ use super::tree_model::{self, Node, NodeKind, TreeState};
 use super::{region, rows, text_region};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
+use filter::TreeFilter;
+
+#[path = "sidebar_filter.rs"]
+mod filter;
 
 /// The key context of the collection tree.
 pub(crate) const TREE_CONTEXT: &str = "SidebarTree";
@@ -61,6 +65,8 @@ actions!(
         DuplicateSelected,
         /// Asks to delete the selected row.
         DeleteSelected,
+        /// Moves the keyboard focus to the filter field.
+        FocusFilter,
     ]
 );
 
@@ -78,6 +84,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
         KeyBinding::new("f2", RenameSelected, context),
         KeyBinding::new("ctrl-d", DuplicateSelected, context),
         KeyBinding::new("delete", DeleteSelected, context),
+        KeyBinding::new("/", FocusFilter, context),
     ]);
 }
 
@@ -114,6 +121,8 @@ pub(crate) struct Sidebar {
     pub(super) panel: Panel,
     /// The rows of the History panel, newest first.
     pub(super) history: Vec<HistoryRow>,
+    /// The filter field, made on first render.
+    pub(super) filter: Option<TreeFilter>,
 }
 
 impl Sidebar {
@@ -130,7 +139,17 @@ impl Sidebar {
             edit: TreeEdit::new(cx),
             panel: Panel::default(),
             history: Vec::new(),
+            filter: None,
         }
+    }
+
+    /// The footer text as drawn.
+    #[cfg(test)]
+    pub(crate) fn footer_label(&self) -> String {
+        self.tree.as_ref().map_or_else(String::new, |tree| {
+            let (requests, collections) = tree.shown_counts();
+            footer_text(requests, collections)
+        })
     }
 
     /// The id of the selected tree node.
@@ -312,58 +331,19 @@ fn header(cx: &mut Context<Sidebar>) -> impl IntoElement {
         )
 }
 
-/// The filter field, drawn as DBFlux's sidebar filter: a 30 px chamfered field with the
-/// search icon, the placeholder and the `/` keycap.
-fn filter(cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    div()
-        .flex_none()
-        .pl(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
-        .pr(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
-        .pb(ShellMetrics::SIDEBAR_FILTER_PADDING_BOTTOM)
-        .child(
-            region("tree-filter")
-                .relative()
-                .flex()
-                .items_center()
-                .gap(Fields::GAP)
-                .h(Fields::HEIGHT)
-                .pl(Fields::PADDING_X)
-                .pr(Fields::PADDING_X)
-                .text_size(Fields::TEXT)
-                .text_color(colors.muted)
-                .child(
-                    Chamfer::new(ChamferCut::CONTROL)
-                        .fill(colors.background)
-                        .border(colors.line),
-                )
-                .child(
-                    Icon::new(ui::icon(IconName::Search))
-                        .size(ShellMetrics::SIDEBAR_FILTER_ICON)
-                        .color(colors.muted),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w_0()
-                        .overflow_hidden()
-                        .whitespace_nowrap()
-                        .child("Filter requests"),
-                )
-                .child(keycap("tree-filter-keycap", "/")),
-        )
-}
-
 /// The keycap `key` that tests and the automation tree find by `id`, named by its key.
 pub(super) fn keycap(id: &'static str, key: &'static str) -> impl IntoElement {
     Kbd::new(key).id(id)
 }
 
-/// The footer, drawn as DBFlux's: 46 px, the counts in muted 12 px text.
+/// The footer, drawn as DBFlux's: 46 px, the counts of what is shown in muted 12 px text.
 fn footer(tree: &TreeState, moving: Option<&str>, cx: &App) -> impl IntoElement {
     let footer = match moving {
         Some(name) => moving_text(name),
-        None => footer_text(tree.request_count(), tree.collection_count()),
+        None => {
+            let (requests, collections) = tree.shown_counts();
+            footer_text(requests, collections)
+        }
     };
     text_region("sidebar-footer")
         .aria_label(footer.clone())
@@ -386,7 +366,12 @@ impl Render for Sidebar {
 
         if self.panel == Panel::History && self.tree.is_some() {
             content = content.children(self.history_panel(cx));
-        } else if let Some(tree) = &self.tree {
+        } else if self.tree.is_some() {
+            let filter = self.filter_field(window, cx);
+            let Some(tree) = &self.tree else {
+                return region("sidebar");
+            };
+            let no_match = filter::no_match(tree, cx);
             let moving = self.moving(cx);
             let dragging = moving.and(self.edit.dragging.as_ref().map(|(id, _)| id.clone()));
             let sidebar = cx.weak_entity();
@@ -456,7 +441,7 @@ impl Render for Sidebar {
                 .collect();
             content = content
                 .child(header(cx))
-                .child(filter(cx))
+                .child(filter)
                 .children(self.error_label(cx))
                 .children(self.delete_prompt(window, cx))
                 .child(
@@ -493,11 +478,15 @@ impl Render for Sidebar {
                         .on_action(cx.listener(|this, _: &DeleteSelected, window, cx| {
                             this.delete_selected(window, cx);
                         }))
+                        .on_action(cx.listener(|this, _: &FocusFilter, window, cx| {
+                            this.focus_filter(window, cx);
+                        }))
                         .flex_1()
                         .min_h_0()
                         .overflow_y_scroll()
                         .flex()
                         .flex_col()
+                        .children(no_match)
                         .children(tree_rows),
                 )
                 .child(footer(tree, moving, cx));

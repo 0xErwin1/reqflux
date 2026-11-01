@@ -28,6 +28,9 @@ pub(crate) struct Node {
     pub(crate) name: String,
     /// What the node stands for.
     pub(crate) kind: NodeKind,
+    /// The URL of a request as stored, which the sidebar filter matches; empty for a
+    /// collection or folder.
+    pub(crate) url: String,
     /// Children in store order.
     pub(crate) children: Vec<Node>,
 }
@@ -63,6 +66,34 @@ impl Node {
         }
     }
 
+    /// Whether the node is a request whose name, method or URL contains `needle`, which is
+    /// lowercase.
+    fn matches(&self, needle: &str) -> bool {
+        match &self.kind {
+            NodeKind::Request { method } => [self.name.as_str(), method, self.url.as_str()]
+                .iter()
+                .any(|text| text.to_lowercase().contains(needle)),
+            NodeKind::Collection | NodeKind::Folder => false,
+        }
+    }
+
+    /// Whether the node matches `needle` or holds a request that does.
+    fn holds_match(&self, needle: &str) -> bool {
+        self.matches(needle) || self.children.iter().any(|child| child.holds_match(needle))
+    }
+
+    /// The number of requests under the node matching `needle`, the node included.
+    fn match_count(&self, needle: &str) -> usize {
+        match self.kind {
+            NodeKind::Request { .. } => usize::from(self.matches(needle)),
+            NodeKind::Collection | NodeKind::Folder => self
+                .children
+                .iter()
+                .map(|child| child.match_count(needle))
+                .sum(),
+        }
+    }
+
     /// The text the UI automation tree reads for the row: the name, prefixed by the method
     /// for a request.
     pub(crate) fn label(&self) -> String {
@@ -83,6 +114,7 @@ fn collection_node(collection: &CollectionNode) -> Node {
         id: collection.collection.id.to_string(),
         name: collection.collection.name.clone(),
         kind: NodeKind::Collection,
+        url: String::new(),
         children: collection.items.iter().map(item_node).collect(),
     }
 }
@@ -93,6 +125,7 @@ fn item_node(item: &Item) -> Node {
             id: folder.folder.id.to_string(),
             name: folder.folder.name.clone(),
             kind: NodeKind::Folder,
+            url: String::new(),
             children: folder.items.iter().map(item_node).collect(),
         },
         Item::Request(request) => Node {
@@ -101,6 +134,7 @@ fn item_node(item: &Item) -> Node {
             kind: NodeKind::Request {
                 method: request.request.method.as_str().to_owned(),
             },
+            url: request.request.url.clone(),
             children: Vec::new(),
         },
     }
@@ -144,12 +178,14 @@ enum Step {
     Select(Option<String>),
 }
 
-/// The collection tree with its expansion and selection.
+/// The collection tree with its expansion, selection and filter.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TreeState {
     roots: Vec<Node>,
     expanded: HashSet<String>,
     selected: Option<String>,
+    /// The trimmed, lowercase filter text; empty shows the whole tree.
+    filter: String,
 }
 
 impl TreeState {
@@ -161,6 +197,7 @@ impl TreeState {
             roots,
             expanded,
             selected: None,
+            filter: String::new(),
         }
     }
 
@@ -183,6 +220,36 @@ impl TreeState {
     /// The number of collections.
     pub(crate) fn collection_count(&self) -> usize {
         self.roots.len()
+    }
+
+    /// Sets the filter text. While it is set, the tree shows only the requests whose name,
+    /// method or URL contains it, case-insensitive, under their folders and collections,
+    /// expanded. Empty or blank shows the whole tree with the expansion it had.
+    pub(crate) fn set_filter(&mut self, query: &str) {
+        self.filter = query.trim().to_lowercase();
+    }
+
+    /// Whether a filter is set.
+    pub(crate) fn is_filtered(&self) -> bool {
+        !self.filter.is_empty()
+    }
+
+    /// The requests and collections the tree shows.
+    pub(crate) fn shown_counts(&self) -> (usize, usize) {
+        if !self.is_filtered() {
+            return (self.request_count(), self.collection_count());
+        }
+        let requests = self
+            .roots
+            .iter()
+            .map(|root| root.match_count(&self.filter))
+            .sum();
+        let collections = self
+            .roots
+            .iter()
+            .filter(|root| root.holds_match(&self.filter))
+            .count();
+        (requests, collections)
     }
 
     /// The id of the selected node.
@@ -235,7 +302,8 @@ impl TreeState {
     }
 
     /// The rows that are shown: every root, and the children of each expanded node, depth
-    /// first in store order.
+    /// first in store order. While a filter is set, only the nodes that match or hold a
+    /// match, every one of them expanded.
     pub(crate) fn visible_rows(&self) -> Vec<VisibleRow<'_>> {
         let mut rows = Vec::new();
         for root in &self.roots {
@@ -251,7 +319,11 @@ impl TreeState {
         parent: Option<usize>,
         rows: &mut Vec<VisibleRow<'a>>,
     ) {
-        let expanded = node.is_expandable() && self.expanded.contains(&node.id);
+        if self.is_filtered() && !node.holds_match(&self.filter) {
+            return;
+        }
+        let expanded =
+            node.is_expandable() && (self.is_filtered() || self.expanded.contains(&node.id));
         let index = rows.len();
         rows.push(VisibleRow {
             node,
@@ -376,3 +448,7 @@ impl TreeState {
 #[cfg(test)]
 #[path = "tree_model_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "sidebar_filter_tests.rs"]
+mod filter_tests;

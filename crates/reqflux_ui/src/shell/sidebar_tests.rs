@@ -231,6 +231,82 @@ fn keys_move_the_selection_when_the_tree_has_focus(cx: &mut TestAppContext) {
     assert_eq!(selected(cx, &sidebar).as_deref(), Some(API));
 }
 
+fn footer(cx: &mut VisualTestContext, sidebar: &Entity<Sidebar>) -> String {
+    cx.update(|_, cx| sidebar.read(cx).footer_label())
+}
+
+#[gpui::test]
+fn slash_focuses_the_filter_and_typing_narrows_the_tree(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (sidebar, cx) = render(cx, &dir);
+    cx.update(|window, cx| sidebar.read(cx).focus_handle(cx).focus(window, cx));
+
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("LIST");
+    cx.run_until_parked();
+    for id in [API, USERS, LIST] {
+        assert!(present(cx, &row(id)), "row {id} shows, folders expanded");
+    }
+    for id in [HEALTH, AUTH, TOKEN] {
+        assert!(!present(cx, &row(id)), "row {id} is filtered out");
+    }
+    assert!(!present(cx, "tree-no-match"));
+    assert!(
+        !present(cx, "tree-filter-keycap"),
+        "the keycap hides while typing"
+    );
+    assert_eq!(footer(cx, &sidebar), "1 request · 1 collection");
+
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    for id in [API, USERS, HEALTH, AUTH, TOKEN] {
+        assert!(present(cx, &row(id)), "Escape clears: row {id} is back");
+    }
+    assert!(!present(cx, &row(LIST)), "the folder is collapsed again");
+    assert!(present(cx, "tree-filter-keycap"));
+    assert_eq!(footer(cx, &sidebar), "3 requests · 2 collections");
+}
+
+#[gpui::test]
+fn the_filter_matches_methods_and_urls(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (sidebar, cx) = render(cx, &dir);
+    cx.update(|window, cx| sidebar.read(cx).focus_handle(cx).focus(window, cx));
+
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("post");
+    cx.run_until_parked();
+    assert!(present(cx, &row(AUTH)) && present(cx, &row(TOKEN)));
+    assert!(!present(cx, &row(API)));
+
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("EXAMPLE.test");
+    cx.run_until_parked();
+    assert_eq!(footer(cx, &sidebar), "3 requests · 2 collections");
+    assert!(
+        present(cx, &row(LIST)),
+        "every URL matches, folders expanded"
+    );
+}
+
+#[gpui::test]
+fn an_empty_result_says_so(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (sidebar, cx) = render(cx, &dir);
+    cx.update(|window, cx| sidebar.read(cx).focus_handle(cx).focus(window, cx));
+
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("zzz");
+    cx.run_until_parked();
+    assert!(present(cx, "tree-no-match"));
+    for id in [API, AUTH] {
+        assert!(!present(cx, &row(id)));
+    }
+    assert_eq!(footer(cx, &sidebar), "0 requests · 0 collections");
+}
+
 #[gpui::test]
 fn clicking_a_row_selects_it_and_focuses_the_tree(cx: &mut TestAppContext) {
     let dir = sidebar_workspace();

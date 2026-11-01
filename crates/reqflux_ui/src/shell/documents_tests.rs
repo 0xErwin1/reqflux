@@ -87,6 +87,7 @@ fn node(id: &str, name: &str, kind: NodeKind, children: Vec<Node>) -> Node {
         id: id.to_owned(),
         name: name.to_owned(),
         kind,
+        url: String::new(),
         children,
     }
 }

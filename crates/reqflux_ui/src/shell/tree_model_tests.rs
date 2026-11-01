@@ -9,6 +9,7 @@ fn request(id: &str, method: &str) -> Node {
         kind: NodeKind::Request {
             method: method.to_owned(),
         },
+        url: String::new(),
         children: Vec::new(),
     }
 }
@@ -18,6 +19,7 @@ fn container(id: &str, kind: NodeKind, children: Vec<Node>) -> Node {
         id: id.to_owned(),
         name: format!("{id} name"),
         kind,
+        url: String::new(),
         children,
     }
 }

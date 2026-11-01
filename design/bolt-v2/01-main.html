@@ -429,4 +429,73 @@ button{font:inherit;white-space:nowrap}
     </span>
   </footer>
 </main>
+
+<!--
+  States of the sidebar filter (tree-filter). Typing narrows the tree to the requests whose
+  name, method or URL contains the text, case-insensitive; their folders and collections stay
+  visible and expanded, and the footer counts what is shown. Escape clears the field; `/` in
+  the tree focuses it. The `/` keycap shows only while the field is empty, as in DBFlux's
+  sidebar filter. With no match the tree area holds one caption line.
+-->
+<section aria-label="States" style="display:flex;gap:24px;width:1440px;box-sizing:border-box;padding:24px 8px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+
+  <!-- Filtered: "token" -->
+  <div class="c14" style="display:flex;flex-shrink:0;height:340px;padding:1px;background:rgba(255,255,255,.05)">
+    <aside aria-label="Sidebar filtered" style="flex-grow:1;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+      <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+        <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span>
+        <span style="flex-grow:1"></span>
+        <button aria-label="New request" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+      </div>
+      <div style="padding:0 12px 10px">
+        <div class="c6 field" style="box-shadow:#9DB1FF 0 0 0 1px inset">
+          <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+          <span style="flex-grow:1;color:#F7F4F7;white-space:nowrap;overflow:hidden">token</span>
+        </div>
+      </div>
+      <div style="flex-grow:1;overflow:hidden">
+        <div class="row" style="color:#F7F4F7">
+          <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+          <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+          <span class="n">Auth</span>
+          <span class="ct">2</span>
+        </div>
+        <div class="row" style="padding-left:26px">
+          <span class="gl" style="left:19px"></span>
+          <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Token</span>
+        </div>
+        <div class="row" style="padding-left:26px">
+          <span class="gl" style="left:19px"></span>
+          <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Refresh token</span>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+        <span>2 requests</span><span>·</span><span>1 collection</span>
+      </div>
+    </aside>
+  </div>
+
+  <!-- No match: "zzz" -->
+  <div class="c14" style="display:flex;flex-shrink:0;height:340px;padding:1px;background:rgba(255,255,255,.05)">
+    <aside aria-label="Sidebar no match" style="flex-grow:1;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+      <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+        <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span>
+        <span style="flex-grow:1"></span>
+        <button aria-label="New request" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+      </div>
+      <div style="padding:0 12px 10px">
+        <div class="c6 field" style="box-shadow:#9DB1FF 0 0 0 1px inset">
+          <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+          <span style="flex-grow:1;color:#F7F4F7;white-space:nowrap;overflow:hidden">zzz</span>
+        </div>
+      </div>
+      <div style="flex-grow:1;overflow:hidden">
+        <div style="padding:0 16px;font-size:12px;line-height:20px;color:#8E8996">No requests match the filter</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+        <span>0 requests</span><span>·</span><span>0 collections</span>
+      </div>
+    </aside>
+  </div>
+</section>
 </body></html>
