@@ -1020,6 +1020,9 @@ Clicking a row opens its request's tab and shows the recorded response under
 `Resend` (`history-resend`) sends the recorded document again through `execute_draft` and
 records the result as a new entry. A row whose request was deleted opens a read-only view
 (`history-readonly`) with the recorded method, URL and response, and Resend disabled.
+In the history tab the response tab reads `Recorded response`; `/` in the History panel
+focuses its filter (`history-filter`); Next and Previous tab cycle through the history tab,
+first in the row.
 
 The settings page's App section (`design/app-settings/02-workspace-page-app-section.html`,
 `shell/app_settings.rs`, `shell/app_settings_view.rs`) sits above its workspace sections and
@@ -1092,7 +1095,7 @@ field takes keys first. The keymap is not configurable yet.
 | Switch environment, Show Environments | Ctrl+E, Ctrl+3 | a workspace is open |
 | Open workspace, New workspace | Ctrl+O, Ctrl+Shift+O | always |
 | Close workspace, Workspace settings | Ctrl+Shift+W, Ctrl+, | a workspace is open |
-| Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request is open |
+| Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request or the history tab is open |
 | Show Collections, History | Ctrl+1, Ctrl+2 | a workspace is open |
 | Toggle theme | Ctrl+Shift+T | always |
 | Open MCP approvals | Ctrl+Shift+M | always |

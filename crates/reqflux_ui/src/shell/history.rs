@@ -20,6 +20,7 @@ use reqflux_engine::state::{HistoryEntry, HistoryOutcome, HistoryRecord, Recorde
 use reqflux_engine::{Response, ScriptOutcome, SentRequest};
 
 use super::Shell;
+use super::documents::{RowTab, step};
 use super::request::{Completed, Failure, Received};
 use super::send::RequestSend;
 use super::sidebar_history::{HistoryRow, Panel};
@@ -89,8 +90,16 @@ pub(crate) struct HistoryTab {
 impl HistoryTab {
     /// The key of its send in the shell's sends, apart from every request id.
     pub(crate) fn key(&self) -> String {
-        format!("history-{}", self.entry)
+        format!("{KEY_PREFIX}{}", self.entry)
     }
+}
+
+/// The prefix of [`HistoryTab::key`].
+const KEY_PREFIX: &str = "history-";
+
+/// Whether `id`, a key of the shell's sends, is the send of a history tab: a recorded send.
+pub(crate) fn is_recorded(id: &str) -> bool {
+    id.starts_with(KEY_PREFIX)
 }
 
 /// Milliseconds since the Unix epoch now.
@@ -373,6 +382,28 @@ impl Shell {
     fn drop_history_tab(&mut self) {
         if let Some(tab) = self.orphan.take() {
             self.sends.remove(&tab.key());
+        }
+    }
+
+    /// Next and Previous tab: activates the tab after (`forward`) or before the active one,
+    /// the history tab included.
+    pub(super) fn step_document(
+        &mut self,
+        forward: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let history = self.orphan.as_ref().map(|tab| tab.active);
+        let next = step(
+            self.documents.open_ids(),
+            self.documents.active(),
+            history,
+            forward,
+        );
+        match next {
+            Some(RowTab::History) => self.activate_history_tab(cx),
+            Some(RowTab::Request(id)) => self.activate_document(&id, window, cx),
+            None => {}
         }
     }
 

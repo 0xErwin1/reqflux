@@ -1,6 +1,6 @@
 //! The open documents model (S1) and the request location the path bar shows (S2).
 
-use super::{Documents, Location, locate};
+use super::{Documents, Location, RowTab, locate, step};
 use crate::shell::tree_model::{Node, NodeKind};
 
 fn opened(ids: &[&str]) -> Documents {
@@ -152,6 +152,39 @@ fn locate_finds_requests_at_the_collection_top_level() {
     );
     let health = locate(&roots(), "health").map(|location| location.folders);
     assert_eq!(health, Some(Vec::new()));
+}
+
+fn open(ids: &[&str]) -> Vec<String> {
+    ids.iter().map(|id| (*id).to_owned()).collect()
+}
+
+fn tab(id: &str) -> Option<RowTab> {
+    Some(RowTab::Request(id.to_owned()))
+}
+
+#[test]
+fn step_cycles_the_request_tabs_without_a_history_tab() {
+    let open = open(&["a", "b", "c"]);
+    assert_eq!(step(&open, Some("b"), None, true), tab("c"));
+    assert_eq!(step(&open, Some("c"), None, true), tab("a"));
+    assert_eq!(step(&open, Some("a"), None, false), tab("c"));
+    assert_eq!(step(&[], None, None, true), None);
+}
+
+#[test]
+fn step_includes_the_history_tab_first_in_the_row() {
+    let open = open(&["a", "b"]);
+    assert_eq!(
+        step(&open, Some("b"), Some(false), true),
+        Some(RowTab::History)
+    );
+    assert_eq!(
+        step(&open, Some("a"), Some(false), false),
+        Some(RowTab::History)
+    );
+    assert_eq!(step(&open, Some("b"), Some(true), true), tab("a"));
+    assert_eq!(step(&open, Some("b"), Some(true), false), tab("b"));
+    assert_eq!(step(&[], None, Some(true), true), Some(RowTab::History));
 }
 
 #[test]

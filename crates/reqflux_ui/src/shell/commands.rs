@@ -313,8 +313,8 @@ impl Shell {
                     self.close_document(&active, cx);
                 }
             }
-            CommandId::NextTab => self.step_tab(true, window, cx),
-            CommandId::PreviousTab => self.step_tab(false, window, cx),
+            CommandId::NextTab => self.step_document(true, window, cx),
+            CommandId::PreviousTab => self.step_document(false, window, cx),
             CommandId::ShowCollections => self.switch_panel(Panel::Collections, window, cx),
             CommandId::ShowHistory => self.switch_panel(Panel::History, window, cx),
             CommandId::ShowEnvironments => {
@@ -355,27 +355,6 @@ impl Shell {
     fn switch_panel(&mut self, panel: Panel, window: &mut Window, cx: &mut Context<Self>) {
         self.show_panel(panel, cx);
         self.restore_focus(window, cx);
-    }
-
-    /// Activates the tab after the active one, or before it, wrapping around.
-    fn step_tab(&mut self, forward: bool, window: &mut Window, cx: &mut Context<Self>) {
-        let open = self.documents.open_ids();
-        let Some(index) = self
-            .documents
-            .active()
-            .and_then(|active| open.iter().position(|id| id == active))
-        else {
-            return;
-        };
-        let count = open.len();
-        let next = if forward {
-            (index + 1) % count
-        } else {
-            (index + count - 1) % count
-        };
-        if let Some(id) = open.get(next).cloned() {
-            self.activate_document(&id, window, cx);
-        }
     }
 }
 

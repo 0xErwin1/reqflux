@@ -520,6 +520,72 @@ fn a_send_and_the_tree_still_work_after_history(cx: &mut TestAppContext) {
     present(cx, &format!("doc-tab-{PING}"));
 }
 
+#[gpui::test]
+fn the_recorded_send_is_titled_recorded_response(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    assert_eq!(label(cx, "response-tab-response"), "Response");
+
+    open_top_row(cx);
+    assert_eq!(label(cx, "response-tab-response"), "Recorded response");
+
+    click(cx, &format!("doc-tab-{PING}"));
+    assert_eq!(
+        label(cx, "response-tab-response"),
+        "Response",
+        "the request's own send keeps its title"
+    );
+}
+
+#[gpui::test]
+fn slash_in_the_history_panel_focuses_its_filter(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    assert_eq!(send(cx, &shell, OTHER).as_deref(), Some("200 OK"));
+    click(cx, "rail-history");
+    click(cx, "history-group-1");
+
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("oth");
+    cx.run_until_parked();
+    assert_eq!(label(cx, "history-row-1-name"), "Other");
+    assert!(
+        bounds(cx, "history-row-2").is_none(),
+        "Ping is filtered out"
+    );
+}
+
+#[gpui::test]
+fn next_and_previous_tab_include_the_history_tab(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, &format!("tree-row-{OTHER}"));
+    open_top_row(cx);
+    assert_eq!(active_request(cx, &shell), None);
+
+    let step = |cx: &mut VisualTestContext, forward: bool| {
+        cx.update(|window, cx| {
+            shell.update(cx, |shell, cx| shell.step_document(forward, window, cx));
+        });
+        cx.run_until_parked();
+    };
+    step(cx, true);
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+    step(cx, true);
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(OTHER));
+    step(cx, true);
+    assert_eq!(active_request(cx, &shell), None, "the history tab again");
+    present(cx, "history-banner");
+    step(cx, false);
+    assert_eq!(active_request(cx, &shell).as_deref(), Some(OTHER));
+}
+
 /// Starts a server that answers every request `401` with the request body echoed in an
 /// `x-echo` header and in the text body `invalid key <body>`; returns its port.
 fn serve_echo() -> u16 {

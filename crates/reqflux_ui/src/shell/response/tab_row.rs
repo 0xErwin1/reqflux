@@ -1,4 +1,5 @@
-//! The response tab row: the `Response` tab with the state of the send, the `Tests` and
+//! The response tab row: the `Response` tab with the state of the send (`Recorded response`
+//! in the history tab), the `Tests` and
 //! `Console` tabs of a response with script results, the time and size at the right, and the
 //! indeterminate progress bar under it while sending. The tabs are `bolt`'s document tabs and
 //! the status is a `bolt` badge.
@@ -18,7 +19,7 @@ use super::sub_tabs::effective_tab;
 use crate::shell::request::ui;
 use crate::shell::request::{Completed, Received, SendState, StatusClass, elapsed_text, size_text};
 use crate::shell::send::RequestSend;
-use crate::shell::{Shell, region, text_region};
+use crate::shell::{Shell, history, region, text_region};
 use crate::tokens;
 
 /// The row of the send `send` of the request `id`, `None` before the first send.
@@ -74,13 +75,14 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
     } else {
         colors.muted
     };
-    let response = tab_chip("response-tab-response", "Response", response_selected, cx)
+    let title = response_title(id);
+    let response = tab_chip("response-tab-response", title, response_selected, cx)
         .child(
             Icon::new(ui::icon(icon_name))
                 .size(TabMetrics::ICON)
                 .color(icon_color),
         )
-        .child(document_tab_title("Response", response_selected, cx))
+        .child(document_tab_title(title, response_selected, cx))
         .children(status.map(|(label, tone)| status_chip(label, tone)))
         .on_click(cx.listener(move |this, _event, _window, cx| {
             this.select_response_tab(&request, ResponseTab::Body, cx);
@@ -123,6 +125,16 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
         .children(script_tabs)
         .child(div().flex_1())
         .children(meta.map(|(id, label)| meta_label(id, label, &colors, cx)))
+}
+
+/// The title of the response tab: `Recorded response` for the send of a history tab,
+/// `Response` otherwise.
+fn response_title(id: &str) -> &'static str {
+    if history::is_recorded(id) {
+        "Recorded response"
+    } else {
+        "Response"
+    }
 }
 
 /// One script tab: what it selects, its label, icon and counts.

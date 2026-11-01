@@ -6,7 +6,8 @@
 //! click on a row emits [`OpenHistory`] and the shell, which owns the app state, opens the
 //! entry's history tab. The filter narrows the rows already loaded, by name, URL or status;
 //! its text field lives in the window's element state under [`FILTER_KEY`], so it lasts while
-//! the panel is on screen.
+//! the panel is on screen. The panel takes the sidebar's keyboard focus as the tree does, and
+//! `/` focuses the filter.
 //!
 //! It draws with DBFlux's `bolt` as the collection tree does: the sidebar's `ShellMetrics`
 //! header (46), filter and footer (46), rows as `ListRow` at `TreeMetrics` (26), and
@@ -25,7 +26,7 @@ use gpui_kit_assets::IconName;
 
 use super::request::{StatusClass, ui};
 use super::rows::{labeled_row, part};
-use super::sidebar::Sidebar;
+use super::sidebar::{FocusFilter, Sidebar, TREE_CONTEXT};
 use super::{region, text_region};
 use crate::tokens::{self, method_hue};
 
@@ -276,7 +277,15 @@ impl RenderOnce for HistoryList {
                 list = list.child(history_row(n, row, &self.sidebar, cx));
             }
         }
+        let focus = self.sidebar.read(cx).focus.clone();
+        let field = input.clone();
         div()
+            .id("history-panel")
+            .track_focus(&focus)
+            .key_context(TREE_CONTEXT)
+            .on_action(move |_: &FocusFilter, window, cx| {
+                field.update(cx, |state, cx| state.focus(window, cx));
+            })
             .flex_1()
             .min_h_0()
             .flex()

@@ -61,6 +61,43 @@ impl Documents {
     }
 }
 
+/// A tab of the document row: the history tab or the tab of a request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum RowTab {
+    History,
+    Request(String),
+}
+
+/// Next and Previous tab: the tab after (`forward`) or before the active one in the row,
+/// cycling. The row is the history tab first when `history` is `Some`, its value telling
+/// whether it is active, then the request tabs `open`; `active` is the active request, used
+/// while the history tab is not. `None` when no tab is active.
+pub(crate) fn step(
+    open: &[String],
+    active: Option<&str>,
+    history: Option<bool>,
+    forward: bool,
+) -> Option<RowTab> {
+    let row: Vec<RowTab> = history
+        .map(|_| RowTab::History)
+        .into_iter()
+        .chain(open.iter().cloned().map(RowTab::Request))
+        .collect();
+    let current = if history == Some(true) {
+        Some(RowTab::History)
+    } else {
+        active.map(|id| RowTab::Request(id.to_owned()))
+    }?;
+    let index = row.iter().position(|tab| *tab == current)?;
+    let count = row.len();
+    let next = if forward {
+        (index + 1) % count
+    } else {
+        (index + count - 1) % count
+    };
+    row.get(next).cloned()
+}
+
 /// Where a request sits: its collection, the folders down to it and its own name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Location {
