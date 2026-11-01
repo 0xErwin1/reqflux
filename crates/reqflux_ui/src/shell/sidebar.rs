@@ -236,7 +236,7 @@ impl Sidebar {
     /// dragged row inside at the end, and the name shows the drop-target wash and outline
     /// meanwhile.
     fn name_drop(&self, id: &str, cx: &mut Context<Self>) -> NameDecorator {
-        let wash = bolt::brand::colors(cx).drop_target;
+        let wash = bolt::brand::washes(cx).drop_target;
         let outline = bolt::brand::brand(cx).accent_tint;
         let id = id.to_owned();
         let on_drop = cx.listener(move |this, dragged: &DraggedRow, window, cx| {

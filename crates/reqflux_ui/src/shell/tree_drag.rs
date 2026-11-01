@@ -126,7 +126,7 @@ impl Render for DragPreview {
             .h(TreeMetrics::ROW_HEIGHT)
             .pl(TreeMetrics::PADDING_X)
             .pr(TreeMetrics::PADDING_X)
-            .bg(bolt::brand::colors(cx).selected_item)
+            .bg(bolt::brand::washes(cx).selected_item)
             .text_color(colors.strong)
             .child(self.0.clone())
     }
