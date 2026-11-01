@@ -1,6 +1,7 @@
 //! The GPUI user interface.
 
 mod brand;
+mod open_file;
 mod shell;
 mod startup;
 mod theme;
@@ -50,6 +51,7 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
     };
     let startup_theme = theme::startup(config_path.as_deref(), state.as_ref());
     theme::install(startup_theme.mode, cx);
+    theme::set_font_size(startup_theme.font_size, cx);
     shell::bind_keys(cx);
 
     let bounds = Bounds::centered(None, tokens::MAIN_WINDOW_SIZE, cx);

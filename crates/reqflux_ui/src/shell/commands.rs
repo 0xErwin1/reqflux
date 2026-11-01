@@ -142,6 +142,7 @@ commands! {
     ShowEnvironments: ShowEnvironments, "show-environments", "Show Environments", "ctrl-3", Environment, loaded;
     ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", View, always;
     OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", Agents, always;
+    OpenAudit: OpenAudit, "open-audit", "Open audit log", "ctrl-shift-a", Agents, always;
 }
 
 actions!(
@@ -322,6 +323,7 @@ impl Shell {
             }
             CommandId::ToggleTheme => self.toggle_theme(window, cx),
             CommandId::OpenApprovals => self.open_approvals(window, cx),
+            CommandId::OpenAudit => self.open_audit(window, cx),
         }
     }
 

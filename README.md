@@ -49,12 +49,17 @@ session, or Deny with an optional reason the agent receives. With no window open
 
 ```toml
 theme = "system"
+font_size = 14 # interface size in px, 8 to 32; 13 by default
 
 [mcp]
 write = "allow"
 execute = "allow"
 hosts = ["api.example.com", "localhost:8080"]
 ```
+
+The rail's Settings button edits the same file in the app (App > General for the theme and font
+size, App > MCP policy for the rules and lists). Each change saves at once and keeps your
+comments and key order; while the file does not parse, those settings stay read-only.
 
 A workspace's `reqflux.toml` can add an `[mcp]` table, but it can only restrict. Every change and
 execution an agent makes is logged to `~/.local/state/reqflux/audit.log`. See "Configuration and

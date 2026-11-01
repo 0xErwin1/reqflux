@@ -7,6 +7,10 @@ mod approvals;
 mod approvals_detail;
 mod approvals_model;
 mod approvals_view;
+mod audit;
+mod audit_model;
+mod audit_table;
+mod audit_view;
 mod auth_edit;
 mod body_edit;
 mod cell_edit;
@@ -193,6 +197,8 @@ pub(crate) struct Shell {
     palette: Option<Palette>,
     /// The approval requests from `reqflux mcp` and the listener they arrive on.
     approvals: approvals::Approvals,
+    /// The audit view: the log's path, what was read and the filters.
+    audit: audit::AuditView,
     /// The workspace settings page: its section, environment menu, rename field and the
     /// outcome of the last variable write.
     settings: SettingsPage,
@@ -273,6 +279,7 @@ impl Shell {
             focus: cx.focus_handle(),
             palette: None,
             approvals: approvals::Approvals::new(cx.focus_handle()),
+            audit: audit::AuditView::new(),
             settings: SettingsPage::new(cx),
             orphan: None,
             preview_host: PreviewHost::default(),
@@ -298,6 +305,7 @@ impl Shell {
     /// Opens the request `id` in a tab, inspecting it when it was not open.
     fn open_document(&mut self, id: &str, cx: &mut Context<Self>) {
         self.leave_approvals(cx);
+        self.leave_audit(cx);
         self.leave_history_tab();
         self.documents.open(id);
         self.drop_stale_url_edit(id);
@@ -416,6 +424,7 @@ impl Shell {
     /// like clicking another cell does, so switching tabs keeps what was typed.
     fn activate_document(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.leave_approvals(cx);
+        self.leave_audit(cx);
         self.leave_history_tab();
         self.documents.activate(id);
         self.auth_menu_open = false;
@@ -455,19 +464,25 @@ impl Render for Shell {
         let desk = bolt::colors(cx).desk;
         let panel = self.sidebar.read(cx).panel;
         let pending = self.approvals.pending();
+        let app_settings = self.settings_open(cx)
+            && matches!(self.settings_section(), settings_page::Section::App(_));
         let middle = div()
             .flex_1()
             .min_h_0()
             .flex()
             .gap(IslandMetrics::GAP)
             .px(IslandMetrics::GAP)
-            .child(rail::render(panel, pending, cx));
+            .child(rail::render(panel, app_settings, pending, cx));
         let middle = if self.settings_open(cx) {
             middle.child(settings_view::render(self, window, cx))
         } else if panel == Panel::Approvals {
             middle
                 .child(self.sidebar.clone())
                 .child(approvals_view::render(self, cx))
+        } else if panel == Panel::Audit {
+            middle
+                .child(self.sidebar.clone())
+                .child(audit_view::render(self, window, cx))
         } else {
             middle
                 .child(self.sidebar.clone())
@@ -528,6 +543,8 @@ mod active_environment_tests;
 mod approvals_detail_tests;
 #[cfg(test)]
 mod approvals_tests;
+#[cfg(test)]
+mod audit_tests;
 #[cfg(test)]
 mod auth_edit_tests;
 #[cfg(test)]

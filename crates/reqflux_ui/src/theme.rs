@@ -49,6 +49,8 @@ actions!(
 pub(crate) struct Startup {
     /// The palette mode to install.
     pub(crate) mode: PaletteMode,
+    /// The interface font size to install, `font_size` of the config file.
+    pub(crate) font_size: f32,
     /// What went wrong reading the config file; the Problems panel shows it.
     pub(crate) config: ConfigReport,
 }
@@ -90,6 +92,7 @@ pub(crate) fn theme_mode(mode: PaletteMode) -> ThemeMode {
 pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startup {
     let defaults = Startup {
         mode: PaletteMode::default(),
+        font_size: config::DEFAULT_FONT_SIZE,
         config: ConfigReport::default(),
     };
     let Some(path) = config else {
@@ -112,6 +115,7 @@ pub(crate) fn startup(config: Option<&Path>, state: Option<&AppState>) -> Startu
         log::warn!("{warning}");
     }
     let defaults = Startup {
+        font_size: loaded.interface_font_size(),
         config: ConfigReport {
             error: None,
             warnings,
@@ -191,12 +195,12 @@ pub(crate) fn next(mode: PaletteMode) -> PaletteMode {
 /// Installs `bolt`, DBFlux's design system, with ReqFlux's brand in `mode`: the bundled
 /// fonts at the default interface size, where a rem is 16 px as in DBFlux, the default
 /// density, and DBFlux's palette drawn with ReqFlux's accent on gpui-component's `Theme`.
+/// [`set_font_size`] then applies the config file's interface size.
 pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
     if !cx.has_global::<gpui_component::theme::Theme>() {
         gpui_component::init(cx);
     }
     bolt::typography::load_bundled_fonts(cx);
-    // ReqFlux has no interface size setting yet.
     bolt::fonts::init(cx, bolt::fonts::FontSettings::default());
     bolt::density::init(cx, bolt::density::Density::Default);
     cx.set_global(SelectedMode(mode));
@@ -264,6 +268,31 @@ pub(crate) fn follow_appearance(window: &mut Window, cx: &mut App) {
             }
         })
         .detach();
+}
+
+/// The font settings at the interface size `size` (clamped as the config file reads it):
+/// the interface and editor at `size`, the data grid half a pixel smaller, as DBFlux's
+/// defaults are 13, 13 and 12.5.
+pub(crate) fn font_settings(size: f32) -> bolt::fonts::FontSettings {
+    let size = config::clamp_font_size(size);
+    bolt::fonts::FontSettings {
+        ui_size: size,
+        editor_size: size,
+        grid_size: bolt::fonts::clamp_size(
+            size - (bolt::fonts::DEFAULT_UI_FONT_SIZE - bolt::fonts::DEFAULT_GRID_FONT_SIZE),
+            bolt::fonts::DEFAULT_GRID_FONT_SIZE,
+        ),
+        ..bolt::fonts::FontSettings::default()
+    }
+}
+
+/// Sets the interface font size at runtime through `bolt`'s theme, so every open window
+/// redraws at it.
+pub(crate) fn set_font_size(size: f32, cx: &mut App) {
+    if bolt::fonts::set(cx, font_settings(size)) {
+        bolt::theme::apply_fonts(cx);
+        cx.refresh_windows();
+    }
 }
 
 /// Switches to `mode` at runtime, resolved against `appearance` (a window's appearance).

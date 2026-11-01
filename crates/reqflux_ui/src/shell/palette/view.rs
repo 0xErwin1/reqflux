@@ -63,6 +63,7 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::ShowHistory => IconName::RotateCcwClock,
         CommandId::ToggleTheme => IconName::Eye,
         CommandId::OpenApprovals => IconName::Bot,
+        CommandId::OpenAudit => IconName::FingerprintPattern,
     }
 }
 

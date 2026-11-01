@@ -6,6 +6,12 @@
 //!
 //! It draws with DBFlux's `bolt`: `Island`s on the desk, the breadcrumb sizes of
 //! `NavigationMetrics`, nav entries and environment rows as `ListRow`, `Button` and `Input`.
+//!
+//! The App section (app-pending S3) sits above the workspace sections in the nav and draws
+//! through [`app_settings_view`]; with no workspace open, the page holds only the App section.
+
+#[path = "app_settings_view.rs"]
+mod app_settings_view;
 
 use bolt::composites::{Island, ListRow};
 use bolt::controls::{Button, Input, InputEnter, InputEscape};
@@ -16,7 +22,7 @@ use bolt::tokens::{
 };
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, InteractiveElement, IntoElement, ParentElement,
-    Pixels, Role, Stateful, Styled, Window, div, prelude::*,
+    Pixels, Role, SharedString, Stateful, Styled, Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_core::model::{Id, Workspace};
@@ -35,17 +41,29 @@ use crate::workspace::OpenedWorkspace;
 /// The note at the foot of the nav.
 const RESOLUTION: &str =
     "Resolution order: Globals, collection, environment. Current values win over initial ones.";
+/// The note at the foot of the nav in an App section.
+const APP_NOTE: &str = "App settings apply to every workspace on this machine. Workspace \
+                        settings live in the workspace files.";
 
 /// The page, `settings-page`.
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
-    let OpenedWorkspace::Loaded(engine) = &shell.workspace else {
-        return div().into_any_element();
+    let workspace = match &shell.workspace {
+        OpenedWorkspace::Loaded(engine) => Some(engine.workspace()),
+        OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => None,
     };
-    let workspace = engine.workspace();
     let section = shell.settings_section();
-    let header = header(shell, workspace, cx);
-    let nav = nav(workspace, section, cx);
-    let content = content(shell, workspace, section, window, cx);
+    let (header, content) = match (section, workspace) {
+        (Section::App(app), workspace) => (
+            app_settings_view::header(shell, cx),
+            app_settings_view::content(shell, app, workspace, window, cx),
+        ),
+        (section, Some(workspace)) => (
+            header(shell, workspace, cx),
+            content(shell, workspace, section, window, cx),
+        ),
+        (_, None) => return div().into_any_element(),
+    };
+    let nav = nav(shell, workspace, section, cx);
     region("settings-page")
         .role(Role::Group)
         .aria_label("Workspace settings")
@@ -140,9 +158,50 @@ fn header(shell: &Shell, workspace: &Workspace, cx: &mut Context<Shell>) -> Div 
         )
 }
 
-/// The section nav, `settings-nav`: Globals and Environments under `WORKSPACE`, one entry per
-/// collection under `COLLECTION VARIABLES`, and the resolution order at the foot.
-fn nav(workspace: &Workspace, section: Section, cx: &mut Context<Shell>) -> Stateful<Div> {
+/// The section nav, `settings-nav`: General and MCP policy under `APP`, Globals and
+/// Environments under `WORKSPACE · <name>`, one entry per collection under `COLLECTION
+/// VARIABLES`, and a note at the foot.
+fn nav(
+    shell: &Shell,
+    workspace: Option<&Workspace>,
+    section: Section,
+    cx: &mut Context<Shell>,
+) -> Stateful<Div> {
+    let app_section = match section {
+        Section::App(app) => Some(app),
+        Section::Globals | Section::Environments(_) | Section::Collection(_) => None,
+    };
+    let app = app_settings_view::nav_entries(shell, app_section, cx);
+    let workspace_entries = workspace.map(|workspace| workspace_nav(workspace, section, cx));
+    let note = if app_section.is_some() {
+        APP_NOTE
+    } else {
+        RESOLUTION
+    };
+    region("settings-nav")
+        .role(Role::Navigation)
+        .aria_label("Settings sections")
+        .size_full()
+        .flex()
+        .flex_col()
+        .children(app)
+        .children(workspace_entries.into_iter().flatten())
+        .child(div().flex_1())
+        .child(
+            ui::role(div(), TextVariant::Caption, cx)
+                .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+                .pr(HeaderMetrics::PANEL_PADDING_LEFT)
+                .py(Spacing::MD)
+                .child(note),
+        )
+}
+
+/// The workspace part of the nav.
+fn workspace_nav(
+    workspace: &Workspace,
+    section: Section,
+    cx: &mut Context<Shell>,
+) -> Vec<AnyElement> {
     let environments = environments(workspace);
     let collections = collections(workspace);
     let entries: Vec<_> = collections
@@ -159,15 +218,12 @@ fn nav(workspace: &Workspace, section: Section, cx: &mut Context<Shell>) -> Stat
             )
         })
         .collect();
-    let collections_caption = (!entries.is_empty()).then(|| caption("COLLECTION VARIABLES", cx));
-    region("settings-nav")
-        .role(Role::Navigation)
-        .aria_label("Workspace settings sections")
-        .size_full()
-        .flex()
-        .flex_col()
-        .child(caption("WORKSPACE", cx))
-        .child(nav_entry(
+    let collections_caption = (!entries.is_empty())
+        .then(|| caption("COLLECTION VARIABLES".into(), cx).into_any_element());
+    let workspace_caption = format!("WORKSPACE · {}", workspace.manifest.name.to_uppercase());
+    let mut nav = vec![
+        caption(workspace_caption.into(), cx).into_any_element(),
+        nav_entry(
             "variables-scope-globals".to_owned(),
             IconName::Variable,
             "Globals".to_owned(),
@@ -175,8 +231,8 @@ fn nav(workspace: &Workspace, section: Section, cx: &mut Context<Shell>) -> Stat
             section == Section::Globals,
             Section::Globals,
             cx,
-        ))
-        .child(nav_entry(
+        ),
+        nav_entry(
             "settings-nav-environments".to_owned(),
             IconName::Layers,
             "Environments".to_owned(),
@@ -184,21 +240,15 @@ fn nav(workspace: &Workspace, section: Section, cx: &mut Context<Shell>) -> Stat
             matches!(section, Section::Environments(_)),
             Section::Environments(None),
             cx,
-        ))
-        .children(collections_caption)
-        .children(entries)
-        .child(div().flex_1())
-        .child(
-            ui::role(div(), TextVariant::Caption, cx)
-                .pl(HeaderMetrics::PANEL_PADDING_LEFT)
-                .pr(HeaderMetrics::PANEL_PADDING_LEFT)
-                .py(Spacing::MD)
-                .child(RESOLUTION),
-        )
+        ),
+    ];
+    nav.extend(collections_caption);
+    nav.extend(entries);
+    nav
 }
 
 /// A section caption of the nav, as the sidebar draws its section labels.
-fn caption(label: &'static str, cx: &App) -> Div {
+fn caption(label: SharedString, cx: &App) -> Div {
     ui::role(div(), TextVariant::Label, cx)
         .text_size(ShellMetrics::SECTION_LABEL_FONT)
         .pt(HeaderMetrics::LABEL_PADDING_TOP)
@@ -272,6 +322,8 @@ fn content(
 ) -> Div {
     let scope = section.scope();
     let (heading, description) = match section {
+        // Drawn by `app_settings_view`.
+        Section::App(_) => (String::new(), ""),
         Section::Globals => (
             "Globals".to_owned(),
             "Initial values live in reqflux.toml and are committed. Current values stay on \
@@ -379,7 +431,7 @@ fn environment_list(
     let line = bolt::colors(cx).line;
     let selected = match section {
         Section::Environments(id) => id,
-        Section::Globals | Section::Collection(_) => None,
+        Section::App(_) | Section::Globals | Section::Collection(_) => None,
     };
     let entries = environments(workspace);
     let prompt = environment_delete_prompt(shell, &entries, cx);

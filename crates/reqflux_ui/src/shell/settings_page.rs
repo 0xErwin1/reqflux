@@ -7,6 +7,10 @@
 //! selected one) and one per collection. The environment list creates an environment and
 //! opens its name into a field; an environment's `…` menu renames or deletes it, and delete
 //! asks first. Variables are edited by [`super::variables_ops`].
+//!
+//! Above them sits the App section (app-pending S3, design/app-settings/02): General and MCP
+//! policy, which edit the user's `config.toml` through [`app_settings`]. The rail's Settings
+//! opens the page there, and it opens with no workspace too.
 
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, Pixels, Point, Window};
 use gpui_component::input::InputState;
@@ -18,9 +22,23 @@ use super::sidebar_history::Panel;
 use super::variables_model::{collections, environments};
 use crate::workspace::OpenedWorkspace;
 
+#[path = "app_settings.rs"]
+pub(crate) mod app_settings;
+
+/// A section of the App part of the page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AppSection {
+    /// Theme and interface font size.
+    General,
+    /// The `[mcp]` rules and lists, and the workspace overrides read-only.
+    McpPolicy,
+}
+
 /// A section of the page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Section {
+    /// A section of the user's `config.toml`.
+    App(AppSection),
     Globals,
     /// The environments, with the one whose variables show; `None` picks the first.
     Environments(Option<Id>),
@@ -32,6 +50,7 @@ impl Section {
     /// The scope whose variables the section shows.
     pub(crate) fn scope(self) -> Option<SecretScope> {
         match self {
+            Self::App(_) => None,
             Self::Globals => Some(SecretScope::Global),
             Self::Environments(id) => id.map(SecretScope::Environment),
             Self::Collection(id) => Some(SecretScope::Collection(id)),
@@ -62,6 +81,8 @@ pub(crate) struct SettingsPage {
     pub(crate) error: Option<String>,
     /// A warning about the last write that succeeded.
     pub(crate) warning: Option<String>,
+    /// The App section: what `config.toml` holds and its controls.
+    pub(crate) app: app_settings::AppSettings,
 }
 
 impl SettingsPage {
@@ -75,13 +96,16 @@ impl SettingsPage {
             confirm: None,
             error: None,
             warning: None,
+            app: app_settings::AppSettings::default(),
         }
     }
 
     /// Drops the menu, the rename field, the confirmation and the messages, as when the
     /// workspace changes.
     pub(crate) fn reset(&mut self) {
-        self.section = Section::Globals;
+        if !matches!(self.section, Section::App(_)) {
+            self.section = Section::Globals;
+        }
         self.menu = None;
         self.rename = None;
         self.confirm = None;
@@ -94,11 +118,15 @@ impl Shell {
     /// The section the page shows, with an environment or a collection that no longer exists
     /// replaced: by the first environment, or by Globals.
     pub(crate) fn settings_section(&self) -> Section {
+        if let Section::App(section) = self.settings.section {
+            return Section::App(section);
+        }
         let OpenedWorkspace::Loaded(engine) = &self.workspace else {
             return Section::Globals;
         };
         let workspace = engine.workspace();
         match self.settings.section {
+            Section::App(section) => Section::App(section),
             Section::Globals => Section::Globals,
             Section::Environments(id) => {
                 let all = environments(workspace);
@@ -117,7 +145,8 @@ impl Shell {
 
     /// Whether the page shows instead of the sidebar and the document.
     pub(crate) fn settings_open(&self, cx: &App) -> bool {
-        matches!(self.workspace, OpenedWorkspace::Loaded(_))
+        (matches!(self.workspace, OpenedWorkspace::Loaded(_))
+            || matches!(self.settings.section, Section::App(_)))
             && self.sidebar.read(cx).panel == Panel::Environments
     }
 

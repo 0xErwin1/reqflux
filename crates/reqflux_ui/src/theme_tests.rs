@@ -14,7 +14,9 @@ use gpui::{
 };
 use gpui_component::theme::Theme;
 
-use super::{MODAL_ESCAPE_LABEL, PaletteMode, install, mode, set_mode};
+use super::{
+    MODAL_ESCAPE_LABEL, PaletteMode, font_settings, install, mode, set_font_size, set_mode, startup,
+};
 use crate::tokens::tests::rgb_of;
 
 /// The gpui-component theme as widgets draw it. The stored light and dark configs are left out:
@@ -75,6 +77,57 @@ fn sizes_resolve_to_dbflux_pixels_at_the_default_font_size(cx: &mut TestAppConte
             assert_eq!(bolt::fonts::ui_px(cx, size), px(pixels));
         }
     });
+}
+
+/// The interface font size of the config file resizes every `bolt` size, as DBFlux's does
+/// (app-pending S3).
+#[gpui::test]
+fn the_interface_font_size_scales_the_rem_live(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        install(PaletteMode::Dark, cx);
+        set_font_size(15.0, cx);
+        let fonts = bolt::fonts::current(cx);
+        assert_eq!(
+            (fonts.ui_size, fonts.editor_size, fonts.grid_size),
+            (15.0, 15.0, 14.5)
+        );
+        assert_eq!(bolt::fonts::ui_px(cx, FontSizes::BASE), px(15.0));
+        let rem = Theme::global(cx).font_size;
+        assert_eq!(
+            FontSizes::BASE.to_pixels(rem),
+            px(15.0),
+            "the theme's rem follows"
+        );
+    });
+    assert_eq!(
+        font_settings(99.0).ui_size,
+        32.0,
+        "bounded like the config file"
+    );
+    assert_eq!(font_settings(f32::NAN).ui_size, 13.0);
+}
+
+#[test]
+fn startup_reads_the_font_size_of_the_config_file() {
+    let dir = match tempfile::TempDir::new() {
+        Ok(dir) => dir,
+        Err(error) => panic!("temp dir: {error}"),
+    };
+    let path = dir.path().join("config.toml");
+    assert_eq!(startup(Some(&path), None).font_size, 13.0, "a missing file");
+    if let Err(error) = std::fs::write(&path, "font_size = 16\n") {
+        panic!("write: {error}");
+    }
+    assert_eq!(startup(Some(&path), None).font_size, 16.0);
+    if let Err(error) = std::fs::write(&path, "font_size = \"big\"\n") {
+        panic!("write: {error}");
+    }
+    let broken = startup(Some(&path), None);
+    assert_eq!(
+        broken.font_size, 13.0,
+        "a file that does not parse is the default"
+    );
+    assert!(broken.config.error.is_some());
 }
 
 #[gpui::test]

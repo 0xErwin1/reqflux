@@ -66,7 +66,8 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 
 <!-- Direction 2: the built workspace settings page (design/variables/01-settings-page.html, drawn beside the activity rail in place of the sidebar and document islands) gains an App section above Workspace. The rail's Settings button opens it on App > General. Like variables, every control writes at once through the format-preserving editor (no Save footer). Per-workspace overrides are read-only here: the table shows what config.toml says and "Open config.toml" edits it.
      Frame A: App > MCP policy. Frame B: App > General while config.toml does not parse.
-     bolt: activity_rail, island, tree_nav, field_row, segmented_control, dropdown, input, list_row, button, badge, banner. bolt gap: none. -->
+     bolt: activity_rail, island, tree_nav, field_row, segmented_control, dropdown, input, list_row, button, badge, banner. bolt gap: SegmentedControl has no disabled state, so the read-only state dims it and ignores clicks.
+     Built (app-pending T5): the overrides table shows every rule (destructive included); a row names the open workspace "<name> (open)" and any other by its id. Element ids beyond the ones drawn: theme-dark|light|system, rule-<class>-allow|ask|deny, hosts-add / environments-add (fields), hosts-add-button / environments-add-button, hosts-row-<i> / environments-row-<i>, hosts-remove-<i> / environments-remove-<i>, overrides-row-<workspace id>. The App header shows "Settings"; the workspace sections keep the "Workspace settings" breadcrumb. -->
 
 <main>
 <section class="frame" aria-label="Frame A: App, MCP policy">
@@ -127,9 +128,9 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin:20px 0 2px"><h2 class="cap" style="margin:0">Workspace overrides</h2><span class="badge"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-lock"/></svg>READ-ONLY</span><span style="flex-grow:1"></span><button id="overrides-open-config" class="c6 btn" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open config.toml</button></div>
           <div id="overrides-table" role="table" aria-label="Workspace overrides">
-            <div class="gh" role="row"><span style="width:150px">workspace</span><span style="width:62px">read</span><span style="width:62px">write</span><span style="width:70px">execute</span><span style="flex-grow:1">lists</span></div>
-            <div class="gr" role="row"><span style="width:150px;color:#F7F4F7">billing <span class="ds">open</span></span><span style="width:62px;color:#8E8996">–</span><span style="width:62px" class="dn">deny</span><span style="width:70px" class="ak">ask</span><span style="flex-grow:1;color:#8E8996">hosts 1</span></div>
-            <div class="gr" role="row"><span style="width:150px;color:#F7F4F7">payments-sandbox</span><span style="width:62px;color:#8E8996">–</span><span style="width:62px;color:#8E8996">–</span><span style="width:70px" class="dn">deny</span><span style="flex-grow:1;color:#8E8996">–</span></div>
+            <div class="gh" role="row"><span style="width:150px">workspace</span><span style="width:70px">read</span><span style="width:70px">write</span><span style="width:70px">execute</span><span style="width:70px">destructive</span><span style="flex-grow:1">lists</span></div>
+            <div class="gr" role="row"><span style="width:150px;color:#F7F4F7">billing (open)</span><span style="width:70px;color:#8E8996">–</span><span style="width:70px" class="dn">deny</span><span style="width:70px" class="ak">ask</span><span style="width:70px;color:#8E8996">–</span><span style="flex-grow:1;color:#8E8996">hosts 1</span></div>
+            <div class="gr" role="row"><span style="width:150px;color:#F7F4F7">01J0000000000000000000000W</span><span style="width:70px;color:#8E8996">–</span><span style="width:70px;color:#8E8996">–</span><span style="width:70px" class="dn">deny</span><span style="width:70px" class="dn">deny</span><span style="flex-grow:1;color:#8E8996">–</span></div>
           </div>
           <span class="ds" style="display:block;padding-top:8px;line-height:1.5">Each row is a <span class="m">[mcp.workspaces."&lt;id&gt;"]</span> table. Overrides can only restrict the rules above; "–" keeps them.</span>
         </div>

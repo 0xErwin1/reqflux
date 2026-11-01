@@ -4,9 +4,13 @@
 //!
 //! [`load`] reads it: a missing file is [`UserConfig::default`], and a file that does not parse
 //! is a [`ConfigError::Parse`] naming the path, line and column, never the source line; the
-//! caller then runs on the defaults and says so. [`set_theme`] edits it with a
+//! caller then runs on the defaults and says so. [`set_theme`], [`set_font_size`],
+//! [`set_rule`], [`add_list_entry`] and [`remove_list_entry`] edit it with a
 //! format-preserving editor, so the user's comments, key order and keys this build does not
 //! know survive.
+//!
+//! `font_size` is the interface font size in pixels, 13 by default and bounded to 8..=32 as
+//! DBFlux bounds its interface size.
 //!
 //! The `[mcp]` tables are only parsed here; the policy that evaluates them lives with the
 //! MCP tools.
@@ -20,6 +24,16 @@ use serde::Deserialize;
 
 use reqflux_core::model::Id;
 pub use reqflux_core::model::{McpOverride, Rule};
+
+mod edit;
+pub use edit::{McpList, add_list_entry, remove_list_entry, set_font_size, set_rule};
+
+/// The interface font size when the file sets none, in pixels, as DBFlux's.
+pub const DEFAULT_FONT_SIZE: f32 = 13.0;
+/// The smallest interface font size; a smaller `font_size` reads as this.
+pub const MIN_FONT_SIZE: f32 = 8.0;
+/// The largest interface font size; a larger `font_size` reads as this.
+pub const MAX_FONT_SIZE: f32 = 32.0;
 
 /// The palette mode the window starts in: `theme = "dark" | "light" | "system"`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
@@ -63,9 +77,33 @@ pub struct UserConfig {
     /// `theme`; `None` when the file does not set it.
     #[serde(default)]
     pub theme: Option<ThemeMode>,
+    /// `font_size`, the interface font size in pixels as written; read it through
+    /// [`UserConfig::interface_font_size`], which bounds it.
+    #[serde(default)]
+    pub font_size: Option<f32>,
     /// `[mcp]`, the MCP policy.
     #[serde(default)]
     pub mcp: McpConfig,
+}
+
+impl UserConfig {
+    /// The interface font size: `font_size` clamped to [`MIN_FONT_SIZE`]..=[`MAX_FONT_SIZE`],
+    /// or [`DEFAULT_FONT_SIZE`] when it is unset or not a number.
+    #[must_use]
+    pub fn interface_font_size(&self) -> f32 {
+        self.font_size.map_or(DEFAULT_FONT_SIZE, clamp_font_size)
+    }
+}
+
+/// `size` within [`MIN_FONT_SIZE`]..=[`MAX_FONT_SIZE`]; a size that is not finite is
+/// [`DEFAULT_FONT_SIZE`].
+#[must_use]
+pub fn clamp_font_size(size: f32) -> f32 {
+    if size.is_finite() {
+        size.clamp(MIN_FONT_SIZE, MAX_FONT_SIZE)
+    } else {
+        DEFAULT_FONT_SIZE
+    }
 }
 
 /// `[mcp]`: the user's MCP policy. `None` means the built-in default for that rule or list.
@@ -124,6 +162,17 @@ pub enum ConfigError {
         path: PathBuf,
         /// `line <l>, column <c>: <message>`, from [`crate::toml_error_location`].
         location: String,
+    },
+    /// A key an editor must write into has another type, as `mcp = "…"`; the file is left
+    /// alone. Never quotes the value.
+    #[error("cannot edit the config file {path}: `{key}` is not {expected}")]
+    WrongType {
+        /// The config file.
+        path: PathBuf,
+        /// The dotted key.
+        key: String,
+        /// What the key must be: `a table` or `an array`.
+        expected: &'static str,
     },
     /// The file or its directory could not be written.
     #[error("cannot write the config file {path}: {source}")]
@@ -233,22 +282,7 @@ fn unknown_key(path: &Path, key: &str, table: &str) -> String {
 /// missing. Everything else in the file is kept as written; a file that does not parse is
 /// refused and left alone.
 pub fn set_theme(path: &Path, mode: ThemeMode) -> Result<(), ConfigError> {
-    let text = read_text(path)?.unwrap_or_default();
-    let mut document = parse_document(path, &text)?;
-    match document
-        .get_mut("theme")
-        .and_then(toml_edit::Item::as_value_mut)
-    {
-        Some(value) => {
-            let decor = value.decor().clone();
-            *value = mode.name().into();
-            *value.decor_mut() = decor;
-        }
-        None => {
-            document.insert("theme", toml_edit::value(mode.name()));
-        }
-    }
-    write_text(path, &document.to_string())
+    edit::set_theme_value(path, mode.name())
 }
 
 /// The file's text, or `None` when it does not exist.

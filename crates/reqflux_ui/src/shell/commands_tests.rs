@@ -6,7 +6,7 @@ use super::{COMMANDS, PALETTE_KEYS, key_label};
 use crate::shell::send::SHELL_CONTEXT;
 
 /// The palette commands of command-palette S4, by stable id.
-const EXPECTED: [&str; 20] = [
+const EXPECTED: [&str; 21] = [
     "send-request",
     "cancel-send",
     "save-request",
@@ -27,6 +27,7 @@ const EXPECTED: [&str; 20] = [
     "show-environments",
     "toggle-theme",
     "open-approvals",
+    "open-audit",
 ];
 
 #[test]
@@ -113,7 +114,7 @@ fn every_area_holds_its_commands_in_palette_order() {
         ["new-environment", "switch-environment", "show-environments"]
     );
     assert_eq!(names(Area::Tabs), ["close-tab", "next-tab", "previous-tab"]);
-    assert_eq!(names(Area::Agents), ["open-approvals"]);
+    assert_eq!(names(Area::Agents), ["open-approvals", "open-audit"]);
     assert_eq!(
         names(Area::Workspace),
         [

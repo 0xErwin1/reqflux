@@ -18,8 +18,13 @@ use serde_json::{Map, Value};
 use crate::policy::ToolClass;
 use crate::state::{StateError, default_state_path};
 
+mod log;
+
+pub use log::{AuditLog, AuditRecord, read_log};
+
 /// Whether the policy let a call run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Decision {
     /// The call ran.
     Allowed,
@@ -28,7 +33,9 @@ pub enum Decision {
 }
 
 impl Decision {
-    fn name(self) -> &'static str {
+    /// The decision as the audit log spells it.
+    #[must_use]
+    pub fn name(self) -> &'static str {
         match self {
             Self::Allowed => "allowed",
             Self::Refused => "refused",
@@ -158,7 +165,7 @@ fn line(entry: &AuditEntry<'_>, now: SystemTime) -> Value {
     Value::Object(map)
 }
 
-/// `time` as `YYYY-MM-DDTHH:MM:SS.mmmZ`, in UTC.
+/// `time` as `YYYY-MM-DDTHH:MM:SS.mmmZ`, in UTC; [`log`] reads it back.
 fn rfc3339(time: SystemTime) -> String {
     let since = time.duration_since(UNIX_EPOCH).unwrap_or_default();
     let seconds = since.as_secs();

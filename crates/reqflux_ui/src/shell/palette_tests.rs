@@ -466,7 +466,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
     press(cx, "ctrl-k");
     assert_eq!(
         node_label(&automation, "palette-tab-all").as_deref(),
-        Some("All 27")
+        Some("All 28")
     );
     assert_eq!(
         node_label(&automation, "palette-tab-requests").as_deref(),
@@ -474,7 +474,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
     );
     assert_eq!(
         node_label(&automation, "palette-tab-commands").as_deref(),
-        Some("Commands 20")
+        Some("Commands 21")
     );
     assert_eq!(
         node_label(&automation, "palette-tab-variables").as_deref(),
@@ -491,7 +491,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
     assert_eq!(node_selected(&automation, "palette-tab-all"), Some(false));
     assert_eq!(
         node_label(&automation, "palette-count").as_deref(),
-        Some("20 commands")
+        Some("21 commands")
     );
     present(cx, "palette-group-request");
     present(cx, "palette-group-workspace");
@@ -503,7 +503,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
         node_label(&automation, "palette-row-1-reason").as_deref(),
         Some("no open request")
     );
-    assert_eq!(row_labels(&automation).len(), 20);
+    assert_eq!(row_labels(&automation).len(), 21);
     assert_eq!(
         node_label(&automation, "palette-group-environment").as_deref(),
         Some("Environments")

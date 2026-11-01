@@ -191,6 +191,19 @@ pub(crate) const VARIABLES_PANEL_INSET: Pixels = px(20.0);
 pub(crate) const SETTINGS_NAV_WIDTH: Pixels = px(230.0);
 pub(crate) const SETTINGS_ENVIRONMENT_LIST: Pixels = px(244.0);
 
+/// The label column of an App > General row (app-settings/02 `.fr`).
+pub(crate) const APP_SETTINGS_LABEL_WIDTH: Pixels = px(240.0);
+/// The label column of an MCP policy rule row.
+pub(crate) const APP_SETTINGS_RULE_LABEL_WIDTH: Pixels = px(150.0);
+/// The width of the interface font size select.
+pub(crate) const APP_SETTINGS_FONT_SIZE_WIDTH: Pixels = px(120.0);
+/// The gap between the two columns of MCP policy.
+pub(crate) const APP_SETTINGS_COLUMN_GAP: Pixels = px(36.0);
+/// The workspace column of the policy overrides table.
+pub(crate) const APP_SETTINGS_OVERRIDE_WORKSPACE: Pixels = px(150.0);
+/// Each rule column of the policy overrides table.
+pub(crate) const APP_SETTINGS_OVERRIDE_RULE: Pixels = px(70.0);
+
 /// The opacity of the warning wash on a grid row with an unresolved reference.
 const UNRESOLVED_ROW_WASH: f32 = 0.05;
 
@@ -261,6 +274,15 @@ pub(crate) const SETTING_NUMBER_FIELD: Pixels = px(160.0);
 
 /// The status column of a History panel row (history/01).
 pub(crate) const HISTORY_STATUS_COLUMN: Pixels = px(26.0);
+
+/// The audit table's columns (bolt-v2/13); bolt gap: `DocumentMetrics` has no audit column
+/// widths. The target column fills the rest.
+pub(crate) const AUDIT_CHEVRON_COLUMN: Pixels = px(24.0);
+pub(crate) const AUDIT_TIME_COLUMN: Pixels = px(110.0);
+pub(crate) const AUDIT_CLASS_COLUMN: Pixels = px(100.0);
+pub(crate) const AUDIT_TOOL_COLUMN: Pixels = px(190.0);
+pub(crate) const AUDIT_WORKSPACE_COLUMN: Pixels = px(130.0);
+pub(crate) const AUDIT_OUTCOME_COLUMN: Pixels = px(110.0);
 
 #[cfg(test)]
 pub(crate) mod tests {

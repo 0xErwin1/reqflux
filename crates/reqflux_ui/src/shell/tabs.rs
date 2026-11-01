@@ -2,7 +2,8 @@
 //! button, drawn with `bolt`'s document tab bar and tabs. The active tab is the raised cut
 //! chip with strong text; the others are muted. While the MCP approvals view is open it adds
 //! the active `MCP approvals` tab, `doc-tab-approvals`, and no request tab is active;
-//! activating one leaves the view. An open history entry has the history tab,
+//! activating one leaves the view. The audit view adds the active `Audit log` tab,
+//! `doc-tab-audit`, the same way. An open history entry has the history tab,
 //! `doc-tab-history`, first in the row; while it is active no request tab is.
 
 use bolt::composites::{document_tab, document_tab_bar, document_tab_title};
@@ -15,6 +16,7 @@ use gpui::{
 use gpui_kit_assets::IconName;
 
 use super::approvals_view::TITLE;
+use super::audit_view::TITLE as AUDIT_TITLE;
 use super::documents::{Location, locate};
 use super::drafts::RequestDraft;
 use super::request::ui;
@@ -31,9 +33,10 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         .filter_map(|id| locate(&shell.roots, id).map(|location| (id.clone(), location)))
         .collect();
     let approvals = shell.approvals_open(cx);
+    let audit = shell.audit_open(cx);
     let active = shell
         .active_request()
-        .filter(|_| !approvals)
+        .filter(|_| !approvals && !audit)
         .map(str::to_owned);
     let history_tab = shell.orphan.as_ref().map(|tab| history::tab_chip(tab, cx));
 
@@ -49,6 +52,33 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
             tab(id, &location, is_active, drafted, save_error, cx)
         }));
     bar.when(approvals, |row| row.child(approvals_tab(cx)))
+        .when(audit, |row| row.child(audit_tab(cx)))
+}
+
+/// The active `Audit log` tab: the fingerprint icon in the tint, the title and a close
+/// button, `doc-tab-audit-close`, that goes back to the collection tree.
+fn audit_tab(cx: &mut Context<Shell>) -> Stateful<Div> {
+    let close = close_button(
+        "doc-tab-audit-close".to_owned(),
+        "Close audit log".to_owned(),
+        cx.listener(|this, _event, window, cx| {
+            this.leave_audit(cx);
+            this.restore_focus(window, cx);
+        }),
+        cx,
+    );
+    document_tab("doc-tab-audit", true, cx)
+        .role(Role::Tab)
+        .aria_label(AUDIT_TITLE)
+        .aria_selected(true)
+        .font_family(bolt::fonts::ui_family(cx))
+        .child(
+            Icon::new(ui::icon(IconName::FingerprintPattern))
+                .size(TabMetrics::ICON)
+                .color(bolt::brand::brand(cx).accent_tint),
+        )
+        .child(document_tab_title(AUDIT_TITLE, true, cx))
+        .child(close)
 }
 
 /// The close button `id` of a tab, named `label`: DBFlux's tab close icon; a click runs

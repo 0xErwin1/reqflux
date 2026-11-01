@@ -57,6 +57,9 @@ pub(crate) enum Panel {
     /// The MCP approvals view, which the shell shows in the document island while the
     /// sidebar keeps the collection tree.
     Approvals,
+    /// The audit view, which the shell shows in the document island while the sidebar keeps
+    /// the collection tree.
+    Audit,
 }
 
 /// One row of the History panel.

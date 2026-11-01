@@ -104,6 +104,7 @@ environments = ["dev"]
         loaded(&path),
         UserConfig {
             theme: Some(ThemeMode::Light),
+            font_size: None,
             mcp: McpConfig {
                 read: Some(Rule::Allow),
                 write: Some(Rule::Ask),

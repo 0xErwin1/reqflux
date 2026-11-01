@@ -696,8 +696,11 @@ as redacted stays withheld, and a bridge failure is a tool error, never a panic.
 
 The user's configuration is `$XDG_CONFIG_HOME/reqflux/config.toml` (`~/.config/reqflux/config.toml`
 when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `system`, written by
-`Toggle theme` with a format-preserving editor that keeps comments, order and unknown keys) and
-`[mcp]`. A missing file is the defaults; a file that does not parse is reported (path, line and
+`Toggle theme` with a format-preserving editor that keeps comments, order and unknown keys),
+`font_size` (the interface font size in px, 13 by default, clamped to 8..=32 as in DBFlux) and
+`[mcp]`. `reqflux_engine::config` edits `font_size`, the `[mcp]` rules and the
+`hosts`/`environments` lists the same way (`set_font_size`, `set_rule`, `add_list_entry`,
+`remove_list_entry`); removing the last list entry removes the key (no list means any). A missing file is the defaults; a file that does not parse is reported (path, line and
 column, never the source line) as an error in the window's Problems panel and by `reqflux mcp`,
 and the defaults apply. Unknown keys under `[mcp]` and `[mcp.workspaces."<id>"]`, and a key that is not a
 workspace id, are reported as warnings the same way; they change no rule.
@@ -818,11 +821,12 @@ reads pause too; an input-only guard needs one upstream in gpui-mcp.
 
 #### Audit view
 
-The rail's `rail-audit` opens the audit view (`audit-view`, `shell/audit.rs`,
+The rail's `rail-audit` and the palette ("Open audit log", Ctrl+Shift+A) open the audit view (`audit-view`, `shell/audit.rs`,
 `shell/audit_model.rs`, `shell/audit_view.rs` and `shell/audit_table.rs`, artboard
 `design/bolt-v2/13-audit.html`); while `Panel::Audit` is the rail's view the sidebar keeps the
 collection tree and the view takes the document island, and a request opened or activated takes
-it back. It is read-only. `reqflux_engine::audit::read_log` reads `audit.log` newest first; a
+it back. Its tab row shows the open requests and the active `Audit log` tab (`doc-tab-audit`;
+`doc-tab-audit-close` goes back). It is read-only. `reqflux_engine::audit::read_log` reads `audit.log` newest first; a
 line that does not parse is skipped and reported by its 1-based number, a blank line is
 ignored and a missing file is empty. The view reads the log when it opens and on Refresh
 (`audit-refresh`). The header shows `audit-title` ("Audit log") and `audit-subtitle`. The
@@ -900,6 +904,10 @@ happened (`-message`). Escape, bound in the panel's `Problems` key context, or a
 backdrop (`problems-backdrop`) closes it. `theme::startup` reports the config file as a
 `ConfigReport` (an error, or warnings) that the shell takes through `set_config`. In the tree the arrow keys move the selection, Enter or the chevron toggles a
 folder, and a click or Enter on a request opens it in a document tab, or focuses its tab.
+`/` focuses the filter (`tree-filter`), which narrows the tree to requests whose name, method
+or URL contains the text (case-insensitive) with their folders expanded; Escape clears it and
+restores the expansion; `tree-no-match` shows when nothing matches; the footer counts what is
+shown.
 The sidebar header's `+` (`sidebar-new-collection`) creates a collection. A right click on a
 row, or its `…` button (`tree-row-menu-<id>`), opens a menu (`tree-menu-new-request`,
 `tree-menu-new-folder` on collections and folders, `tree-menu-rename`, `tree-menu-duplicate`
@@ -1012,6 +1020,16 @@ Clicking a row opens its request's tab and shows the recorded response under
 `Resend` (`history-resend`) sends the recorded document again through `execute_draft` and
 records the result as a new entry. A row whose request was deleted opens a read-only view
 (`history-readonly`) with the recorded method, URL and response, and Resend disabled.
+
+The settings page's App section (`design/app-settings/02-workspace-page-app-section.html`,
+`shell/app_settings.rs`, `shell/app_settings_view.rs`) sits above its workspace sections and
+opens even with no workspace: the rail's Settings (`rail-settings`, marked active while an App
+section shows) opens it at General (`theme`, `font-size`, applied live through bolt's font
+install); MCP policy holds `rule-read|write|execute|destructive` (Allow, Ask, Deny),
+`hosts-list`, `environments-list` and the read-only `overrides-table` (`overrides-open-config`
+opens `config.toml` with the OS handler, `open_file.rs`). Every control writes `config.toml` at
+once; while it does not parse, `config-error` shows its path, line and column, the controls do
+not write, and `config-open` and `config-reload` act.
 
 Environments and variables are edited on the workspace settings page (`settings-page`,
 `design/variables/01-settings-page.html`, `shell/settings_page.rs`, `shell/settings_view.rs`,

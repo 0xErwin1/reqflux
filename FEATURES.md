@@ -121,6 +121,7 @@ One MCP server, `reqflux`, for everything.
 | Execute a request and read history | MVP |
 | Policy by execution class (read, write, execute, destructive), host and environment allowlists | v1 |
 | In-app approvals and audit log | v1 |
+| App settings: theme, interface font size and MCP policy editing | v1 |
 | Run the collection runner | v1 |
 | Resources addressed by id | Later |
 
