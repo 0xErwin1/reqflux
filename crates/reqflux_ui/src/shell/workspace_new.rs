@@ -6,12 +6,12 @@
 
 use std::path::PathBuf;
 
-use bolt::controls::{GpuiInput, InputEnter as Enter, InputEscape as Escape, InputState};
+use bolt::controls::{Input, InputEnter as Enter, InputEscape as Escape, InputState};
 use bolt::primitives::Chamfer;
 use bolt::tokens::{ChamferCut, Fields, MenuMetrics, Spacing};
 use gpui::{
-    AnyElement, AppContext as _, Context, InteractiveElement, IntoElement, ParentElement, Role,
-    Styled, Window, prelude::*,
+    AnyElement, AppContext as _, Context, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, Pixels, Role, Styled, Window, prelude::*,
 };
 use reqflux_engine::state::RecentWorkspace;
 
@@ -145,17 +145,13 @@ impl Shell {
                 .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
                     this.blur_new_workspace(window, cx);
                 }))
-                // bolt gap: bolt's frameless Input draws its text in the medium weight with no
-                // option.
+                .text_color(colors.strong)
                 .child(
-                    GpuiInput::new(input)
+                    Input::new(input)
                         .appearance(false)
-                        .bordered(false)
-                        .p_0()
-                        .flex_1()
-                        .min_w_0()
-                        .text_size(Fields::TEXT)
-                        .text_color(colors.strong),
+                        .font_weight(FontWeight::NORMAL)
+                        .padding(Pixels::ZERO, Pixels::ZERO)
+                        .text_size(Fields::TEXT),
                 )
                 .into_any_element(),
         )

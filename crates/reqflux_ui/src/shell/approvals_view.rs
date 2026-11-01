@@ -32,7 +32,7 @@ use super::approvals::{
 use super::approvals_model::{class_label, client_name, waiting_label};
 use super::history::now_millis;
 use super::request::ui;
-use super::rows::{labeled_row, part};
+use super::rows::part;
 use super::{Shell, approvals_detail, region, tabs, text_region};
 use crate::tokens::method_hue;
 
@@ -53,13 +53,10 @@ pub(super) fn class_tone(class: &str) -> BadgeTone {
     }
 }
 
-/// `bolt`'s badge printing `label` in `tone`, found by tests as `id`.
-// bolt gap: an id on Badge names no accessible node, so a labeled wrapper carries the id
-// and the label the automation tree reads.
+/// `bolt`'s badge printing `label` in `tone`, found by tests as `id` and named by `label`.
 pub(super) fn badge(id: String, label: String, tone: BadgeTone) -> AnyElement {
-    labeled_row(id, label.clone())
-        .flex_none()
-        .child(Badge::new(label, tone))
+    Badge::new(label, tone)
+        .id(gpui::ElementId::Name(id.into()))
         .into_any_element()
 }
 

@@ -322,8 +322,6 @@ fn render_tab(scope: Scope, active: bool, count: usize, cx: &mut Context<Shell>)
 
 /// The empty or no-match state `palette-empty`, `bolt`'s `EmptyState`, its title
 /// `palette-empty-title`.
-// bolt gap: EmptyState's title takes no element id and names no accessible node, so the
-// title carries its id on a labeled node over it.
 fn render_empty(listing: &Listing, workspace_open: bool) -> AnyElement {
     let noun = listing.scope.noun();
     let (title, hint) = if listing.text.is_empty() {
@@ -346,18 +344,16 @@ fn render_empty(listing: &Listing, workspace_open: bool) -> AnyElement {
                 .to_owned(),
         )
     };
-    region("palette-empty")
-        .relative()
+    div()
         .flex()
         .flex_col()
         .py(Spacing::XL)
         .pl(PaletteMetrics::PADDING_X)
         .pr(PaletteMetrics::PADDING_X)
-        .child(EmptyState::new(ui::icon(IconName::Search), hint).title(title.clone()))
         .child(
-            labeled_row("palette-empty-title".to_owned(), title)
-                .absolute()
-                .inset_0(),
+            EmptyState::new(ui::icon(IconName::Search), hint)
+                .title(title)
+                .id("palette-empty"),
         )
         .into_any_element()
 }

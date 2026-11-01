@@ -8,12 +8,12 @@
 
 use std::collections::HashSet;
 
-use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape, InputState};
+use bolt::controls::{Button, Input, InputEnter, InputEscape, InputState};
 use bolt::primitives::{Chamfer, TextVariant};
 use bolt::tokens::{ChamferCut, Fields, HeaderMetrics, Spacing, TreeMetrics};
 use gpui::{
-    AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, ParentElement,
-    Pixels, Point, Styled, Window, div, prelude::*,
+    AnyElement, App, Context, Entity, FocusHandle, FontWeight, InteractiveElement, IntoElement,
+    ParentElement, Pixels, Point, Styled, Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 
@@ -441,17 +441,14 @@ impl Sidebar {
                 .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
                     this.commit_rename(window, cx);
                 }))
-                // bolt gap: bolt's frameless Input draws its text in the medium weight with no
-                // option, so the name would change weight from how the row shows it.
+                // The name keeps the weight the row shows it in.
+                .text_color(colors.strong)
                 .child(
-                    GpuiInput::new(&rename.input)
+                    Input::new(&rename.input)
                         .appearance(false)
-                        .bordered(false)
-                        .p_0()
-                        .flex_1()
-                        .min_w_0()
-                        .text_size(TreeMetrics::FONT)
-                        .text_color(colors.strong),
+                        .font_weight(FontWeight::NORMAL)
+                        .padding(Pixels::ZERO, Pixels::ZERO)
+                        .text_size(TreeMetrics::FONT),
                 )
                 .into_any_element(),
         )

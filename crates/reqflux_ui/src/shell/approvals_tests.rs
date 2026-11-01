@@ -180,12 +180,12 @@ fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     cx.update(|window, _| automation.attach(window));
     focus_shell(cx, &shell);
     assert_eq!(label(&automation, "approvals-badge"), None);
-    assert_eq!(label(&automation, "rail-approvals-badge"), None);
+    assert_eq!(label(&automation, "rail-approvals-count"), None);
 
     let first = arrive(cx, &shell, request(1, "request_execute"), 1);
     assert_eq!(label(&automation, "approvals-badge").as_deref(), Some("1"));
     assert_eq!(
-        label(&automation, "rail-approvals-badge").as_deref(),
+        label(&automation, "rail-approvals-count").as_deref(),
         Some("1")
     );
     assert!(bounds(cx, "approvals-view").is_none(), "nothing opens");
@@ -196,7 +196,7 @@ fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     let second = arrive(cx, &shell, request(2, "item_rename"), 2);
     assert_eq!(label(&automation, "approvals-badge").as_deref(), Some("2"));
     assert_eq!(
-        label(&automation, "rail-approvals-badge").as_deref(),
+        label(&automation, "rail-approvals-count").as_deref(),
         Some("2")
     );
 
@@ -215,7 +215,7 @@ fn a_request_is_counted_without_opening_anything(cx: &mut TestAppContext) {
     click(cx, "approval-allow");
     assert_eq!(decision(cx, second), Some(ApprovalDecision::AllowOnce));
     assert_eq!(label(&automation, "approvals-badge"), None);
-    assert_eq!(label(&automation, "rail-approvals-badge"), None);
+    assert_eq!(label(&automation, "rail-approvals-count"), None);
 }
 
 #[gpui::test]

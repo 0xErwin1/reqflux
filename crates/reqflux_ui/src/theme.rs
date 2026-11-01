@@ -207,6 +207,10 @@ pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
         cx,
     );
     install_modal_seams(cx);
+    cx.set_global(bolt::composites::ShellIcons {
+        search: bolt::icon::IconSource::Svg(IconName::Search.path()),
+        bell: bolt::icon::IconSource::Svg(IconName::Bell.path()),
+    });
 }
 
 /// Installs what `bolt`'s modals read from the product, as DBFlux's theme does: ReqFlux's

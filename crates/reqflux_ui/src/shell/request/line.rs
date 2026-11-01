@@ -4,12 +4,14 @@
 //! field drawn in the same place, padding, font and height, so the text does not move.
 //! Enter in the field commits the URL and sends the request.
 
-use bolt::controls::{Button, GpuiInput, Input, InputEnter, InputEscape, InputState};
-use bolt::primitives::{Chamfer, Icon, TextVariant};
+use bolt::controls::{
+    Button, GpuiInput, Input, InputEnter, InputEscape, InputState, SelectTrigger,
+};
+use bolt::primitives::{Chamfer, TextVariant};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
 use gpui::{
-    Context, Div, Entity, FontWeight, ParentElement, Pixels, Role, Stateful, Styled, Window, div,
-    prelude::*,
+    AnyElement, Context, Div, Entity, FontWeight, ParentElement, Pixels, Role, Stateful, Styled,
+    Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 
@@ -60,68 +62,46 @@ fn cancel(id: &str, cx: &mut Context<Shell>) -> Div {
 
 /// The method chip, element id `request-method`, showing the draft's verb, else the file's.
 /// A click opens the method menu under it; while the custom verb field of this request is
-/// open, the field takes the chip's place.
-// bolt gap: drawn as `bolt::controls::SelectTrigger` draws its field, whose label takes no
-// color, weight or face, while the verb is bold mono in its method's hue.
+/// open, the field takes the chip's place. The chip is `bolt`'s select trigger with the verb
+/// bold mono in its method's hue.
 fn method(
     id: &str,
     state: &RequestState,
     shell: &Shell,
     window: &Window,
     cx: &mut Context<Shell>,
-) -> Stateful<Div> {
+) -> AnyElement {
     if let Some(edit) = shell
         .cell_edit
         .as_ref()
         .filter(|_| shell.method_edit_of(id))
     {
-        return editing_method(edit.input.clone(), cx);
+        return editing_method(edit.input.clone(), cx).into_any_element();
     }
-    let colors = bolt::colors(cx);
     let current = shell
         .displayed_request(id, &state.inspection.request.request)
         .method
         .clone();
     let verb = current.to_string();
     let request = id.to_owned();
-    region("request-method")
-        .role(Role::Button)
-        .aria_label(verb.clone())
+    let hue = method_hue(&verb, cx);
+    div()
         .relative()
         .flex_none()
         .w(tokens::METHOD_CHIP_WIDTH)
-        .h(Fields::HEIGHT)
-        .flex()
-        .items_center()
-        .gap(Fields::GAP)
-        .pl(Fields::PADDING_X)
-        .pr(Fields::PADDING_X)
         .child(
-            Chamfer::new(ChamferCut::CONTROL)
-                .fill(colors.raised)
-                .border(colors.line_2),
+            SelectTrigger::new("request-method", verb)
+                .label_color(hue)
+                .label_weight(FontWeight::BOLD)
+                .label_font_family(bolt::fonts::editor_family(cx))
+                .on_click(cx.listener(|this, _event, window, cx| {
+                    this.toggle_method_menu(window, cx);
+                })),
         )
-        .child(
-            div()
-                .flex_1()
-                .font_family(bolt::fonts::editor_family(cx))
-                .text_size(Fields::TEXT)
-                .font_weight(FontWeight::BOLD)
-                .text_color(method_hue(&verb, cx))
-                .child(verb),
-        )
-        .child(
-            Icon::new(ui::icon(IconName::ChevronDown))
-                .size(Fields::CHEVRON)
-                .color(colors.muted),
-        )
-        .cursor_pointer()
-        .on_click(cx.listener(|this, _event, window, cx| {
-            this.toggle_method_menu(window, cx);
-        }))
         .when(shell.method_menu_open, |anchor| {
             anchor.child(method_menu::render(&request, &current, shell, window, cx))
         })
+        .into_any_element()
 }
 
 /// The custom verb field, element id `request-method-input`, over the input `input`: Enter

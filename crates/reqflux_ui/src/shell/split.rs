@@ -298,13 +298,29 @@ pub(super) fn render(
         )
 }
 
-/// The gutter, element id `request-response-split`: `bolt`'s splitter across the split.
-// bolt gap: Splitter takes no accessible name or value, so the gutter no longer reports
-// "Resize request and response" or the request pane's share.
+/// The gutter, element id `request-response-split`: `bolt`'s splitter across the split,
+/// named "Resize request and response", its value the request pane's share once laid out.
 fn gutter(shell: &Shell, cx: &mut Context<Shell>) -> Splitter {
     let split = &shell.split;
     let (on_drag, on_step, on_toggle) = (cx.entity(), cx.entity(), cx.entity());
-    Splitter::new("request-response-split", SplitAxis::Vertical)
+    let percent = split
+        .height
+        .filter(|height| *height > Pixels::ZERO)
+        .map(|height| {
+            let request = if split.collapsed {
+                height
+            } else {
+                split.request_height(height)
+            };
+            f64::from((request / height * 100.0).round())
+        });
+    let splitter = Splitter::new("request-response-split", SplitAxis::Vertical)
+        .aria_label("Resize request and response");
+    let splitter = match percent {
+        Some(percent) => splitter.value_percent(percent),
+        None => splitter,
+    };
+    splitter
         .active(split.dragging)
         .track_focus(&split.focus)
         .on_drag(move |y, _window, cx| {

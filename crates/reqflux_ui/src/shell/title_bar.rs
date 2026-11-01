@@ -4,23 +4,17 @@
 //! palette; the bell opens the MCP approvals view and carries the pending count as a badge,
 //! `approvals-badge`.
 //!
-//! The bar, the command search and the bell are drawn as DBFlux's title bar draws them.
-// bolt gap: `bolt::composites::CommandSearch` names its keycap `<id>-key` with no accessible
-// label and has no Button role, and `NotificationBell` names its badge `notifications-badge`
-// with no accessible label; `command_search` and `bell` go once they do.
+//! The command search and the bell are `bolt`'s, as DBFlux's title bar draws them.
 
-use bolt::primitives::{Chamfer, Icon, Kbd, status_diamond};
-use bolt::tokens::{
-    Borders, ButtonMetrics, ChamferCut, Feedback, Fields, IslandMetrics, ShellMetrics, Spacing,
-};
+use bolt::composites::{BellUrgency, CommandSearch, NotificationBell};
+use bolt::primitives::{Icon, status_diamond};
+use bolt::tokens::{Borders, Feedback, Fields, IslandMetrics, ShellMetrics, Spacing};
 use gpui::{
     AnyElement, App, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Stateful,
     StatefulInteractiveElement, Styled, Window, div, prelude::*,
 };
-use gpui_component::tooltip::Tooltip;
 use gpui_kit_assets::IconName;
 
-use super::rail::{badge_text, count_badge};
 use super::request::ui;
 use super::{Shell, environment_menu, region, text_region, workspace_menu};
 
@@ -227,101 +221,39 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
 }
 
 /// The command search, `command-search`: a trigger, not an editor, that opens the command
-/// palette. DBFlux's: 420 by 30 px, cut 6, the well fill with a line border, the search icon,
-/// the placeholder and the palette's keys as one keycap.
+/// palette, with the palette's keys on its keycap `command-search-key`. The wrapper lets it
+/// shrink on a narrow window instead of covering the workspace selector.
 fn command_search(cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let shape = Chamfer::new(ChamferCut::CONTROL)
-        .fill(colors.background)
-        .border(colors.line)
-        .fill_hover(colors.raised)
-        .fill_active(colors.raised)
-        .interactive("command-search-chamfer");
-    region("command-search")
-        .role(Role::Button)
-        .aria_label(COMMAND_SEARCH)
-        .relative()
-        .flex()
-        .flex_shrink(1.0)
-        .min_w_0()
-        .w(ShellMetrics::COMMAND_SEARCH_WIDTH)
-        .items_center()
-        .gap(ShellMetrics::COMMAND_SEARCH_GAP)
-        .h(ShellMetrics::COMMAND_SEARCH_HEIGHT)
-        .pl(ShellMetrics::COMMAND_SEARCH_PADDING_X)
-        .pr(ShellMetrics::COMMAND_SEARCH_PADDING_X)
-        .font_family(bolt::fonts::ui_family(cx))
-        .text_size(ShellMetrics::COMMAND_SEARCH_FONT)
-        .text_color(colors.muted)
-        .cursor_pointer()
-        .child(shape)
-        .child(
-            Icon::new(ui::icon(IconName::Search))
-                .size(ShellMetrics::COMMAND_SEARCH_ICON)
-                .color(colors.muted),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_ellipsis()
-                .child(COMMAND_SEARCH),
-        )
-        .child(
-            text_region("command-search-keycap")
-                .aria_label(COMMAND_SEARCH_KEYS)
-                .flex_none()
-                .child(Kbd::new(COMMAND_SEARCH_KEYS)),
-        )
-        .on_click(cx.listener(|this, _event, window, cx| this.open_palette(window, cx)))
+    let shell = cx.entity().downgrade();
+    div().flex_shrink(1.0).min_w_0().overflow_hidden().child(
+        CommandSearch::new("command-search", COMMAND_SEARCH)
+            .shortcut([COMMAND_SEARCH_KEYS])
+            .on_open(move |window, cx| {
+                if let Err(error) = shell.update(cx, |this, cx| this.open_palette(window, cx)) {
+                    log::warn!("the command search outlived the shell: {error}");
+                }
+            }),
+    )
 }
 
-/// The approvals bell, `approvals`, drawn as DBFlux's notification bell: a muted ghost button
-/// with nothing pending, else on the tint wash with a tint icon and the pending count on its
-/// badge.
+/// The approvals bell, `approvals`: `bolt`'s notification bell with the pending count on its
+/// badge, `approvals-badge`, in the accent while an approval waits.
+// bolt gap: NotificationBell sets no Button role, so it leaves the automation tree; a labeled
+// button wrapper carries the id and the role until it does.
 fn bell(pending: usize, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand::brand(cx).accent_tint;
-    let badge = badge_text(pending);
-    let (shape, icon_color) = match badge {
-        None => (
-            Chamfer::new(ChamferCut::CONTROL)
-                .fill_hover(colors.raised)
-                .fill_active(colors.raised),
-            colors.muted,
-        ),
-        Some(_) => (
-            Chamfer::new(ChamferCut::CONTROL)
-                .fill(tint.opacity(ButtonMetrics::SOFT_FILL_REST))
-                .fill_hover(tint.opacity(ButtonMetrics::SOFT_FILL_HOVER))
-                .fill_active(tint.opacity(ButtonMetrics::SOFT_FILL_PRESSED)),
-            tint,
-        ),
+    let urgency = if pending > 0 {
+        BellUrgency::Approval
+    } else {
+        BellUrgency::None
     };
     region("approvals")
         .role(Role::Button)
         .aria_label("Approvals")
-        .relative()
-        .flex()
         .flex_none()
-        .items_center()
-        .justify_center()
-        .w(ShellMetrics::BELL_WIDTH)
-        .h(ShellMetrics::BELL_HEIGHT)
-        .cursor_pointer()
-        .child(shape.interactive("approvals-bell-chamfer"))
         .child(
-            Icon::new(ui::icon(IconName::Bell))
-                .size(ShellMetrics::BELL_ICON)
-                .color(icon_color),
+            NotificationBell::new("approvals-bell", "Approvals", pending)
+                .badge_id("approvals-badge")
+                .urgency(urgency)
+                .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx))),
         )
-        .children(badge.map(|text| {
-            count_badge("approvals-badge", text, cx)
-                .top(ShellMetrics::BELL_BADGE_OFFSET)
-                .right(ShellMetrics::BELL_BADGE_OFFSET)
-        }))
-        .tooltip(|window, cx| Tooltip::new("Approvals").build(window, cx))
-        .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx)))
 }

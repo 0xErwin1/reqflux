@@ -8,7 +8,7 @@
 //! `NavigationMetrics`, nav entries and environment rows as `ListRow`, `Button` and `Input`.
 
 use bolt::composites::{Island, ListRow};
-use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape};
+use bolt::controls::{Button, Input, InputEnter, InputEscape};
 use bolt::primitives::{Chamfer, ChamferRing, Icon, TextVariant};
 use bolt::tokens::{
     Borders, ChamferCut, Fields, HeaderMetrics, Heights, IslandMetrics, MasterListMetrics,
@@ -16,7 +16,7 @@ use bolt::tokens::{
 };
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, InteractiveElement, IntoElement, ParentElement,
-    Role, Stateful, Styled, Window, div, prelude::*,
+    Pixels, Role, Stateful, Styled, Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_core::model::{Id, Workspace};
@@ -537,10 +537,8 @@ fn environment_menu(shell: &Shell, id: Id, window: &Window, cx: &mut Context<She
     )
 }
 
-/// The rename field of the environment `id`, `variables-rename-input`, over its hint.
-// bolt gap: bolt's frameless Input draws its text in the medium weight with no option, so
-// the field draws its focused frame around gpui-component's frameless input, as the tree's
-// rename does.
+/// The rename field of the environment `id`, `variables-rename-input`, over its hint: the
+/// focused frame around `bolt`'s bare input, as the tree's rename does.
 fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
     let rename = shell
         .settings
@@ -576,16 +574,14 @@ fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
         .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
             this.commit_environment_rename(window, cx);
         }))
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_color(colors.strong)
         .child(
-            GpuiInput::new(&rename.input)
+            Input::new(&rename.input)
                 .appearance(false)
-                .bordered(false)
-                .p_0()
-                .flex_1()
-                .min_w_0()
-                .font_family(bolt::fonts::editor_family(cx))
-                .text_size(Fields::TEXT)
-                .text_color(colors.strong),
+                .font_weight(FontWeight::NORMAL)
+                .padding(Pixels::ZERO, Pixels::ZERO)
+                .text_size(Fields::TEXT),
         );
     Some(
         div().flex().flex_col().gap(Spacing::XS).child(field).child(

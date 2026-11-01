@@ -6,14 +6,11 @@
 use bolt::composites::{
     MenuItem as RowItem, menu_row as bolt_menu_row, render_menu_header, render_separator,
 };
-use bolt::primitives::key_label;
-use bolt::tokens::KbdMetrics;
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, InteractiveElement, ParentElement, Role, Styled, Window};
+use gpui::{AnyElement, Context, InteractiveElement, ParentElement, Role, Window};
 use gpui_kit_assets::IconName;
 
 use crate::shell::request::{option_menu, ui};
-use crate::shell::rows::part;
 use crate::shell::sidebar::Sidebar;
 use crate::shell::text_region;
 use crate::shell::tree_drag::{self, DropPlace};
@@ -201,8 +198,7 @@ impl Sidebar {
                 format!("tree-menu-{}", item.slug()),
                 item.label(&node.kind).to_owned(),
                 Some(item.icon()),
-                item.key()
-                    .map(|key| (format!("tree-menu-key-{}", item.slug()), key)),
+                item.key(),
                 item == MenuItem::Delete,
                 move |this: &mut Sidebar, window, cx| this.pick(&id, item, window, cx),
                 cx,
@@ -263,12 +259,12 @@ fn separator(index: usize, cx: &Context<Sidebar>) -> AnyElement {
 }
 
 /// The menu row `id` labeled `label`, after its icon column when `leading` is set, with its key
-/// on the right and in the danger tone when `danger`; a click runs `pick`.
+/// on the right as `<id>-key` and in the danger tone when `danger`; a click runs `pick`.
 fn menu_row(
     id: String,
     label: String,
     leading: Option<Option<IconName>>,
-    key: Option<(String, &'static str)>,
+    key: Option<&'static str>,
     danger: bool,
     pick: impl Fn(&mut Sidebar, &mut Window, &mut Context<Sidebar>) + 'static,
     cx: &mut Context<Sidebar>,
@@ -280,22 +276,11 @@ fn menu_row(
     if danger {
         item = item.danger();
     }
-    let muted = bolt::colors(cx).muted;
+    if let Some(key) = key {
+        item = item.shortcut(key);
+    }
     bolt_menu_row(id, &item, false, cx)
         .aria_label(label)
-        // bolt gap: menu_row names its shortcut `<row id>-key` with no accessible label, while
-        // this menu's keys are `tree-menu-key-<key>` labeled with the key, so the key is
-        // drawn here as menu_row draws it.
-        .children(key.map(|(id, key)| {
-            part(id)
-                .role(Role::Label)
-                .aria_label(key)
-                .flex_shrink_0()
-                .font_family(bolt::fonts::editor_family(cx))
-                .text_size(KbdMetrics::FONT)
-                .text_color(muted)
-                .child(key_label(key))
-        }))
         .on_click(cx.listener(move |this, _event, window, cx| pick(this, window, cx)))
         .into_any_element()
 }

@@ -81,7 +81,7 @@ fn the_folder_menu_follows_the_artboard(cx: &mut TestAppContext) {
     present(cx, "tree-menu-separator-0");
     present(cx, "tree-menu-separator-1");
     for key in ["new-request", "rename", "duplicate", "delete"] {
-        present(cx, &format!("tree-menu-key-{key}"));
+        present(cx, &format!("tree-menu-{key}-key"));
     }
 
     cx.simulate_keystrokes("escape");
@@ -102,7 +102,7 @@ fn the_request_menu_opens_renames_duplicates_moves_and_deletes(cx: &mut TestAppC
     for item in ["open", "rename", "duplicate", "move-to", "delete"] {
         present(cx, &format!("tree-menu-{item}"));
     }
-    present(cx, "tree-menu-key-open");
+    present(cx, "tree-menu-open-key");
     absent(cx, "tree-menu-new-request");
     absent(cx, "tree-menu-new-folder");
     absent(cx, &format!("doc-tab-{HEALTH}"));

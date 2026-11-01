@@ -32,7 +32,7 @@ fn assert_layout(cx: &mut VisualTestContext) {
     for selector in [
         "workspace-name",
         "command-search",
-        "command-search-keycap",
+        "command-search-key",
         "approvals",
     ] {
         bounds(cx, selector);

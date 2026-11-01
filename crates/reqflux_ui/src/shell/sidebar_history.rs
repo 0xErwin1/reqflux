@@ -209,14 +209,14 @@ impl Sidebar {
     }
 }
 
-/// The empty state, `bolt`'s `EmptyState` with the History icon, the title and the
-/// explanation, over the send hint with its keycap.
-// bolt gap: EmptyState's title, text and action keys take no element id and name no
-// accessible node, so the title, text and hint carry their ids on labeled nodes beside it,
-// and the hint draws its action as EmptyState draws one.
+/// The empty state `history-empty`, `bolt`'s `EmptyState` with the History icon, the title
+/// `history-empty-title` and the explanation `history-empty-text`, over the send hint with
+/// its keycap.
+// bolt gap: an EmptyStateAction's label names no accessible node, so the send hint stays a
+// labeled caption beside the state instead of its action.
 fn empty(cx: &App) -> impl IntoElement {
     let colors = bolt::colors(cx);
-    region("history-empty")
+    div()
         .flex_1()
         .flex()
         .flex_col()
@@ -226,22 +226,11 @@ fn empty(cx: &App) -> impl IntoElement {
         .pl(Spacing::XL)
         .pr(Spacing::XL)
         .child(
-            div()
-                .relative()
-                .flex_none()
-                .child(EmptyState::new(ui::icon(IconName::RotateCcwClock), EMPTY_TEXT).title(EMPTY))
-                .child(
-                    text_region("history-empty-title")
-                        .absolute()
-                        .inset_0()
-                        .aria_label(EMPTY),
-                )
-                .child(
-                    text_region("history-empty-text")
-                        .absolute()
-                        .inset_0()
-                        .aria_label(EMPTY_TEXT),
-                ),
+            div().flex_none().child(
+                EmptyState::new(ui::icon(IconName::RotateCcwClock), EMPTY_TEXT)
+                    .title(EMPTY)
+                    .id("history-empty"),
+            ),
         )
         .child(
             ui::role(text_region("history-empty-hint"), TextVariant::Caption, cx)

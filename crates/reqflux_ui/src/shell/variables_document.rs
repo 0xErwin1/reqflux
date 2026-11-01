@@ -14,7 +14,7 @@
 //! `Checkbox`, `Badge`, `Button`, and the section labels of `HeaderMetrics`.
 
 use bolt::Colors;
-use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter as Enter, InputEscape as Escape};
+use bolt::controls::{Button, Checkbox, Input, InputEnter as Enter, InputEscape as Escape};
 use bolt::primitives::{Badge, BadgeTone, Icon, TextVariant};
 use bolt::tokens::{Borders, FontSizes, GridMetrics, HeaderMetrics, ResultMetrics, Spacing};
 use gpui::{
@@ -630,9 +630,9 @@ fn cell(
         && let Some(edit) = shell.cell_edit.as_ref()
     {
         let foreground = bolt::colors(cx).foreground;
-        // bolt gap: bolt's frameless Input draws its text in the medium weight with no
-        // option, so the open cell is gpui-component's frameless input.
         return base
+            .font_family(bolt::fonts::editor_family(cx))
+            .text_color(foreground)
             .on_action(cx.listener(|this, action: &Enter, window, cx| {
                 if action.secondary {
                     this.send_active(window, cx);
@@ -644,16 +644,12 @@ fn cell(
                 this.discard_cell_edit(window, cx);
             }))
             .child(
-                GpuiInput::new(&edit.input)
+                Input::new(&edit.input)
                     .id("variables-cell-input")
                     .appearance(false)
-                    .bordered(false)
-                    .p_0()
-                    .flex_1()
-                    .min_w_0()
-                    .text_size(GridMetrics::FONT)
-                    .font_family(bolt::fonts::editor_family(cx))
-                    .text_color(foreground),
+                    .font_weight(FontWeight::NORMAL)
+                    .padding(Pixels::ZERO, Pixels::ZERO)
+                    .text_size(GridMetrics::FONT),
             );
     }
     base.cursor_text()
@@ -708,8 +704,6 @@ fn enable_box(scope: SecretScope, n: usize, variable: &Variable, cx: &mut Contex
 /// The `stored in` toggle `variables-secret-<n>`: the `file` badge, or the `KEYRING` badge
 /// while the variable is secret, as `variables-stored-<n>`. A click moves the value between
 /// them.
-// bolt gap: an id on Badge names no accessible node, so a labeled wrapper carries
-// `variables-stored-<n>` and the label the automation tree reads.
 fn stored_toggle(
     scope: SecretScope,
     n: usize,
@@ -721,9 +715,11 @@ fn stored_toggle(
     } else {
         ("file", IconName::File)
     };
-    let pill = labeled_row(format!("variables-stored-{n}"), label.to_owned())
-        .flex_none()
-        .child(Badge::new(label, BadgeTone::Neutral).icon(ui::icon(icon_name)));
+    let pill = Badge::new(label, BadgeTone::Neutral)
+        .icon(ui::icon(icon_name))
+        .id(gpui::ElementId::Name(
+            format!("variables-stored-{n}").into(),
+        ));
     part(format!("variables-secret-{n}"))
         .role(Role::CheckBox)
         .aria_label(format!("Keep {} in the keyring", variable.key))

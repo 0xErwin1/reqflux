@@ -417,6 +417,52 @@ fn an_unreadable_stored_height_keeps_the_default(cx: &mut TestAppContext) {
     assert_eq!(request_height(cx), px(306.));
 }
 
+/// The gutter's accessible name and value, as the automation tree reports them.
+fn gutter_node(cx: &mut VisualTestContext) -> (Option<String>, Option<String>) {
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    let snapshot = automation.snapshot();
+    let node = snapshot.nodes.get(SPLIT);
+    (
+        node.and_then(|node| node.label.clone()),
+        node.and_then(|node| node.value.as_ref().map(|value| value.value.clone())),
+    )
+}
+
+/// The request pane's share of the split in percent as the automation tree reports the
+/// gutter's numeric value, `62`.
+fn shown_share(cx: &mut VisualTestContext) -> String {
+    let request = present(cx, "request-area");
+    let response = present(cx, "response");
+    let share = request.size.height / (response.bottom() - request.top()) * 100.0;
+    format!("{}", share.round())
+}
+
+#[gpui::test]
+fn the_gutter_is_named_and_reports_the_request_share(cx: &mut TestAppContext) {
+    let dir = split_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_sent(cx);
+
+    let expected = shown_share(cx);
+    assert_eq!(
+        gutter_node(cx),
+        (
+            Some("Resize request and response".to_owned()),
+            Some(expected.clone())
+        )
+    );
+    drag_split(cx, px(-100.));
+    let moved = shown_share(cx);
+    assert_ne!(moved, expected, "the drag moved the share");
+    assert_eq!(gutter_node(cx).1, Some(moved));
+}
+
 #[gpui::test]
 fn the_response_still_shows_under_the_request(cx: &mut TestAppContext) {
     let dir = split_workspace();

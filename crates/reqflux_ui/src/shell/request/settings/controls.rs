@@ -5,7 +5,7 @@
 
 use bolt::composites::field_row;
 use bolt::controls::Button;
-use bolt::primitives::{Badge as BoltBadge, BadgeTone, SegmentedItem};
+use bolt::primitives::{Badge as BoltBadge, BadgeTone, SegmentedControl, SegmentedItem};
 use bolt::tokens::{ModalMetrics, Spacing};
 use gpui::{
     AnyElement, App, Div, Hsla, ParentElement, Role, SharedString, Stateful, Styled, Window, div,
@@ -68,7 +68,7 @@ pub(super) fn radio_group(
     choices: Vec<SegmentedItem>,
     active: &'static str,
     on_select: impl Fn(&SharedString, &mut Window, &mut App) + 'static,
-) -> Stateful<Div> {
+) -> SegmentedControl {
     control(id, Some(label.into()), false, choices, active, on_select)
 }
 
