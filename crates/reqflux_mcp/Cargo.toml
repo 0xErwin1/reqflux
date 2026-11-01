@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 reqflux_engine.workspace = true
-gpui-mcp-protocol = { git = "https://github.com/themixednuts/gpui-mcp", rev = "eb248ccf43847797b9067c47eeef1dd188dc03a6" }
+gpui-mcp-protocol.workspace = true
 interprocess = { version = "2.4", features = ["tokio"] }
 log.workspace = true
 reqflux_core.workspace = true

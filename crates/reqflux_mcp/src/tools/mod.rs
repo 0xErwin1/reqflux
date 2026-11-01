@@ -564,6 +564,7 @@ async fn settle(client: &BridgeClient) -> bool {
             .call(Operation::WaitForFrame {
                 after_frame_count: pending.completed.frame_count,
                 timeout_ms,
+                presented: false,
             })
             .await
         {

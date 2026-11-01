@@ -23,7 +23,7 @@ names the alternative it rejects and, where relevant, the DBFlux experience behi
 | Scripting | QuickJS through `rquickjs`, with a `pm` API shim and bundled Postman sandbox libraries. |
 | Postman | Import and export of collection v2.1 and environment files. Unsupported fields are preserved, not dropped. |
 | HTTP | `reqwest` with rustls, per-request clients cached by TLS and proxy configuration. |
-| GPUI | Published `gpui-pre` 0.3.7, `gpui-component` 0.7.0 and `gpui-pre-platform` 0.3.7, the newest the UI automation bridge supports; every other dependency tracks its latest release. `gpui-pre` is patched from the `gpui-mcp` git repository at a pinned rev; nothing is vendored. |
+| GPUI | DBFlux's GPUI stack: `gpui-pre` 0.3.9, `gpui-component` 0.7.3, `gpui-pre-platform` 0.3.9 and `gpui-kit-assets` 0.7.3; every other dependency tracks its latest release. `gpui-pre`, `gpui-base`, `gpui-component` and `gpui-pre-linux` are patched, and `gpui-mcp` and `gpui-mcp-protocol` taken, from the DBFlux git repository at one pinned rev; nothing is vendored here. |
 | Crates | Ten crates in a strict one-way dependency order. Only `bolt`, `reqflux_ui` and `reqflux` link GPUI. |
 | Design system | Bolt, copied from DBFlux, in the product-agnostic `bolt` crate. ReqFlux supplies only its accent and its own tokens, so `bolt` can become a shared library without touching ReqFlux's screens. |
 | UI automation | The upstream `gpui-mcp` bridge is always installed. `reqflux mcp` exposes it as `ui_*` tools beside the engine tools, so agents declare one MCP server; the policy covers both, and its `ask` is a prompt in the window. |
@@ -1122,10 +1122,10 @@ Trust model, and what it costs:
   process, and it is the price of having automation always on.
 - Secret values must never be rendered in clear text by default. Secret inputs are masked, and
   the bridge withholds masked and `frame_redacted` text from observers.
-- The bridge, the patched `gpui-pre` and `gpui-mcp-protocol` all come from one `gpui-mcp`
-  rev, set once in the root `Cargo.toml`. Bump it for all of them at once.
-- `gpui-mcp` supports `gpui-pre` 0.3.5 to 0.3.7, which caps ReqFlux at `gpui-component` 0.7.0
-  until upstream supports a newer release.
+- The bridge, `gpui-mcp-protocol` and the patched GPUI crates all come from one DBFlux rev, set
+  once in the root `Cargo.toml`, where DBFlux vendors upstream `gpui-mcp` against its patched
+  `gpui-pre`. Bump it for all of them at once. Until the DBFlux branch is published the URL is a
+  local `file://` repository; then it becomes the published repository at the same rev.
 
 `reqflux mcp` serves these tools itself: `ui_list_targets`, `ui_select_target`, `ui_ping`,
 `ui_tree`, `ui_find`, `ui_element`, `ui_element_bounds`, `ui_wait_for_element`, `ui_click`,
@@ -1185,7 +1185,7 @@ semver build metadata, e.g. `0.1.0-nightly+928b3d5`.
 | User content in text files instead of one SQLite file. | Collections must diff, merge and be reviewed in git. |
 | MCP as a thin layer over the shared engine, in one crate. | DBFlux runs a second driver runtime in the MCP process, coordinates through a shared SQLite file and splits MCP across two overlapping crates. |
 | One UI crate to start. | Six UI crates forced feature forwarding through every one of them and spread the keymap over three crates. |
-| Vendor nothing. | DBFlux carries four patched vendored crates, each with its own refresh procedure. ReqFlux uses published crates plus one git patch of `gpui-pre` from the `gpui-mcp` repository, which upstream maintains. |
+| Vendor nothing. | DBFlux carries four patched vendored crates, each with its own refresh procedure. ReqFlux takes DBFlux's patched GPUI stack and its `gpui-mcp` copy by git rev instead of copying them. |
 | A hard 1000-line limit on source files from day one, with no grandfathering. | DBFlux carries 2,000 to 3,900 line `lib.rs` and `mod.rs` files. |
 | Persistence never depends on governance crates. | `dbflux_storage` depends on `dbflux_approval`. |
 | Docs updated in the same change as the code they describe. | DBFlux still documents a removed hand-rolled MCP transport. |
