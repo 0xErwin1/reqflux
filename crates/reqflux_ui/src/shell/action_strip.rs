@@ -1,17 +1,16 @@
-//! The vertical strip of request actions at the left of the active request: Save, Revert,
-//! Undo, Redo, then the split toggle. Save and Revert are enabled while the active request
-//! has a draft; Undo, Redo and Split stay disabled behind a blocker that swallows hover and
-//! clicks and shows the tooltip.
+//! The vertical strip of request actions at the left of the active request, drawn as DBFlux's
+//! editor action strip: Save, Revert, Undo, Redo, then the split toggle, as inline icon-only
+//! ghost buttons. Save and Revert are enabled while the active request has a draft; Undo,
+//! Redo and Split stay disabled, with their tooltip.
 
+use bolt::controls::Button;
+use bolt::tokens::{Borders, EditorMetrics};
 use bolt_legacy::IconName;
-use bolt_legacy::controls::IconButton;
-use bolt_legacy::tokens::{action_strip, border};
 use gpui::{
-    AnyElement, Context, Div, ElementId, InteractiveElement, IntoElement, ParentElement, Stateful,
-    StatefulInteractiveElement, Styled, div,
+    AnyElement, Context, Div, ElementId, IntoElement, ParentElement, Stateful, Styled, div,
 };
-use gpui_component::tooltip::Tooltip;
 
+use super::request::ui;
 use super::{Shell, region};
 
 /// The actions of the strip: id suffix, icon and label, in order. `None` is the separator.
@@ -36,25 +35,20 @@ pub(super) fn render(
     drafted: bool,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let line = bolt_legacy::colors(cx).line;
+    let line = bolt::colors(cx).line;
     let mut actions: Vec<AnyElement> = Vec::new();
     for action in ACTIONS {
         match action {
-            Some((id, icon, label)) if drafts_only(id) => match active {
-                Some(request) if drafted => {
-                    actions.push(enabled_action(request, id, icon, label, cx).into_any_element())
-                }
-                _ => actions.push(disabled_action(id, icon, label).into_any_element()),
-            },
             Some((id, icon, label)) => {
-                actions.push(disabled_action(id, icon, label).into_any_element())
+                let request = active.filter(|_| drafted && drafts_only(id));
+                actions.push(action_button(id, icon, label, request, cx));
             }
             None => actions.push(
                 div()
                     .flex_none()
-                    .w(action_strip::SEPARATOR)
-                    .h(border::THIN)
-                    .my(action_strip::SEPARATOR_MARGIN)
+                    .w(EditorMetrics::ACTION_STRIP_SEPARATOR_WIDTH)
+                    .h(Borders::THIN)
+                    .my(EditorMetrics::ACTION_STRIP_SEPARATOR_MARGIN_Y)
                     .bg(line)
                     .into_any_element(),
             ),
@@ -62,56 +56,50 @@ pub(super) fn render(
     }
     region("request-actions")
         .flex_none()
-        .w(action_strip::WIDTH)
+        .w(EditorMetrics::ACTION_STRIP_WIDTH)
         .h_full()
         .flex()
         .flex_col()
         .items_center()
-        .gap(action_strip::GAP)
-        .py(action_strip::PADDING_Y)
-        .border_r(border::THIN)
+        .gap(EditorMetrics::ACTION_STRIP_GAP)
+        .pt(EditorMetrics::ACTION_STRIP_PADDING_TOP)
+        .border_r(Borders::THIN)
         .border_color(line)
         .children(actions)
 }
 
-/// An enabled action on the request `request`: the ghost button that saves or reverts its
-/// draft.
-fn enabled_action(
-    request: &str,
+/// The action `id`: enabled on the request `request`, whose draft Save saves and Revert
+/// reverts, else disabled.
+fn action_button(
     id: &str,
     icon: IconName,
     label: &'static str,
+    request: Option<&str>,
     cx: &mut Context<Shell>,
-) -> Div {
-    let request = request.to_owned();
-    let save = id == "save";
-    div().relative().flex_none().child(
-        IconButton::new(format!("request-action-{id}"), icon, label).on_click(cx.listener(
-            move |this, _event, window, cx| {
-                if save {
-                    this.save(&request, window, cx);
-                } else {
-                    this.revert(&request, window, cx);
-                }
-            },
-        )),
+) -> AnyElement {
+    let button = Button::new(
+        ElementId::Name(format!("request-action-{id}").into()),
+        label,
     )
-}
-
-/// A disabled action: the ghost button under a blocker that takes the pointer.
-fn disabled_action(id: &str, icon: IconName, label: &'static str) -> Div {
-    div()
-        .relative()
-        .flex_none()
-        .child(IconButton::new(format!("request-action-{id}"), icon, label))
-        .child(
-            div()
-                .id(ElementId::Name(
-                    format!("request-action-{id}-disabled").into(),
-                ))
-                .absolute()
-                .inset_0()
-                .occlude()
-                .tooltip(move |window, cx| Tooltip::new(label).build(window, cx)),
-        )
+    .icon(ui::icon(icon))
+    .icon_only()
+    .inline()
+    .ghost()
+    .tab_stop(false);
+    match request {
+        Some(request) => {
+            let request = request.to_owned();
+            let save = id == "save";
+            button
+                .on_click(cx.listener(move |this, _event, window, cx| {
+                    if save {
+                        this.save(&request, window, cx);
+                    } else {
+                        this.revert(&request, window, cx);
+                    }
+                }))
+                .into_any_element()
+        }
+        None => button.disabled(true).into_any_element(),
+    }
 }

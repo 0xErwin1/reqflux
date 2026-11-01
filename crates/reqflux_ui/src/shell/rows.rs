@@ -1,17 +1,19 @@
-//! Sidebar tree rows: a guide line per indent level, then the chevron and the collection or
-//! folder icon with the child count on the right, or the method label of a request; then
-//! the name.
+//! Sidebar tree rows, drawn as DBFlux draws its tree: `bolt`'s list row with the selection
+//! bar, a guide line per indent level, then the chevron and the collection or folder icon
+//! with the child count on the right, or the method label of a request; then the name.
 
-use bolt_legacy::tokens::{border, chrome, family, icon, space, text};
-use bolt_legacy::{Chevron, ChevronDirection, Icon, IconName};
+use bolt::composites::ListRow;
+use bolt::primitives::{Icon, TextVariant};
+use bolt::tokens::{Borders, TreeMetrics};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, ParentElement,
     Role, Stateful, Styled, Window, div, prelude::*,
 };
 
-use super::text as text_role;
+use super::request::ui;
 use super::tree_model::{NodeKind, VisibleRow};
-use crate::tokens::{self, method_color};
+use crate::tokens::{self, method_hue};
 
 /// A row element the UI automation tree reports by `id`, with `label` as its text.
 pub(super) fn labeled_row(id: String, label: String) -> Stateful<Div> {
@@ -54,51 +56,40 @@ pub(super) fn tree_row(
     on_toggle: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let brand = bolt_legacy::brand(cx);
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let node = row.node;
+    let indent = bolt::fonts::ui_px(cx, TreeMetrics::INDENT);
+    let guide = bolt::fonts::ui_px(cx, TreeMetrics::GUIDE_OFFSET);
 
-    let mut element = text_role::role(
-        labeled_row(format!("tree-row-{}", node.id), node.label()),
-        text::BODY,
-        cx,
-    )
-    .aria_selected(selected)
-    .group(super::sidebar_edit::ROW_GROUP)
-    .relative()
-    .h(chrome::TREE_ROW)
-    .flex_none()
-    .flex()
-    .items_center()
-    .gap(tokens::TREE_ROW_GAP)
-    .pl(space::MD + chrome::TREE_INDENT * row.depth as f32)
-    .pr(space::MD)
-    .whitespace_nowrap()
-    .hover(|style| style.bg(colors.hover))
-    .children((0..row.depth).map(|level| {
-        part(format!("tree-guide-{}-{level}", node.id))
-            .absolute()
-            .top_0()
-            .bottom_0()
-            .left(tokens::TREE_GUIDE_OFFSET + chrome::TREE_INDENT * level as f32)
-            .w(border::THIN)
-            .bg(colors.line)
-    }));
+    let element = ListRow::new(ElementId::Name(format!("tree-row-{}", node.id).into()))
+        .selected(selected)
+        .selection_bar(true)
+        .build(cx)
+        .role(Role::Label)
+        .aria_label(node.label())
+        .aria_selected(selected)
+        .group(super::sidebar_edit::ROW_GROUP);
+    let mut element = ui::role(element, TextVariant::Body, cx)
+        .h(TreeMetrics::ROW_HEIGHT)
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(TreeMetrics::GAP)
+        .pl(TreeMetrics::PADDING_X + indent * row.depth as f32)
+        .pr(TreeMetrics::PADDING_X)
+        .whitespace_nowrap()
+        .children((0..row.depth).map(|level| {
+            part(format!("tree-guide-{}-{level}", node.id))
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .left(guide + indent * level as f32)
+                .w(Borders::THIN)
+                .bg(colors.line)
+        }));
     if node.is_expandable() {
         element = element.aria_expanded(row.expanded);
-    }
-    if selected {
-        element = element
-            .bg(bolt_legacy::accent_washes(cx).selected_item)
-            .child(
-                div()
-                    .absolute()
-                    .top_0()
-                    .bottom_0()
-                    .left_0()
-                    .w(border::THICK)
-                    .bg(brand.accent_tint),
-            );
     }
 
     let name_color = match (&node.kind, selected) {
@@ -125,23 +116,28 @@ pub(super) fn tree_row(
 
     let element = match &node.kind {
         NodeKind::Request { method } => element
-            .child(div().w(icon::SM).flex_none())
+            .child(div().w(TreeMetrics::CHEVRON).flex_none())
             .child(
                 part(format!("tree-method-{}", node.id))
                     .w(tokens::TREE_METHOD_COLUMN)
                     .flex_none()
                     .overflow_hidden()
-                    .font_family(family::MONO)
+                    .font_family(bolt::fonts::editor_family(cx))
                     .text_size(tokens::METHOD_LABEL_SIZE)
                     .font_weight(FontWeight::BOLD)
-                    .text_color(method_color(method, bolt_legacy::palette(cx)))
+                    .text_color(method_hue(method, cx))
                     .child(method.clone()),
             )
             .child(name),
         NodeKind::Collection | NodeKind::Folder => {
             let (icon_name, icon_color) = match node.kind {
-                NodeKind::Collection => (IconName::Box, brand.accent_tint),
+                NodeKind::Collection => (IconName::Box, tint),
                 NodeKind::Folder | NodeKind::Request { .. } => (IconName::Folder, colors.muted),
+            };
+            let chevron = if row.expanded {
+                IconName::ChevronDown
+            } else {
+                IconName::ChevronRight
             };
             element
                 .child(
@@ -151,26 +147,26 @@ pub(super) fn tree_row(
                             on_toggle(event, window, cx);
                         })
                         .flex_none()
-                        .child(Chevron::new(
-                            if row.expanded {
-                                ChevronDirection::Down
-                            } else {
-                                ChevronDirection::Right
-                            },
-                            colors.muted,
-                        )),
+                        .cursor_pointer()
+                        .child(
+                            Icon::new(ui::icon(chevron))
+                                .size(TreeMetrics::CHEVRON)
+                                .color(colors.muted),
+                        ),
                 )
                 .child(
-                    part(format!("tree-icon-{}", node.id))
-                        .flex_none()
-                        .child(Icon::new(icon_name).size(icon::ITEM).color(icon_color)),
+                    part(format!("tree-icon-{}", node.id)).flex_none().child(
+                        Icon::new(ui::icon(icon_name))
+                            .size(TreeMetrics::ICON)
+                            .color(icon_color),
+                    ),
                 )
                 .child(name)
                 .child(
                     part(format!("tree-count-{}", node.id))
                         .flex_none()
-                        .font_family(family::MONO)
-                        .text_size(tokens::TREE_COUNT_SIZE)
+                        .font_family(bolt::fonts::editor_family(cx))
+                        .text_size(TreeMetrics::META_FONT)
                         .text_color(colors.muted)
                         .children(node.child_count().map(|count| count.to_string())),
                 )

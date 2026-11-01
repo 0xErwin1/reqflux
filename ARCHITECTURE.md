@@ -890,6 +890,21 @@ environments by name; choosing one makes it the window's active environment, and
 click outside closes the menu without a change. Icons are Lucide, from `gpui-kit-assets`,
 installed by the binary as the application's asset source.
 
+The shell chrome draws with DBFlux's `bolt` as DBFlux draws its own: `bolt::colors` roles,
+`ShellMetrics`, `TreeMetrics`, `TabMetrics`, `EditorMetrics` and `NotificationMetrics`, the
+sidebar `Island`, tree rows as `ListRow` with the selection bar, document tabs, `Button`
+(the new-collection button, the row `…` button, the action strip, the delete dialog),
+`Kbd`, `menu_frame`/`menu_row` for the tree menu and the Move to… list, and `Modal` (danger,
+without a header) for the delete dialog. Its sizes are DBFlux's: title bar 44, rail 46 with
+38 px buttons, command search 420 by 30, bell 34 by 30, sidebar 290 with a 46 px header and
+footer, tree rows 26, document tabs 46 and 30, action strip 32 with 24 px buttons, status
+bar 38 with 26 px chips; the Problems panel is DBFlux's notifications popover (46 px header)
+at 540 wide, and the delete dialog is 480 wide with 28 px request rows. The path bar (28)
+and the method column stay ReqFlux tokens. Pieces `bolt` cannot draw yet carry a
+`// bolt gap:` comment: the activity rail, command search, bell and status chip (DBFlux's
+`dbflux_components` composites), ids on `Kbd` and on a `menu_row` shortcut, the frameless
+input padding, and the menu check mark.
+
 The document island shows the open requests as tabs, the path bar of the active one
 (collection, folders, request), and the request, editable as "Drafts and saving" describes:
 an action strip (Save and Revert, live while the request has a draft; Undo, Redo and Split,
@@ -1083,7 +1098,7 @@ ReqFlux never copies it. ReqFlux is moving to it from `crates/bolt_legacy`, its 
   change; `bolt_legacy` gains nothing. A control `bolt` lacks is added to `bolt` in DBFlux.
 
 What follows describes `bolt_legacy`, which still draws every screen outside the request
-and response panes:
+and response panes and the shell chrome:
 
 - **`crates/bolt_legacy`** owns everything product-agnostic: color roles and washes, typography roles,
   spacing, cuts and chrome metrics, the chamfer shape, the theme mapping onto gpui-component,

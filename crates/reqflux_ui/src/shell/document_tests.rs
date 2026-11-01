@@ -174,7 +174,8 @@ fn the_action_strip_holds_five_actions(cx: &mut TestAppContext) {
     let Some(strip) = bounds(cx, "request-actions") else {
         panic!("the action strip is missing");
     };
-    assert_eq!(strip.size.width, px(36.0));
+    // DBFlux's action strip width (`EditorMetrics::ACTION_STRIP_WIDTH`).
+    assert_eq!(strip.size.width, px(32.0));
     let Some(body) = bounds(cx, "document-body") else {
         panic!("the document body is missing");
     };

@@ -13,21 +13,24 @@
 //! subscribes to it and opens the request in a document tab. The sidebar knows nothing of
 //! the documents. Tree edits go the same way: see [`super::sidebar_edit`].
 
-use bolt_legacy::controls::{Field, IconButton};
-use bolt_legacy::tokens::{border, chrome, space, text};
-use bolt_legacy::{IconName, Island};
+use bolt::composites::Island;
+use bolt::controls::Button;
+use bolt::primitives::{Chamfer, Icon, Kbd, TextVariant};
+use bolt::tokens::{Borders, ChamferCut, Fields, HeaderMetrics, ShellMetrics, TreeMetrics};
+use bolt_legacy::IconName;
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
     KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window, actions, div,
     prelude::*,
 };
 
+use super::request::ui;
 use super::rows::{NameDecorator, RowSlots};
 use super::sidebar_edit::{DeletePrompted, TreeCommand, TreeEdit};
 use super::sidebar_history::{HistoryRow, OpenHistory, Panel};
 use super::tree_drag::{self, DragPreview, DraggedRow, DropPlace, Step};
 use super::tree_model::{self, Node, NodeKind, TreeState};
-use super::{region, rows, text as text_role, text_region};
+use super::{region, rows, text_region};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
 
@@ -233,15 +236,15 @@ impl Sidebar {
     /// dragged row inside at the end, and the name shows the drop-target wash and outline
     /// meanwhile.
     fn name_drop(&self, id: &str, cx: &mut Context<Self>) -> NameDecorator {
-        let wash = bolt_legacy::accent_washes(cx).drop_target;
-        let outline = bolt_legacy::brand(cx).accent_tint;
+        let wash = bolt::brand::colors(cx).drop_target;
+        let outline = bolt::brand::brand(cx).accent_tint;
         let id = id.to_owned();
         let on_drop = cx.listener(move |this, dragged: &DraggedRow, window, cx| {
             this.drop_row(&dragged.id, DropPlace::Inside(&id), window, cx);
         });
         Box::new(move |name| {
             name.drag_over::<DraggedRow>(move |style, _, _, _| {
-                style.bg(wash).border(border::THIN).border_color(outline)
+                style.bg(wash).border(Borders::THIN).border_color(outline)
             })
             .on_drop(on_drop)
         })
@@ -280,55 +283,103 @@ impl Focusable for Sidebar {
     }
 }
 
+/// The sidebar header, drawn as DBFlux's: the `COLLECTIONS` label and the icon-only
+/// new-collection button.
 fn header(cx: &mut Context<Sidebar>) -> impl IntoElement {
     region("collections-header")
         .flex_none()
-        .h(tokens::SIDEBAR_HEADER)
+        .h(ShellMetrics::SIDEBAR_HEADER_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pl(space::LG)
-        .pr(space::MD)
+        .gap(HeaderMetrics::PANEL_GAP)
+        .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+        .pr(HeaderMetrics::PANEL_PADDING_RIGHT)
         .child(
-            text_role::role(text_region("collections-label"), text::LABEL, cx).child("COLLECTIONS"),
+            ui::role(text_region("collections-label"), TextVariant::Label, cx)
+                .text_size(ShellMetrics::SECTION_LABEL_FONT)
+                .child("COLLECTIONS"),
         )
         .child(div().flex_1())
         .child(
-            IconButton::new("sidebar-new-collection", IconName::Plus, "New collection")
-                .raised()
+            Button::new("sidebar-new-collection", "New collection")
+                .icon(ui::icon(IconName::Plus))
+                .icon_size(ShellMetrics::SIDEBAR_FILTER_ICON)
+                .icon_only()
+                .tab_stop(false)
                 .on_click(cx.listener(|this, _event, window, cx| {
                     this.command(TreeCommand::NewCollection, window, cx);
                 })),
         )
 }
 
-fn filter() -> impl IntoElement {
+/// The filter field, drawn as DBFlux's sidebar filter: a 30 px chamfered field with the
+/// search icon, the placeholder and the `/` keycap.
+fn filter(cx: &App) -> impl IntoElement {
+    let colors = bolt::colors(cx);
     div()
         .flex_none()
-        .pl(space::MD)
-        .pr(space::MD)
-        .pb(tokens::SIDEBAR_FILTER_BOTTOM)
+        .pl(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
+        .pr(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
+        .pb(ShellMetrics::SIDEBAR_FILTER_PADDING_BOTTOM)
         .child(
-            Field::new("tree-filter", "Filter requests")
-                .leading_icon(IconName::ListFilter)
-                .trailing_keycap("/")
-                .w_full(),
+            region("tree-filter")
+                .relative()
+                .flex()
+                .items_center()
+                .gap(Fields::GAP)
+                .h(Fields::HEIGHT)
+                .pl(Fields::PADDING_X)
+                .pr(Fields::PADDING_X)
+                .text_size(Fields::TEXT)
+                .text_color(colors.muted)
+                .child(
+                    Chamfer::new(ChamferCut::CONTROL)
+                        .fill(colors.background)
+                        .border(colors.line),
+                )
+                .child(
+                    Icon::new(ui::icon(IconName::Search))
+                        .size(ShellMetrics::SIDEBAR_FILTER_ICON)
+                        .color(colors.muted),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .child("Filter requests"),
+                )
+                .child(keycap("tree-filter-keycap", "/")),
         )
 }
 
+/// The keycap `key` that tests and the automation tree find by `id`.
+// bolt gap: Kbd takes no element id; drop the wrapper once it does.
+pub(super) fn keycap(id: &'static str, key: &'static str) -> impl IntoElement {
+    text_region(id)
+        .aria_label(key)
+        .flex_none()
+        .child(Kbd::new(key))
+}
+
+/// The footer, drawn as DBFlux's: 46 px, the counts in muted 12 px text.
 fn footer(tree: &TreeState, moving: Option<&str>, cx: &App) -> impl IntoElement {
     let footer = match moving {
         Some(name) => moving_text(name),
         None => footer_text(tree.request_count(), tree.collection_count()),
     };
-    text_role::role(text_region("sidebar-footer"), text::CAPTION, cx)
+    text_region("sidebar-footer")
         .aria_label(footer.clone())
         .flex_none()
-        .h(tokens::SIDEBAR_FOOTER)
+        .h(ShellMetrics::SIDEBAR_FOOTER_HEIGHT)
         .flex()
         .items_center()
-        .pl(space::LG)
-        .pr(space::LG)
+        .pl(ShellMetrics::SIDEBAR_FOOTER_PADDING_X)
+        .pr(ShellMetrics::SIDEBAR_FOOTER_PADDING_X)
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_size(ShellMetrics::SIDEBAR_FOOTER_FONT)
+        .text_color(bolt::colors(cx).muted)
         .whitespace_nowrap()
         .child(footer)
 }
@@ -368,7 +419,7 @@ impl Render for Sidebar {
                         name: row.node.name.clone(),
                     };
                     let target = id.clone();
-                    let line = bolt_legacy::brand(cx).accent_tint;
+                    let line = bolt::brand::brand(cx).accent_tint;
                     let element = rows::tree_row(row, selected, slots, on_toggle, cx)
                         .when(dimmed, |element| {
                             element.opacity(tokens::TREE_DRAG_SOURCE_OPACITY)
@@ -387,7 +438,9 @@ impl Render for Sidebar {
                             })
                         })
                         .drag_over::<DraggedRow>(move |style, _, _, _| {
-                            style.border_t(border::THICK).border_color(line)
+                            style
+                                .border_t(TreeMetrics::SELECTION_BAR)
+                                .border_color(line)
                         })
                         .on_drop(cx.listener(move |this, dragged: &DraggedRow, window, cx| {
                             this.drop_row(&dragged.id, DropPlace::Before(&target), window, cx);
@@ -407,7 +460,7 @@ impl Render for Sidebar {
                 .collect();
             content = content
                 .child(header(cx))
-                .child(filter())
+                .child(filter(cx))
                 .children(self.error_label(cx))
                 .children(self.delete_prompt(window, cx))
                 .child(
@@ -456,7 +509,7 @@ impl Render for Sidebar {
 
         region("sidebar")
             .flex_none()
-            .w(chrome::SIDEBAR_WIDTH)
+            .w(ShellMetrics::SIDEBAR_WIDTH)
             .h_full()
             .child(Island::new().size_full().child(content))
     }

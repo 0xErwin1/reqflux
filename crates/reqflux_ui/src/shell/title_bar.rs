@@ -3,20 +3,25 @@
 //! environment menu, the workspace selector the workspace menu and the search the command
 //! palette; the bell opens the MCP approvals view and carries the pending count as a badge,
 //! `approvals-badge`.
+//!
+//! The bar, the command search and the bell are drawn as DBFlux's title bar draws them.
+// bolt gap: the command search and the notification bell are DBFlux's `dbflux_components`
+// composites, not `bolt` ones; `command_search` and `bell` go once `bolt` has them.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::badge_text;
-use bolt_legacy::controls::{Field, IconButton};
-use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, rail, space};
-use bolt_legacy::{Icon, IconName};
+use bolt::primitives::{Chamfer, Icon, Kbd, status_diamond};
+use bolt::tokens::{
+    Borders, ButtonMetrics, ChamferCut, Feedback, Fields, IslandMetrics, ShellMetrics, Spacing,
+};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Stateful,
-    Styled, Window, div, prelude::*,
+    StatefulInteractiveElement, Styled, Window, div, prelude::*,
 };
+use gpui_component::tooltip::Tooltip;
 
-use super::diamond::Diamond;
+use super::rail::{badge_text, count_badge};
+use super::request::ui;
 use super::{Shell, environment_menu, region, text_region, workspace_menu};
-use crate::tokens;
 
 /// Shown in place of the environment when none is active.
 pub(crate) const ENVIRONMENT_PLACEHOLDER: &str = "No environment";
@@ -32,8 +37,8 @@ pub(crate) const COMMAND_SEARCH_KEYS: &str = "Ctrl K";
 
 /// The left inset of the title bar: the desk gap, the activity rail and the gap before the
 /// sidebar island, so the workspace selector sits over the sidebar column.
-fn sidebar_column() -> Pixels {
-    chrome::ISLAND_GAP + chrome::RAIL_WIDTH + chrome::ISLAND_GAP
+fn sidebar_column(cx: &App) -> Pixels {
+    IslandMetrics::GAP + bolt::fonts::ui_px(cx, ShellMetrics::RAIL_WIDTH) + IslandMetrics::GAP
 }
 
 /// The accessible label of the environment selector for the active environment `name`.
@@ -51,16 +56,17 @@ fn selector(
     weight: FontWeight,
     cx: &App,
 ) -> Stateful<gpui::Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     region(id)
         .flex()
         .flex_none()
         .items_center()
-        .gap(space::SM)
-        .h(chrome::CONTROL)
-        .pl(field::PADDING_X)
-        .pr(space::SM)
-        .text_size(field::FONT)
+        .gap(Fields::GAP)
+        .h(Fields::HEIGHT)
+        .pl(Fields::PADDING_X)
+        .pr(Spacing::SM)
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_size(Fields::TEXT)
         .children(leading)
         .child(
             text_region(label_id)
@@ -70,8 +76,8 @@ fn selector(
                 .child(label),
         )
         .child(
-            Icon::new(IconName::ChevronDown)
-                .size(icon::SM)
+            Icon::new(ui::icon(IconName::ChevronDown))
+                .size(Fields::CHEVRON)
                 .color(colors.muted),
         )
 }
@@ -79,20 +85,20 @@ fn selector(
 /// The workspace and environment selectors. The zone keeps its content width, so on a narrow
 /// window the command search shrinks instead of covering it.
 fn context(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let mut zone = region("title-context")
         .min_w_0()
         .flex()
         .items_center()
-        .gap(border::THICK);
+        .gap(Borders::MEDIUM);
     match shell.workspace.name() {
         Some(name) => {
             let button = selector(
                 "workspace-selector",
                 "workspace-name",
                 Some(
-                    Icon::new(IconName::LayoutGrid)
-                        .size(icon::MD)
+                    Icon::new(ui::icon(IconName::LayoutGrid))
+                        .size(Fields::LEADING_ICON)
                         .color(colors.muted)
                         .into_any_element(),
                 ),
@@ -101,13 +107,12 @@ fn context(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl Into
                 FontWeight::SEMIBOLD,
                 cx,
             );
-            let separator = colors.line_2;
             zone = zone
                 .child(workspace_selector(shell, button, window, cx))
                 .child(
-                    Icon::new(IconName::ChevronRight)
-                        .size(icon::SM)
-                        .color(separator),
+                    Icon::new(ui::icon(IconName::ChevronRight))
+                        .size(Fields::CHEVRON)
+                        .color(colors.line_2),
                 )
                 .child(environment_selector(shell, window, cx));
         }
@@ -127,7 +132,7 @@ fn context(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl Into
     div()
         .flex_1()
         .flex()
-        .child(div().flex().pl(sidebar_column()).child(zone))
+        .child(div().flex().pl(sidebar_column(cx)).child(zone))
 }
 
 /// The workspace selector `button`, with the workspace menu under it while open.
@@ -162,11 +167,11 @@ fn environment_selector(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let name = shell.environment_name();
     let (diamond, label, color, weight) = match &name {
         Some(name) => (
-            bolt_legacy::brand(cx).accent_tint,
+            bolt::brand::brand(cx).accent_tint,
             name.clone(),
             colors.strong,
             FontWeight::SEMIBOLD,
@@ -181,7 +186,7 @@ fn environment_selector(
     let button = selector(
         "environment-selector",
         "environment-name",
-        Some(Diamond::new(diamond).into_any_element()),
+        Some(status_diamond(diamond, Feedback::STATUS_DIAMOND).into_any_element()),
         label,
         color,
         weight,
@@ -205,59 +210,118 @@ fn environment_selector(
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
     region("title-bar")
         .flex_none()
-        .h(chrome::TITLE_BAR)
+        .h(ShellMetrics::TITLE_BAR_HEIGHT)
         .w_full()
         .flex()
         .items_center()
         .child(context(shell, window, cx))
-        .child(
-            div()
-                .id("command-search-button")
-                .w(tokens::COMMAND_SEARCH_WIDTH)
-                .flex_shrink(1.0)
-                .min_w_0()
-                .cursor_pointer()
-                .on_click(cx.listener(|this, _event, window, cx| this.open_palette(window, cx)))
-                .child(
-                    Field::new("command-search", COMMAND_SEARCH)
-                        .leading_icon(IconName::Search)
-                        .trailing_keycap(COMMAND_SEARCH_KEYS)
-                        .w_full(),
-                ),
-        )
+        .child(command_search(cx))
         .child(
             div().flex_1().min_w_0().flex().justify_end().child(
                 div()
-                    .pr(space::MD)
+                    .pr(ShellMetrics::TITLE_BAR_PADDING_X)
                     .child(bell(shell.approvals.pending(), cx)),
             ),
         )
 }
 
-/// The approvals bell, `approvals`, with the pending count on its badge.
-fn bell(pending: usize, cx: &mut Context<Shell>) -> impl IntoElement {
-    let brand = bolt_legacy::brand(cx);
-    let badge = badge_text(Some(pending)).map(|count| {
-        text_region("approvals-badge")
-            .aria_label(count.clone())
-            .absolute()
-            .top(rail::BADGE_INSET)
-            .right(rail::BADGE_INSET)
-            .pl(rail::BADGE_PADDING_X)
-            .pr(rail::BADGE_PADDING_X)
-            .font_family(family::INTERFACE)
-            .text_size(rail::BADGE_FONT)
-            .line_height(rail::BADGE_LINE_HEIGHT)
-            .font_weight(FontWeight::BOLD)
-            .text_color(brand.on_accent)
-            .child(Chamfer::new(cut::KEYCAP).fill(brand.accent))
-            .child(div().relative().child(count))
-    });
-    div()
+/// The command search, `command-search`: a trigger, not an editor, that opens the command
+/// palette. DBFlux's: 420 by 30 px, cut 6, the well fill with a line border, the search icon,
+/// the placeholder and the palette's keys as one keycap.
+fn command_search(cx: &mut Context<Shell>) -> impl IntoElement {
+    let colors = bolt::colors(cx);
+    let shape = Chamfer::new(ChamferCut::CONTROL)
+        .fill(colors.background)
+        .border(colors.line)
+        .fill_hover(colors.raised)
+        .fill_active(colors.raised)
+        .interactive("command-search-chamfer");
+    region("command-search")
+        .role(Role::Button)
+        .aria_label(COMMAND_SEARCH)
         .relative()
+        .flex()
+        .flex_shrink(1.0)
+        .min_w_0()
+        .w(ShellMetrics::COMMAND_SEARCH_WIDTH)
+        .items_center()
+        .gap(ShellMetrics::COMMAND_SEARCH_GAP)
+        .h(ShellMetrics::COMMAND_SEARCH_HEIGHT)
+        .pl(ShellMetrics::COMMAND_SEARCH_PADDING_X)
+        .pr(ShellMetrics::COMMAND_SEARCH_PADDING_X)
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_size(ShellMetrics::COMMAND_SEARCH_FONT)
+        .text_color(colors.muted)
+        .cursor_pointer()
+        .child(shape)
         .child(
-            IconButton::new("approvals", IconName::Bell, "Approvals")
-                .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx))),
+            Icon::new(ui::icon(IconName::Search))
+                .size(ShellMetrics::COMMAND_SEARCH_ICON)
+                .color(colors.muted),
         )
-        .children(badge)
+        .child(
+            div()
+                .flex_1()
+                .min_w_0()
+                .overflow_hidden()
+                .whitespace_nowrap()
+                .text_ellipsis()
+                .child(COMMAND_SEARCH),
+        )
+        // bolt gap: Kbd takes no element id; the wrapper keeps `command-search-keycap`.
+        .child(
+            text_region("command-search-keycap")
+                .aria_label(COMMAND_SEARCH_KEYS)
+                .flex_none()
+                .child(Kbd::new(COMMAND_SEARCH_KEYS)),
+        )
+        .on_click(cx.listener(|this, _event, window, cx| this.open_palette(window, cx)))
+}
+
+/// The approvals bell, `approvals`, drawn as DBFlux's notification bell: a muted ghost button
+/// with nothing pending, else on the tint wash with a tint icon and the pending count on its
+/// badge.
+fn bell(pending: usize, cx: &mut Context<Shell>) -> impl IntoElement {
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
+    let badge = badge_text(pending);
+    let (shape, icon_color) = match badge {
+        None => (
+            Chamfer::new(ChamferCut::CONTROL)
+                .fill_hover(colors.raised)
+                .fill_active(colors.raised),
+            colors.muted,
+        ),
+        Some(_) => (
+            Chamfer::new(ChamferCut::CONTROL)
+                .fill(tint.opacity(ButtonMetrics::SOFT_FILL_REST))
+                .fill_hover(tint.opacity(ButtonMetrics::SOFT_FILL_HOVER))
+                .fill_active(tint.opacity(ButtonMetrics::SOFT_FILL_PRESSED)),
+            tint,
+        ),
+    };
+    region("approvals")
+        .role(Role::Button)
+        .aria_label("Approvals")
+        .relative()
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .w(ShellMetrics::BELL_WIDTH)
+        .h(ShellMetrics::BELL_HEIGHT)
+        .cursor_pointer()
+        .child(shape.interactive("approvals-bell-chamfer"))
+        .child(
+            Icon::new(ui::icon(IconName::Bell))
+                .size(ShellMetrics::BELL_ICON)
+                .color(icon_color),
+        )
+        .children(badge.map(|text| {
+            count_badge("approvals-badge", text, cx)
+                .top(ShellMetrics::BELL_BADGE_OFFSET)
+                .right(ShellMetrics::BELL_BADGE_OFFSET)
+        }))
+        .tooltip(|window, cx| Tooltip::new("Approvals").build(window, cx))
+        .on_click(cx.listener(|this, _event, window, cx| this.open_approvals(window, cx)))
 }

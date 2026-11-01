@@ -3,18 +3,21 @@
 //! apart by separators, with the key of each item that has one. Move to… turns the menu
 //! into the list of collections and folders the row can move into.
 
-use bolt_legacy::tokens::{border, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::composites::{
+    MenuItem as RowItem, menu_row as bolt_menu_row, render_menu_header, render_separator,
+};
+use bolt::primitives::key_label;
+use bolt::tokens::KbdMetrics;
+use bolt_legacy::IconName;
 use gpui::prelude::*;
-use gpui::{AnyElement, Context, InteractiveElement, ParentElement, Role, Styled, Window, div};
+use gpui::{AnyElement, Context, InteractiveElement, ParentElement, Role, Styled, Window};
 
-use crate::shell::request::option_menu;
-use crate::shell::rows::{labeled_row, part};
+use crate::shell::request::{option_menu, ui};
+use crate::shell::rows::part;
 use crate::shell::sidebar::Sidebar;
+use crate::shell::text_region;
 use crate::shell::tree_drag::{self, DropPlace};
 use crate::shell::tree_model::{Node, NodeKind};
-use crate::shell::{text as text_role, text_region};
-use crate::tokens;
 
 /// What the open menu shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,24 +214,17 @@ impl Sidebar {
     fn move_items(&self, node: &Node, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let parent = self.parent(&node.id);
         let targets = destinations(self.roots(), &node.id, parent.as_deref());
-        let header = text_role::role(text_region("tree-move-header"), text::LABEL, cx)
-            .flex()
-            .items_center()
-            .h(tokens::TREE_MENU_ITEM)
-            .pl(tokens::TREE_MENU_INSET)
-            .pr(tokens::TREE_MENU_INSET)
-            .child("Move to")
+        let header = text_region("tree-move-header")
+            .aria_label("Move to")
+            .child(render_menu_header(&RowItem::header("Move to"), cx))
             .into_any_element();
         let mut items = vec![header];
         if targets.is_empty() {
+            let empty = RowItem::new("No other collection or folder").disabled();
             items.push(
-                text_role::role(text_region("tree-move-empty"), text::CAPTION, cx)
-                    .flex()
-                    .items_center()
-                    .h(tokens::TREE_MENU_ITEM)
-                    .pl(tokens::TREE_MENU_INSET)
-                    .pr(tokens::TREE_MENU_INSET)
-                    .child("No other collection or folder")
+                bolt_menu_row("tree-move-empty", &empty, false, cx)
+                    .role(Role::Label)
+                    .aria_label("No other collection or folder")
                     .into_any_element(),
             );
         }
@@ -260,12 +256,9 @@ impl Sidebar {
 
 /// The separator `tree-menu-separator-<index>` between two groups of the menu.
 fn separator(index: usize, cx: &Context<Sidebar>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    part(format!("tree-menu-separator-{index}"))
-        .flex_none()
-        .my(space::HALF)
-        .h(border::THIN)
-        .bg(colors.line)
+    let selector = format!("tree-menu-separator-{index}");
+    render_separator(cx)
+        .debug_selector(move || selector)
         .into_any_element()
 }
 
@@ -280,33 +273,27 @@ fn menu_row(
     pick: impl Fn(&mut Sidebar, &mut Window, &mut Context<Sidebar>) + 'static,
     cx: &mut Context<Sidebar>,
 ) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    text_role::role(labeled_row(id, label.clone()), text::BODY, cx)
-        .role(Role::MenuItem)
-        .flex()
-        .items_center()
-        .gap(space::MD)
-        .h(tokens::TREE_MENU_ITEM)
-        .pl(tokens::TREE_MENU_INSET)
-        .pr(tokens::TREE_MENU_INSET)
-        .cursor_pointer()
-        .hover(|style| style.bg(colors.hover))
-        .when(danger, |row| row.text_color(colors.danger))
-        .children(leading.map(|name| {
-            div()
-                .flex_none()
-                .w(icon::MD)
-                .children(name.map(|name| Icon::new(name).size(icon::MD).color(colors.muted)))
-        }))
-        .child(div().flex_1().min_w_0().overflow_hidden().child(label))
+    let mut item = RowItem::new(label.clone());
+    if let Some(Some(name)) = leading {
+        item = item.icon(ui::icon(name));
+    }
+    if danger {
+        item = item.danger();
+    }
+    let muted = bolt::colors(cx).muted;
+    bolt_menu_row(id, &item, false, cx)
+        .aria_label(label)
+        // bolt gap: menu_row draws its shortcut without an element id, so the key is drawn
+        // here as menu_row draws it; pass it as `MenuItem::shortcut` once that takes an id.
         .children(key.map(|(id, key)| {
-            text_role::role(
-                part(id).role(Role::Label).aria_label(key),
-                text::KEY_HINT,
-                cx,
-            )
-            .flex_none()
-            .child(key)
+            part(id)
+                .role(Role::Label)
+                .aria_label(key)
+                .flex_shrink_0()
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(KbdMetrics::FONT)
+                .text_color(muted)
+                .child(key_label(key))
         }))
         .on_click(cx.listener(move |this, _event, window, cx| pick(this, window, cx)))
         .into_any_element()

@@ -1,22 +1,20 @@
-//! A context menu: one row per option, drawn above the islands over a backdrop that closes
-//! it on a click outside. Escape closes it too. The context menus of a tree row and of an
-//! environment are this menu, opened at the pointer by [`render_at`]; the request's pane
-//! menus moved to `bolt` (see `request::menu`), and these follow when their screens do.
+//! A context menu opened at the pointer: `bolt`'s menu frame and menu rows, drawn above the
+//! islands over a backdrop that closes it on a click outside. Escape closes it too. The
+//! context menus of a tree row and of an environment are this menu, opened by
+//! [`render_at`]; the request's pane menus, anchored under their trigger, are
+//! `request::menu`.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, cut, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::composites::{MenuItem, menu_frame, menu_row};
 use gpui::{
-    AnyElement, Context, Div, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
-    MouseButton, ParentElement, Pixels, Point, Role, Stateful, Styled, Window, anchored, deferred,
-    div, prelude::*,
+    AnyElement, Context, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
+    ParentElement, Pixels, Point, Role, Styled, Window, anchored, deferred, div, prelude::*,
 };
 
-use crate::shell::rows::labeled_row;
-use crate::shell::{region, text as text_role};
+use crate::shell::region;
 use crate::tokens;
 
-/// The option row `id` named `name`, checked when `selected`; a click runs `pick`.
+/// The option row `id` named `name`, highlighted when `selected`; a click runs `pick`.
+// bolt gap: menu_row has no check mark, so the selected option shows the highlight only.
 pub(in crate::shell) fn option<V: 'static>(
     id: String,
     name: String,
@@ -24,77 +22,34 @@ pub(in crate::shell) fn option<V: 'static>(
     pick: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
-    text_role::role(labeled_row(id, name.clone()), text::BODY, cx)
-        .role(Role::MenuItem)
+    menu_row(id, &MenuItem::new(name.clone()), selected, cx)
+        .aria_label(name)
         .aria_selected(selected)
-        .flex()
-        .items_center()
-        .gap(space::MD)
-        .h(tokens::AUTH_OPTION)
-        .pl(space::MD)
-        .pr(space::MD)
-        .cursor_pointer()
-        .hover(|style| style.bg(colors.hover))
-        .when(selected, |row| {
-            row.bg(bolt_legacy::accent_washes(cx).selected_item)
-                .text_color(colors.strong)
-        })
-        .child(div().flex_1().min_w_0().overflow_hidden().child(name))
-        .when(selected, |row| {
-            row.child(Icon::new(IconName::Check).size(icon::MD).color(tint))
-        })
         .on_click(cx.listener(move |this, _event, window, cx| pick(this, window, cx)))
         .into_any_element()
 }
 
-/// The open context menu `id` of `options` with its top-left corner at `position`, in window
+/// The open context menu `id` of `rows` with its top-left corner at `position`, in window
 /// coordinates, moved back inside the window when it would leave it. Opened at the pointer,
 /// as DBFlux does: a right click passes the click point, a `…` button the click on it.
+/// Escape and a click on its `backdrop` run `close`.
 pub(in crate::shell) fn render_at<V: 'static>(
-    ids: (&'static str, &'static str),
+    (id, backdrop): (&'static str, &'static str),
     position: Point<Pixels>,
     focus: &FocusHandle,
-    options: Vec<AnyElement>,
+    rows: Vec<AnyElement>,
     close: fn(&mut V, &mut Window, &mut Context<V>),
     window: &Window,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let (menu, backdrop) = parts(ids, focus, options, close, window, cx);
-    div()
-        .child(backdrop)
-        .child(
-            deferred(anchored().position(position).snap_to_window().child(menu)).with_priority(2),
-        )
-        .into_any_element()
-}
-
-/// The menu `id` and its full-window `backdrop`, drawn under the menu.
-fn parts<V: 'static>(
-    (id, backdrop): (&'static str, &'static str),
-    focus: &FocusHandle,
-    options: Vec<AnyElement>,
-    close: fn(&mut V, &mut Window, &mut Context<V>),
-    window: &Window,
-    cx: &mut Context<V>,
-) -> (Stateful<Div>, AnyElement) {
-    let colors = bolt_legacy::colors(cx);
-    let menu = region(id)
+    let menu = menu_frame(cx)
+        .id(id)
+        .debug_selector(move || id.to_owned())
         .role(Role::Menu)
         .track_focus(focus)
         .occlude()
-        .relative()
         .w(tokens::AUTH_MENU_WIDTH)
-        .py(space::HALF)
-        .flex()
-        .flex_col()
-        .child(
-            Chamfer::new(cut::OVERLAY)
-                .fill(colors.raised)
-                .edge(colors.line_2, border::THIN),
-        )
-        .children(options)
+        .children(rows)
         .on_key_down(cx.listener(move |this, event: &KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
                 close(this, window, cx);
@@ -108,6 +63,10 @@ fn parts<V: 'static>(
             MouseButton::Left,
             cx.listener(move |this, _event, window, cx| close(this, window, cx)),
         );
-    let backdrop = deferred(anchored().position(Point::default()).child(backdrop)).with_priority(1);
-    (menu, backdrop.into_any_element())
+    div()
+        .child(deferred(anchored().position(Point::default()).child(backdrop)).with_priority(1))
+        .child(
+            deferred(anchored().position(position).snap_to_window().child(menu)).with_priority(2),
+        )
+        .into_any_element()
 }

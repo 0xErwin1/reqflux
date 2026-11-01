@@ -8,19 +8,19 @@
 
 use std::collections::HashSet;
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, chrome, cut, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape, InputState};
+use bolt::primitives::{Chamfer, TextVariant};
+use bolt::tokens::{ChamferCut, Fields, HeaderMetrics, Spacing, TreeMetrics};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, ParentElement,
-    Pixels, Point, Role, Styled, Window, prelude::*,
+    Pixels, Point, Styled, Window, div, prelude::*,
 };
-use gpui_component::input::{Enter, Escape, Input, InputState};
 
-use super::rows::part;
+use super::request::ui;
 use super::sidebar::Sidebar;
 use super::tree_model::Node;
-use super::{region, text as text_role, text_region};
+use super::{region, text_region};
 use crate::tokens;
 
 mod delete_dialog;
@@ -415,38 +415,42 @@ impl Sidebar {
     /// The rename field over the name of the row `id`, when it is open there.
     pub(super) fn rename_field(&self, id: &str, cx: &mut Context<Self>) -> Option<AnyElement> {
         let rename = self.edit.rename.as_ref().filter(|rename| rename.id == id)?;
-        let colors = bolt_legacy::colors(cx);
+        let colors = bolt::colors(cx);
         Some(
             region("tree-rename-input")
-                .role(Role::TextInput)
+                .role(gpui::Role::TextInput)
                 .relative()
                 .flex_1()
                 .min_w_0()
-                .h(chrome::TREE_ROW)
+                .h(TreeMetrics::ROW_HEIGHT)
                 .flex()
                 .items_center()
-                .pl(space::HALF)
-                .pr(space::HALF)
+                .pl(Spacing::XXS)
+                .pr(Spacing::XXS)
                 .child(
-                    Chamfer::new(cut::CONTROL)
+                    Chamfer::new(ChamferCut::CONTROL)
                         .fill(colors.background)
-                        .edge(colors.line, border::THIN),
+                        .border(colors.line),
                 )
-                .on_action(cx.listener(|this, _: &Enter, window, cx| {
+                .on_action(cx.listener(|this, _: &InputEnter, window, cx| {
                     this.commit_rename(window, cx);
                 }))
-                .on_action(cx.listener(|this, _: &Escape, window, cx| {
+                .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                     this.cancel_rename(window, cx);
                 }))
                 .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
                     this.commit_rename(window, cx);
                 }))
+                // bolt gap: bolt's Input without its appearance keeps gpui-component's padding
+                // and text size, so the name would move from where the row shows it.
                 .child(
-                    Input::new(&rename.input)
+                    GpuiInput::new(&rename.input)
                         .appearance(false)
                         .bordered(false)
+                        .p_0()
                         .flex_1()
                         .min_w_0()
+                        .text_size(TreeMetrics::FONT)
                         .text_color(colors.strong),
                 )
                 .into_any_element(),
@@ -457,14 +461,15 @@ impl Sidebar {
     pub(super) fn rename_hint_row(&self, id: &str, depth: usize, cx: &App) -> Option<AnyElement> {
         let rename = self.edit.rename.as_ref().filter(|rename| rename.id == id)?;
         let hint = rename_hint(rename.created);
+        let indent = bolt::fonts::ui_px(cx, TreeMetrics::INDENT) * depth as f32;
         Some(
-            text_role::role(text_region("tree-rename-hint"), text::CAPTION, cx)
+            ui::role(text_region("tree-rename-hint"), TextVariant::Caption, cx)
                 .aria_label(hint)
                 .flex_none()
-                .pl(space::MD + chrome::TREE_INDENT * depth as f32 + tokens::TREE_HINT_OFFSET)
-                .pr(space::MD)
-                .pt(border::THICK)
-                .pb(space::XS)
+                .pl(TreeMetrics::PADDING_X + indent + tokens::TREE_HINT_OFFSET)
+                .pr(TreeMetrics::PADDING_X)
+                .pt(TreeMetrics::SELECTION_BAR)
+                .pb(Spacing::XS)
                 .child(hint)
                 .into_any_element(),
         )
@@ -479,28 +484,30 @@ impl Sidebar {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
-        let colors = bolt_legacy::colors(cx);
         let id = node.id.clone();
-        let button = part(format!("tree-row-menu-{id}"))
-            .role(Role::Button)
-            .aria_label("Actions")
+        let button = div()
             .flex_none()
-            .cursor_pointer()
             .when(!selected, |button| {
                 button
                     .invisible()
                     .group_hover(ROW_GROUP, |style| style.visible())
             })
             .child(
-                Icon::new(IconName::Ellipsis)
-                    .size(icon::SM)
-                    .color(colors.muted),
-            )
-            .on_click(
-                cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
-                    cx.stop_propagation();
-                    this.open_menu(&id, event.position(), window, cx);
-                }),
+                Button::new(
+                    gpui::ElementId::Name(format!("tree-row-menu-{id}").into()),
+                    "Actions",
+                )
+                .icon(ui::icon(IconName::Ellipsis))
+                .icon_only()
+                .inline()
+                .ghost()
+                .tab_stop(false)
+                .on_click(cx.listener(
+                    move |this, event: &gpui::ClickEvent, window, cx| {
+                        cx.stop_propagation();
+                        this.open_menu(&id, event.position(), window, cx);
+                    },
+                )),
             )
             .into_any_element();
         let mut actions = vec![button];
@@ -513,14 +520,14 @@ impl Sidebar {
     /// The error of the last failed operation, `sidebar-error`, in the danger tone.
     pub(super) fn error_label(&self, cx: &App) -> Option<AnyElement> {
         let error = self.edit.error.clone()?;
-        let colors = bolt_legacy::colors(cx);
+        let colors = bolt::colors(cx);
         Some(
-            text_role::role(text_region("sidebar-error"), text::CAPTION, cx)
+            ui::role(text_region("sidebar-error"), TextVariant::Caption, cx)
                 .aria_label(error.clone())
                 .flex_none()
-                .pl(space::LG)
-                .pr(space::LG)
-                .pb(space::SM)
+                .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+                .pr(HeaderMetrics::PANEL_PADDING_LEFT)
+                .pb(Fields::GAP)
                 .text_color(colors.danger)
                 .child(error)
                 .into_any_element(),

@@ -117,10 +117,6 @@ pub(crate) const TREE_COUNT_SIZE: Pixels = px(11.0);
 /// The gap between the parts of a tree row.
 pub(crate) const TREE_ROW_GAP: Pixels = px(7.0);
 
-/// Where the guide line of the first indent level sits from the left edge of a tree row; each
-/// deeper level adds `chrome::TREE_INDENT`.
-pub(crate) const TREE_GUIDE_OFFSET: Pixels = px(19.0);
-
 /// The height of the sidebar header that holds `COLLECTIONS` and the new-request button.
 pub(crate) const SIDEBAR_HEADER: Pixels = px(46.0);
 
@@ -204,9 +200,6 @@ pub(crate) fn approval_keycap_on_accent() -> Hsla {
     hex_alpha(0xFFFFFF, 0.14)
 }
 
-/// The width of the command search field at the center of the title bar.
-pub(crate) const COMMAND_SEARCH_WIDTH: Pixels = px(420.0);
-
 /// The side of the environment diamond in the title bar.
 pub(crate) const ENVIRONMENT_DIAMOND: Pixels = px(7.0);
 
@@ -229,14 +222,8 @@ pub(crate) const EMPTY_STATE_WIDTH: Pixels = px(420.0);
 /// The width of the Auth pane type menu.
 pub(crate) const AUTH_MENU_WIDTH: Pixels = px(240.0);
 
-/// The height of a row of the Auth pane type menu.
-pub(crate) const AUTH_OPTION: Pixels = px(32.0);
-
 /// The height of the document path bar under the tab row.
 pub(crate) const PATH_BAR: Pixels = px(28.0);
-
-/// The horizontal padding of the document path bar.
-pub(crate) const PATH_BAR_PADDING_X: Pixels = px(14.0);
 
 /// The side of the chevron between path bar segments.
 pub(crate) const PATH_SEPARATOR: Pixels = px(10.0);
@@ -384,21 +371,9 @@ pub(crate) const RESPONSE_PROGRESS_PERIOD: Duration = Duration::from_millis(1400
 /// The opacity of the previous response while a new send is in flight.
 pub(crate) const RESPONSE_DIMMED: f32 = 0.62;
 
-/// The opacity of the danger wash behind the Problems chip while the config did not load.
-pub(crate) const PROBLEMS_CHIP_WASH: f32 = 0.12;
-
-/// The width of the Problems panel and the height of its header.
+/// The width of the Problems panel (status-bar/02); the rest of it is DBFlux's notifications
+/// popover (`bolt::tokens::NotificationMetrics`).
 pub(crate) const PROBLEMS_PANEL_WIDTH: Pixels = px(540.0);
-pub(crate) const PROBLEMS_HEADER: Pixels = px(44.0);
-
-/// The text size of the Problems panel: its rows, the count in the header, and a row's
-/// location and message.
-pub(crate) const PROBLEMS_TEXT: Pixels = px(12.5);
-pub(crate) const PROBLEMS_COUNT_TEXT: Pixels = px(11.5);
-pub(crate) const PROBLEMS_DETAIL_TEXT: Pixels = px(12.0);
-
-/// The opacity of the danger wash behind the config error row.
-pub(crate) const PROBLEMS_ERROR_WASH: f32 = 0.05;
 
 /// `color` at opacity `alpha`.
 pub(crate) fn wash(color: Hsla, alpha: f32) -> Hsla {
@@ -436,28 +411,14 @@ pub(crate) const PALETTE_METHOD_COLUMN: Pixels = px(44.0);
 /// The square that holds the icon of the palette's empty and no-match states.
 pub(crate) const PALETTE_EMPTY_ICON_BOX: Pixels = px(40.0);
 
-/// The height of a tree row menu item (design/tree-editing/01-context-menu-modal.html).
-pub(crate) const TREE_MENU_ITEM: Pixels = px(30.0);
-/// The horizontal padding of a tree row menu item.
-pub(crate) const TREE_MENU_INSET: Pixels = px(14.0);
-/// How far the rename hint under a tree row starts past the row's indent.
+/// How far the rename hint under a tree row starts past the row's indent
+/// (design/tree-editing/01-context-menu-modal.html).
 pub(crate) const TREE_HINT_OFFSET: Pixels = px(20.0);
 /// The opacity of the tree row being dragged.
 pub(crate) const TREE_DRAG_SOURCE_OPACITY: f32 = 0.4;
-/// The width of the tree's delete dialog.
-pub(crate) const TREE_DIALOG_WIDTH: Pixels = px(460.0);
-/// The distance from the window top to the tree's delete dialog.
+/// The distance from the window top to the tree's delete dialog; the dialog itself is
+/// `bolt`'s modal.
 pub(crate) const TREE_DIALOG_TOP: Pixels = px(250.0);
-/// The horizontal padding of the tree's delete dialog.
-pub(crate) const TREE_DIALOG_INSET: Pixels = px(22.0);
-/// The top padding of the tree's delete dialog.
-pub(crate) const TREE_DIALOG_TOP_INSET: Pixels = px(20.0);
-/// The bottom padding of the tree's delete dialog.
-pub(crate) const TREE_DIALOG_BOTTOM_INSET: Pixels = px(18.0);
-/// The height of a request row in the tree's delete dialog.
-pub(crate) const TREE_DIALOG_ROW: Pixels = px(24.0);
-/// The gap above the buttons of the tree's delete dialog.
-pub(crate) const TREE_DIALOG_ACTIONS_GAP: Pixels = px(18.0);
 
 /// The width Send and Cancel share, so the request line keeps its layout while a send is in
 /// flight: the wider of the two, Send with its icon and `Ctrl ↵` keycap, with room to spare.

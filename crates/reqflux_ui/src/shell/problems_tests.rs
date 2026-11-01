@@ -179,7 +179,9 @@ fn a_config_that_does_not_load_is_a_danger_problem(cx: &mut TestAppContext) {
         chip.origin.y - px(12.0),
         "the panel opens above the chip"
     );
-    assert_eq!(present(cx, "problems-header").size.height, px(44.0));
+    // The header of DBFlux's notifications popover, `NotificationMetrics::HEADER_HEIGHT`
+    // (was 44).
+    assert_eq!(present(cx, "problems-header").size.height, px(46.0));
     for (id, text) in [
         ("problems-title", "Problems"),
         ("problems-count", "1 error"),

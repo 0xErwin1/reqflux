@@ -4,15 +4,17 @@
 //! (`empty-recent-<n>`), over the reason there is none, `document-message`, which keeps the
 //! `reqflux <directory>` hint as secondary text.
 
+use bolt::primitives::TextVariant;
+use bolt::tokens::{ShellMetrics, Spacing};
 use bolt_legacy::IconName;
-use bolt_legacy::tokens::{space, text};
 use gpui::{Context, IntoElement, ParentElement, Styled, div};
 
+use super::request::ui;
 use super::workspace_menu::{
     Action, NEW_WORKSPACE, NEW_WORKSPACE_IN_FOLDER, OPEN_FOLDER, action_row, error_label,
     is_current, recent_row,
 };
-use super::{Shell, region, text as text_role, text_region};
+use super::{Shell, region, text_region};
 
 pub(super) fn render(shell: &Shell, message: String, cx: &mut Context<Shell>) -> impl IntoElement {
     let current = shell.workspace_path.as_deref();
@@ -20,7 +22,7 @@ pub(super) fn render(shell: &Shell, message: String, cx: &mut Context<Shell>) ->
         .w(crate::tokens::EMPTY_STATE_WIDTH)
         .flex()
         .flex_col()
-        .gap(space::SM)
+        .gap(Spacing::SM)
         .child(action_row(
             "empty-open",
             IconName::Folder,
@@ -48,9 +50,12 @@ pub(super) fn render(shell: &Shell, message: String, cx: &mut Context<Shell>) ->
     }
     if !shell.recents.is_empty() {
         let mut recents = div().flex().flex_col().child(
-            text_role::role(div(), text::LABEL, cx)
-                .pl(space::MD)
-                .py(space::HALF)
+            ui::role(div(), TextVariant::Label, cx)
+                .text_size(ShellMetrics::SECTION_LABEL_FONT)
+                .pl(ShellMetrics::CARD_PADDING_X)
+                .pr(ShellMetrics::CARD_PADDING_X)
+                .pt(ShellMetrics::CARD_LABEL_PADDING_TOP)
+                .pb(ShellMetrics::CARD_LABEL_PADDING_BOTTOM)
                 .child("RECENT"),
         );
         for (index, recent) in shell.recents.iter().enumerate() {
@@ -61,8 +66,9 @@ pub(super) fn render(shell: &Shell, message: String, cx: &mut Context<Shell>) ->
         column = column.child(recents);
     }
     column.child(
-        text_role::role(text_region("document-message"), text::BODY_SMALL, cx)
-            .pl(space::MD)
+        ui::role(text_region("document-message"), TextVariant::BodySm, cx)
+            .pl(ShellMetrics::CARD_PADDING_X)
+            .pr(ShellMetrics::CARD_PADDING_X)
             .child(message),
     )
 }

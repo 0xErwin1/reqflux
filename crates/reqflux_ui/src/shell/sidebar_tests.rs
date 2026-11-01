@@ -145,7 +145,8 @@ fn sidebar_shows_header_filter_rows_and_footer(cx: &mut TestAppContext) {
     assert_eq!(filter.size.height, px(30.0));
     assert!(filter.origin.y >= header.origin.y + header.size.height);
     let footer = bounds_of(cx, "sidebar-footer");
-    assert_eq!(footer.size.height, px(40.0));
+    // DBFlux's sidebar footer, `ShellMetrics::SIDEBAR_FOOTER_HEIGHT` (was 40).
+    assert_eq!(footer.size.height, px(46.0));
     assert!(sidebar.contains(&footer.origin));
 
     for (id, icon) in [(API, "box"), (USERS, "folder"), (AUTH, "box")] {

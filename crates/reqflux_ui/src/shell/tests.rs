@@ -15,6 +15,8 @@ fn bounds(cx: &mut VisualTestContext, selector: &'static str) -> Bounds<Pixels> 
 }
 
 fn render(cx: &mut TestAppContext, workspace: OpenedWorkspace) -> &mut VisualTestContext {
+    // The chrome draws with `bolt`, whose components read the installed theme.
+    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
     let (_shell, cx) = cx.add_window_view(|_, cx| Shell::new(workspace, cx));
     cx.run_until_parked();
     cx

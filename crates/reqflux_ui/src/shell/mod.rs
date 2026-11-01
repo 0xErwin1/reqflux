@@ -61,7 +61,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use bolt_legacy::tokens::chrome;
+use bolt::tokens::IslandMetrics;
 use gpui::{
     App, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Render, Role,
     Stateful, Styled, Subscription, Window, div, prelude::*,
@@ -454,16 +454,15 @@ impl Render for Shell {
                 this.open_palette(window, cx);
             }));
         let root = commands::on_actions(root, cx);
-        let desk = bolt_legacy::colors(cx).desk;
+        let desk = bolt::colors(cx).desk;
         let panel = self.sidebar.read(cx).panel;
         let pending = self.approvals.pending();
         let middle = div()
             .flex_1()
             .min_h_0()
             .flex()
-            .gap(chrome::ISLAND_GAP)
-            .pl(chrome::ISLAND_GAP)
-            .pr(chrome::ISLAND_GAP)
+            .gap(IslandMetrics::GAP)
+            .px(IslandMetrics::GAP)
             .child(rail::render(panel, pending, cx));
         let middle = if self.settings_open(cx) {
             middle.child(settings_view::render(self, window, cx))

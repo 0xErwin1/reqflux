@@ -4,11 +4,12 @@
 //! and workspace load warning, its file over what happened. Escape or a click outside closes
 //! it. Escape is bound in the panel's own [`PROBLEMS_CONTEXT`], which is deeper than the
 //! shell's, so it closes the panel before it reaches `Cancel send`.
+//!
+//! The panel is drawn as DBFlux's notifications popover: its header, group labels and rows.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{border, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::primitives::{Chamfer, Icon, TextVariant};
+use bolt::tokens::{Borders, ChamferCut, NotificationMetrics, ShellMetrics, Spacing};
+use bolt_legacy::IconName;
 use gpui::{
     Anchor, AnyElement, App, Context, FontWeight, InteractiveElement, IntoElement, KeyBinding,
     MouseButton, ParentElement, Pixels, Point, Styled, Window, actions, anchored, deferred, div,
@@ -16,8 +17,9 @@ use gpui::{
 };
 
 use super::problems::{CONFIG_ERROR_TITLE, Problem, Problems};
+use super::request::ui;
 use super::rows::labeled_row;
-use super::text as text_role;
+use super::sidebar::keycap;
 use super::{Shell, region};
 use crate::tokens;
 
@@ -49,7 +51,7 @@ pub(super) fn render(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let panel = region("problems-panel")
         .key_context(PROBLEMS_CONTEXT)
         .track_focus(&shell.problems_focus)
@@ -58,14 +60,15 @@ pub(super) fn render(
         .w(tokens::PROBLEMS_PANEL_WIDTH)
         .flex()
         .flex_col()
-        .font_family(family::INTERFACE)
-        .text_size(tokens::PROBLEMS_TEXT)
+        .pb(Spacing::XS)
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_size(NotificationMetrics::TITLE_FONT)
         .text_color(colors.foreground)
         .whitespace_normal()
         .child(
-            Chamfer::new(cut::OVERLAY)
+            Chamfer::new(ChamferCut::OVERLAY)
                 .fill(colors.panel)
-                .edge(colors.line_2, border::THIN),
+                .border(colors.line_2),
         )
         .child(header(problems, cx))
         .children(problems.error.as_ref().map(|error| config_error(error, cx)))
@@ -95,7 +98,7 @@ pub(super) fn render(
             MouseButton::Left,
             cx.listener(|this, _event, window, cx| this.close_problems(window, cx)),
         );
-    let above = point(Pixels::ZERO, -space::MD);
+    let above = point(Pixels::ZERO, -Spacing::MD);
     div()
         .absolute()
         .top_0()
@@ -115,22 +118,22 @@ pub(super) fn render(
 
 /// `Problems`, the count and the Esc keycap.
 fn header(problems: &Problems, cx: &Context<Shell>) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let summary = problems.summary();
     region("problems-header")
         .flex()
         .flex_none()
         .items_center()
-        .gap(space::SM)
-        .h(tokens::PROBLEMS_HEADER)
-        .pl(space::LG)
-        .pr(space::LG)
-        .border_b(border::THIN)
+        .gap(NotificationMetrics::HEADER_GAP)
+        .h(NotificationMetrics::HEADER_HEIGHT)
+        .pl(NotificationMetrics::HEADER_PADDING_LEFT)
+        .pr(NotificationMetrics::HEADER_PADDING_RIGHT)
+        .border_b(Borders::THIN)
         .border_color(colors.line)
         .child(
-            text_role::role(
+            ui::role(
                 labeled_row("problems-title".to_owned(), "Problems".to_owned()),
-                text::BODY,
+                TextVariant::Body,
                 cx,
             )
             .font_weight(FontWeight::SEMIBOLD)
@@ -139,29 +142,34 @@ fn header(problems: &Problems, cx: &Context<Shell>) -> impl IntoElement {
         )
         .child(
             labeled_row("problems-count".to_owned(), summary.clone())
-                .font_family(family::MONO)
-                .text_size(tokens::PROBLEMS_COUNT_TEXT)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(NotificationMetrics::UNREAD_FONT)
                 .text_color(colors.muted)
                 .child(summary),
         )
         .child(div().flex_1())
-        .child(Keycap::new("problems-keycap", "Esc"))
+        .child(keycap("problems-keycap", "Esc"))
 }
 
-/// An uppercase section caption.
+/// An uppercase section caption, drawn as a group label of DBFlux's notifications.
 fn caption(id: &str, label: String, cx: &Context<Shell>) -> impl IntoElement {
-    text_role::role(labeled_row(id.to_owned(), label.clone()), text::LABEL, cx)
-        .pl(space::LG)
-        .pr(space::LG)
-        .pt(space::MD)
-        .pb(space::HALF)
-        .child(label)
+    ui::role(
+        labeled_row(id.to_owned(), label.clone()),
+        TextVariant::Label,
+        cx,
+    )
+    .text_size(NotificationMetrics::GROUP_FONT)
+    .pl(NotificationMetrics::GROUP_PADDING_LEFT)
+    .pr(NotificationMetrics::GROUP_PADDING_RIGHT)
+    .pt(NotificationMetrics::GROUP_PADDING_TOP)
+    .pb(NotificationMetrics::GROUP_PADDING_BOTTOM)
+    .child(label)
 }
 
 /// The `CONFIG` caption and the error row: a danger wash with a danger edge, the alert icon,
 /// the title and the error, which names the file, line and column and never quotes it.
 fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     div()
         .flex()
         .flex_col()
@@ -174,24 +182,23 @@ fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
             .relative()
             .flex()
             .items_start()
-            .gap(space::SM)
-            .pl(space::LG)
-            .pr(space::LG)
-            .pt(space::SM)
-            .pb(space::MD)
-            .bg(tokens::wash(colors.danger, tokens::PROBLEMS_ERROR_WASH))
+            .gap(NotificationMetrics::ROW_GAP)
+            .pl(NotificationMetrics::ROW_PADDING_LEFT)
+            .pr(NotificationMetrics::ROW_PADDING_RIGHT)
+            .py(NotificationMetrics::ROW_PADDING_Y)
+            .bg(tokens::wash(colors.danger, ShellMetrics::FAILURE_ALPHA))
             .child(
                 div()
                     .absolute()
                     .top_0()
                     .bottom_0()
                     .left_0()
-                    .w(border::THICK)
+                    .w(ShellMetrics::FAILURE_EDGE)
                     .bg(colors.danger),
             )
             .child(
-                Icon::new(IconName::TriangleAlert)
-                    .size(icon::MD)
+                Icon::new(ui::icon(IconName::TriangleAlert))
+                    .size(NotificationMetrics::ICON)
                     .color(colors.danger),
             )
             .child(
@@ -200,7 +207,7 @@ fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
                     .flex_col()
                     .flex_1()
                     .min_w_0()
-                    .gap(space::HALF)
+                    .gap(NotificationMetrics::TEXT_GAP)
                     .child(
                         labeled_row(
                             "problems-config-error-title".to_owned(),
@@ -212,8 +219,8 @@ fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
                     )
                     .child(
                         labeled_row("problems-config-error-detail".to_owned(), error.to_owned())
-                            .font_family(family::MONO)
-                            .text_size(tokens::PROBLEMS_DETAIL_TEXT)
+                            .font_family(bolt::fonts::editor_family(cx))
+                            .text_size(NotificationMetrics::META_FONT)
                             .text_color(colors.danger)
                             .child(error.to_owned()),
                     ),
@@ -223,7 +230,7 @@ fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
 
 /// A warning: the warning icon, then its file, when it names one, over what happened.
 fn warning_row(index: usize, warning: &Problem, cx: &Context<Shell>) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let label = match &warning.location {
         Some(location) => format!("{location}: {}", warning.message),
         None => warning.message.clone(),
@@ -231,15 +238,15 @@ fn warning_row(index: usize, warning: &Problem, cx: &Context<Shell>) -> impl Int
     labeled_row(format!("problems-warning-{index}"), label)
         .flex()
         .items_start()
-        .gap(space::SM)
-        .pl(space::LG)
-        .pr(space::LG)
-        .py(space::SM)
-        .border_t(border::THIN)
+        .gap(NotificationMetrics::ROW_GAP)
+        .pl(NotificationMetrics::ROW_PADDING_LEFT)
+        .pr(NotificationMetrics::ROW_PADDING_RIGHT)
+        .py(NotificationMetrics::ROW_PADDING_Y)
+        .border_t(Borders::THIN)
         .border_color(colors.row_divider)
         .child(
-            Icon::new(IconName::TriangleAlert)
-                .size(icon::CHIP)
+            Icon::new(ui::icon(IconName::TriangleAlert))
+                .size(NotificationMetrics::ICON)
                 .color(colors.warning),
         )
         .child(
@@ -248,13 +255,14 @@ fn warning_row(index: usize, warning: &Problem, cx: &Context<Shell>) -> impl Int
                 .flex_col()
                 .flex_1()
                 .min_w_0()
-                .text_size(tokens::PROBLEMS_DETAIL_TEXT)
+                .gap(NotificationMetrics::TEXT_GAP)
+                .text_size(NotificationMetrics::META_FONT)
                 .children(warning.location.clone().map(|location| {
                     labeled_row(
                         format!("problems-warning-{index}-location"),
                         location.clone(),
                     )
-                    .font_family(family::MONO)
+                    .font_family(bolt::fonts::editor_family(cx))
                     .child(location)
                 }))
                 .child(

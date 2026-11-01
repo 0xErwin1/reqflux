@@ -6,17 +6,16 @@
 
 use std::path::PathBuf;
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, cut, space};
+use bolt::controls::{GpuiInput, InputEnter as Enter, InputEscape as Escape, InputState};
+use bolt::primitives::Chamfer;
+use bolt::tokens::{ChamferCut, Fields, MenuMetrics, Spacing};
 use gpui::{
     AnyElement, AppContext as _, Context, InteractiveElement, IntoElement, ParentElement, Role,
     Styled, Window, prelude::*,
 };
-use gpui_component::input::{Enter, Escape, Input, InputState};
 use reqflux_engine::state::RecentWorkspace;
 
 use super::{Shell, region};
-use crate::tokens;
 
 /// What a recent row shows in place of the path of a managed workspace.
 pub(crate) const IN_REQFLUX: &str = "In ReqFlux";
@@ -120,22 +119,22 @@ impl Shell {
     /// The name field, when it is open.
     pub(super) fn new_name_field(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let input = self.new_workspace_name.as_ref()?;
-        let colors = bolt_legacy::colors(cx);
+        let colors = bolt::colors(cx);
         Some(
             region("workspace-new-name")
                 .role(Role::TextInput)
                 .relative()
-                .h(tokens::ENVIRONMENT_OPTION)
-                .mx(space::MD)
-                .my(space::HALF)
+                .h(Fields::HEIGHT)
+                .mx(MenuMetrics::ROW_INSET)
+                .my(Spacing::XS)
                 .flex()
                 .items_center()
-                .pl(space::SM)
-                .pr(space::SM)
+                .pl(Fields::PADDING_X)
+                .pr(Fields::PADDING_X)
                 .child(
-                    Chamfer::new(cut::CONTROL)
+                    Chamfer::new(ChamferCut::CONTROL)
                         .fill(colors.background)
-                        .edge(colors.line, border::THIN),
+                        .border(colors.line),
                 )
                 .on_action(cx.listener(|this, _: &Enter, window, cx| {
                     this.commit_new_workspace(window, cx);
@@ -146,12 +145,16 @@ impl Shell {
                 .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
                     this.blur_new_workspace(window, cx);
                 }))
+                // bolt gap: bolt's Input without its appearance keeps gpui-component's padding
+                // and text size.
                 .child(
-                    Input::new(input)
+                    GpuiInput::new(input)
                         .appearance(false)
                         .bordered(false)
+                        .p_0()
                         .flex_1()
                         .min_w_0()
+                        .text_size(Fields::TEXT)
                         .text_color(colors.strong),
                 )
                 .into_any_element(),

@@ -1,24 +1,24 @@
-//! The delete dialog: a modal over a scrim that names what a delete removes, lists the
-//! requests it holds, flags those with an unsaved draft (which the delete discards; it warns
-//! and does not block), and asks for the confirmation.
+//! The delete dialog: `bolt`'s danger modal over its scrim that names what a delete removes,
+//! lists the requests it holds, flags those with an unsaved draft (which the delete discards;
+//! it warns and does not block), and asks for the confirmation.
 
 use std::ops::Range;
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{border, chrome, cut, family, space, text};
+use bolt::controls::Button;
+use bolt::modals::{Modal, modal_frame, modal_lead};
+use bolt::primitives::{TextVariant, status_diamond};
+use bolt::tokens::{Feedback, ModalMetrics};
 use gpui::{
-    AnyElement, Context, FontWeight, HighlightStyle, InteractiveElement, IntoElement, MouseButton,
-    ParentElement, Pixels, Point, Role, Styled, StyledText, Window, anchored, deferred, div, point,
-    prelude::*,
+    AnyElement, Context, FontWeight, HighlightStyle, IntoElement, ParentElement, Point, Role,
+    Styled, StyledText, Window, anchored, deferred, div, prelude::*,
 };
 
-use crate::shell::diamond::Diamond;
+use crate::shell::request::ui;
 use crate::shell::rows::part;
 use crate::shell::sidebar::Sidebar;
 use crate::shell::tree_model::{Node, NodeKind};
-use crate::shell::{region, text as text_role, text_region};
-use crate::tokens::{self, method_color};
+use crate::shell::{region, text_region};
+use crate::tokens::{self, method_hue};
 
 /// The noun the dialog uses for a node of `kind`.
 fn noun(kind: &NodeKind) -> &'static str {
@@ -153,7 +153,7 @@ impl Sidebar {
             .count();
         let cancel = self.cancel_button(cx);
         let confirm = self.confirm_button(delete_button(&node.kind, count), cx);
-        let colors = bolt_legacy::colors(cx);
+        let colors = bolt::colors(cx);
         let (body, bold) = delete_body(&node.kind, &node.name, count);
         let highlight = HighlightStyle {
             color: Some(colors.strong),
@@ -165,95 +165,73 @@ impl Sidebar {
             .map(|request| self.delete_row(request, cx))
             .collect();
 
-        let panel = region("tree-delete-prompt")
+        let prompt = region("tree-delete-prompt")
             .role(Role::Dialog)
             .aria_label(delete_question(&node.kind, &node.name, count))
-            .occlude()
-            .relative()
-            .w(tokens::TREE_DIALOG_WIDTH)
             .flex()
             .flex_col()
-            .pl(tokens::TREE_DIALOG_INSET)
-            .pr(tokens::TREE_DIALOG_INSET)
-            .pt(tokens::TREE_DIALOG_TOP_INSET)
-            .pb(tokens::TREE_DIALOG_BOTTOM_INSET)
+            .gap(ModalMetrics::BODY_GAP)
             .child(
-                Chamfer::new(cut::MODAL)
-                    .fill(colors.raised)
-                    .edge(colors.line_2, border::THIN),
-            )
-            .child(
-                text_role::role(text_region("tree-delete-title"), text::HEADING, cx)
-                    .mb(space::SM)
+                ui::role(text_region("tree-delete-title"), TextVariant::Heading, cx)
                     .child(delete_title(&node.kind, &node.name)),
             )
-            .child(
-                text_role::role(text_region("tree-delete-body"), text::BODY, cx)
+            .child(modal_lead(
+                text_region("tree-delete-body")
                     .aria_label(body.clone())
                     .child(
                         StyledText::new(body)
                             .with_highlights(bold.into_iter().map(|range| (range, highlight))),
                     ),
-            )
-            .when(!rows.is_empty(), |panel| {
-                panel.child(
-                    region("tree-delete-list")
-                        .relative()
-                        .mt(space::MD)
-                        .py(space::SM)
-                        .flex()
-                        .flex_col()
-                        .child(
-                            Chamfer::new(cut::CONTROL)
-                                .fill(colors.background)
-                                .edge(colors.line, border::THIN),
-                        )
-                        .children(rows),
+                cx,
+            ))
+            .when(!rows.is_empty(), |prompt| {
+                prompt.child(
+                    modal_frame(cx)
+                        .child(region("tree-delete-list").flex().flex_col().children(rows)),
                 )
             })
             .children(delete_note(count, drafts).map(|note| {
-                text_role::role(text_region("tree-delete-note"), text::CAPTION, cx)
+                ui::role(text_region("tree-delete-note"), TextVariant::Caption, cx)
                     .aria_label(note.clone())
-                    .mt(space::SM)
                     .child(note)
-            }))
-            .child(
+            }));
+
+        let sidebar = cx.entity().downgrade();
+        let modal = Modal::new(delete_title(&node.kind, &node.name))
+            .id("tree-delete-backdrop")
+            .danger()
+            .without_header()
+            .top_offset(tokens::TREE_DIALOG_TOP)
+            .body(prompt)
+            .footer(
                 div()
                     .flex()
-                    .justify_end()
-                    .gap(space::SM)
-                    .mt(tokens::TREE_DIALOG_ACTIONS_GAP)
+                    .gap(ModalMetrics::FOOTER_GAP)
                     .child(cancel)
                     .child(confirm),
-            );
-
+            )
+            .on_close(move |window, cx| {
+                if let Err(error) = sidebar.update(cx, |this, cx| this.cancel_delete(window, cx)) {
+                    log::warn!("tree delete dialog close: {error}");
+                }
+            });
         let viewport = window.viewport_size();
-        let left = ((viewport.width - tokens::TREE_DIALOG_WIDTH) / 2.).max(Pixels::ZERO);
-        let backdrop = region("tree-delete-backdrop")
-            .occlude()
-            .w(viewport.width)
-            .h(viewport.height)
-            .bg(colors.scrim)
-            .on_mouse_down(
-                MouseButton::Left,
-                cx.listener(|this, _event, window, cx| this.cancel_delete(window, cx)),
-            );
         Some(
             div()
                 .absolute()
                 .top_0()
                 .left_0()
                 .child(
-                    deferred(anchored().position(Point::default()).child(backdrop))
-                        .with_priority(3),
-                )
-                .child(
                     deferred(
-                        anchored()
-                            .position(point(left, tokens::TREE_DIALOG_TOP))
-                            .child(panel),
+                        anchored().position(Point::default()).child(
+                            div()
+                                .relative()
+                                .w(viewport.width)
+                                .h(viewport.height)
+                                .child(modal),
+                        ),
                     )
-                    .with_priority(4),
+                    .with_priority(3),
                 )
                 .into_any_element(),
         )
@@ -266,29 +244,30 @@ impl Sidebar {
             NodeKind::Collection | NodeKind::Folder => String::new(),
         };
         let unsaved = self.edit.unsaved.contains(&request.id);
-        text_role::role(
+        let tint = bolt::brand::brand(cx).accent_tint;
+        ui::role(
             part(format!("tree-delete-item-{}", request.id)),
-            text::BODY,
+            TextVariant::Body,
             cx,
         )
         .role(Role::Label)
         .aria_label(request.label())
         .flex()
         .items_center()
-        .gap(space::SM)
-        .h(tokens::TREE_DIALOG_ROW)
-        .pl(space::LG)
-        .pr(space::MD)
+        .gap(ModalMetrics::DEPENDENT_ROW_GAP)
+        .h(ModalMetrics::DEPENDENT_ROW_HEIGHT)
+        .pl(ModalMetrics::LIST_ROW_PADDING_X)
+        .pr(ModalMetrics::LIST_ROW_PADDING_X)
         .whitespace_nowrap()
         .child(
             div()
                 .w(tokens::TREE_METHOD_COLUMN)
                 .flex_none()
                 .overflow_hidden()
-                .font_family(family::MONO)
+                .font_family(bolt::fonts::editor_family(cx))
                 .text_size(tokens::METHOD_LABEL_SIZE)
                 .font_weight(FontWeight::BOLD)
-                .text_color(method_color(&method, bolt_legacy::palette(cx)))
+                .text_color(method_hue(&method, cx))
                 .child(method),
         )
         .child(
@@ -301,63 +280,40 @@ impl Sidebar {
         )
         .when(unsaved, |row| {
             row.child(
-                text_role::role(
+                ui::role(
                     part(format!("tree-delete-draft-{}", request.id)),
-                    text::CAPTION,
+                    TextVariant::Caption,
                     cx,
                 )
                 .role(Role::Label)
                 .aria_label("unsaved draft")
+                .ml_auto()
                 .flex_none()
                 .flex()
                 .items_center()
-                .gap(space::HALF)
-                .child(Diamond::new(bolt_legacy::brand(cx).accent_tint))
+                .gap(Feedback::STATUS_GAP)
+                .child(status_diamond(tint, Feedback::STATUS_DIAMOND))
                 .child("unsaved draft"),
             )
         })
         .into_any_element()
     }
 
-    /// `tree-delete-cancel`: a ghost button with its Esc keycap.
+    /// `tree-delete-cancel`: the ghost button with its Esc keycap.
+    // bolt gap: the keycap a Button draws has no element id, so `tree-delete-cancel-key` is
+    // gone until Kbd takes one.
     fn cancel_button(&self, cx: &mut Context<Self>) -> AnyElement {
-        let colors = bolt_legacy::colors(cx);
-        text_role::role(region("tree-delete-cancel"), text::BODY, cx)
-            .role(Role::Button)
-            .aria_label("Cancel")
-            .relative()
-            .h(chrome::CONTROL)
-            .flex()
-            .items_center()
-            .gap(space::SM)
-            .pl(space::MD)
-            .pr(space::MD)
-            .cursor_pointer()
-            .text_color(colors.foreground)
-            .child(Chamfer::new(cut::CONTROL).edge(colors.line_2, border::THIN))
-            .child("Cancel")
-            .child(Keycap::new("tree-delete-cancel-key", "Esc"))
+        Button::new("tree-delete-cancel", "Cancel")
+            .ghost()
+            .kbd("Esc")
             .on_click(cx.listener(|this, _event, window, cx| this.cancel_delete(window, cx)))
             .into_any_element()
     }
 
     /// `tree-delete-confirm`: the danger button that runs the delete.
     fn confirm_button(&self, label: String, cx: &mut Context<Self>) -> AnyElement {
-        let colors = bolt_legacy::colors(cx);
-        text_role::role(region("tree-delete-confirm"), text::BODY, cx)
-            .role(Role::Button)
-            .aria_label(label.clone())
-            .relative()
-            .h(chrome::CONTROL)
-            .flex()
-            .items_center()
-            .pl(space::MD)
-            .pr(space::MD)
-            .cursor_pointer()
-            .font_weight(FontWeight::SEMIBOLD)
-            .text_color(colors.on_semantic)
-            .child(Chamfer::new(cut::CONTROL).fill(colors.danger))
-            .child(label)
+        Button::new("tree-delete-confirm", label)
+            .danger()
             .on_click(cx.listener(|this, _event, window, cx| this.confirm_delete(window, cx)))
             .into_any_element()
     }
