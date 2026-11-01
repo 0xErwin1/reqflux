@@ -5,7 +5,7 @@
 use gpui::{AnyElement, Context, Window};
 use reqflux_core::model::RawLanguage;
 
-use super::option_menu;
+use super::menu;
 use crate::shell::Shell;
 use crate::shell::body_edit::RAW_LANGUAGES;
 
@@ -21,7 +21,7 @@ pub(super) fn render(
         .into_iter()
         .map(|(id, name, language)| {
             let request = request_id.to_owned();
-            option_menu::option(
+            menu::option(
                 format!("body-language-{id}"),
                 name.to_owned(),
                 current == language,
@@ -30,7 +30,7 @@ pub(super) fn render(
             )
         })
         .collect();
-    option_menu::render(
+    menu::render(
         ("body-language-menu", "body-language-menu-backdrop"),
         &shell.body_menu_focus,
         options,

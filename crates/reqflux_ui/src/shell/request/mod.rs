@@ -10,15 +10,18 @@ mod code;
 mod grid;
 mod grid_model;
 mod line;
+mod menu;
 mod method_menu;
 mod model;
 pub(super) mod option_menu;
 mod pane_model;
 mod scripts;
+pub(super) mod segmented;
 mod send;
 mod settings;
 pub(super) mod spans;
 pub(super) mod sub_tabs;
+pub(super) mod ui;
 
 pub(crate) use grid::secret_badge;
 pub(crate) use line::accent_keycap;
@@ -30,7 +33,7 @@ pub(crate) use send::{elapsed_text, size_text};
 #[cfg(test)]
 pub(crate) use sub_tabs::{shown_rows, sub_tab_badge};
 
-use bolt_legacy::tokens::space;
+use bolt::tokens::Spacing;
 use gpui::{Context, Div, ParentElement, Stateful, StatefulInteractiveElement, Styled, Window};
 
 use super::{Shell, region};
@@ -95,6 +98,6 @@ fn pane(
         .flex_1()
         .min_h_0()
         .overflow_y_scroll()
-        .pb(space::MD)
+        .pb(Spacing::MD)
         .children(content)
 }

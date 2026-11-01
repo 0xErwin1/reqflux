@@ -47,6 +47,7 @@ fn render(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
 }
 
 fn render_dir(cx: &mut TestAppContext, dir: TempDir) -> (Entity<Shell>, &mut VisualTestContext) {
+    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
     cx.update(super::bind_keys);
     let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
     drop(dir);

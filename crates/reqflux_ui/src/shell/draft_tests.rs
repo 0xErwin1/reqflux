@@ -57,6 +57,8 @@ pub(crate) fn render<'a>(
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     // The engine wakes the awaiting task from its own threads.
     cx.executor().allow_parking();
+    // bolt's components read gpui-component's Theme, as the app installs it at startup.
+    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
     let state = match AppState::open(state_path) {
         Ok(state) => state,
         Err(error) => panic!("open state: {error}"),

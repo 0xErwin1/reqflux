@@ -1,15 +1,15 @@
 //! A text with its `{{name}}` references styled as the engine marks them: resolving ones in
 //! the brand tint on its wash, unresolved ones in warning text on a warning wash, underlined.
 
-use bolt_legacy::tokens::border;
+use bolt::tokens::Borders;
 use gpui::{AnyElement, App, IntoElement, ParentElement, Styled, div};
 use reqflux_engine::{Inspection, Span};
 
 use crate::tokens::variable_wash;
 
 pub(crate) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyElement> {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     inspection
         .spans(text)
         .into_iter()
@@ -27,7 +27,7 @@ pub(crate) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyEl
             Span::Reference { raw, .. } => div()
                 .text_color(colors.warning)
                 .bg(variable_wash(colors.warning))
-                .border_b(border::THIN)
+                .border_b(Borders::THIN)
                 .border_color(colors.warning)
                 .child(raw)
                 .into_any_element(),

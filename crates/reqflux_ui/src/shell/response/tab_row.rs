@@ -1,27 +1,30 @@
 //! The response tab row: the `Response` tab with the state of the send, the `Tests` and
 //! `Console` tabs of a response with script results, the time and size at the right, and the
-//! indeterminate progress bar under it while sending.
+//! indeterminate progress bar under it while sending. The tabs are `bolt`'s document tabs and
+//! the status is a `bolt` badge.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{Colors, chrome, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::Colors;
+use bolt::composites::{document_tab, document_tab_bar, document_tab_title};
+use bolt::primitives::{Badge, BadgeTone, Icon};
+use bolt::tokens::{Fields, ResultMetrics, Spacing, TabMetrics};
+use bolt_legacy::IconName;
 use gpui::{
-    Animation, AnimationExt, App, Context, Div, FontWeight, Hsla, ParentElement, Role, Stateful,
-    Styled, div, prelude::*, relative,
+    Animation, AnimationExt, App, Context, Div, Hsla, InteractiveElement, ParentElement, Role,
+    Stateful, Styled, div, prelude::*, relative,
 };
 
 use super::model::ResponseTab;
 use super::sub_tabs::effective_tab;
+use crate::shell::request::ui;
 use crate::shell::request::{Completed, Received, SendState, StatusClass, elapsed_text, size_text};
-use crate::shell::rows::part;
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region, text_region};
 use crate::tokens;
 
 /// The row of the send `send` of the request `id`, `None` before the first send.
 pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let state = send.map(|send| &send.state);
     let received = match state {
         Some(SendState::Done(Completed::Response(received))) => Some(received),
@@ -36,33 +39,29 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
         Some(SendState::Sending { started, .. }) => (
             IconName::Loader,
             tint,
-            Some(("Sending".to_owned(), tint, None)),
+            Some(("Sending".to_owned(), BadgeTone::Accent)),
             Some(("response-elapsed", elapsed_text(started.elapsed()))),
         ),
-        Some(SendState::Done(Completed::Response(received))) => {
-            let color = class_color(StatusClass::of(received.status), colors);
-            (
-                IconName::Send,
-                tint,
-                Some((
-                    received.status_text(),
-                    color,
-                    Some(tokens::wash(color, tokens::RESPONSE_STATUS_WASH)),
-                )),
-                Some((
-                    "response-meta",
-                    format!(
-                        "{} · {}",
-                        elapsed_text(received.elapsed),
-                        size_text(received.size())
-                    ),
-                )),
-            )
-        }
+        Some(SendState::Done(Completed::Response(received))) => (
+            IconName::Send,
+            tint,
+            Some((
+                received.status_text(),
+                class_tone(StatusClass::of(received.status)),
+            )),
+            Some((
+                "response-meta",
+                format!(
+                    "{} · {}",
+                    elapsed_text(received.elapsed),
+                    size_text(received.size())
+                ),
+            )),
+        ),
         Some(SendState::Done(Completed::Failure(failure))) => (
             IconName::TriangleAlert,
             colors.danger,
-            Some(("Failed".to_owned(), colors.danger, None)),
+            Some(("Failed".to_owned(), BadgeTone::Danger)),
             Some((
                 "response-meta",
                 format!("{} · {}", elapsed_text(failure.elapsed), size_text(0)),
@@ -70,67 +69,60 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
         ),
     };
     let request = id.to_owned();
-    let (label_color, icon_color) = match response_selected {
-        true => (colors.strong, icon_color),
-        false => (colors.muted, colors.muted),
+    let icon_color = if response_selected {
+        icon_color
+    } else {
+        colors.muted
     };
-    let response =
-        crate::shell::text::role(part("response-tab-response".to_owned()), text::BODY, cx)
-            .role(Role::Tab)
-            .aria_label("Response")
-            .aria_selected(response_selected)
-            .relative()
-            .flex()
-            .items_center()
-            .gap(space::SM)
-            .h(chrome::DOC_TAB)
-            .pl(space::MD)
-            .pr(space::MD)
-            .whitespace_nowrap()
-            .cursor_pointer()
-            .text_color(label_color)
-            .when(response_selected, |tab| {
-                tab.font_weight(FontWeight::SEMIBOLD)
-                    .child(Chamfer::new(cut::CONTROL).fill(colors.raised))
-            })
-            .child(Icon::new(icon_name).size(icon::MD).color(icon_color))
-            .child("Response")
-            .children(status.map(|(label, color, wash)| status_chip(label, color, wash)))
-            .on_click(cx.listener(move |this, _event, _window, cx| {
-                this.select_response_tab(&request, ResponseTab::Body, cx);
-            }));
+    let response = tab_chip("response-tab-response", "Response", response_selected, cx)
+        .child(
+            Icon::new(ui::icon(icon_name))
+                .size(TabMetrics::ICON)
+                .color(icon_color),
+        )
+        .child(document_tab_title("Response", response_selected, cx))
+        .children(status.map(|(label, tone)| status_chip(label, tone)))
+        .on_click(cx.listener(move |this, _event, _window, cx| {
+            this.select_response_tab(&request, ResponseTab::Body, cx);
+        }));
     let scripts = received
-        .map(|received| script_tabs(received, colors))
+        .map(|received| script_tabs(received, &colors))
         .unwrap_or_default();
     let script_tabs: Vec<_> = scripts
         .into_iter()
         .map(|(script_tab, label, icon_name, counts)| {
             let request = id.to_owned();
+            let selected = tab == Some(script_tab);
+            let icon_color = if selected { tint } else { colors.muted };
             tab_chip(
                 format!("response-tab-{}", label.to_lowercase()),
                 label,
-                icon_name,
-                counts,
-                tab == Some(script_tab),
+                selected,
                 cx,
             )
+            .child(
+                Icon::new(ui::icon(icon_name))
+                    .size(TabMetrics::ICON)
+                    .color(icon_color),
+            )
+            .child(document_tab_title(label, selected, cx))
+            .children(counts.into_iter().map(|(count, color)| {
+                div()
+                    .font_family(bolt::fonts::editor_family(cx))
+                    .text_size(TabMetrics::RESULT_META_SIZE)
+                    .text_color(color)
+                    .child(count)
+            }))
             .on_click(cx.listener(move |this, _event, _window, cx| {
                 this.select_response_tab(&request, script_tab, cx);
             }))
         })
         .collect();
-    div()
-        .flex_none()
-        .h(tokens::RESPONSE_TAB_ROW)
-        .flex()
-        .items_center()
-        .gap(space::XS)
-        .pl(space::MD)
-        .pr(space::MD)
+    document_tab_bar(cx)
         .child(response)
         .children(script_tabs)
         .child(div().flex_1())
-        .children(meta.map(|(id, label)| meta_label(id, label, colors)))
+        .children(meta.map(|(id, label)| meta_label(id, label, &colors, cx)))
 }
 
 /// One script tab: what it selects, its label, icon and counts.
@@ -162,96 +154,52 @@ fn script_tabs(received: &Received, colors: &Colors) -> Vec<ScriptTab> {
     tabs
 }
 
-/// A selectable tab `label` with its icon and optional counts, element id `id`.
-fn tab_chip(
-    id: String,
-    label: &'static str,
-    icon_name: IconName,
-    counts: Vec<(String, Hsla)>,
-    selected: bool,
-    cx: &App,
-) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let (label_color, icon_color) = if selected {
-        (colors.strong, bolt_legacy::brand(cx).accent_tint)
-    } else {
-        (colors.muted, colors.muted)
-    };
-    crate::shell::text::role(part(id), text::BODY, cx)
+/// A `bolt` document tab `id` named `label`, the selected one raised.
+fn tab_chip(id: impl Into<String>, label: &'static str, selected: bool, cx: &App) -> Stateful<Div> {
+    let id = id.into();
+    let selector = id.clone();
+    document_tab(gpui::ElementId::Name(id.into()), selected, cx)
+        .debug_selector(move || selector)
         .role(Role::Tab)
         .aria_label(label)
         .aria_selected(selected)
-        .relative()
-        .flex_none()
-        .flex()
-        .items_center()
-        .gap(space::SM)
-        .h(chrome::DOC_TAB)
-        .pl(space::MD)
-        .pr(space::MD)
-        .whitespace_nowrap()
-        .cursor_pointer()
-        .when(selected, |chip| {
-            chip.child(Chamfer::new(cut::CONTROL).fill(colors.raised))
-        })
-        .child(Icon::new(icon_name).size(icon::SM).color(icon_color))
-        .child(
-            div()
-                .text_color(label_color)
-                .when(selected, |label| label.font_weight(FontWeight::SEMIBOLD))
-                .child(label),
-        )
-        .children(counts.into_iter().map(|(count, color)| {
-            div()
-                .font_family(family::MONO)
-                .text_size(tokens::SMALL_MONO_TEXT)
-                .text_color(color)
-                .child(count)
-        }))
 }
 
-/// The status chip, element id `response-status`, in `color` on `wash` when there is one.
-fn status_chip(label: String, color: Hsla, wash: Option<Hsla>) -> Stateful<Div> {
+/// The status badge, element id `response-status`, in the `tone` of its class.
+fn status_chip(label: String, tone: BadgeTone) -> Stateful<Div> {
     text_region("response-status")
         .aria_label(label.clone())
-        .relative()
-        .pl(space::HALF)
-        .pr(space::HALF)
-        .font_family(family::MONO)
-        .text_size(tokens::RESPONSE_STATUS_TEXT)
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(color)
-        .children(wash.map(|wash| Chamfer::new(cut::KEYCAP).fill(wash)))
-        .child(label)
+        .flex_none()
+        .child(Badge::new(label, tone))
 }
 
 /// A clock and `label` at the right of the row, element id `id`.
-fn meta_label(id: &'static str, label: String, colors: &Colors) -> Stateful<Div> {
+fn meta_label(id: &'static str, label: String, colors: &Colors, cx: &App) -> Stateful<Div> {
     text_region(id)
         .aria_label(label.clone())
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::HALF)
+        .gap(Spacing::XXS)
         .whitespace_nowrap()
-        .font_family(family::MONO)
-        .text_size(tokens::RESPONSE_META_TEXT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(ResultMetrics::STATEMENT_FONT)
         .text_color(colors.muted)
         .child(
-            Icon::new(IconName::Clock)
-                .size(icon::SM)
+            Icon::new(ui::icon(IconName::Clock))
+                .size(Fields::SEGMENT_ICON)
                 .color(colors.muted),
         )
         .child(label)
 }
 
-/// The chip color of a status class.
-fn class_color(class: StatusClass, colors: &Colors) -> Hsla {
+/// The badge tone of a status class.
+fn class_tone(class: StatusClass) -> BadgeTone {
     match class {
-        StatusClass::Success => colors.success,
-        StatusClass::Info => colors.info,
-        StatusClass::Warning => colors.warning,
-        StatusClass::Danger => colors.danger,
+        StatusClass::Success => BadgeTone::Success,
+        StatusClass::Info => BadgeTone::Info,
+        StatusClass::Warning => BadgeTone::Warning,
+        StatusClass::Danger => BadgeTone::Danger,
     }
 }
 
@@ -263,17 +211,17 @@ pub(super) fn progress(cx: &App) -> Stateful<Div> {
         .flex_none()
         .relative()
         .h(tokens::RESPONSE_PROGRESS)
-        .mx(space::MD)
-        .mb(space::SM)
+        .mx(Spacing::MD)
+        .mb(Spacing::SM)
         .overflow_hidden()
-        .bg(bolt_legacy::colors(cx).background)
+        .bg(bolt::colors(cx).background)
         .child(
             div()
                 .absolute()
                 .top_0()
                 .h_full()
                 .w(relative(segment))
-                .bg(bolt_legacy::brand(cx).accent)
+                .bg(bolt::brand::brand(cx).accent)
                 .with_animation(
                     "response-progress-segment",
                     Animation::new(tokens::RESPONSE_PROGRESS_PERIOD).repeat(),

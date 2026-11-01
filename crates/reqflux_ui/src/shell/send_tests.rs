@@ -111,6 +111,8 @@ fn render_in<'a>(
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     // The engine wakes the awaiting task from its own threads.
     cx.executor().allow_parking();
+    // The request and response panes draw with `bolt`, whose components read the theme.
+    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
     cx.update(super::bind_keys);
     let dir = demo_workspace();
     let root = dir.path();

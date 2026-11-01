@@ -8,16 +8,15 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, cut, icon, space};
-use bolt_legacy::{Icon, IconName};
+use bolt::controls::Button;
+use bolt::tokens::{Borders, ResultMetrics, Spacing};
+use bolt_legacy::IconName;
 use gpui::{
-    AnyElement, App, Context, FontWeight, ParentElement, RenderImage, Role, Styled, div, img,
-    prelude::*,
+    AnyElement, App, Context, FontWeight, ParentElement, RenderImage, Styled, div, img, prelude::*,
 };
 
 use super::preview_model::{HtmlText, ImageKind, PreviewKind, html_text, too_large};
-use crate::shell::request::{Completed, Received, SendState};
+use crate::shell::request::{Completed, Received, SendState, ui};
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region, text_region};
 use crate::tokens;
@@ -235,13 +234,13 @@ impl Shell {
 
 /// The Preview view of the request `id`, element id `response-preview`.
 pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let pane = region("response-preview")
         .flex_1()
         .min_h_0()
         .flex()
         .flex_col()
-        .border_t(border::THIN)
+        .border_t(Borders::THIN)
         .border_color(colors.line);
     let Some(preview) = send.preview.as_deref() else {
         return pane
@@ -257,8 +256,8 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
         } => {
             let meta = preview.meta().unwrap_or_default();
             let natural = tokens::image_size(*width, *height);
-            pane.p(space::MD)
-                .gap(space::SM)
+            pane.p(Spacing::MD)
+                .gap(Spacing::SM)
                 .items_center()
                 .child(
                     div()
@@ -282,7 +281,7 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
                     text_region("response-preview-meta")
                         .aria_label(meta.clone())
                         .flex_none()
-                        .text_size(tokens::RESPONSE_META_TEXT)
+                        .text_size(ResultMetrics::STATEMENT_FONT)
                         .text_color(colors.muted)
                         .child(meta),
                 )
@@ -302,7 +301,7 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
 /// the readable text, element id `response-preview-text`.
 fn html(id: &str, page: &HtmlText, send: &RequestSend, cx: &mut Context<Shell>) -> AnyElement {
     let open = open_button(id, cx);
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let title = page
         .title
         .clone()
@@ -318,8 +317,8 @@ fn html(id: &str, page: &HtmlText, send: &RequestSend, cx: &mut Context<Shell>) 
                 .flex_none()
                 .flex()
                 .items_center()
-                .gap(space::MD)
-                .p(space::MD)
+                .gap(Spacing::MD)
+                .p(Spacing::MD)
                 .child(
                     text_region("response-preview-title")
                         .aria_label(title.clone())
@@ -338,10 +337,10 @@ fn html(id: &str, page: &HtmlText, send: &RequestSend, cx: &mut Context<Shell>) 
             text_region("response-preview-error")
                 .aria_label(error.clone())
                 .flex_none()
-                .pl(space::MD)
-                .pr(space::MD)
-                .pb(space::SM)
-                .text_size(tokens::NOTICE_TEXT)
+                .pl(Spacing::MD)
+                .pr(Spacing::MD)
+                .pb(Spacing::SM)
+                .text_size(bolt::density::font_xs(cx))
                 .text_color(colors.danger)
                 .child(error)
         }))
@@ -353,11 +352,11 @@ fn html(id: &str, page: &HtmlText, send: &RequestSend, cx: &mut Context<Shell>) 
                 .overflow_y_scroll()
                 .flex()
                 .flex_col()
-                .gap(space::SM)
-                .pl(space::MD)
-                .pr(space::MD)
-                .pb(space::MD)
-                .text_size(tokens::GRID_TEXT)
+                .gap(Spacing::SM)
+                .pl(Spacing::MD)
+                .pr(Spacing::MD)
+                .pb(Spacing::MD)
+                .text_size(bolt::density::font_base(cx))
                 .text_color(colors.foreground)
                 .children(
                     page.paragraphs
@@ -388,32 +387,16 @@ fn text_label(paragraphs: &[String]) -> String {
 
 /// `Open in browser`, element id `response-preview-open`.
 fn open_button(id: &str, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
     let id = id.to_owned();
-    region("response-preview-open")
-        .role(Role::Button)
-        .aria_label("Open in browser")
-        .relative()
-        .flex_none()
-        .h(tokens::URL_FIELD)
-        .flex()
-        .items_center()
-        .gap(space::SM)
-        .pl(space::MD)
-        .pr(space::MD)
-        .cursor_pointer()
-        .text_size(tokens::REQUEST_LINE_TEXT)
-        .text_color(colors.foreground)
-        .child(Chamfer::new(cut::CONTROL).fill(colors.raised))
+    ui::tagged("response-preview-open")
         .child(
-            Icon::new(IconName::ExternalLink)
-                .size(icon::SM)
-                .color(colors.muted),
+            Button::new("response-preview-open", "Open in browser")
+                .secondary()
+                .icon(ui::icon(IconName::ExternalLink))
+                .on_click(cx.listener(move |this, _event, _window, cx| {
+                    this.open_preview_in_browser(&id, cx);
+                })),
         )
-        .child("Open in browser")
-        .on_click(cx.listener(move |this, _event, _window, cx| {
-            this.open_preview_in_browser(&id, cx);
-        }))
         .into_any_element()
 }
 
@@ -421,9 +404,9 @@ fn open_button(id: &str, cx: &mut Context<Shell>) -> AnyElement {
 fn message(text: &'static str, cx: &App) -> AnyElement {
     text_region("response-preview-message")
         .aria_label(text)
-        .p(space::MD)
-        .text_size(tokens::GRID_TEXT)
-        .text_color(bolt_legacy::colors(cx).muted)
+        .p(Spacing::MD)
+        .text_size(bolt::density::font_base(cx))
+        .text_color(bolt::colors(cx).muted)
         .child(text)
         .into_any_element()
 }

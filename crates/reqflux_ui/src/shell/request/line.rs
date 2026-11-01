@@ -4,20 +4,19 @@
 //! field drawn in the same place, padding, font and height, so the text does not move.
 //! Enter in the field commits the URL and sends the request.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{border, chrome, cut, family, icon, space};
-use bolt_legacy::{Icon, IconName};
+use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape, InputState};
+use bolt::primitives::{Chamfer, Icon, TextVariant};
+use bolt::tokens::{ChamferCut, Fields, Spacing};
+use bolt_legacy::IconName;
 use gpui::{
     Context, Div, Entity, FontWeight, ParentElement, Role, Stateful, Styled, Window, div,
     prelude::*,
 };
-use gpui_component::input::{Enter, Escape, Input, InputState};
 
 use super::model::RequestState;
-use super::{method_menu, spans};
+use super::{method_menu, spans, ui};
 use crate::shell::{Shell, region};
-use crate::tokens::{self, method_color};
+use crate::tokens::{self, method_hue};
 
 /// The line of the request `id`, element id `request-line`.
 pub(super) fn render(
@@ -29,62 +28,43 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
     let action = if sending {
-        cancel(id, cx).into_any_element()
+        cancel(id, cx)
     } else {
-        send(id, cx).into_any_element()
+        send(id, cx)
     };
     region("request-line")
         .flex_none()
         .h(tokens::REQUEST_LINE)
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pl(space::MD)
-        .pr(space::MD)
+        .gap(Spacing::SM)
+        .pl(Spacing::MD)
+        .pr(Spacing::MD)
         .child(method(id, state, shell, window, cx))
         .child(url(id, state, shell, cx))
         .child(action)
 }
 
 /// The Cancel button shown while the request is in flight, element id `request-cancel`.
-fn cancel(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let brand = bolt_legacy::brand(cx);
+fn cancel(id: &str, cx: &mut Context<Shell>) -> Div {
     let id = id.to_owned();
-    region("request-cancel")
-        .role(Role::Button)
-        .aria_label("Cancel")
-        .relative()
-        .flex_none()
+    ui::tagged("request-cancel")
         .w(tokens::SEND_BUTTON_WIDTH)
-        .h(tokens::URL_FIELD)
-        .flex()
-        .items_center()
-        .justify_center()
-        .gap(space::SM)
-        .pl(space::MD)
-        .pr(space::MD)
-        .text_size(tokens::REQUEST_LINE_TEXT)
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(colors.strong)
         .child(
-            Chamfer::new(cut::CONTROL)
-                .fill(colors.raised)
-                .edge(colors.line, border::THIN),
+            Button::new("request-cancel", "Cancel")
+                .secondary()
+                .icon(ui::icon(IconName::Loader))
+                .kbd("Esc")
+                .w_full()
+                .on_click(cx.listener(move |this, _event, _window, cx| this.cancel(&id, cx))),
         )
-        .child(
-            Icon::new(IconName::Loader)
-                .size(icon::MD)
-                .color(brand.accent_tint),
-        )
-        .child("Cancel")
-        .child(Keycap::new("request-cancel-keycap", "Esc"))
-        .on_click(cx.listener(move |this, _event, _window, cx| this.cancel(&id, cx)))
 }
 
 /// The method chip, element id `request-method`, showing the draft's verb, else the file's.
 /// A click opens the method menu under it; while the custom verb field of this request is
 /// open, the field takes the chip's place.
+// bolt gap: drawn as the trigger of `bolt::controls::Dropdown`, whose open state and item
+// ids the shell cannot own; see `body::controls::select`.
 fn method(
     id: &str,
     state: &RequestState,
@@ -99,7 +79,7 @@ fn method(
     {
         return editing_method(edit.input.clone(), cx);
     }
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let current = shell
         .displayed_request(id, &state.inspection.request.request)
         .method
@@ -112,29 +92,29 @@ fn method(
         .relative()
         .flex_none()
         .w(tokens::METHOD_CHIP_WIDTH)
-        .h(chrome::CONTROL)
+        .h(Fields::HEIGHT)
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pl(space::MD)
-        .pr(space::MD)
+        .gap(Fields::GAP)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
         .child(
-            Chamfer::new(cut::CONTROL)
+            Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.raised)
-                .edge(colors.line, border::THIN),
+                .border(colors.line_2),
         )
         .child(
             div()
                 .flex_1()
-                .font_family(family::MONO)
-                .text_size(tokens::REQUEST_LINE_TEXT)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(Fields::TEXT)
                 .font_weight(FontWeight::BOLD)
-                .text_color(method_color(&verb, bolt_legacy::palette(cx)))
+                .text_color(method_hue(&verb, cx))
                 .child(verb),
         )
         .child(
-            Icon::new(IconName::ChevronDown)
-                .size(icon::SM)
+            Icon::new(ui::icon(IconName::ChevronDown))
+                .size(Fields::CHEVRON)
                 .color(colors.muted),
         )
         .cursor_pointer()
@@ -149,23 +129,23 @@ fn method(
 /// The custom verb field, element id `request-method-input`, over the input `input`: Enter
 /// commits it, Escape discards it and Ctrl+Enter sends.
 fn editing_method(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     region("request-method-input")
         .role(Role::TextInput)
         .relative()
         .flex_none()
         .w(tokens::METHOD_CHIP_WIDTH)
-        .h(chrome::CONTROL)
+        .h(Fields::HEIGHT)
         .flex()
         .items_center()
-        .pl(space::MD)
-        .pr(space::MD)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
         .child(
-            Chamfer::new(cut::CONTROL)
+            Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.background)
-                .edge(colors.line, border::THIN),
+                .border(colors.line),
         )
-        .on_action(cx.listener(|this, action: &Enter, window, cx| {
+        .on_action(cx.listener(|this, action: &InputEnter, window, cx| {
             // Ctrl+Enter maps to the input's `secondary-enter` while the field has focus:
             // it sends instead of committing.
             if action.secondary {
@@ -174,19 +154,19 @@ fn editing_method(input: Entity<InputState>, cx: &mut Context<Shell>) -> Statefu
                 this.commit_cell_edit(window, cx);
             }
         }))
-        .on_action(cx.listener(|this, _: &Escape, window, cx| {
+        .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.discard_cell_edit(window, cx);
         }))
         .child(
-            Input::new(&input)
+            GpuiInput::new(&input)
                 .appearance(false)
                 .bordered(false)
                 .p_0()
                 .h_full()
                 .flex_1()
                 .min_w_0()
-                .text_size(tokens::REQUEST_LINE_TEXT)
-                .font_family(family::MONO)
+                .text_size(Fields::TEXT)
+                .font_family(bolt::fonts::editor_family(cx))
                 .text_color(colors.strong),
         )
 }
@@ -199,31 +179,14 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
     if let Some(edit) = shell.url_edit.as_ref().filter(|edit| edit.request_id == id) {
         return editing_url(edit.input.clone(), cx);
     }
-    let colors = bolt_legacy::colors(cx);
     let url = shell.shown_url(id);
     let request = id.to_owned();
-    region("request-url")
+    url_field(cx)
         .role(Role::Label)
         .aria_label(url.clone())
-        .relative()
-        .flex_1()
-        .min_w_0()
-        .h(tokens::URL_FIELD)
-        .flex()
-        .items_center()
-        .pl(space::MD)
-        .pr(space::MD)
         .overflow_hidden()
         .whitespace_nowrap()
-        .font_family(family::MONO)
-        .text_size(tokens::URL_TEXT)
-        .text_color(colors.strong)
         .cursor_text()
-        .child(
-            Chamfer::new(cut::CONTROL)
-                .fill(colors.background)
-                .edge(colors.line, border::THIN),
-        )
         .child(
             region("request-url-text")
                 .flex_1()
@@ -239,28 +202,31 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
         }))
 }
 
-/// The editable URL field, element id `request-url-input`, over the input `input`.
-fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    region("request-url")
-        .role(Role::TextInput)
+/// The box of the URL, element id `request-url`: a field filling the line, in the data face.
+fn url_field(cx: &Context<Shell>) -> Stateful<Div> {
+    let colors = bolt::colors(cx);
+    ui::role(region("request-url"), TextVariant::Code, cx)
         .relative()
         .flex_1()
         .min_w_0()
-        .h(tokens::URL_FIELD)
+        .h(Fields::HEIGHT)
         .flex()
         .items_center()
-        .pl(space::MD)
-        .pr(space::MD)
-        .font_family(family::MONO)
-        .text_size(tokens::URL_TEXT)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
         .text_color(colors.strong)
         .child(
-            Chamfer::new(cut::CONTROL)
+            Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.background)
-                .edge(colors.line, border::THIN),
+                .border(colors.line),
         )
-        .on_action(cx.listener(|this, action: &Enter, window, cx| {
+}
+
+/// The editable URL field, element id `request-url-input`, over the input `input`.
+fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
+    url_field(cx)
+        .role(Role::TextInput)
+        .on_action(cx.listener(|this, action: &InputEnter, window, cx| {
             // Ctrl+Enter maps to the input's `secondary-enter` while the field has focus:
             // it sends with the field open; Enter commits it and sends.
             if action.secondary {
@@ -269,11 +235,13 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
                 this.commit_url_edit_and_send(window, cx);
             }
         }))
-        .on_action(cx.listener(|this, _: &Escape, window, cx| {
+        .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.discard_url_edit(window, cx);
         }))
+        // bolt gap: bolt's Input without its appearance keeps gpui-component's padding and
+        // its own text size, so the text would move from where the URL shows it.
         .child(
-            Input::new(&input)
+            GpuiInput::new(&input)
                 .id("request-url-input")
                 .appearance(false)
                 .bordered(false)
@@ -281,45 +249,32 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
                 .h_full()
                 .flex_1()
                 .min_w_0()
-                .text_size(tokens::URL_TEXT)
-                .font_family(family::MONO)
-                .text_color(colors.strong),
+                .text_size(TextVariant::Code.density_size(cx))
+                .font_family(bolt::fonts::editor_family(cx))
+                .font_weight(FontWeight::MEDIUM),
         )
 }
 
 /// The Send button, element id `request-send`, which sends the request `id`.
-fn send(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
+fn send(id: &str, cx: &mut Context<Shell>) -> Div {
     let id = id.to_owned();
-    let brand = bolt_legacy::brand(cx);
-    region("request-send")
-        .role(Role::Button)
-        .aria_label("Send")
-        .relative()
-        .flex_none()
+    ui::tagged("request-send")
         .w(tokens::SEND_BUTTON_WIDTH)
-        .h(tokens::URL_FIELD)
-        .flex()
-        .items_center()
-        .justify_center()
-        .gap(space::SM)
-        .pl(space::MD)
-        .pr(space::MD)
-        .text_size(tokens::REQUEST_LINE_TEXT)
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(brand.on_accent)
-        .child(Chamfer::new(cut::CONTROL).fill(brand.accent))
         .child(
-            Icon::new(IconName::Send)
-                .size(icon::MD)
-                .color(brand.on_accent),
+            Button::new("request-send", "Send")
+                .primary()
+                .icon(ui::icon(IconName::Send))
+                .kbd("Ctrl ↵")
+                .w_full()
+                .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx))),
         )
-        .child("Send")
-        .child(accent_keycap())
-        .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx)))
 }
 
-/// The `Ctrl ↵` keycap on an accent button.
+/// The `Ctrl ↵` keycap on an accent button, for the screens still on `bolt_legacy`; the
+/// request and response panes use `bolt::controls::Button::kbd`.
 pub(crate) fn accent_keycap() -> Div {
+    use bolt_legacy::chamfer::Chamfer;
+    use bolt_legacy::tokens::{cut, family};
     div()
         .relative()
         .pl(tokens::KEYCAP_PADDING_X)

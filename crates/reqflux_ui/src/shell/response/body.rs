@@ -1,27 +1,27 @@
 //! The response body: numbered mono lines in a virtual list, so only the visible lines are
 //! built, with JSON tokens colored in the Pretty view; or the size of a binary body.
 
-use bolt_legacy::tokens::{border, family, space};
+use bolt::tokens::{Borders, EditorMetrics, GridMetrics, Spacing};
 use gpui::{AnyElement, App, Hsla, ParentElement, Styled, div, prelude::*, uniform_list};
 
 use super::model::{BodyView, Token, tokens as line_tokens};
 use crate::shell::request::{Received, size_text};
 use crate::shell::rows::labeled_row;
 use crate::shell::{region, text_region};
-use crate::tokens::{self, SyntaxColors};
+use crate::tokens::SyntaxColors;
 
 /// The body of `received` as `view`: `response-body` with rows `response-body-line-<n>`, or
 /// `response-body-binary`.
 pub(super) fn render(received: &Received, view: BodyView, cx: &App) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let Some((lines, json)) = received.text.lines(view) else {
         let text = format!("Binary body, {}", size_text(received.size()));
         return text_region("response-body-binary")
             .aria_label(text.clone())
-            .p(space::MD)
-            .border_t(border::THIN)
+            .p(Spacing::MD)
+            .border_t(Borders::THIN)
             .border_color(colors.line)
-            .text_size(tokens::GRID_TEXT)
+            .text_size(bolt::density::font_base(cx))
             .text_color(colors.muted)
             .child(text)
             .into_any_element();
@@ -30,11 +30,11 @@ pub(super) fn render(received: &Received, view: BodyView, cx: &App) -> AnyElemen
     region("response-body")
         .flex_1()
         .min_h_0()
-        .pt(space::HALF)
-        .border_t(border::THIN)
+        .pt(Spacing::XXS)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(EditorMetrics::CODE_FONT)
         .child(
             uniform_list("response-body-lines", count, move |range, _window, cx| {
                 range
@@ -51,8 +51,8 @@ pub(super) fn render(received: &Received, view: BodyView, cx: &App) -> AnyElemen
 
 /// Line `n`, element id `response-body-line-<n>`, colored as JSON when `json`.
 fn line_row(n: usize, line: &str, json: bool, cx: &App) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    let syntax = SyntaxColors::for_palette(bolt_legacy::palette(cx));
+    let colors = bolt::colors(cx);
+    let syntax = SyntaxColors::current(cx);
     let text = div()
         .flex()
         .whitespace_nowrap()
@@ -69,12 +69,12 @@ fn line_row(n: usize, line: &str, json: bool, cx: &App) -> AnyElement {
     labeled_row(format!("response-body-line-{n}"), line.to_owned())
         .flex()
         .items_center()
-        .h(tokens::CODE_LINE)
+        .h(EditorMetrics::CODE_LINE_HEIGHT)
         .child(
             div()
-                .w(tokens::GRID_NUMBER_COLUMN)
+                .w(GridMetrics::ROW_NUMBER_WIDTH)
                 .flex_none()
-                .pr(space::MD)
+                .pr(Spacing::MD)
                 .text_right()
                 .text_color(colors.line_2)
                 .child(n.to_string()),

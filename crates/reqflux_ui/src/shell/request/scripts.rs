@@ -5,23 +5,21 @@
 //! `request-script-<slot>-focus-ring`, shows only while the open editor has the focus. Every edit lands in the
 //! request's draft; see [`crate::shell::scripts_edit`].
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::IconButton;
-use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, space, text};
-use bolt_legacy::{Icon, IconName};
-use gpui::{
-    AnyElement, Context, Div, FontWeight, ParentElement, Role, Stateful, Styled, div, prelude::*,
+use bolt::controls::{Button, InputEnter, InputEscape};
+use bolt::primitives::{Chamfer, Icon, TextVariant};
+use bolt::tokens::{
+    Borders, ChamferCut, EditorMetrics, Fields, HeaderMetrics, NavigationMetrics, Spacing,
 };
-use gpui_component::input::{Enter, Escape, Textarea};
+use bolt_legacy::IconName;
+use gpui::{AnyElement, Context, FontWeight, ParentElement, Role, Styled, div, prelude::*};
+use gpui_component::input::Textarea;
 use reqflux_engine::Inspection;
 
 use super::body::controls::focus_ring;
-use super::code;
+use super::{code, ui};
 use crate::shell::Shell;
 use crate::shell::rows::part;
 use crate::shell::scripts_edit::ScriptSlot;
-use crate::shell::text as text_role;
-use crate::tokens;
 
 /// The heading, the empty-state title and text, and the empty state's button of `slot`.
 fn copy(slot: ScriptSlot) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -52,17 +50,23 @@ pub(super) fn render(
 ) -> Vec<AnyElement> {
     let saved = &inspection.request.scripts;
     let shown = shell.displayed_scripts(id, saved).clone();
-    let muted = bolt_legacy::colors(cx).muted;
-    let note = part("request-script-note".to_owned())
-        .role(Role::Label)
-        .flex()
-        .items_center()
-        .gap(space::HALF)
-        .h(chrome::CONTROL)
-        .text_size(tokens::NOTICE_TEXT)
-        .text_color(muted)
-        .child(Icon::new(IconName::Info).size(icon::CHIP).color(muted))
-        .child("A script here replaces the one its folder or collection sets.");
+    let muted = bolt::colors(cx).muted;
+    let note = ui::role(
+        part("request-script-note".to_owned()),
+        TextVariant::Caption,
+        cx,
+    )
+    .role(Role::Label)
+    .flex()
+    .items_center()
+    .gap(Spacing::XXS)
+    .h(Fields::HEIGHT)
+    .child(
+        Icon::new(ui::icon(IconName::Info))
+            .size(Fields::SEGMENT_ICON)
+            .color(muted),
+    )
+    .child("A script here replaces the one its folder or collection sets.");
     let editors = ScriptSlot::ALL.map(|slot| {
         let file = slot
             .text(saved)
@@ -73,9 +77,9 @@ pub(super) fn render(
         div()
             .flex()
             .flex_col()
-            .gap(space::SM)
-            .pl(space::MD)
-            .pr(space::MD)
+            .gap(Spacing::SM)
+            .pl(Spacing::MD)
+            .pr(Spacing::MD)
             .child(note)
             .children(editors)
             .into_any_element(),
@@ -93,7 +97,7 @@ fn editor_box(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let editing = shell
         .script_edit
         .as_ref()
@@ -103,33 +107,39 @@ fn editor_box(
     let slot_id = slot.id();
     let delete = text.map(|_| {
         let request = id.to_owned();
-        IconButton::new(
-            format!("request-script-{slot_id}-delete"),
-            IconName::Trash,
-            format!("Delete {} script", heading.to_lowercase()),
+        let delete_id = format!("request-script-{slot_id}-delete");
+        ui::tagged(delete_id.clone()).child(
+            Button::new(
+                gpui::ElementId::Name(delete_id.into()),
+                format!("Delete {} script", heading.to_lowercase()),
+            )
+            .ghost()
+            .inline()
+            .icon_only()
+            .icon(ui::icon(IconName::Trash))
+            .on_click(cx.listener(move |this, _event, window, cx| {
+                this.delete_script(&request, slot, window, cx);
+            })),
         )
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.delete_script(&request, slot, window, cx);
-        }))
     });
     let header = part(format!("request-script-{slot_id}-header"))
         .flex()
         .items_center()
-        .gap(space::SM)
-        .h(tokens::SCRIPT_EDITOR_HEADER)
-        .pl(space::MD)
-        .pr(space::HALF)
-        .border_b(border::THIN)
+        .gap(HeaderMetrics::BAR_GAP)
+        .h(HeaderMetrics::BAR_HEIGHT)
+        .pl(HeaderMetrics::BAR_PADDING_X)
+        .pr(Spacing::XS)
+        .border_b(Borders::THIN)
         .border_color(colors.line)
         .child(
-            text_role::role(div(), text::LABEL, cx)
+            ui::role(div(), TextVariant::Label, cx)
                 .text_color(colors.foreground)
                 .child(heading),
         )
         .child(
             div()
-                .font_family(family::MONO)
-                .text_size(tokens::RESPONSE_META_TEXT)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(EditorMetrics::FILE_FONT)
                 .text_color(colors.muted)
                 .child(file.unwrap_or_else(|| "no file yet".to_owned())),
         )
@@ -137,16 +147,16 @@ fn editor_box(
         .children(delete);
     let body = match (editing, text) {
         (Some(input), _) => div()
-            .pl(space::MD)
-            .pr(space::MD)
-            .py(space::SM)
-            .capture_action(cx.listener(|this, action: &Enter, window, cx| {
+            .pl(Spacing::MD)
+            .pr(Spacing::MD)
+            .py(Spacing::SM)
+            .capture_action(cx.listener(|this, action: &InputEnter, window, cx| {
                 if action.secondary {
                     cx.stop_propagation();
                     this.send_active(window, cx);
                 }
             }))
-            .on_action(cx.listener(|this, _: &Escape, window, cx| {
+            .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                 this.close_script_edit(window, cx);
             }))
             .child(
@@ -154,8 +164,8 @@ fn editor_box(
                     Textarea::new(&input)
                         .appearance(false)
                         .bordered(false)
-                        .text_size(tokens::GRID_TEXT)
-                        .font_family(family::MONO)
+                        .text_size(EditorMetrics::CODE_FONT)
+                        .font_family(bolt::fonts::editor_family(cx))
                         .text_color(colors.foreground),
                 ),
             )
@@ -163,7 +173,7 @@ fn editor_box(
         (None, Some(text)) => {
             let request = id.to_owned();
             part(format!("request-script-{slot_id}-code"))
-                .py(space::SM)
+                .py(Spacing::SM)
                 .cursor_text()
                 .on_click(cx.listener(move |this, _event, window, cx| {
                     this.start_script_edit(&request, slot, window, cx);
@@ -185,9 +195,9 @@ fn editor_box(
         .flex()
         .flex_col()
         .child(
-            Chamfer::new(cut::CONTROL)
+            Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.background)
-                .edge(colors.line, border::THIN),
+                .border(colors.line),
         )
         .child(header)
         .child(body)
@@ -201,10 +211,13 @@ fn editor_box(
 }
 
 /// The empty state `request-script-<slot>-empty` of the missing script `slot`, whose
-/// button `request-script-<slot>-create` opens an empty editor.
+/// button `request-script-<slot>-create` opens an empty editor. Drawn as
+/// `bolt::composites::EmptyState` draws its content.
+// bolt gap: EmptyState's actions are key hints, not buttons; this goes once it takes a
+// button.
 fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = *bolt_legacy::colors(cx);
-    let accent = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let (_, title, hint, action) = copy(slot);
     let slot_id = slot.id();
     let icon_name = match slot {
@@ -212,63 +225,43 @@ fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElemen
         ScriptSlot::Test => IconName::CircleCheckBig,
     };
     let request = id.to_owned();
+    let create = format!("request-script-{slot_id}-create");
     part(format!("request-script-{slot_id}-empty"))
         .role(Role::Label)
         .aria_label(title)
         .flex()
         .flex_col()
         .items_center()
-        .gap(space::SM)
-        .p(space::LG)
+        .gap(NavigationMetrics::EMPTY_GAP)
+        .p(Spacing::LG)
+        .text_center()
         .child(
-            Icon::new(icon_name)
-                .size(tokens::EMPTY_STATE_ICON)
-                .color(accent),
+            Icon::new(ui::icon(icon_name))
+                .size(NavigationMetrics::EMPTY_ICON)
+                .color(tint),
         )
         .child(
-            text_role::role(div(), text::BODY, cx)
-                .font_weight(FontWeight::SEMIBOLD)
+            div()
+                .text_size(NavigationMetrics::EMPTY_TITLE_FONT)
+                .font_weight(FontWeight::BOLD)
                 .text_color(colors.strong)
                 .child(title),
         )
         .child(
-            text_role::role(div(), text::CAPTION, cx)
-                .text_center()
+            div()
+                .text_size(NavigationMetrics::EMPTY_BODY_FONT)
+                .text_color(colors.muted)
                 .child(hint),
         )
         .child(
-            primary_button(format!("request-script-{slot_id}-create"), action, cx).on_click(
-                cx.listener(move |this, _event, window, cx| {
-                    this.start_script_edit(&request, slot, window, cx);
-                }),
+            ui::tagged(create.clone()).child(
+                Button::new(gpui::ElementId::Name(create.into()), action)
+                    .primary()
+                    .icon(ui::icon(IconName::Pencil))
+                    .on_click(cx.listener(move |this, _event, window, cx| {
+                        this.start_script_edit(&request, slot, window, cx);
+                    })),
             ),
         )
         .into_any_element()
-}
-
-/// An accent button `id` with the pencil icon and `label`.
-fn primary_button(id: String, label: &'static str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let brand = bolt_legacy::brand(cx);
-    part(id)
-        .role(Role::Button)
-        .aria_label(label)
-        .relative()
-        .flex()
-        .flex_none()
-        .items_center()
-        .gap(space::SM)
-        .h(chrome::CONTROL)
-        .pl(space::MD)
-        .pr(space::MD)
-        .text_size(field::FONT)
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(brand.on_accent)
-        .cursor_pointer()
-        .child(Chamfer::new(cut::CONTROL).fill(brand.accent))
-        .child(
-            Icon::new(IconName::Pencil)
-                .size(icon::MD)
-                .color(brand.on_accent),
-        )
-        .child(label)
 }

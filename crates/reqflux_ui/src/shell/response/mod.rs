@@ -16,7 +16,6 @@ mod model;
 mod preview;
 mod preview_model;
 mod results;
-mod segmented;
 mod sub_tabs;
 mod tab_row;
 
@@ -26,10 +25,12 @@ pub(crate) use model::{BodyText, BodyView, ResponseTab};
 pub(crate) use preview::{Preview, PreviewHost};
 pub(crate) use preview_model::{PreviewKind, preview_kind};
 
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{border, space};
+use bolt::composites::{EmptyState, EmptyStateAction};
+use bolt::tokens::{Borders, Spacing};
+use bolt_legacy::IconName;
 use gpui::{AnyElement, App, Context, Div, ParentElement, Stateful, Styled, div, prelude::*};
 
+use super::request::ui;
 use super::request::{Completed, SendState};
 use super::send::RequestSend;
 use super::{Shell, region, text_region};
@@ -55,15 +56,15 @@ pub(super) fn render(
         (Some(send), Some(SendState::Done(outcome))) => {
             vec![completed(id, send, outcome, cx).into_any_element()]
         }
-        _ => vec![empty(cx)],
+        _ => vec![empty()],
     };
-    let line_2 = bolt_legacy::colors(cx).line_2;
+    let line_2 = bolt::colors(cx).line_2;
     region("response")
         .flex_1()
         .min_h_0()
         .flex()
         .flex_col()
-        .border_t(border::THIN)
+        .border_t(Borders::THIN)
         .border_color(line_2)
         .child(tab_row::render(id, send, cx))
         .children(
@@ -118,27 +119,28 @@ fn unresolved_line(text: String, cx: &App) -> Stateful<Div> {
     text_region("response-unresolved")
         .aria_label(text.clone())
         .flex_none()
-        .pl(space::MD)
-        .pr(space::MD)
-        .pb(space::SM)
-        .text_size(tokens::NOTICE_TEXT)
-        .text_color(bolt_legacy::colors(cx).warning)
+        .pl(Spacing::MD)
+        .pr(Spacing::MD)
+        .pb(Spacing::SM)
+        .text_size(bolt::density::font_xs(cx))
+        .text_color(bolt::colors(cx).warning)
         .child(text)
 }
 
-/// The muted state before the first send, element id `response-empty`.
-fn empty(cx: &App) -> AnyElement {
+/// The empty state before the first send, element id `response-empty`.
+fn empty() -> AnyElement {
     let text = "Send the request to see its response";
     text_region("response-empty")
         .aria_label(text)
         .flex_1()
+        .min_h_0()
         .flex()
-        .items_center()
-        .justify_center()
-        .gap(space::SM)
-        .text_size(tokens::GRID_TEXT)
-        .text_color(bolt_legacy::colors(cx).muted)
-        .child(text)
-        .child(Keycap::new("response-empty-keycap", "Ctrl ↵"))
+        .child(
+            EmptyState::new(ui::icon(IconName::Send), text).action(EmptyStateAction::new(
+                ui::icon(IconName::Send),
+                "Send",
+                ["Ctrl ↵"],
+            )),
+        )
         .into_any_element()
 }

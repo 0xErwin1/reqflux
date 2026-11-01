@@ -1,7 +1,7 @@
-//! A pane menu under a row: one row per option, drawn above the islands over a backdrop
-//! that closes it on a click outside. Escape closes it too. The Auth type and Body mode
-//! menus are this menu, anchored under their trigger by [`render`]; the context menus (a
-//! tree row, an environment) are this menu too, opened at the pointer by [`render_at`].
+//! A context menu: one row per option, drawn above the islands over a backdrop that closes
+//! it on a click outside. Escape closes it too. The context menus of a tree row and of an
+//! environment are this menu, opened at the pointer by [`render_at`]; the request's pane
+//! menus moved to `bolt` (see `request::menu`), and these follow when their screens do.
 
 use bolt_legacy::chamfer::Chamfer;
 use bolt_legacy::tokens::{border, cut, icon, space, text};
@@ -46,26 +46,6 @@ pub(in crate::shell) fn option<V: 'static>(
             row.child(Icon::new(IconName::Check).size(icon::MD).color(tint))
         })
         .on_click(cx.listener(move |this, _event, window, cx| pick(this, window, cx)))
-        .into_any_element()
-}
-
-/// The open menu `id` of `options`, focused through `focus`, anchored under its row;
-/// Escape and a click outside its `backdrop` run `close`.
-pub(in crate::shell) fn render<V: 'static>(
-    ids: (&'static str, &'static str),
-    focus: &FocusHandle,
-    options: Vec<AnyElement>,
-    close: fn(&mut V, &mut Window, &mut Context<V>),
-    window: &Window,
-    cx: &mut Context<V>,
-) -> AnyElement {
-    let (menu, backdrop) = parts(ids, focus, options, close, window, cx);
-    div()
-        .absolute()
-        .top_full()
-        .left_0()
-        .child(backdrop)
-        .child(deferred(anchored().child(menu)).with_priority(2))
         .into_any_element()
 }
 

@@ -17,8 +17,11 @@
 
 use std::collections::HashSet;
 
-use bolt_legacy::tokens::{Colors, border, family, icon, space};
-use bolt_legacy::{Icon, IconName};
+use bolt::Colors;
+use bolt::controls::Button;
+use bolt::primitives::Icon;
+use bolt::tokens::{Borders, ButtonMetrics, Fields, HeaderMetrics, ResultMetrics, Spacing};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, ClickEvent, Context, CursorStyle, Div, DragMoveEvent, Empty, FocusHandle,
     FontWeight, Hsla, KeyDownEvent, MouseButton, ParentElement, Pixels, Role, Stateful, Styled,
@@ -26,7 +29,7 @@ use gpui::{
 };
 use reqflux_engine::state::AppState;
 
-use super::request::{Completed, SendState, StatusClass, elapsed_text, size_text};
+use super::request::{Completed, SendState, StatusClass, elapsed_text, size_text, ui};
 use super::rows::part;
 use super::send::RequestSend;
 use super::{Shell, region, response};
@@ -302,10 +305,11 @@ pub(super) fn render(
 
 /// The gutter, element id `request-response-split`: a panel strip with a line on top (the
 /// response draws the one under it) and the dotted grip, tinted on hover, focus and drag.
+// bolt gap: bolt has no splitter; this gutter moves there with the sidebar's.
 fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<Div> {
     let split = &shell.split;
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let lit = split.dragging || split.focus.is_focused(window);
     let wash = tokens::wash(tint, tokens::SPLIT_HOVER_WASH);
     let percent = split
@@ -348,7 +352,7 @@ fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<D
         .justify_center()
         .bg(if lit { wash } else { colors.panel })
         .hover(|style| style.bg(wash))
-        .border_t(border::THIN)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
         .cursor(CursorStyle::ResizeRow)
         .child(grip)
@@ -359,7 +363,7 @@ fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<D
                     .left_0()
                     .right_0()
                     .top(tokens::SPLIT_DRAG_LINE_TOP)
-                    .h(border::THICK)
+                    .h(Borders::MEDIUM)
                     .bg(tint),
             )
         })
@@ -385,12 +389,14 @@ fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<D
 /// status, time and size and its test count, and how to bring it back.
 fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful<Div> {
     let expand = expand_button(cx);
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
+    let mono_family = bolt::fonts::editor_family(cx);
+    let notice_size = bolt::density::font_xs(cx);
     let mono = |id: &'static str, label: String, color: Hsla| {
         super::text_region(id)
             .aria_label(label.clone())
-            .font_family(family::MONO)
-            .text_size(tokens::RESPONSE_META_TEXT)
+            .font_family(mono_family.clone())
+            .text_size(ResultMetrics::STATEMENT_FONT)
             .text_color(color)
             .whitespace_nowrap()
             .child(label)
@@ -403,7 +409,7 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
             );
         }
         Some(SendState::Done(Completed::Response(received))) => {
-            let status = class_color(StatusClass::of(received.status), colors);
+            let status = class_color(StatusClass::of(received.status), &colors);
             parts.push(
                 mono("response-bar-status", received.status_text(), status)
                     .font_weight(FontWeight::SEMIBOLD)
@@ -428,12 +434,12 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
                         .aria_label(label.clone())
                         .flex()
                         .items_center()
-                        .gap(space::HALF)
-                        .text_size(tokens::NOTICE_TEXT)
+                        .gap(Spacing::XXS)
+                        .text_size(notice_size)
                         .text_color(color)
                         .child(
-                            Icon::new(IconName::CircleCheckBig)
-                                .size(icon::SM)
+                            Icon::new(ui::icon(IconName::CircleCheckBig))
+                                .size(Fields::CHEVRON)
                                 .color(color),
                         )
                         .child(label)
@@ -453,15 +459,15 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
 
     region("response-bar")
         .flex_none()
-        .h(tokens::RESPONSE_BAR)
+        .h(HeaderMetrics::PANEL_HEIGHT)
         .flex()
         .items_center()
-        .gap(tokens::RESPONSE_BAR_GAP)
-        .pl(space::MD)
-        .pr(space::SM)
-        .border_t(border::THIN)
+        .gap(HeaderMetrics::BAR_GAP)
+        .pl(Spacing::MD)
+        .pr(Spacing::SM)
+        .border_t(Borders::THIN)
         .border_color(colors.line_2)
-        .text_size(tokens::REQUEST_LINE_TEXT)
+        .text_size(ButtonMetrics::FONT)
         .child(expand)
         .child(
             div()
@@ -473,7 +479,7 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
         .child(div().flex_1())
         .child(
             div()
-                .text_size(tokens::NOTICE_TEXT)
+                .text_size(notice_size)
                 .text_color(colors.muted)
                 .whitespace_nowrap()
                 .child("Collapsed · drag the handle"),
@@ -481,25 +487,14 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
 }
 
 /// The ghost button that restores the collapsed response, element id `response-expand`.
-fn expand_button(cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    part("response-expand".to_owned())
-        .role(Role::Button)
-        .aria_label("Expand response")
-        .relative()
-        .flex_none()
-        .size(tokens::RESPONSE_EXPAND)
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .hover(|style| style.bg(colors.hover))
-        .child(
-            Icon::new(IconName::ChevronUp)
-                .size(icon::SM)
-                .color(colors.foreground),
-        )
-        .on_click(cx.listener(|this, _event, _window, cx| this.expand_response(cx)))
+fn expand_button(cx: &mut Context<Shell>) -> Div {
+    ui::tagged("response-expand").child(
+        Button::new("response-expand", "Expand response")
+            .ghost()
+            .icon_only()
+            .icon(ui::icon(IconName::ChevronUp))
+            .on_click(cx.listener(|this, _event, _window, cx| this.expand_response(cx))),
+    )
 }
 
 /// The status color of a status class, as the response's status chip draws it.

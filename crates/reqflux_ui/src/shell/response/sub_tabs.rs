@@ -1,14 +1,16 @@
 //! The response views row, `Body`, `Headers <n>` and `Cookies <n>` with the content type,
 //! and the Headers grid.
 
+use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
 use bolt_legacy::IconName;
-use bolt_legacy::tokens::{border, family, space};
-use gpui::{AnyElement, App, Context, Div, FontWeight, ParentElement, Styled, div, prelude::*};
+use gpui::{
+    AnyElement, App, Context, Div, FontWeight, ParentElement, Role, Styled, div, prelude::*,
+};
 
 use super::cookies::cookie_count;
 use super::model::{BodyView, ResponseTab};
-use super::segmented::{segment, track};
 use crate::shell::request::Received;
+use crate::shell::request::segmented::{segment, track};
 use crate::shell::rows::labeled_row;
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region};
@@ -42,7 +44,7 @@ pub(super) fn render(
     received: &Received,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let tab = effective_tab(send.tab, received);
     let headers = received.headers.len().to_string();
     let cookie_count = cookie_count(&received.headers).to_string();
@@ -68,9 +70,10 @@ pub(super) fn render(
             segment(
                 format!("response-tab-{}", label.to_lowercase()),
                 label,
-                icon_name,
+                Some(icon_name),
                 counts,
                 tab == view_tab,
+                Role::Tab,
                 cx,
             )
             .on_click(cx.listener(move |this, _event, _window, cx| {
@@ -80,20 +83,20 @@ pub(super) fn render(
         .collect();
     div()
         .flex_none()
-        .h(tokens::SUB_TAB_BAR)
+        .h(ResultMetrics::VIEW_ROW_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::MD)
-        .pl(space::MD)
-        .pr(space::MD)
-        .border_t(border::THIN)
+        .gap(ResultMetrics::VIEW_ROW_GAP)
+        .pl(Spacing::MD)
+        .pr(Spacing::MD)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(track("response-views", segments, cx))
+        .child(track("response-views", Role::TabList, segments, cx))
         .children(received.content_type().map(|content_type| {
             div()
                 .whitespace_nowrap()
-                .font_family(family::MONO)
-                .text_size(tokens::RESPONSE_META_TEXT)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(ResultMetrics::STATEMENT_FONT)
                 .text_color(colors.muted)
                 .child(content_type.to_owned())
         }))
@@ -101,15 +104,15 @@ pub(super) fn render(
 
 /// The headers of `received`, one row `response-headers-row-<n>` each, name then value.
 pub(super) fn headers(received: &Received, cx: &App) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     region("response-headers")
         .flex_1()
         .min_h_0()
         .overflow_y_scroll()
-        .border_t(border::THIN)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(GridMetrics::FONT)
         .children(
             received
                 .headers
@@ -122,15 +125,15 @@ pub(super) fn headers(received: &Received, cx: &App) -> AnyElement {
                     )
                     .flex()
                     .items_center()
-                    .h(tokens::GRID_ROW)
-                    .border_b(border::THIN)
+                    .h(Heights::ROW)
+                    .border_b(Borders::THIN)
                     .border_color(colors.row_divider)
                     .child(
                         div()
                             .w(tokens::GRID_KEY_COLUMN)
                             .flex_none()
-                            .pl(space::MD)
-                            .pr(space::MD)
+                            .pl(Spacing::MD)
+                            .pr(Spacing::MD)
                             .overflow_hidden()
                             .whitespace_nowrap()
                             .font_weight(FontWeight::SEMIBOLD)
@@ -141,7 +144,7 @@ pub(super) fn headers(received: &Received, cx: &App) -> AnyElement {
                         div()
                             .flex_1()
                             .min_w_0()
-                            .pr(space::MD)
+                            .pr(Spacing::MD)
                             .overflow_hidden()
                             .whitespace_nowrap()
                             .text_color(colors.foreground)

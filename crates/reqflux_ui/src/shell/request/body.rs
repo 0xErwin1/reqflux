@@ -6,20 +6,22 @@
 
 pub(super) mod controls;
 
-use bolt_legacy::tokens::{border, family, space};
-use bolt_legacy::{Icon, IconName};
-use gpui::{AnyElement, Context, ParentElement, Styled, Window, div, prelude::*};
-use gpui_component::input::{Enter, Escape, Textarea};
+use bolt::controls::{InputEnter, InputEscape};
+use bolt::primitives::Icon;
+use bolt::tokens::{Borders, EditorMetrics, Fields, ResultMetrics, Spacing};
+use bolt_legacy::IconName;
+use gpui::{AnyElement, Context, ParentElement, Role, Styled, Window, div, prelude::*};
+use gpui_component::input::Textarea;
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
 
-use self::controls::{focus_ring, segment, select, text_well, track, well};
+use self::controls::{focus_ring, select, text_well, well};
 use super::pane_model::body_mode;
-use super::{body_menu, code, grid};
+use super::segmented::{segment, track};
+use super::{body_menu, code, grid, ui};
 use crate::shell::Shell;
 use crate::shell::body_edit::{BODY_MODES, body_hint, body_kind};
 use crate::shell::rows::part;
-use crate::tokens;
 
 /// The icon of the mode `kind` in the mode control.
 fn mode_icon(kind: &str) -> IconName {
@@ -63,24 +65,25 @@ fn mode_row(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let (muted, line) = {
-        let colors = bolt_legacy::colors(cx);
-        (colors.muted, colors.line)
-    };
+    let colors = bolt::colors(cx);
+    let (muted, line) = (colors.muted, colors.line);
     let current = body_kind(body);
     let segments: Vec<_> = BODY_MODES
         .into_iter()
         .map(|(kind, name)| {
             let request = request_id.to_owned();
-            let count = row_count(body)
+            let counts = row_count(body)
                 .filter(|count| *count > 0 && kind == current)
-                .map(|count| count.to_string());
+                .map(|count| (count.to_string(), muted))
+                .into_iter()
+                .collect();
             segment(
                 format!("body-mode-{kind}"),
                 name,
-                mode_icon(kind),
-                count,
+                Some(mode_icon(kind)),
+                counts,
                 kind == current,
+                Role::Tab,
                 cx,
             )
             .on_click(cx.listener(move |this, _event, window, cx| {
@@ -113,22 +116,22 @@ fn mode_row(
     let hint = body_hint(body).map(|hint| {
         part("request-body-hint".to_owned())
             .whitespace_nowrap()
-            .font_family(family::MONO)
-            .text_size(tokens::RESPONSE_META_TEXT)
+            .font_family(bolt::fonts::editor_family(cx))
+            .text_size(ResultMetrics::STATEMENT_FONT)
             .text_color(muted)
             .child(hint)
     });
     div()
         .flex_none()
-        .h(tokens::SUB_TAB_BAR)
+        .h(ResultMetrics::VIEW_ROW_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::MD)
-        .pl(space::MD)
-        .pr(space::MD)
-        .border_t(border::THIN)
+        .gap(ResultMetrics::VIEW_ROW_GAP)
+        .pl(Spacing::MD)
+        .pr(Spacing::MD)
+        .border_t(Borders::THIN)
         .border_color(line)
-        .child(track("request-body-mode", segments, cx).aria_label(body_mode(body)))
+        .child(track("request-body-mode", Role::TabList, segments, cx).aria_label(body_mode(body)))
         .children(language)
         .children(hint)
         .into_any_element()
@@ -142,28 +145,28 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
         .body_edit
         .as_ref()
         .filter(|edit| edit.request_id == request_id)?;
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     Some(
         text_well("request-body-input".to_owned(), cx)
-            .mx(space::MD)
-            .mt(space::SM)
-            .pl(space::MD)
-            .pr(space::MD)
-            .capture_action(cx.listener(|this, action: &Enter, window, cx| {
+            .mx(Spacing::MD)
+            .mt(Spacing::SM)
+            .pl(Spacing::MD)
+            .pr(Spacing::MD)
+            .capture_action(cx.listener(|this, action: &InputEnter, window, cx| {
                 if action.secondary {
                     cx.stop_propagation();
                     this.send_active(window, cx);
                 }
             }))
-            .on_action(cx.listener(|this, _: &Escape, window, cx| {
+            .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                 this.close_body_edit(window, cx);
             }))
             .child(
                 Textarea::new(&edit.input)
                     .appearance(false)
                     .bordered(false)
-                    .text_size(tokens::GRID_TEXT)
-                    .font_family(family::MONO)
+                    .text_size(EditorMetrics::CODE_FONT)
+                    .font_family(bolt::fonts::editor_family(cx))
                     .text_color(colors.foreground),
             )
             .when(edit.focused, |well| {
@@ -196,8 +199,8 @@ pub(super) fn render(
     let content = match body {
         Body::None => vec![code::empty(
             "request-body-empty".to_owned(),
+            IconName::Ban,
             "This request has no body",
-            cx,
         )],
         Body::Raw { text, .. } => match editor(shell, request_id, cx) {
             Some(editor) => vec![editor],
@@ -206,8 +209,8 @@ pub(super) fn render(
                 let block = code_block(text, cx);
                 vec![
                     text_well("request-body-raw".to_owned(), cx)
-                        .mx(space::MD)
-                        .mt(space::SM)
+                        .mx(Spacing::MD)
+                        .mt(Spacing::SM)
                         .cursor_text()
                         .on_click(cx.listener(move |this, _event, window, cx| {
                             this.start_body_edit(&request, window, cx);
@@ -228,13 +231,13 @@ pub(super) fn render(
             );
             vec![
                 text_well("request-body-query".to_owned(), cx)
-                    .mx(space::MD)
-                    .mt(space::SM)
+                    .mx(Spacing::MD)
+                    .mt(Spacing::SM)
                     .child(query)
                     .into_any_element(),
                 code::label("Variables", cx).into_any_element(),
                 text_well("request-body-variables-well".to_owned(), cx)
-                    .mx(space::MD)
+                    .mx(Spacing::MD)
                     .child(variables)
                     .into_any_element(),
             ]
@@ -265,7 +268,7 @@ pub(super) fn render(
             )]
         }
         Body::Binary { path } => {
-            let muted = bolt_legacy::colors(cx).muted;
+            let muted = bolt::colors(cx).muted;
             let shown = if path.is_empty() {
                 div().text_color(muted).child("No file")
             } else {
@@ -273,11 +276,11 @@ pub(super) fn render(
             };
             vec![
                 well("request-body-file".to_owned(), cx)
-                    .mx(space::MD)
-                    .mt(space::SM)
+                    .mx(Spacing::MD)
+                    .mt(Spacing::SM)
                     .child(
-                        Icon::new(IconName::File)
-                            .size(tokens::GRID_TEXT)
+                        Icon::new(ui::icon(IconName::File))
+                            .size(Fields::LEADING_ICON)
                             .color(muted),
                     )
                     .child(shown)

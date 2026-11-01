@@ -86,6 +86,8 @@ fn request_workspace() -> TempDir {
 }
 
 fn render(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
+    // The request panes draw with `bolt`, whose components read the theme.
+    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
     cx.update(super::bind_keys);
     let dir = request_workspace();
     let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
@@ -338,10 +340,11 @@ fn a_request_that_cannot_be_prepared_shows_the_problem(cx: &mut TestAppContext) 
 fn grid_cells_share_their_edges_as_drawn(cx: &mut TestAppContext) {
     let (_shell, cx) = render(cx);
     click(cx, &format!("tree-row-{INVOICE}"));
+    // The header and rows take the heights of `bolt`'s data grid.
     let header = present(cx, "request-headers-header");
-    assert_eq!(header.size.height, gpui::px(32.));
+    assert_eq!(header.size.height, gpui::px(40.));
     let row = present(cx, "request-headers-row-1");
-    assert_eq!(row.size.height, gpui::px(30.));
+    assert_eq!(row.size.height, gpui::px(31.));
     assert_eq!(
         present(cx, "request-headers-enabled-1").size.width,
         gpui::px(16.)
@@ -375,7 +378,7 @@ fn the_add_row_is_a_grid_row_under_the_last_one(cx: &mut TestAppContext) {
     let last = present(cx, "request-headers-row-5");
     let add = present(cx, "request-headers-add");
     assert_eq!(add.top(), last.bottom());
-    assert_eq!(add.size.height, gpui::px(30.));
+    assert_eq!(add.size.height, gpui::px(31.));
     assert_eq!(add.size.width, last.size.width);
 }
 

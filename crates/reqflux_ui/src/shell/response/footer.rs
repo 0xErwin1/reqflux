@@ -1,16 +1,17 @@
 //! The bottom bar of the response body, element id `response-footer`: the `Pretty` / `Raw` /
 //! `Preview` switch and the line count of a text body.
 
-use bolt_legacy::tokens::{border, chrome, icon, space, text};
-use bolt_legacy::{Icon, IconName};
-use gpui::{Context, Div, ParentElement, Stateful, Styled, prelude::*};
+use bolt::primitives::{Icon, TextVariant};
+use bolt::tokens::{Borders, Fields, ResultMetrics};
+use bolt_legacy::IconName;
+use gpui::{Context, Div, ParentElement, Role, Stateful, Styled, prelude::*};
 
 use super::model::BodyView;
-use super::segmented::{segment, track};
 use super::sub_tabs::effective_view;
-use crate::shell::request::Received;
+use crate::shell::request::segmented::{segment, track};
+use crate::shell::request::{Received, ui};
 use crate::shell::send::RequestSend;
-use crate::shell::{Shell, region, text as text_role, text_region};
+use crate::shell::{Shell, region, text_region};
 
 /// The bar of the body of `received`, shown in the response of the request `id`.
 pub(super) fn render(
@@ -19,7 +20,7 @@ pub(super) fn render(
     received: &Received,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let selected = effective_view(send.view, received);
     let mut views = vec![
         (BodyView::Pretty, "Pretty", IconName::Braces),
@@ -35,9 +36,10 @@ pub(super) fn render(
             segment(
                 format!("response-view-{}", label.to_lowercase()),
                 label,
-                icon_name,
+                Some(icon_name),
                 Vec::new(),
                 selected == view,
+                Role::Tab,
                 cx,
             )
             .on_click(cx.listener(move |this, _event, _window, cx| {
@@ -51,27 +53,35 @@ pub(super) fn render(
     };
     region("response-footer")
         .flex_none()
-        .h(chrome::DOC_TAB_ROW)
+        .h(ResultMetrics::FOOTER_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::MD)
-        .pl(space::MD)
-        .pr(space::MD)
-        .border_t(border::THIN)
+        .gap(ResultMetrics::FOOTER_GAP)
+        .pl(ResultMetrics::FOOTER_PADDING_X)
+        .pr(ResultMetrics::FOOTER_PADDING_X)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(track("response-format", segments, cx))
+        .child(track("response-format", Role::TabList, segments, cx))
         .children(lines.map(|count| {
             let label = match count {
                 1 => "1 line".to_owned(),
                 count => format!("{count} lines"),
             };
-            text_role::role(text_region("response-footer-lines"), text::CAPTION, cx)
-                .aria_label(label.clone())
-                .flex()
-                .items_center()
-                .gap(space::HALF)
-                .whitespace_nowrap()
-                .child(Icon::new(IconName::List).size(icon::SM).color(colors.muted))
-                .child(label)
+            ui::role(
+                text_region("response-footer-lines"),
+                TextVariant::Caption,
+                cx,
+            )
+            .aria_label(label.clone())
+            .flex()
+            .items_center()
+            .gap(ResultMetrics::FOOTER_ITEM_GAP)
+            .whitespace_nowrap()
+            .child(
+                Icon::new(ui::icon(IconName::List))
+                    .size(Fields::CHEVRON)
+                    .color(colors.muted),
+            )
+            .child(label)
         }))
 }

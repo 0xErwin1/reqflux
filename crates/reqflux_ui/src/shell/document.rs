@@ -5,15 +5,16 @@
 //! its response under it across the draggable split (see `split`). While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
 
+use bolt::tokens::Borders;
+// bolt gap: Island is in DBFlux's dbflux_components, not in bolt.
 use bolt_legacy::Island;
-use bolt_legacy::tokens::border;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
 
 use super::documents::locate;
 use super::{Shell, action_strip, empty_state, history, path_bar, region, request, split, tabs};
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let active = shell
         .active_request()
         .and_then(|id| locate(&shell.roots, id));
@@ -23,7 +24,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .flex_1()
         .min_h_0()
         .flex()
-        .border_t(border::THIN)
+        .border_t(Borders::THIN)
         .border_color(colors.line);
     body = match (shell.workspace.document_message(), &active) {
         (Some(message), _) => body

@@ -82,6 +82,7 @@ fn render<'a>(
     cx: &'a mut TestAppContext,
     dir: &TempDir,
 ) -> (Entity<Sidebar>, &'a mut VisualTestContext) {
+    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
     cx.update(super::bind_keys);
     let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
     let (shell, cx) = cx.add_window_view(|_, cx| Shell::new(workspace, cx));

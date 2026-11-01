@@ -3,17 +3,17 @@
 //! request-panes/01), and at the right the problem of the inspection or else the unresolved
 //! variables notice.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName};
-use gpui::{
-    Context, Div, FontWeight, Hsla, ParentElement, Role, Stateful, Styled, div, prelude::*,
-};
+use bolt::composites::{document_tab, document_tab_title};
+use bolt::primitives::Icon;
+use bolt::tokens::{Borders, Fields, Spacing, TabMetrics};
+use bolt_legacy::IconName;
+use gpui::{App, Div, Hsla, ParentElement, Role, Stateful, Styled, div, prelude::*};
+use gpui::{Context, InteractiveElement};
 
 use super::model::{RequestState, SubTab, count, unresolved_text};
+use super::ui;
 use crate::shell::rows::part;
-use crate::shell::{Shell, region, text as text_role};
-use crate::tokens;
+use crate::shell::{Shell, region};
 
 /// The bar, element id `request-tabs`, for the request `id`.
 pub(super) fn render(
@@ -22,21 +22,26 @@ pub(super) fn render(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let notice = match &state.inspection.problem {
-        Some(problem) => Some(notice("request-problem", problem.clone(), colors.danger)),
+        Some(problem) => Some(notice(
+            "request-problem",
+            problem.clone(),
+            colors.danger,
+            cx,
+        )),
         None => unresolved_text(state.inspection.unresolved.len())
-            .map(|label| notice("request-unresolved", label, colors.warning)),
+            .map(|label| notice("request-unresolved", label, colors.warning, cx)),
     };
     region("request-tabs")
         .flex_none()
-        .h(tokens::SUB_TAB_BAR)
+        .h(TabMetrics::INLINE_TAB_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::XS)
-        .pl(space::MD)
-        .pr(space::MD)
-        .border_t(border::THIN)
+        .gap(TabMetrics::DOCUMENT_BAR_GAP)
+        .pl(TabMetrics::INLINE_BAR_PADDING_X)
+        .pr(TabMetrics::INLINE_BAR_PADDING_X)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
         .children(
             SubTab::ALL
@@ -98,20 +103,20 @@ pub(crate) fn sub_tab_badge(
 }
 
 /// A notice at the right of the bar, element id `id`, in `color`.
-fn notice(id: &'static str, label: String, color: Hsla) -> Stateful<Div> {
+fn notice(id: &'static str, label: String, color: Hsla, cx: &App) -> Stateful<Div> {
     region(id)
         .role(Role::Label)
         .aria_label(label.clone())
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::HALF)
+        .gap(Spacing::XXS)
         .whitespace_nowrap()
-        .text_size(tokens::NOTICE_TEXT)
+        .text_size(bolt::density::font_xs(cx))
         .text_color(color)
         .child(
-            Icon::new(IconName::TriangleAlert)
-                .size(icon::CHIP)
+            Icon::new(ui::icon(IconName::TriangleAlert))
+                .size(Fields::SEGMENT_ICON)
                 .color(color),
         )
         .child(label)
@@ -138,58 +143,35 @@ fn sub_tab(
     tab: SubTab,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let selected = state.tab == tab;
-    let (label_color, weight, icon_color) = if selected {
-        (
-            colors.strong,
-            FontWeight::SEMIBOLD,
-            bolt_legacy::brand(cx).accent_tint,
-        )
-    } else {
-        (colors.muted, text::BODY.weight, colors.muted)
-    };
+    let icon_color = if selected { tint } else { colors.muted };
     let badge_color = match tab {
-        SubTab::Settings => bolt_legacy::brand(cx).accent_tint,
+        SubTab::Settings => tint,
         _ => colors.muted,
     };
     let request = id.to_owned();
-    text_role::role(part(tab.element_id()), text::BODY, cx)
+    let selector = tab.element_id();
+    document_tab(tab.element_id(), selected, cx)
+        .debug_selector(move || selector)
         .role(Role::Tab)
         .aria_label(tab.label())
         .aria_selected(selected)
-        .relative()
-        .flex_none()
-        .flex()
-        .items_center()
-        .gap(space::SM)
-        .h(chrome::DOC_TAB)
-        .pl(space::MD)
-        .pr(space::MD)
-        .whitespace_nowrap()
-        .cursor_pointer()
-        .when(selected, |chip| {
-            chip.child(Chamfer::new(cut::CONTROL).fill(colors.raised))
-        })
-        .child(Icon::new(icon_of(tab)).size(icon::MD).color(icon_color))
         .child(
-            div()
-                .text_color(label_color)
-                .font_weight(weight)
-                .child(tab.label()),
+            Icon::new(ui::icon(icon_of(tab)))
+                .size(TabMetrics::ICON)
+                .color(icon_color),
         )
+        .child(document_tab_title(tab.label(), selected, cx))
         .children(badge.map(|badge| {
-            text_role::role(
-                part(format!("request-tab-{}-count", tab.label().to_lowercase())),
-                text::LABEL,
-                cx,
-            )
-            .role(Role::Label)
-            .aria_label(badge.clone())
-            .font_family(family::MONO)
-            .text_size(tokens::SMALL_MONO_TEXT)
-            .text_color(badge_color)
-            .child(badge)
+            part(format!("request-tab-{}-count", tab.label().to_lowercase()))
+                .role(Role::Label)
+                .aria_label(badge.clone())
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(TabMetrics::RESULT_META_SIZE)
+                .text_color(badge_color)
+                .child(badge)
         }))
         .on_click(cx.listener(move |this, _event, _window, cx| {
             this.select_sub_tab(&request, tab, cx);

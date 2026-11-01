@@ -4,7 +4,7 @@
 use gpui::{AnyElement, Context, Window};
 use reqflux_core::model::Auth;
 
-use super::option_menu;
+use super::menu;
 use super::pane_model::auth_type;
 use crate::shell::Shell;
 use crate::shell::auth_edit::{AUTH_KINDS, empty_auth};
@@ -25,7 +25,7 @@ pub(super) fn render(
                 .map_or(kind, |auth| auth_type(auth))
                 .to_owned();
             let request = request_id.to_owned();
-            option_menu::option(
+            menu::option(
                 format!("auth-type-{kind}"),
                 name,
                 auth.kind() == kind,
@@ -34,7 +34,7 @@ pub(super) fn render(
             )
         })
         .collect();
-    option_menu::render(
+    menu::render(
         ("auth-type-menu", "auth-type-menu-backdrop"),
         &shell.auth_menu_focus,
         options,

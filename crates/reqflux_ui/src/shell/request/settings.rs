@@ -6,10 +6,10 @@
 
 mod controls;
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, cut, family, space};
+use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
+use bolt::primitives::{Chamfer, ChamferRing};
+use bolt::tokens::{ChamferCut, Fields, Spacing};
 use gpui::{AnyElement, Context, Entity, ParentElement, Styled, div, prelude::*};
-use gpui_component::input::{Enter, Escape, Input, InputState};
 use reqflux_core::model::Settings;
 use reqflux_engine::DEFAULT_TIMEOUT_MS;
 
@@ -42,7 +42,7 @@ pub(super) fn render(
     let rows = settings_rows(settings).map(|(id, label, shown)| match id {
         "request-setting-timeout" => {
             let control = timeout_control(request_id, settings, editing.clone(), cx);
-            let muted = bolt_legacy::colors(cx).muted;
+            let muted = bolt::colors(cx).muted;
             let text = format!(
                 "Default {DEFAULT_TIMEOUT_MS} ms. Bounds the whole redirect chain. Empty uses \
                  the default."
@@ -52,7 +52,7 @@ pub(super) fn render(
                 label,
                 &shown,
                 control,
-                hint("request-setting-timeout-hint".to_owned(), text, muted),
+                hint("request-setting-timeout-hint".to_owned(), text, muted, cx),
                 cx,
             )
             .into_any_element()
@@ -78,13 +78,13 @@ pub(super) fn render(
         // A row this pane does not know how to edit stays read-only rather than silently
         // editing another setting.
         _ => {
-            let muted = bolt_legacy::colors(cx).muted;
+            let muted = bolt::colors(cx).muted;
             row(
                 id.to_owned(),
                 label,
                 &shown,
                 div().child(shown.clone()),
-                hint(format!("{id}-hint"), String::new(), muted),
+                hint(format!("{id}-hint"), String::new(), muted, cx),
                 cx,
             )
             .into_any_element()
@@ -92,9 +92,9 @@ pub(super) fn render(
     });
     vec![
         div()
-            .pt(space::SM)
-            .pl(space::XL)
-            .pr(space::XL)
+            .pt(Spacing::SM)
+            .pl(Spacing::XL)
+            .pr(Spacing::XL)
             .children(rows)
             .into_any_element(),
     ]
@@ -109,14 +109,14 @@ fn timeout_control(
     editing: Option<Entity<InputState>>,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt_legacy::colors(cx);
-    let accent = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let unit = div().text_color(colors.muted).child("ms");
     let field = match editing {
         Some(input) => well("request-setting-timeout-input".to_owned(), cx)
             .w(tokens::SETTING_NUMBER_FIELD)
-            .child(Chamfer::new(cut::CONTROL).edge(accent, border::FOCUS_RING))
-            .on_action(cx.listener(|this, action: &Enter, window, cx| {
+            .child(Chamfer::new(ChamferCut::CONTROL).ring(ChamferRing::outline(tint)))
+            .on_action(cx.listener(|this, action: &InputEnter, window, cx| {
                 // Ctrl+Enter maps to the input's `secondary-enter` while the field has
                 // focus: it sends instead of committing.
                 if action.secondary {
@@ -125,7 +125,7 @@ fn timeout_control(
                     this.commit_cell_edit(window, cx);
                 }
             }))
-            .on_action(cx.listener(|this, _: &Escape, window, cx| {
+            .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                 this.discard_cell_edit(window, cx);
             }))
             .child(
@@ -136,13 +136,13 @@ fn timeout_control(
                     .flex()
                     .items_center()
                     .child(
-                        Input::new(&input)
+                        GpuiInput::new(&input)
                             .appearance(false)
                             .bordered(false)
                             .p_0()
                             .h_full()
-                            .text_size(tokens::GRID_TEXT)
-                            .font_family(family::MONO)
+                            .text_size(Fields::TEXT)
+                            .font_family(bolt::fonts::editor_family(cx))
                             .text_color(colors.foreground),
                     ),
             )
@@ -181,18 +181,17 @@ fn timeout_control(
         link(
             "request-setting-timeout-reset".to_owned(),
             "Reset to default",
-            cx,
+            cx.listener(move |this, _event, window, cx| {
+                this.reset_timeout(&request, window, cx);
+            }),
         )
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.reset_timeout(&request, window, cx);
-        }))
     });
     div()
         .flex()
         .items_center()
-        .gap(space::SM)
+        .gap(Spacing::SM)
         .child(field)
-        .child(badge("request-setting-timeout-badge".to_owned(), state, cx))
+        .child(badge("request-setting-timeout-badge".to_owned(), state))
         .children(reset)
         .into_any_element()
 }
@@ -209,7 +208,7 @@ fn toggle_row(
     settings: &Settings,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let value = toggle.value(settings);
     let name = match toggle {
         Toggle::FollowRedirects => "follow-redirects",
@@ -244,11 +243,10 @@ fn toggle_row(
         link(
             format!("request-setting-{name}-reset"),
             "Reset to default",
-            cx,
+            cx.listener(move |this, _event, window, cx| {
+                this.set_setting(&request, toggle, None, window, cx);
+            }),
         )
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.set_setting(&request, toggle, None, window, cx);
-        }))
     });
     let (text, color) = match toggle {
         Toggle::FollowRedirects => (
@@ -264,21 +262,21 @@ fn toggle_row(
     let control = div()
         .flex()
         .items_center()
-        .gap(space::SM)
+        .gap(Spacing::SM)
         .child(radio_group(
             format!("request-setting-{name}"),
             label,
             choices,
             cx,
         ))
-        .child(badge(format!("request-setting-{name}-badge"), state, cx))
+        .child(badge(format!("request-setting-{name}-badge"), state))
         .children(reset);
     row(
         id.to_owned(),
         label,
         shown,
         control,
-        hint(format!("{id}-hint"), text.to_owned(), color),
+        hint(format!("{id}-hint"), text.to_owned(), color, cx),
         cx,
     )
     .into_any_element()

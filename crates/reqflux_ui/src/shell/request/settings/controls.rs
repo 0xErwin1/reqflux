@@ -1,17 +1,20 @@
 //! The controls of the Settings pane, as artboard request-panes/01 frame C draws them: a
-//! row (label column, control, hint), the Default / On / Off radio group on the sunken track
-//! of the Body pane's mode control, the state badge and the Reset link.
+//! row (`bolt`'s field row: label column, control, hint), the Default / On / Off radio group
+//! on the segmented track of the Body pane's mode control, the state badge and the Reset
+//! button.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, chrome, cut, family, field, space, text};
+use bolt::composites::field_row;
+use bolt::controls::Button;
+use bolt::primitives::{Badge as BoltBadge, BadgeTone};
+use bolt::tokens::{ModalMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Div, FontWeight, Hsla, ParentElement, Role, SharedString, Stateful, Styled,
-    div, prelude::*,
+    AnyElement, App, Div, Hsla, ParentElement, Role, SharedString, Stateful, Styled, div,
+    prelude::*,
 };
 
+use crate::shell::request::segmented::{segment, track};
+use crate::shell::request::ui;
 use crate::shell::rows::part;
-use crate::shell::text as text_role;
-use crate::tokens;
 
 /// The state a row's badge shows.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -34,36 +37,25 @@ pub(super) fn row(
     hint: AnyElement,
     cx: &App,
 ) -> Stateful<Div> {
+    let column = div()
+        .flex()
+        .flex_col()
+        .gap(Spacing::XXS)
+        .child(control)
+        .child(hint);
     part(id)
         .role(Role::Group)
         .aria_label(format!("{label}: {shown}"))
-        .flex()
-        .items_start()
-        .gap(space::LG)
-        .py(tokens::SETTINGS_ROW_PADDING_Y)
-        .child(
-            text_role::role(div(), text::BODY, cx)
-                .w(tokens::SETTINGS_LABEL_COLUMN)
-                .flex_none()
-                .pt(space::HALF)
-                .child(label.to_owned()),
-        )
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(space::HALF)
-                .child(control)
-                .child(hint),
-        )
+        .py(ModalMetrics::FORM_ROW_PADDING_Y)
+        .child(field_row(label.to_owned(), column, cx))
 }
 
 /// The hint `id` under a row's control, in `color`.
-pub(super) fn hint(id: String, text: String, color: Hsla) -> AnyElement {
+pub(super) fn hint(id: String, text: String, color: Hsla, cx: &App) -> AnyElement {
     part(id)
         .role(Role::Label)
         .aria_label(text.clone())
-        .text_size(tokens::NOTICE_TEXT)
+        .text_size(bolt::density::font_xs(cx))
         .text_color(color)
         .child(text)
         .into_any_element()
@@ -76,20 +68,7 @@ pub(super) fn radio_group(
     choices: impl IntoIterator<Item = Stateful<Div>>,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    part(id)
-        .role(Role::RadioGroup)
-        .aria_label(label)
-        .relative()
-        .flex_none()
-        .flex()
-        .p(border::THICK)
-        .child(
-            Chamfer::new(cut::CONTROL)
-                .fill(colors.background)
-                .edge(colors.line, border::THIN),
-        )
-        .children(choices)
+    track(id, Role::RadioGroup, choices, cx).aria_label(label)
 }
 
 /// A choice `id` named `label` in a radio group, raised when `selected`, with an optional
@@ -101,84 +80,38 @@ pub(super) fn choice(
     selected: bool,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let color = if selected {
-        colors.strong
-    } else {
-        colors.muted
-    };
-    text_role::role(part(id), text::BODY_SMALL, cx)
-        .role(Role::RadioButton)
-        .aria_label(label)
-        .aria_selected(selected)
-        .relative()
-        .flex_none()
-        .flex()
-        .items_center()
-        .gap(space::HALF)
-        .h(chrome::STATUS_CHIP)
-        .pl(field::PADDING_X)
-        .pr(field::PADDING_X)
-        .whitespace_nowrap()
-        .cursor_pointer()
-        .text_color(color)
-        .when(selected, |choice| {
-            choice.child(Chamfer::new(cut::KEYCAP).fill(colors.raised))
-        })
-        .child(label)
-        .children(note.map(|note| {
-            div()
-                .font_family(family::MONO)
-                .text_size(tokens::SMALL_MONO_TEXT)
-                .text_color(colors.muted)
-                .child(note)
-        }))
+    let muted = bolt::colors(cx).muted;
+    let counts = note
+        .map(|note| (note.to_owned(), muted))
+        .into_iter()
+        .collect();
+    segment(id, label, None, counts, selected, Role::RadioButton, cx)
 }
 
 /// The badge `id` showing `badge`.
-pub(super) fn badge(id: String, badge: Badge, cx: &App) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let accent = bolt_legacy::brand(cx).accent_tint;
-    let (label, fill, color) = match badge {
-        Badge::Default => ("Default", colors.raised, colors.muted),
-        Badge::Overridden => (
-            "Overridden",
-            tokens::wash(accent, tokens::VARIABLE_WASH),
-            accent,
-        ),
-        Badge::Warning => (
-            "Overridden",
-            tokens::wash(colors.warning, tokens::VARIABLE_WASH),
-            colors.warning,
-        ),
+pub(super) fn badge(id: String, badge: Badge) -> Stateful<Div> {
+    let (label, tone) = match badge {
+        Badge::Default => ("Default", BadgeTone::Neutral),
+        Badge::Overridden => ("Overridden", BadgeTone::Accent),
+        Badge::Warning => ("Overridden", BadgeTone::Warning),
     };
     part(id)
         .role(Role::Label)
         .aria_label(label)
-        .relative()
         .flex_none()
-        .flex()
-        .items_center()
-        .h(tokens::STATE_BADGE)
-        .pl(space::HALF)
-        .pr(space::HALF)
-        .font_family(family::INTERFACE)
-        .text_size(tokens::BADGE_TEXT)
-        .font_weight(FontWeight::BOLD)
-        .text_color(color)
-        .child(Chamfer::new(cut::KEYCAP).fill(fill))
-        .child(label.to_uppercase())
+        .child(BoltBadge::new(label.to_uppercase(), tone))
 }
 
-/// The link button `id` reading `label`.
-pub(super) fn link(id: String, label: impl Into<SharedString>, cx: &App) -> Stateful<Div> {
-    let label = label.into();
-    part(id)
-        .role(Role::Button)
-        .aria_label(label.clone())
-        .flex_none()
-        .text_size(tokens::NOTICE_TEXT)
-        .text_color(bolt_legacy::brand(cx).accent_tint)
-        .cursor_pointer()
-        .child(label)
+/// The ghost button `id` reading `label`; `on_click` runs on a click.
+pub(super) fn link(
+    id: String,
+    label: impl Into<SharedString>,
+    on_click: impl Fn(&gpui::ClickEvent, &mut gpui::Window, &mut App) + 'static,
+) -> Div {
+    ui::tagged(id.clone()).child(
+        Button::new(gpui::ElementId::Name(id.into()), label)
+            .ghost()
+            .inline()
+            .on_click(on_click),
+    )
 }

@@ -1,90 +1,27 @@
-//! The controls of the Body and Auth panes, as artboards 04 and 05 draw them: a segmented
-//! control (a sunken track holding one segment per choice, the selected one raised), a select
-//! (a raised box with a chevron) and a field well (a sunken box with an edge).
+//! The controls of the Body, Auth and Settings panes besides their segmented controls (see
+//! `request::segmented`): a select that opens a pane menu, and the field wells a value shows
+//! in until a click opens its editor, drawn as `bolt::controls::Input` draws its field.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::primitives::{Chamfer, ChamferRing, Icon};
+use bolt::tokens::{ChamferCut, Fields, Spacing};
+use bolt_legacy::IconName;
 use gpui::{App, Div, ParentElement, Role, SharedString, Stateful, Styled, div, prelude::*};
 
+use crate::shell::request::ui;
 use crate::shell::rows::part;
-use crate::tokens;
-
-/// The track around `segments`, element id `id`.
-pub(in crate::shell::request) fn track(
-    id: &str,
-    segments: impl IntoIterator<Item = Stateful<Div>>,
-    cx: &App,
-) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    part(id.to_owned())
-        .role(Role::TabList)
-        .relative()
-        .flex_none()
-        .flex()
-        .p(border::THICK)
-        .child(
-            Chamfer::new(cut::CONTROL)
-                .fill(colors.background)
-                .edge(colors.line, border::THIN),
-        )
-        .children(segments)
-}
-
-/// A segment `label` with its icon and an optional muted count, element id `id`.
-pub(in crate::shell::request) fn segment(
-    id: String,
-    label: impl Into<SharedString>,
-    icon_name: IconName,
-    count: Option<String>,
-    selected: bool,
-    cx: &App,
-) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let label = label.into();
-    let color = if selected {
-        colors.strong
-    } else {
-        colors.muted
-    };
-    crate::shell::text::role(part(id), text::BODY_SMALL, cx)
-        .role(Role::Tab)
-        .aria_label(label.clone())
-        .aria_selected(selected)
-        .relative()
-        .flex_none()
-        .flex()
-        .items_center()
-        .gap(space::HALF)
-        .h(chrome::STATUS_CHIP)
-        .pl(field::PADDING_X)
-        .pr(field::PADDING_X)
-        .whitespace_nowrap()
-        .cursor_pointer()
-        .text_color(color)
-        .when(selected, |segment| {
-            segment.child(Chamfer::new(cut::KEYCAP).fill(colors.raised))
-        })
-        .child(Icon::new(icon_name).size(icon::CHIP).color(color))
-        .child(label)
-        .children(count.map(|count| {
-            div()
-                .font_family(family::MONO)
-                .text_size(tokens::SMALL_MONO_TEXT)
-                .text_color(colors.muted)
-                .child(count)
-        }))
-}
 
 /// A select `id` showing `value`, with an optional leading icon and a trailing chevron: a
-/// button that opens its menu.
+/// button that opens its menu, drawn as the trigger of `bolt::controls::Dropdown`.
+// bolt gap: Dropdown owns its open state and its items' ids, while these menus are the
+// shell's (their ids, Escape and the backdrop are tested); a stateless select trigger in
+// bolt would replace this.
 pub(in crate::shell::request) fn select(
     id: String,
     leading: Option<IconName>,
     value: impl Into<SharedString>,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let value = value.into();
     part(id)
         .role(Role::Button)
@@ -93,71 +30,75 @@ pub(in crate::shell::request) fn select(
         .flex_none()
         .flex()
         .items_center()
-        .gap(field::GAP)
-        .h(chrome::CONTROL)
-        .pl(field::PADDING_X)
-        .pr(field::PADDING_X)
-        .text_size(field::FONT)
+        .gap(Fields::GAP)
+        .h(Fields::HEIGHT)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_size(Fields::TEXT)
         .text_color(colors.strong)
         .whitespace_nowrap()
         .cursor_pointer()
         .child(
-            Chamfer::new(cut::CONTROL)
+            Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.raised)
-                .edge(colors.line, border::THIN),
+                .border(colors.line_2),
         )
-        .children(leading.map(|name| Icon::new(name).size(icon::MD).color(colors.muted)))
+        .children(leading.map(|name| {
+            Icon::new(ui::icon(name))
+                .size(Fields::LEADING_ICON)
+                .color(colors.muted)
+        }))
         .child(div().flex_1().min_w_0().overflow_hidden().child(value))
         .child(
-            Icon::new(IconName::ChevronDown)
-                .size(icon::SM)
+            Icon::new(ui::icon(IconName::ChevronDown))
+                .size(Fields::CHEVRON)
                 .color(colors.muted),
         )
 }
 
-/// A field well `id`: a `chrome::CONTROL` high sunken box with an edge, in mono, around the
-/// value its caller adds.
+/// A field well `id`: a field high sunken box with an edge, in mono, around the value its
+/// caller adds.
 pub(in crate::shell::request) fn well(id: String, cx: &App) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     part(id)
         .relative()
         .flex()
         .items_center()
-        .gap(field::GAP)
-        .h(chrome::CONTROL)
-        .pl(field::PADDING_X)
-        .pr(field::PADDING_X)
-        .font_family(family::MONO)
-        .text_size(field::FONT)
+        .gap(Fields::GAP)
+        .h(Fields::HEIGHT)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(Fields::TEXT)
         .text_color(colors.strong)
         .whitespace_nowrap()
         .overflow_hidden()
-        .child(
-            Chamfer::new(cut::CONTROL)
-                .fill(colors.background)
-                .edge(colors.line, border::THIN),
-        )
+        .child(field_shape(cx))
 }
 
-/// The focus ring `id` of an editor box: the accent edge over the box's plain one, drawn only
-/// while the editor has focus.
+/// The focus ring `id` of an editor box: the tint ring over the box's line, drawn only while
+/// the editor has focus.
 pub(in crate::shell::request) fn focus_ring(id: String, cx: &App) -> Stateful<Div> {
-    let accent = bolt_legacy::brand(cx).accent_tint;
+    let tint = bolt::brand::brand(cx).accent_tint;
     part(id)
         .absolute()
         .top_0()
         .left_0()
         .size_full()
-        .child(Chamfer::new(cut::CONTROL).edge(accent, border::FOCUS_RING))
+        .child(Chamfer::new(ChamferCut::CONTROL).ring(ChamferRing::outline(tint)))
 }
 
 /// A multi-line field well `id`, sized by its content, for the raw text and the GraphQL
 /// query.
 pub(in crate::shell::request) fn text_well(id: String, cx: &App) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    part(id).relative().py(space::SM).child(
-        Chamfer::new(cut::CONTROL)
-            .fill(colors.background)
-            .edge(colors.line, border::THIN),
-    )
+    part(id).relative().py(Spacing::SM).child(field_shape(cx))
+}
+
+/// The shape of a field: the ground fill with a line on its straight edges.
+fn field_shape(cx: &App) -> Chamfer {
+    let colors = bolt::colors(cx);
+    Chamfer::new(ChamferCut::CONTROL)
+        .fill(colors.background)
+        .border(colors.line)
 }

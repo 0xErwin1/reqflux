@@ -928,6 +928,12 @@ The Params, Headers and body grids are spreadsheet cells: enable, key, value (fi
 rest), description and delete columns with a line on every side of every cell, the key
 column's kind and, with an active environment, `resolved in <environment>` beside the value
 column's name (`request-<table>-value-hint`); an open cell is a well with a tint focus ring.
+The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem tokens, `Button`,
+`Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
+`field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL
+field and Send 30, result rows 28, body-format footer 36. Pieces `bolt` cannot draw yet carry a
+`// bolt gap:` comment (segmented control ids and counts, debug selectors, the splitter, a
+multi-line editor, a menu check mark).
 
 An image or HTML response (by `Content-Type`, then PNG, JPEG, GIF or WebP magic bytes) adds
 `Preview` (`response-view-preview`). An image is decoded off the UI thread and drawn at its
@@ -1076,7 +1082,8 @@ ReqFlux never copies it. ReqFlux is moving to it from `crates/bolt_legacy`, its 
 - **New code uses `bolt`.** A screen moves to `bolt` roles, tokens and components in one
   change; `bolt_legacy` gains nothing. A control `bolt` lacks is added to `bolt` in DBFlux.
 
-What follows describes `bolt_legacy`, which still draws every screen:
+What follows describes `bolt_legacy`, which still draws every screen outside the request
+and response panes:
 
 - **`crates/bolt_legacy`** owns everything product-agnostic: color roles and washes, typography roles,
   spacing, cuts and chrome metrics, the chamfer shape, the theme mapping onto gpui-component,

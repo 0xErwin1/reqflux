@@ -1,13 +1,14 @@
 //! The Cookies sub-tab: one row per `Set-Cookie` header, as received, so a live response
 //! shows cookie values unmasked (history masks them when it records the send).
 
-use bolt_legacy::tokens::{border, family, icon, space};
-use bolt_legacy::{Icon, IconName};
+use bolt::primitives::Icon;
+use bolt::tokens::{Borders, Fields, GridMetrics, Heights, Spacing};
+use bolt_legacy::IconName;
 use gpui::{AnyElement, App, FontWeight, ParentElement, Styled, div, prelude::*};
 
 use super::cookies::{Cookie, cookies};
 use crate::shell::region;
-use crate::shell::request::Received;
+use crate::shell::request::{Received, ui};
 use crate::shell::rows::labeled_row;
 use crate::tokens;
 
@@ -15,7 +16,7 @@ use crate::tokens;
 /// `response-cookie-<n>` each: name, value and attributes, or the raw header with a
 /// warning mark when it does not parse.
 pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let rows = cookies(&received.headers)
         .into_iter()
         .enumerate()
@@ -31,15 +32,15 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
                     labeled_row(id, label)
                         .flex()
                         .items_center()
-                        .h(tokens::GRID_ROW)
-                        .border_b(border::THIN)
+                        .h(Heights::ROW)
+                        .border_b(Borders::THIN)
                         .border_color(colors.row_divider)
                         .child(
                             div()
                                 .w(tokens::GRID_KEY_COLUMN)
                                 .flex_none()
-                                .pl(space::MD)
-                                .pr(space::MD)
+                                .pl(Spacing::MD)
+                                .pr(Spacing::MD)
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .font_weight(FontWeight::SEMIBOLD)
@@ -50,7 +51,7 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
                             div()
                                 .w(tokens::GRID_VALUE_COLUMN)
                                 .flex_none()
-                                .pr(space::MD)
+                                .pr(Spacing::MD)
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .text_color(colors.foreground)
@@ -60,7 +61,7 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
                             div()
                                 .flex_1()
                                 .min_w_0()
-                                .pr(space::MD)
+                                .pr(Spacing::MD)
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .text_color(colors.muted)
@@ -70,21 +71,21 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
                 Cookie::Raw(raw) => labeled_row(id, format!("Could not parse: {raw}"))
                     .flex()
                     .items_center()
-                    .gap(space::SM)
-                    .h(tokens::GRID_ROW)
-                    .pl(space::MD)
-                    .border_b(border::THIN)
+                    .gap(Spacing::SM)
+                    .h(Heights::ROW)
+                    .pl(Spacing::MD)
+                    .border_b(Borders::THIN)
                     .border_color(colors.row_divider)
                     .child(
-                        Icon::new(IconName::TriangleAlert)
-                            .size(icon::SM)
+                        Icon::new(ui::icon(IconName::TriangleAlert))
+                            .size(Fields::CHEVRON)
                             .color(colors.warning),
                     )
                     .child(
                         div()
                             .flex_1()
                             .min_w_0()
-                            .pr(space::MD)
+                            .pr(Spacing::MD)
                             .overflow_hidden()
                             .whitespace_nowrap()
                             .text_color(colors.foreground)
@@ -96,10 +97,10 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
         .flex_1()
         .min_h_0()
         .overflow_y_scroll()
-        .border_t(border::THIN)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(GridMetrics::FONT)
         .children(rows)
         .into_any_element()
 }

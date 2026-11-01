@@ -5,7 +5,7 @@ use bolt_legacy::Palette;
 use bolt_legacy::tokens::{Colors, hex, hex_alpha};
 use std::time::Duration;
 
-use gpui::{Hsla, Pixels, Size, px, size};
+use gpui::{App, Hsla, Pixels, Size, px, size};
 
 /// The label color of the uppercase HTTP `verb` on `palette`: Bolt's semantic hues, as DBFlux
 /// colors its object kinds. GET success, POST warning, PUT info, PATCH the null purple, DELETE
@@ -19,6 +19,29 @@ pub(crate) fn method_color(verb: &str, palette: Palette) -> Hsla {
         "PATCH" => method_patch(palette),
         "DELETE" => colors.danger,
         _ => method_other(palette),
+    }
+}
+
+/// The label color of `verb` on the palette `bolt` has installed: [`method_color`] for the
+/// screens that draw with `bolt`.
+pub(crate) fn method_hue(verb: &str, cx: &App) -> Hsla {
+    let colors = bolt::colors(cx);
+    let palette = bolt_palette(cx);
+    match verb {
+        "GET" => colors.success,
+        "POST" => colors.warning,
+        "PUT" => colors.info,
+        "PATCH" => method_patch(palette),
+        "DELETE" => colors.danger,
+        _ => method_other(palette),
+    }
+}
+
+/// Whether `bolt` draws dark or light.
+fn bolt_palette(cx: &App) -> Palette {
+    match bolt::palette::resolved_mode(cx) {
+        bolt::palette::PaletteMode::Light => Palette::Light,
+        bolt::palette::PaletteMode::Dark | bolt::palette::PaletteMode::System => Palette::Dark,
     }
 }
 
@@ -66,6 +89,17 @@ impl SyntaxColors {
                 number: method_patch(palette),
                 punct: colors.muted,
             },
+        }
+    }
+
+    /// The syntax colors on the palette `bolt` has installed.
+    pub(crate) fn current(cx: &App) -> Self {
+        let palette = bolt_palette(cx);
+        let colors = bolt::colors(cx);
+        Self {
+            string: colors.success,
+            punct: colors.muted,
+            ..Self::for_palette(palette)
         }
     }
 }
@@ -325,29 +359,18 @@ pub(crate) const SETTINGS_COUNT_TEXT: Pixels = px(11.0);
 /// The text and icon size of the SECRET badge.
 pub(crate) const BADGE_TEXT: Pixels = px(10.0);
 
-/// The height of a code line in the Body and Scripts panes.
-pub(crate) const CODE_LINE: Pixels = px(20.0);
-
 /// The opacity of the warning wash on a grid row with an unresolved reference.
 const UNRESOLVED_ROW_WASH: f32 = 0.05;
 
 /// The wash of a grid row with an unresolved reference: the warning, faint.
 pub(crate) fn unresolved_row_wash(colors: &Colors) -> Hsla {
-    Hsla {
-        a: UNRESOLVED_ROW_WASH,
-        ..colors.warning
-    }
+    unresolved_wash(colors.warning)
 }
 
-/// The height of the response tab row.
-pub(crate) const RESPONSE_TAB_ROW: Pixels = px(46.0);
-
-/// The text size of the response status chip and of the time and size at the right.
-pub(crate) const RESPONSE_STATUS_TEXT: Pixels = px(11.0);
-pub(crate) const RESPONSE_META_TEXT: Pixels = px(11.5);
-
-/// The opacity of the wash behind the response status chip, in the chip's color.
-pub(crate) const RESPONSE_STATUS_WASH: f32 = 0.133;
+/// The wash of a grid row with an unresolved reference, from the palette's `warning`.
+pub(crate) fn unresolved_wash(warning: Hsla) -> Hsla {
+    wash(warning, UNRESOLVED_ROW_WASH)
+}
 
 /// The height of the indeterminate progress bar under the tab row while sending.
 pub(crate) const RESPONSE_PROGRESS: Pixels = px(4.0);
@@ -360,14 +383,6 @@ pub(crate) const RESPONSE_PROGRESS_PERIOD: Duration = Duration::from_millis(1400
 
 /// The opacity of the previous response while a new send is in flight.
 pub(crate) const RESPONSE_DIMMED: f32 = 0.62;
-
-/// The height of the error banner, the width of its left edge and its text size.
-pub(crate) const RESPONSE_ERROR_BANNER: Pixels = px(44.0);
-pub(crate) const RESPONSE_ERROR_EDGE: Pixels = px(3.0);
-pub(crate) const RESPONSE_ERROR_TEXT: Pixels = px(13.0);
-
-/// The opacity of the danger wash behind the error banner.
-pub(crate) const RESPONSE_ERROR_WASH: f32 = 0.08;
 
 /// The opacity of the danger wash behind the Problems chip while the config did not load.
 pub(crate) const PROBLEMS_CHIP_WASH: f32 = 0.12;
@@ -466,40 +481,16 @@ pub(crate) const SPLIT_GRIP_GAP: Pixels = px(4.0);
 pub(crate) const SPLIT_HOVER_WASH: f32 = 0.06;
 pub(crate) const SPLIT_DRAG_LINE_TOP: Pixels = px(3.0);
 
-/// The collapsed response bar: its height, the gap between its parts and the side of its
-/// expand button.
-pub(crate) const RESPONSE_BAR: Pixels = px(40.0);
-pub(crate) const RESPONSE_BAR_GAP: Pixels = px(10.0);
-pub(crate) const RESPONSE_EXPAND: Pixels = px(28.0);
-
-/// The Params and Headers grid cells (request-panes/01): a line on every side. The row
-/// height, the enable, key, description and actions columns (the value fills the rest),
-/// the cell padding, the checkbox and its check, and the trash icon.
-pub(crate) const GRID_CELL_ROW: Pixels = px(30.0);
+/// The Params and Headers grid columns (request-panes/01) `bolt`'s data grid has no
+/// equivalent for: the enable, key, description and actions columns (the value fills the
+/// rest). Rows, header, cell padding and text are `bolt::tokens::GridMetrics`.
 pub(crate) const GRID_ENABLE_COLUMN: Pixels = px(36.0);
 pub(crate) const GRID_CELL_KEY_COLUMN: Pixels = px(210.0);
 pub(crate) const GRID_DESCRIPTION_COLUMN: Pixels = px(230.0);
 pub(crate) const GRID_ACTIONS_COLUMN: Pixels = px(34.0);
-pub(crate) const GRID_CELL_PADDING: Pixels = px(10.0);
-pub(crate) const GRID_CHECKBOX: Pixels = px(16.0);
-pub(crate) const GRID_CHECK_ICON: Pixels = px(12.0);
-pub(crate) const GRID_ACTION_ICON: Pixels = px(13.0);
 
-/// The header strip of a script editor box (request-panes/01 frame B) and the icon of a
-/// pane's empty state.
-pub(crate) const SCRIPT_EDITOR_HEADER: Pixels = px(34.0);
-pub(crate) const EMPTY_STATE_ICON: Pixels = px(22.0);
-
-/// The Settings pane (request-panes/01 frame C): the label column, the number field, the
-/// height of a state badge and the vertical padding of a row.
-pub(crate) const SETTINGS_LABEL_COLUMN: Pixels = px(170.0);
+/// The width of the Settings pane's timeout field (request-panes/01 frame C).
 pub(crate) const SETTING_NUMBER_FIELD: Pixels = px(160.0);
-pub(crate) const STATE_BADGE: Pixels = px(20.0);
-pub(crate) const SETTINGS_ROW_PADDING_Y: Pixels = px(7.0);
-
-/// The Auth pane's form (bolt-v2/05): the label column and the vertical padding of a row.
-pub(crate) const AUTH_LABEL_COLUMN: Pixels = px(170.0);
-pub(crate) const AUTH_ROW_PADDING_Y: Pixels = px(5.0);
 
 /// The history views (history/01): the read-only banner of a history tab and the opacity of
 /// its warning wash, a day group's label row, the status column of a row and the icon of

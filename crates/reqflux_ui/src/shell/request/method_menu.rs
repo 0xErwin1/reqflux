@@ -5,7 +5,7 @@
 use gpui::{AnyElement, Context, Window};
 use reqflux_core::model::Method;
 
-use super::option_menu;
+use super::menu;
 use crate::shell::Shell;
 use crate::shell::method_edit::VERBS;
 
@@ -22,7 +22,7 @@ pub(super) fn render(
         .map(|verb| {
             let request = request_id.to_owned();
             let name = verb.to_string();
-            option_menu::option(
+            menu::option(
                 format!("method-{}", name.to_lowercase()),
                 name,
                 &verb == current,
@@ -32,14 +32,14 @@ pub(super) fn render(
         })
         .collect();
     let request = request_id.to_owned();
-    options.push(option_menu::option(
+    options.push(menu::option(
         "method-custom".to_owned(),
         "Custom…".to_owned(),
         !VERBS.contains(current),
         move |this, window, cx| this.start_method_edit(&request, window, cx),
         cx,
     ));
-    option_menu::render(
+    menu::render(
         ("method-menu", "method-menu-backdrop"),
         &shell.method_menu_focus,
         options,

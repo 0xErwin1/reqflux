@@ -5,30 +5,26 @@
 //! value that references a secret shows `••••••••` with a SECRET badge. Clicking a row's
 //! enable box toggles the row in the draft; clicking its key or value cell turns the cell
 //! into a well with a text field. The delete control removes the row, and the add row under
-//! the grid appends one.
+//! the grid appends one. Rows and the header take the heights and the face of `bolt`'s data
+//! grid.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{Colors, border, cut, family, space};
-use bolt_legacy::{Icon, IconName};
+use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter, InputEscape};
+use bolt::primitives::{Badge, BadgeTone, Icon};
+use bolt::tokens::{Borders, Fields, FontSizes, GridMetrics, Spacing, TabMetrics};
+use bolt_legacy::IconName;
 use gpui::{
-    AnyElement, Context, Div, FontWeight, Hsla, ParentElement, Role, Stateful, Styled, Toggled,
-    div, prelude::*,
+    AnyElement, App, Context, Div, FontWeight, Hsla, InteractiveElement, ParentElement, Stateful,
+    Styled, div, prelude::*,
 };
-use gpui_component::input::{Enter, Escape, Input};
 use reqflux_core::model::KeyValue;
 use reqflux_engine::Inspection;
 
-use super::grid_model::{
-    delete_icon_colors, has_unresolved, masked_text, placeholder, row_id, row_label, value_hint,
-};
-use super::spans;
+use super::grid_model::{has_unresolved, masked_text, placeholder, row_id, row_label, value_hint};
+use super::{code, spans, ui};
 use crate::shell::Shell;
 use crate::shell::cell_edit::{CellEdit, CellField};
 use crate::shell::rows::{labeled_row, part};
 use crate::tokens;
-
-/// The hover group of a row's delete control.
-const DELETE_GROUP: &str = "request-grid-delete";
 
 /// A grid column: fixed width, or the value column, which fills the rest.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -72,17 +68,24 @@ impl Column {
         };
         let cell = match self {
             Column::Key | Column::Value | Column::Description => cell
-                .pl(tokens::GRID_CELL_PADDING)
-                .pr(tokens::GRID_CELL_PADDING)
-                .gap(space::SM),
+                .pl(GridMetrics::CELL_PADDING_X)
+                .pr(GridMetrics::CELL_PADDING_X)
+                .gap(Spacing::SM),
             Column::Enable | Column::Actions => cell,
         };
-        let cell = cell.border_b(border::THIN).border_color(line);
+        let cell = cell.border_b(Borders::THIN).border_color(line);
         match self {
             Column::Actions => cell,
-            _ => cell.border_r(border::THIN),
+            _ => cell.border_r(Borders::THIN),
         }
     }
+}
+
+/// `element` in the face and size of `bolt`'s data grid.
+fn grid_text<E: Styled>(element: E, cx: &App) -> E {
+    element
+        .font_family(bolt::fonts::grid_family(cx))
+        .text_size(bolt::fonts::grid_font_size(cx))
 }
 
 /// The grid of `rows`, a `table` of `kind` (`params` and `param`, `headers` and `header`, or
@@ -103,14 +106,11 @@ pub(super) fn render(
 ) -> AnyElement {
     let add = request_id.map(|id| add_row(id, table, kind, cx));
     if rows.is_empty() {
-        let colors = bolt_legacy::colors(cx);
-        let empty = part("request-grid-empty".to_owned())
-            .pl(space::MD)
-            .pt(space::MD)
-            .pb(space::MD)
-            .text_size(tokens::GRID_TEXT)
-            .text_color(colors.muted)
-            .child(format!("No {table}"));
+        let empty = code::empty(
+            "request-grid-empty".to_owned(),
+            IconName::List,
+            format!("No {table}"),
+        );
         return div()
             .flex()
             .flex_col()
@@ -119,7 +119,7 @@ pub(super) fn render(
             .into_any_element();
     }
     let hint = value_hint(shell.environment_name().as_deref());
-    let header = header(table, kind, hint, bolt_legacy::colors(cx));
+    let header = header(table, kind, hint, cx);
     div()
         .flex()
         .flex_col()
@@ -144,29 +144,24 @@ pub(super) fn render(
 /// The header row, element id `request-<table>-header`: the column names, the key's `kind`
 /// and, when an environment is active, the value's `resolved in <environment>` as
 /// `request-<table>-value-hint`.
-fn header(
-    table: &str,
-    kind: &'static str,
-    value_hint: Option<String>,
-    colors: &Colors,
-) -> Stateful<Div> {
+fn header(table: &str, kind: &'static str, value_hint: Option<String>, cx: &App) -> Stateful<Div> {
+    let colors = bolt::colors(cx);
     let note = |text: String| {
         div()
-            .ml(space::HALF)
+            .ml(Spacing::XXS)
             .font_weight(FontWeight::NORMAL)
-            .text_size(tokens::SMALL_MONO_TEXT)
+            .text_size(TabMetrics::RESULT_META_SIZE)
             .text_color(colors.muted)
             .child(text)
     };
     let line = colors.line_2;
-    part(format!("request-{table}-header"))
+    grid_text(part(format!("request-{table}-header")), cx)
         .flex()
         .items_center()
         .flex_none()
-        .h(tokens::GRID_HEADER)
+        .h(bolt::fonts::grid_header_height(cx))
         .bg(colors.background)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_HEADER_TEXT)
+        .text_size(FontSizes::XS)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
         .child(Column::Enable.cell(line))
@@ -200,49 +195,43 @@ fn data_row(
     let delete = request_id.map(|id| delete_control(id, table, n, &row.key, cx));
     let value_spans = inspection.spans(&row.value);
     let unresolved = has_unresolved(&value_spans) || has_unresolved(&inspection.spans(&row.key));
-    let secret = inspection.references_secret(&row.value);
+    let secret_value = inspection.references_secret(&row.value);
     let off = !row.enabled;
-    let tone = |colors: &Colors, on: Hsla| if off { colors.muted } else { on };
+    let colors = bolt::colors(cx);
+    let tone = |on: Hsla| if off { colors.muted } else { on };
     let editing = request_id.and_then(|id| {
         shell.cell_edit.as_ref().and_then(|edit| {
             (edit.request_id == id && edit.table == table && edit.n == n).then_some(edit)
         })
     });
 
-    // The cells take the context mutably for their listeners, before the row borrows it
-    // for the colors; each arm styles itself with its own colors borrow.
     let key_cell: AnyElement = match editing.filter(|edit| edit.field == CellField::Key) {
         Some(edit) => editing_cell(edit, cx).into_any_element(),
-        None => {
-            let cell = cell_part(request_id, table, n, CellField::Key, cx);
-            let colors = bolt_legacy::colors(cx);
-            cell.text_color(tone(colors, colors.strong))
-                .when(off, |this| this.line_through())
-                .child(cell_text(table, n, CellField::Key).child(row.key.clone()))
-                .into_any_element()
-        }
+        None => cell_part(request_id, table, n, CellField::Key, cx)
+            .text_color(tone(colors.strong))
+            .when(off, |this| this.line_through())
+            .child(cell_text(table, n, CellField::Key).child(row.key.clone()))
+            .into_any_element(),
     };
 
     let value_cell: AnyElement = match editing.filter(|edit| edit.field == CellField::Value) {
         Some(edit) => editing_cell(edit, cx).into_any_element(),
         None => {
-            let cell = cell_part(request_id, table, n, CellField::Value, cx);
-            let colors = bolt_legacy::colors(cx);
-            let value = cell
-                .text_color(tone(colors, colors.foreground))
+            let value = cell_part(request_id, table, n, CellField::Value, cx)
+                .text_color(tone(colors.foreground))
                 .when(off, |this| this.line_through())
                 .when(file, |this| {
                     this.child(
-                        Icon::new(IconName::File)
-                            .size(tokens::GRID_TEXT)
+                        Icon::new(ui::icon(IconName::File))
+                            .size(GridMetrics::HEADER_ICON)
                             .color(colors.muted),
                     )
                 });
             let text = cell_text(table, n, CellField::Value);
-            let value = if secret {
+            let value = if secret_value {
                 value
                     .child(text.child(masked_text(&value_spans)))
-                    .child(part(format!("request-{table}-secret-{n}")).child(secret_badge(colors)))
+                    .child(part(format!("request-{table}-secret-{n}")).child(secret()))
             } else {
                 value.child(text.children(spans::render(inspection, &row.value, cx)))
             };
@@ -250,109 +239,92 @@ fn data_row(
         }
     };
 
-    let colors = bolt_legacy::colors(cx);
     let line = colors.line;
     let description = Column::Description
         .shape(part(format!("request-{table}-description-{n}")), line)
-        .font_family(family::INTERFACE)
+        .font_family(bolt::fonts::ui_family(cx))
         .text_color(colors.muted)
         .when(off, |this| this.line_through())
         .child(row.description.clone().unwrap_or_default());
 
-    labeled_row(row_id(table, n), row_label(&row.key, &row.value, secret))
-        .flex()
-        .items_center()
-        .flex_none()
-        .h(tokens::GRID_CELL_ROW)
-        .when(unresolved, |this| {
-            this.bg(tokens::unresolved_row_wash(colors))
-        })
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
-        .child(Column::Enable.cell(line).children(enable))
-        .child(key_cell)
-        .child(value_cell)
-        .child(description)
-        .child(match delete {
-            Some(delete) => delete.into_any_element(),
-            None => Column::Actions.cell(line).into_any_element(),
-        })
-        .into_any_element()
+    grid_text(
+        labeled_row(
+            row_id(table, n),
+            row_label(&row.key, &row.value, secret_value),
+        ),
+        cx,
+    )
+    .flex()
+    .items_center()
+    .flex_none()
+    .h(bolt::fonts::grid_row_height(cx))
+    .when(unresolved, |this| {
+        this.bg(tokens::unresolved_wash(colors.warning))
+    })
+    .child(Column::Enable.cell(line).children(enable))
+    .child(key_cell)
+    .child(value_cell)
+    .child(description)
+    .child(match delete {
+        Some(delete) => delete.into_any_element(),
+        None => Column::Actions.cell(line).into_any_element(),
+    })
+    .into_any_element()
 }
 
 /// The delete control in the actions cell of the 1-based row `n` of `table`, element id
-/// `request-<table>-delete-<n>`: a muted trash icon that turns to the body color under the
-/// pointer; clicking it removes the row from the request's draft.
+/// `request-<table>-delete-<n>`: a ghost icon button; clicking it removes the row from the
+/// request's draft.
 fn delete_control(
     request_id: &str,
     table: &str,
     n: usize,
     key: &str,
     cx: &mut Context<Shell>,
-) -> Stateful<Div> {
-    let (rest, hover) = delete_icon_colors(bolt_legacy::colors(cx));
+) -> Div {
+    let line = bolt::colors(cx).line;
     let request = request_id.to_owned();
     let table = table.to_owned();
-    part(format!("request-{table}-delete-{n}"))
-        .role(Role::Button)
-        .aria_label(format!("Delete {key}"))
-        .group(DELETE_GROUP)
-        .relative()
-        .cursor_pointer()
-        .flex_none()
-        .w(tokens::GRID_ACTIONS_COLUMN)
-        .h_full()
-        .flex()
-        .items_center()
-        .justify_center()
+    let id = format!("request-{table}-delete-{n}");
+    let selector = id.clone();
+    Column::Actions
+        .cell(line)
+        // bolt gap: the Button sets no debug selector (see `ui::tagged`).
+        .debug_selector(move || selector)
         .child(
-            Icon::new(IconName::Trash)
-                .size(tokens::GRID_ACTION_ICON)
-                .color(rest),
+            Button::new(id, "")
+                .ghost()
+                .inline()
+                .icon_only()
+                .icon(ui::icon(IconName::Trash))
+                .aria_label(format!("Delete {key}"))
+                .on_click(cx.listener(move |this, _event, window, cx| {
+                    this.delete_grid_row(&request, &table, n, window, cx);
+                })),
         )
-        .child(
-            div()
-                .absolute()
-                .inset_0()
-                .flex()
-                .items_center()
-                .justify_center()
-                .invisible()
-                .group_hover(DELETE_GROUP, |style| style.visible())
-                .child(
-                    Icon::new(IconName::Trash)
-                        .size(tokens::GRID_ACTION_ICON)
-                        .color(hover),
-                ),
-        )
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.delete_grid_row(&request, &table, n, window, cx);
-        }))
 }
 
 /// The add row under the grid of `table`, element id `request-<table>-add`: a grid row with
 /// a plus in the enable cell and the placeholders of a new `kind` entry. Clicking it appends
 /// an empty enabled row to the request's draft and opens its key cell.
 fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let line = colors.line;
     let request = request_id.to_owned();
     let table = table.to_owned();
-    part(format!("request-{table}-add"))
-        .role(Role::Button)
+    grid_text(part(format!("request-{table}-add")), cx)
+        .role(gpui::Role::Button)
         .aria_label(format!("Add to {table}"))
         .cursor_pointer()
         .flex()
         .items_center()
         .flex_none()
-        .h(tokens::GRID_CELL_ROW)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
+        .h(bolt::fonts::grid_row_height(cx))
         .text_color(colors.muted)
         .child(
             Column::Enable.cell(line).child(
-                Icon::new(IconName::Plus)
-                    .size(tokens::GRID_CHECK_ICON)
+                Icon::new(ui::icon(IconName::Plus))
+                    .size(Fields::CHECK_MARK)
                     .color(colors.line_2),
             ),
         )
@@ -361,7 +333,7 @@ fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -
         .child(
             Column::Description
                 .cell(line)
-                .font_family(family::INTERFACE)
+                .font_family(bolt::fonts::ui_family(cx))
                 .child("Description"),
         )
         .child(Column::Actions.cell(line))
@@ -380,7 +352,7 @@ fn cell_part(
     field: CellField,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let cell = cell_shell(table, n, field, bolt_legacy::colors(cx).line);
+    let cell = cell_shell(table, n, field, bolt::colors(cx).line);
     match request_id {
         Some(request) => {
             let request = request.to_owned();
@@ -426,8 +398,8 @@ fn cell_text(table: &str, n: usize, field: CellField) -> Stateful<Div> {
 /// draft and Escape drops what was typed, as the URL field does. A secret value keeps its
 /// badge next to the field, which opens empty with a placeholder.
 fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line);
     cell.relative()
         .bg(colors.background)
@@ -435,13 +407,11 @@ fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
             div()
                 .absolute()
                 .inset_0()
-                .border(border::FOCUS_RING)
+                .border(Borders::FOCUS_RING)
                 .border_color(tint),
         )
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
         .text_color(colors.foreground)
-        .on_action(cx.listener(|this, action: &Enter, window, cx| {
+        .on_action(cx.listener(|this, action: &InputEnter, window, cx| {
             // Ctrl+Enter maps to the input's `secondary-enter` while the field has focus:
             // it sends instead of committing.
             if action.secondary {
@@ -450,11 +420,11 @@ fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
                 this.commit_cell_edit(window, cx);
             }
         }))
-        .on_action(cx.listener(|this, _: &Escape, window, cx| {
+        .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.discard_cell_edit(window, cx);
         }))
         .child(
-            Input::new(&edit.input)
+            GpuiInput::new(&edit.input)
                 .id("request-cell-input")
                 .appearance(false)
                 .bordered(false)
@@ -462,22 +432,18 @@ fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
                 .h_full()
                 .flex_1()
                 .min_w_0()
-                .text_size(tokens::GRID_TEXT)
-                .font_family(family::MONO)
+                .text_size(bolt::fonts::grid_font_size(cx))
+                .font_family(bolt::fonts::grid_family(cx))
                 .text_color(colors.foreground),
         )
         .when(edit.secret, |this| {
-            this.child(
-                part(format!("request-{}-secret-{}", edit.table, edit.n))
-                    .child(secret_badge(colors)),
-            )
+            this.child(part(format!("request-{}-secret-{}", edit.table, edit.n)).child(secret()))
         })
 }
 
 /// The enable box in the enable cell of the 1-based row `n` of `table`, element id
-/// `request-<table>-enabled-<n>`: a cut checkbox filled with the tint and a dark check when
-/// the row is enabled, an empty well when it is not. Clicking it toggles the row in the
-/// request's draft.
+/// `request-<table>-enabled-<n>`: `bolt`'s checkbox, checked when the row is enabled.
+/// Clicking it toggles the row in the request's draft.
 fn enable_box(
     request_id: &str,
     table: &str,
@@ -485,47 +451,31 @@ fn enable_box(
     key: &str,
     enabled: bool,
     cx: &mut Context<Shell>,
-) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+) -> Div {
     let request = request_id.to_owned();
     let table = table.to_owned();
-    let face = if enabled {
-        Chamfer::new(cut::KEYCAP).fill(tint)
-    } else {
-        Chamfer::new(cut::KEYCAP)
-            .fill(colors.background)
-            .edge(colors.line_2, border::THIN)
-    };
-    part(format!("request-{table}-enabled-{n}"))
-        .role(Role::CheckBox)
-        .aria_label(format!("Enable {key}"))
-        .aria_toggled(if enabled {
-            Toggled::True
-        } else {
-            Toggled::False
-        })
-        .cursor_pointer()
-        .relative()
-        .flex_none()
-        .size(tokens::GRID_CHECKBOX)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(face)
-        .when(enabled, |this| {
-            this.child(
-                Icon::new(IconName::Check)
-                    .size(tokens::GRID_CHECK_ICON)
-                    .color(colors.panel),
-            )
-        })
-        .on_click(cx.listener(move |this, _event, _window, cx| {
-            this.toggle_grid_row(&request, &table, n, cx);
-        }))
+    let id = format!("request-{table}-enabled-{n}");
+    ui::tagged(id.clone()).child(
+        Checkbox::new(gpui::ElementId::Name(id.into()))
+            .checked(enabled)
+            .aria_label(format!("Enable {key}"))
+            .on_click(cx.listener(move |this, _checked: &bool, _window, cx| {
+                this.toggle_grid_row(&request, &table, n, cx);
+            })),
+    )
 }
 
-pub(crate) fn secret_badge(colors: &Colors) -> Div {
+/// The SECRET badge of a value that references a secret.
+pub(crate) fn secret() -> Badge {
+    Badge::new("SECRET", BadgeTone::Neutral).icon(ui::icon(IconName::Lock))
+}
+
+/// The SECRET badge for the screens still on `bolt_legacy`; the request panes use
+/// [`secret`].
+pub(crate) fn secret_badge(colors: &bolt_legacy::tokens::Colors) -> Div {
+    use bolt_legacy::Icon;
+    use bolt_legacy::chamfer::Chamfer;
+    use bolt_legacy::tokens::{cut, family, space};
     div()
         .relative()
         .flex()
