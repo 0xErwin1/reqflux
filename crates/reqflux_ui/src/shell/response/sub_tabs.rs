@@ -1,8 +1,8 @@
 //! The response views row, `Body`, `Headers <n>` and `Cookies <n>` with the content type,
 //! and the Headers grid.
 
-use bolt::IconName;
-use bolt::tokens::{border, family, space};
+use bolt_legacy::IconName;
+use bolt_legacy::tokens::{border, family, space};
 use gpui::{AnyElement, App, Context, Div, FontWeight, ParentElement, Styled, div, prelude::*};
 
 use super::cookies::cookie_count;
@@ -42,7 +42,7 @@ pub(super) fn render(
     received: &Received,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let tab = effective_tab(send.tab, received);
     let headers = received.headers.len().to_string();
     let cookie_count = cookie_count(&received.headers).to_string();
@@ -101,7 +101,7 @@ pub(super) fn render(
 
 /// The headers of `received`, one row `response-headers-row-<n>` each, name then value.
 pub(super) fn headers(received: &Received, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region("response-headers")
         .flex_1()
         .min_h_0()

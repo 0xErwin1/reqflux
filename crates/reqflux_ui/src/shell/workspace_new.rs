@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, cut, space};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, cut, space};
 use gpui::{
     AnyElement, AppContext as _, Context, InteractiveElement, IntoElement, ParentElement, Role,
     Styled, Window, prelude::*,
@@ -120,7 +120,7 @@ impl Shell {
     /// The name field, when it is open.
     pub(super) fn new_name_field(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let input = self.new_workspace_name.as_ref()?;
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         Some(
             region("workspace-new-name")
                 .role(Role::TextInput)

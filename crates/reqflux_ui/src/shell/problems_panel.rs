@@ -5,10 +5,10 @@
 //! it. Escape is bound in the panel's own [`PROBLEMS_CONTEXT`], which is deeper than the
 //! shell's, so it closes the panel before it reaches `Cancel send`.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{border, cut, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     Anchor, AnyElement, App, Context, FontWeight, InteractiveElement, IntoElement, KeyBinding,
     MouseButton, ParentElement, Pixels, Point, Styled, Window, actions, anchored, deferred, div,
@@ -49,7 +49,7 @@ pub(super) fn render(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let panel = region("problems-panel")
         .key_context(PROBLEMS_CONTEXT)
         .track_focus(&shell.problems_focus)
@@ -115,7 +115,7 @@ pub(super) fn render(
 
 /// `Problems`, the count and the Esc keycap.
 fn header(problems: &Problems, cx: &Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let summary = problems.summary();
     region("problems-header")
         .flex()
@@ -161,7 +161,7 @@ fn caption(id: &str, label: String, cx: &Context<Shell>) -> impl IntoElement {
 /// The `CONFIG` caption and the error row: a danger wash with a danger edge, the alert icon,
 /// the title and the error, which names the file, line and column and never quotes it.
 fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     div()
         .flex()
         .flex_col()
@@ -223,7 +223,7 @@ fn config_error(error: &str, cx: &Context<Shell>) -> impl IntoElement {
 
 /// A warning: the warning icon, then its file, when it names one, over what happened.
 fn warning_row(index: usize, warning: &Problem, cx: &Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let label = match &warning.location {
         Some(location) => format!("{location}: {}", warning.message),
         None => warning.message.clone(),

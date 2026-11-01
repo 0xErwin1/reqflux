@@ -17,8 +17,8 @@
 
 use std::collections::HashSet;
 
-use bolt::tokens::{Colors, border, family, icon, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{Colors, border, family, icon, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, ClickEvent, Context, CursorStyle, Div, DragMoveEvent, Empty, FocusHandle,
     FontWeight, Hsla, KeyDownEvent, MouseButton, ParentElement, Pixels, Role, Stateful, Styled,
@@ -304,8 +304,8 @@ pub(super) fn render(
 /// response draws the one under it) and the dotted grip, tinted on hover, focus and drag.
 fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<Div> {
     let split = &shell.split;
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let lit = split.dragging || split.focus.is_focused(window);
     let wash = tokens::wash(tint, tokens::SPLIT_HOVER_WASH);
     let percent = split
@@ -385,7 +385,7 @@ fn gutter(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Stateful<D
 /// status, time and size and its test count, and how to bring it back.
 fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful<Div> {
     let expand = expand_button(cx);
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let mono = |id: &'static str, label: String, color: Hsla| {
         super::text_region(id)
             .aria_label(label.clone())
@@ -482,7 +482,7 @@ fn response_bar(send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Stateful
 
 /// The ghost button that restores the collapsed response, element id `response-expand`.
 fn expand_button(cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part("response-expand".to_owned())
         .role(Role::Button)
         .aria_label("Expand response")

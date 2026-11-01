@@ -3,9 +3,9 @@
 //! request-panes/01), and at the right the problem of the inspection or else the unresolved
 //! variables notice.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     Context, Div, FontWeight, Hsla, ParentElement, Role, Stateful, Styled, div, prelude::*,
 };
@@ -22,7 +22,7 @@ pub(super) fn render(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let notice = match &state.inspection.problem {
         Some(problem) => Some(notice("request-problem", problem.clone(), colors.danger)),
         None => unresolved_text(state.inspection.unresolved.len())
@@ -138,19 +138,19 @@ fn sub_tab(
     tab: SubTab,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let selected = state.tab == tab;
     let (label_color, weight, icon_color) = if selected {
         (
             colors.strong,
             FontWeight::SEMIBOLD,
-            bolt::brand(cx).accent_tint,
+            bolt_legacy::brand(cx).accent_tint,
         )
     } else {
         (colors.muted, text::BODY.weight, colors.muted)
     };
     let badge_color = match tab {
-        SubTab::Settings => bolt::brand(cx).accent_tint,
+        SubTab::Settings => bolt_legacy::brand(cx).accent_tint,
         _ => colors.muted,
     };
     let request = id.to_owned();

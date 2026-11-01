@@ -1,7 +1,7 @@
 //! Read-only text blocks shared by the Body, Auth, Scripts and Settings panes: a code block
 //! with right-aligned line numbers, a section label and an empty state.
 
-use bolt::tokens::{family, space};
+use bolt_legacy::tokens::{family, space};
 use gpui::{AnyElement, App, Div, ParentElement, Styled, div, prelude::*};
 use reqflux_engine::Inspection;
 
@@ -19,7 +19,7 @@ pub(super) fn block(
     text: &str,
     cx: &App,
 ) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part(id)
         .flex()
         .flex_col()
@@ -57,7 +57,7 @@ pub(super) fn label(text: &'static str, cx: &App) -> Div {
         .pt(space::MD)
         .pb(space::SM)
         .text_size(tokens::SMALL_MONO_TEXT)
-        .text_color(bolt::colors(cx).muted)
+        .text_color(bolt_legacy::colors(cx).muted)
         .child(text)
 }
 
@@ -67,7 +67,7 @@ pub(super) fn empty(id: String, text: &'static str, cx: &App) -> AnyElement {
         .pl(space::MD)
         .pt(space::MD)
         .text_size(tokens::GRID_TEXT)
-        .text_color(bolt::colors(cx).muted)
+        .text_color(bolt_legacy::colors(cx).muted)
         .child(text)
         .into_any_element()
 }

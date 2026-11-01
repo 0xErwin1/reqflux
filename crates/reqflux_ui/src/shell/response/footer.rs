@@ -1,8 +1,8 @@
 //! The bottom bar of the response body, element id `response-footer`: the `Pretty` / `Raw` /
 //! `Preview` switch and the line count of a text body.
 
-use bolt::tokens::{border, chrome, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{border, chrome, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{Context, Div, ParentElement, Stateful, Styled, prelude::*};
 
 use super::model::BodyView;
@@ -19,7 +19,7 @@ pub(super) fn render(
     received: &Received,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let selected = effective_view(send.view, received);
     let mut views = vec![
         (BodyView::Pretty, "Pretty", IconName::Braces),

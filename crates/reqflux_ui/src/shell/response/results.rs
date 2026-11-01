@@ -1,8 +1,8 @@
 //! The Tests and Console panes of a response (S12): one row per recorded test and one per
 //! console entry, with the failure and severity colors.
 
-use bolt::tokens::{border, family, icon, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{border, family, icon, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{AnyElement, App, ParentElement, Styled, div, prelude::*};
 
 use reqflux_engine::ConsoleLevel;
@@ -15,8 +15,8 @@ use crate::tokens;
 /// The pane of the test results of `received`: a check and the name of a passing test, a
 /// failed one with its message in danger.
 pub(super) fn tests(received: &Received, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     region("response-tests")
         .flex_1()
         .min_h_0()
@@ -83,7 +83,7 @@ pub(super) fn tests(received: &Received, cx: &App) -> AnyElement {
 /// The pane of the console entries of `received`: the level label then the message, a
 /// warning in the warning color and an error in danger.
 pub(super) fn console(received: &Received, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region("response-console")
         .flex_1()
         .min_h_0()

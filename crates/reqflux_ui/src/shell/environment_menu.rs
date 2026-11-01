@@ -2,9 +2,9 @@
 //! `No environment` row, then the workspace environments by name. Clicking a row makes it the
 //! window's active environment; Escape or a click outside closes the menu.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, cut, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, cut, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, Context, InteractiveElement, IntoElement, KeyDownEvent, MouseButton, ParentElement,
     Point, Role, Styled, Window, anchored, deferred, div, prelude::*,
@@ -39,8 +39,8 @@ fn option(
     selected: bool,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     // `environment-none` cannot collide with an environment, whose slug may well be `none`.
     let id = slug.as_deref().map_or_else(
         || "environment-none".to_owned(),
@@ -59,7 +59,7 @@ fn option(
         .cursor_pointer()
         .hover(|style| style.bg(colors.hover))
         .when(selected, |row| {
-            row.bg(bolt::accent_washes(cx).selected_item)
+            row.bg(bolt_legacy::accent_washes(cx).selected_item)
                 .text_color(colors.strong)
                 .child(
                     div()
@@ -85,7 +85,7 @@ fn option(
 /// the size of the window that closes it on a click outside. The backdrop also covers the
 /// button, so a click on it closes the menu instead of reopening it.
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let active = shell.active_environment.as_deref();
     let mut menu = region("environment-menu")
         .role(Role::Menu)

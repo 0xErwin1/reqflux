@@ -22,7 +22,7 @@ use crate::workspace::OpenedWorkspace;
 /// The asset source the main window needs: the icons Bolt draws. Pass it to
 /// `Application::with_assets` before [`open_main_window`]; without it, icons paint nothing.
 pub fn assets() -> impl gpui::AssetSource {
-    bolt::assets()
+    bolt_legacy::assets()
 }
 
 /// Installs Bolt with ReqFlux's brand in the theme saved in the user's config file and opens the main
@@ -55,7 +55,7 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
     let options = WindowOptions {
         app_id: Some("reqflux".into()),
         titlebar: Some(TitlebarOptions {
-            title: Some(bolt::brand(cx).name.clone()),
+            title: Some(bolt_legacy::brand(cx).name.clone()),
             ..Default::default()
         }),
         window_bounds: Some(WindowBounds::Windowed(bounds)),

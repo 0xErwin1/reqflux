@@ -4,10 +4,10 @@
 //! island (`settings-nav`) and the content island with the section title, the environment
 //! list in the Environments section and the variables column of [`super::variables_document`].
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::IconButton;
-use bolt::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt::{Icon, IconName, Island};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::IconButton;
+use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName, Island};
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, InteractiveElement, IntoElement, ParentElement,
     Pixels, Role, Stateful, Styled, Window, div, prelude::*, transparent_black,
@@ -50,8 +50,8 @@ pub(super) fn button(
     height: Pixels,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let (chamfer, color, weight) = match tone {
         ButtonTone::Primary => (
             Chamfer::new(cut::CONTROL).fill(brand.accent),
@@ -132,8 +132,8 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
 
 /// The header row: `Workspace settings` › the workspace and its path, and the close button.
 fn header(shell: &Shell, workspace: &Workspace, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let (strong, foreground, muted, line_2) = (
         colors.strong,
         colors.foreground,
@@ -266,9 +266,9 @@ fn nav_entry(
     target: Section,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
-    let wash = bolt::accent_washes(cx).selected_item;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
+    let wash = bolt_legacy::accent_washes(cx).selected_item;
     let (hover, strong, muted) = (colors.hover, colors.strong, colors.muted);
     text_role::role(labeled_row(id, format!("{name} {count}")), text::BODY, cx)
         .role(Role::Link)
@@ -340,7 +340,7 @@ fn content(
              stay on this machine. Secrets live in the OS keyring.",
         ),
     };
-    let line = bolt::colors(cx).line;
+    let line = bolt_legacy::colors(cx).line;
     let title = div()
         .flex_none()
         .flex()
@@ -360,7 +360,7 @@ fn content(
         .child(
             text_role::role(text_region("settings-description"), text::BODY, cx)
                 .aria_label(description)
-                .text_color(bolt::colors(cx).muted)
+                .text_color(bolt_legacy::colors(cx).muted)
                 .child(description),
         );
     let variables = match scope {
@@ -396,7 +396,7 @@ fn content(
 /// The error of the last failed write, `variables-error`, in the danger tone, or the warning
 /// of the last one that succeeded, `variables-warning`.
 fn message(shell: &Shell, cx: &App) -> Option<AnyElement> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (id, message, color) = match (&shell.settings.error, &shell.settings.warning) {
         (Some(error), _) => ("variables-error", error.clone(), colors.danger),
         (None, Some(warning)) => ("variables-warning", warning.clone(), colors.warning),
@@ -424,7 +424,7 @@ fn environment_list(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let line = bolt::colors(cx).line;
+    let line = bolt_legacy::colors(cx).line;
     let selected = match section {
         Section::Environments(id) => id,
         Section::Globals | Section::Collection(_) => None,
@@ -479,7 +479,7 @@ fn environment_row(
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let id = entry.id;
-    let divider = bolt::colors(cx).row_divider;
+    let divider = bolt_legacy::colors(cx).row_divider;
     if let Some(field) = rename_field(shell, id, cx) {
         return div()
             .flex_none()
@@ -496,9 +496,9 @@ fn environment_row(
             .into_any_element();
     }
     let active = selected == Some(id);
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
-    let wash = bolt::accent_washes(cx).selected_item;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
+    let wash = bolt_legacy::accent_washes(cx).selected_item;
     let (hover, strong, muted) = (colors.hover, colors.strong, colors.muted);
     let meta = format!("{} · {}.env.toml", variable_count(entry.count), entry.slug);
     let menu_button = super::rows::part(format!("variables-scope-menu-{id}"))
@@ -616,8 +616,8 @@ fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
         .rename
         .as_ref()
         .filter(|rename| rename.id == id)?;
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let hint = format!(
         "Enter renames {} and its file · Esc cancels",
         rename.original
@@ -674,7 +674,7 @@ fn environment_delete_prompt(
     let name = entries.iter().find(|entry| entry.id == id)?.name.clone();
     let question = format!("Delete environment \"{name}\"?");
     let detail = "Its file is deleted. Keyring entries of its secrets stay.";
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (divider, strong) = (colors.row_divider, colors.strong);
     Some(
         text_role::role(div(), text::BODY, cx)

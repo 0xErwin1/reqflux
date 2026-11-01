@@ -1,8 +1,8 @@
 //! The path bar under the tab row: where the active request sits, as collection › folders ›
 //! request; empty with no active request.
 
-use bolt::tokens::{border, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{border, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{App, Div, ParentElement, Stateful, Styled, div};
 
 use super::documents::Location;
@@ -13,7 +13,7 @@ use crate::tokens;
 /// The path bar of `active`, element id `document-path`. Its segments are
 /// `path-collection`, `path-folder-<n>` from the outermost folder, and `path-request`.
 pub(super) fn render(active: Option<&Location>, cx: &App) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let bar = text_role::role(region("document-path"), text::BODY_SMALL, cx)
         .flex_none()
         .h(tokens::PATH_BAR)
@@ -30,7 +30,7 @@ pub(super) fn render(active: Option<&Location>, cx: &App) -> Stateful<Div> {
         return bar;
     };
 
-    let brand = bolt::brand(cx);
+    let brand = bolt_legacy::brand(cx);
     let segment = |id: String, icon: Option<Icon>, name: &str| {
         part(id)
             .flex()

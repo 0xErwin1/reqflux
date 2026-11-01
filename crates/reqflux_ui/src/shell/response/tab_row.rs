@@ -2,9 +2,9 @@
 //! `Console` tabs of a response with script results, the time and size at the right, and the
 //! indeterminate progress bar under it while sending.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{Colors, chrome, cut, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{Colors, chrome, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     Animation, AnimationExt, App, Context, Div, FontWeight, Hsla, ParentElement, Role, Stateful,
     Styled, div, prelude::*, relative,
@@ -20,8 +20,8 @@ use crate::tokens;
 
 /// The row of the send `send` of the request `id`, `None` before the first send.
 pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let state = send.map(|send| &send.state);
     let received = match state {
         Some(SendState::Done(Completed::Response(received))) => Some(received),
@@ -171,9 +171,9 @@ fn tab_chip(
     selected: bool,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (label_color, icon_color) = if selected {
-        (colors.strong, bolt::brand(cx).accent_tint)
+        (colors.strong, bolt_legacy::brand(cx).accent_tint)
     } else {
         (colors.muted, colors.muted)
     };
@@ -266,14 +266,14 @@ pub(super) fn progress(cx: &App) -> Stateful<Div> {
         .mx(space::MD)
         .mb(space::SM)
         .overflow_hidden()
-        .bg(bolt::colors(cx).background)
+        .bg(bolt_legacy::colors(cx).background)
         .child(
             div()
                 .absolute()
                 .top_0()
                 .h_full()
                 .w(relative(segment))
-                .bg(bolt::brand(cx).accent)
+                .bg(bolt_legacy::brand(cx).accent)
                 .with_animation(
                     "response-progress-segment",
                     Animation::new(tokens::RESPONSE_PROGRESS_PERIOD).repeat(),

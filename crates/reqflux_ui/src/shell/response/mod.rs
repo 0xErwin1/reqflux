@@ -26,8 +26,8 @@ pub(crate) use model::{BodyText, BodyView, ResponseTab};
 pub(crate) use preview::{Preview, PreviewHost};
 pub(crate) use preview_model::{PreviewKind, preview_kind};
 
-use bolt::controls::Keycap;
-use bolt::tokens::{border, space};
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, space};
 use gpui::{AnyElement, App, Context, Div, ParentElement, Stateful, Styled, div, prelude::*};
 
 use super::request::{Completed, SendState};
@@ -57,7 +57,7 @@ pub(super) fn render(
         }
         _ => vec![empty(cx)],
     };
-    let line_2 = bolt::colors(cx).line_2;
+    let line_2 = bolt_legacy::colors(cx).line_2;
     region("response")
         .flex_1()
         .min_h_0()
@@ -122,7 +122,7 @@ fn unresolved_line(text: String, cx: &App) -> Stateful<Div> {
         .pr(space::MD)
         .pb(space::SM)
         .text_size(tokens::NOTICE_TEXT)
-        .text_color(bolt::colors(cx).warning)
+        .text_color(bolt_legacy::colors(cx).warning)
         .child(text)
 }
 
@@ -137,7 +137,7 @@ fn empty(cx: &App) -> AnyElement {
         .justify_center()
         .gap(space::SM)
         .text_size(tokens::GRID_TEXT)
-        .text_color(bolt::colors(cx).muted)
+        .text_color(bolt_legacy::colors(cx).muted)
         .child(text)
         .child(Keycap::new("response-empty-keycap", "Ctrl ↵"))
         .into_any_element()

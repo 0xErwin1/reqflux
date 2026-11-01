@@ -3,8 +3,8 @@
 //! apart by separators, with the key of each item that has one. Move to… turns the menu
 //! into the list of collections and folders the row can move into.
 
-use bolt::tokens::{border, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{border, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::prelude::*;
 use gpui::{AnyElement, Context, InteractiveElement, ParentElement, Role, Styled, Window, div};
 
@@ -260,7 +260,7 @@ impl Sidebar {
 
 /// The separator `tree-menu-separator-<index>` between two groups of the menu.
 fn separator(index: usize, cx: &Context<Sidebar>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part(format!("tree-menu-separator-{index}"))
         .flex_none()
         .my(space::HALF)
@@ -280,7 +280,7 @@ fn menu_row(
     pick: impl Fn(&mut Sidebar, &mut Window, &mut Context<Sidebar>) + 'static,
     cx: &mut Context<Sidebar>,
 ) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     text_role::role(labeled_row(id, label.clone()), text::BODY, cx)
         .role(Role::MenuItem)
         .flex()

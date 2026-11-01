@@ -3,9 +3,9 @@
 //! has a draft; Undo, Redo and Split stay disabled behind a blocker that swallows hover and
 //! clicks and shows the tooltip.
 
-use bolt::IconName;
-use bolt::controls::IconButton;
-use bolt::tokens::{action_strip, border};
+use bolt_legacy::IconName;
+use bolt_legacy::controls::IconButton;
+use bolt_legacy::tokens::{action_strip, border};
 use gpui::{
     AnyElement, Context, Div, ElementId, InteractiveElement, IntoElement, ParentElement, Stateful,
     StatefulInteractiveElement, Styled, div,
@@ -36,7 +36,7 @@ pub(super) fn render(
     drafted: bool,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let line = bolt::colors(cx).line;
+    let line = bolt_legacy::colors(cx).line;
     let mut actions: Vec<AnyElement> = Vec::new();
     for action in ACTIONS {
         match action {

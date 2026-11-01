@@ -10,10 +10,10 @@
 //! once, `s` allows for this session and `d` denies. The reason field sits outside it, so
 //! typing never answers. Every value shown is cut and stripped of control characters.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{border, cut, family, icon, space, text};
-use bolt::{Icon, IconName, Island};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName, Island};
 use gpui::{
     AnyElement, App, Context, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement,
     Role, Styled, div, prelude::*,
@@ -40,7 +40,7 @@ const FOOTER: &str = "move · decisions go to the audit log";
 /// The color of the class `class`: read is info, write and execute warning, destructive
 /// danger.
 pub(super) fn class_color(class: &str, cx: &App) -> Hsla {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     match class {
         "read" => colors.info,
         "destructive" => colors.danger,
@@ -80,7 +80,7 @@ pub(super) fn class_badge(id: String, class: &str, cx: &App) -> AnyElement {
 
 /// The view in the document island.
 pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
-    let line = bolt::colors(cx).line;
+    let line = bolt_legacy::colors(cx).line;
     region("approvals-view").flex_1().min_w_0().h_full().child(
         Island::new()
             .size_full()
@@ -101,8 +101,8 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement
 
 /// The header: the Bot icon, the title, the subtitle and Refresh.
 fn header(cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let hover = colors.hover;
     div()
         .flex_none()
@@ -142,10 +142,10 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
                 .flex()
                 .items_center()
                 .gap(space::SM)
-                .h(bolt::tokens::chrome::CONTROL)
+                .h(bolt_legacy::tokens::chrome::CONTROL)
                 .pl(space::MD)
                 .pr(space::MD)
-                .text_size(bolt::tokens::field::FONT)
+                .text_size(bolt_legacy::tokens::field::FONT)
                 .text_color(colors.foreground)
                 .child(Chamfer::new(cut::CONTROL).fill(colors.raised))
                 .hover(move |style| style.bg(hover))
@@ -163,7 +163,7 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
 
 /// The list: the `PENDING · N` header, a row per call and the keys footer.
 fn list(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = *bolt::colors(cx);
+    let colors = *bolt_legacy::colors(cx);
     let count = shell.approvals.pending();
     let pending_label = format!("Pending · {count}");
     let now = now_millis();
@@ -255,8 +255,8 @@ fn row(
     now: i64,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = *bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let hover = colors.hover;
     let n = index + 1;
     let request = &pending.request;
@@ -272,7 +272,7 @@ fn row(
         Some((method, path)) => {
             line.push(
                 div()
-                    .text_color(method_color(&method, bolt::palette(cx)))
+                    .text_color(method_color(&method, bolt_legacy::palette(cx)))
                     .child(method.clone())
                     .into_any_element(),
             );

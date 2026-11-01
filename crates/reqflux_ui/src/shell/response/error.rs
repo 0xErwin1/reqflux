@@ -1,9 +1,9 @@
 //! The error banner of a failed send, with the Retry button that sends again, and the test
 //! and console rows of the pre-request script that ran before the failure.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, cut, family, icon, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, cut, family, icon, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, ParentElement, Role, Stateful, Styled, div,
     prelude::*,
@@ -18,7 +18,7 @@ use crate::tokens;
 /// The banner of `failure`, element id `response-error`, with `response-retry`, which sends
 /// the request `id` again.
 pub(super) fn render(id: &str, failure: &Failure, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let banner = region("response-error")
         .role(Role::Alert)
         .aria_label(format!("Request failed. {}", failure.error))
@@ -77,8 +77,8 @@ fn results(failure: &Failure, cx: &App) -> Option<AnyElement> {
     if scripts.tests.is_empty() && scripts.console.is_empty() {
         return None;
     }
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let mut rows: Vec<AnyElement> = Vec::new();
     for (index, test) in scripts.tests.iter().enumerate() {
         let n = index + 1;
@@ -185,7 +185,7 @@ fn results(failure: &Failure, cx: &App) -> Option<AnyElement> {
 
 /// The primary Retry button, element id `response-retry`.
 fn retry(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let brand = bolt::brand(cx);
+    let brand = bolt_legacy::brand(cx);
     let id = id.to_owned();
     region("response-retry")
         .role(Role::Button)

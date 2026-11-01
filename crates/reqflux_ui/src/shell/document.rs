@@ -5,15 +5,15 @@
 //! its response under it across the draggable split (see `split`). While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
 
-use bolt::Island;
-use bolt::tokens::border;
+use bolt_legacy::Island;
+use bolt_legacy::tokens::border;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
 
 use super::documents::locate;
 use super::{Shell, action_strip, empty_state, history, path_bar, region, request, split, tabs};
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let active = shell
         .active_request()
         .and_then(|id| locate(&shell.roots, id));

@@ -8,9 +8,9 @@
 
 use std::collections::HashSet;
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, chrome, cut, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, chrome, cut, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, ParentElement,
     Pixels, Point, Role, Styled, Window, prelude::*,
@@ -415,7 +415,7 @@ impl Sidebar {
     /// The rename field over the name of the row `id`, when it is open there.
     pub(super) fn rename_field(&self, id: &str, cx: &mut Context<Self>) -> Option<AnyElement> {
         let rename = self.edit.rename.as_ref().filter(|rename| rename.id == id)?;
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         Some(
             region("tree-rename-input")
                 .role(Role::TextInput)
@@ -479,7 +479,7 @@ impl Sidebar {
         window: &Window,
         cx: &mut Context<Self>,
     ) -> Vec<AnyElement> {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         let id = node.id.clone();
         let button = part(format!("tree-row-menu-{id}"))
             .role(Role::Button)
@@ -513,7 +513,7 @@ impl Sidebar {
     /// The error of the last failed operation, `sidebar-error`, in the danger tone.
     pub(super) fn error_label(&self, cx: &App) -> Option<AnyElement> {
         let error = self.edit.error.clone()?;
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         Some(
             text_role::role(text_region("sidebar-error"), text::CAPTION, cx)
                 .aria_label(error.clone())

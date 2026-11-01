@@ -10,9 +10,9 @@
 //! shows its current value as `••••••••`. The undeclared rows `variables-undeclared-<n>`
 //! show a key a script set, its editable current value, `Declare` and a discard control.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{Colors, border, cut, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{Colors, border, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, Context, Div, FontWeight, Hsla, ParentElement, Pixels, Role, Stateful, Styled,
     Toggled, div, prelude::*,
@@ -62,7 +62,7 @@ pub(super) fn render(
     };
     let heading = heading(shell, scope, &variables, title, cx);
     let add = add_row(scope, cx);
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let mut column = region("variables-document")
         .flex_1()
         .min_w_0()
@@ -110,8 +110,8 @@ fn heading(
 ) -> Div {
     let empty = empty_count(&shell.current, scope, variables);
     let resettable = !current_keys(&shell.current, scope, variables).is_empty();
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let warning = colors.warning;
     let line = colors.line;
     let empty_label = (empty > 0).then(|| {
@@ -220,7 +220,7 @@ fn declared_row(
 ) -> AnyElement {
     let current_value = shell.current.get(scope, &variable.key).map(str::to_owned);
     let empty = is_empty(variable, current_value.as_deref());
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (muted, strong, warning) = (colors.muted, colors.strong, colors.warning);
     let dim = |cell: Stateful<Div>| {
         if variable.enabled {
@@ -333,7 +333,7 @@ fn declared_row(
     .child(description_text.clone())
     .into_any_element();
     let delete = delete_control(scope, n, &variable.key, cx);
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let number_color = if empty { colors.warning } else { colors.line_2 };
     row(format!("variables-row-{n}"), variable.key.clone(), colors)
         .text_color(colors.foreground)
@@ -362,8 +362,8 @@ fn empty_tag(warning: Hsla) -> Div {
 }
 
 fn undeclared_heading(cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let description = "Current values set by scripts with no declared variable. Not sent to \
                        the file.";
     div()
@@ -427,7 +427,7 @@ fn undeclared_row(
     .on_click(cx.listener(move |this, _event, window, cx| {
         this.declare_undeclared(scope, n, window, cx);
     }));
-    let muted = bolt::colors(cx).muted;
+    let muted = bolt_legacy::colors(cx).muted;
     let discard = part(format!("variables-discard-{n}"))
         .role(Role::Button)
         .aria_label(format!("Discard the current value of {key}"))
@@ -442,7 +442,7 @@ fn undeclared_row(
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.discard_undeclared(scope, n, window, cx);
         }));
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     row(format!("variables-undeclared-{n}"), key.to_owned(), colors)
         .text_color(colors.foreground)
         .child(
@@ -496,7 +496,7 @@ fn notes(
     file: &str,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (muted, foreground) = (colors.muted, colors.foreground);
     let workspace_id = match &shell.workspace {
         OpenedWorkspace::Loaded(engine) => Some(engine.workspace().manifest.id),
@@ -605,7 +605,7 @@ fn cell(
     if shell.is_editing(scope, column, n)
         && let Some(edit) = shell.cell_edit.as_ref()
     {
-        let foreground = bolt::colors(cx).foreground;
+        let foreground = bolt_legacy::colors(cx).foreground;
         return base
             .on_action(cx.listener(|this, action: &Enter, window, cx| {
                 if action.secondary {
@@ -656,8 +656,8 @@ fn static_cell(id: String, width: Pixels, label: &str) -> Stateful<Div> {
 /// The enable box `variables-enabled-<n>`: a cut box, filled with the accent and checked
 /// when enabled.
 fn enable_box(scope: SecretScope, n: usize, variable: &Variable, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let chamfer = if variable.enabled {
         Chamfer::new(cut::KEYCAP).fill(brand.accent)
     } else {
@@ -700,7 +700,7 @@ fn stored_toggle(
     variable: &Variable,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (label, icon_name, mono) = if variable.secret {
         ("KEYRING", IconName::KeyRound, false)
     } else {
@@ -756,7 +756,7 @@ fn delete_control(
     key: &str,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let muted = bolt::colors(cx).muted;
+    let muted = bolt_legacy::colors(cx).muted;
     part(format!("variables-delete-{n}"))
         .role(Role::Button)
         .aria_label(format!("Delete {key}"))
@@ -773,7 +773,7 @@ fn delete_control(
 /// The ghost row `variables-add`: placeholders in the key and value columns; a click
 /// appends a variable.
 fn add_row(scope: SecretScope, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let ghost = colors.line_2;
     part("variables-add".to_owned())
         .role(Role::Button)

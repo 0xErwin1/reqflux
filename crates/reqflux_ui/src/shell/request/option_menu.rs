@@ -3,9 +3,9 @@
 //! menus are this menu, anchored under their trigger by [`render`]; the context menus (a
 //! tree row, an environment) are this menu too, opened at the pointer by [`render_at`].
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, cut, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, cut, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, Context, Div, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
     MouseButton, ParentElement, Pixels, Point, Role, Stateful, Styled, Window, anchored, deferred,
@@ -24,8 +24,8 @@ pub(in crate::shell) fn option<V: 'static>(
     pick: impl Fn(&mut V, &mut Window, &mut Context<V>) + 'static,
     cx: &mut Context<V>,
 ) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     text_role::role(labeled_row(id, name.clone()), text::BODY, cx)
         .role(Role::MenuItem)
         .aria_selected(selected)
@@ -38,7 +38,7 @@ pub(in crate::shell) fn option<V: 'static>(
         .cursor_pointer()
         .hover(|style| style.bg(colors.hover))
         .when(selected, |row| {
-            row.bg(bolt::accent_washes(cx).selected_item)
+            row.bg(bolt_legacy::accent_washes(cx).selected_item)
                 .text_color(colors.strong)
         })
         .child(div().flex_1().min_w_0().overflow_hidden().child(name))
@@ -99,7 +99,7 @@ fn parts<V: 'static>(
     window: &Window,
     cx: &mut Context<V>,
 ) -> (Stateful<Div>, AnyElement) {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let menu = region(id)
         .role(Role::Menu)
         .track_focus(focus)

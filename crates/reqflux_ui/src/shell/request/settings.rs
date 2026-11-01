@@ -6,8 +6,8 @@
 
 mod controls;
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, cut, family, space};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, cut, family, space};
 use gpui::{AnyElement, Context, Entity, ParentElement, Styled, div, prelude::*};
 use gpui_component::input::{Enter, Escape, Input, InputState};
 use reqflux_core::model::Settings;
@@ -42,7 +42,7 @@ pub(super) fn render(
     let rows = settings_rows(settings).map(|(id, label, shown)| match id {
         "request-setting-timeout" => {
             let control = timeout_control(request_id, settings, editing.clone(), cx);
-            let muted = bolt::colors(cx).muted;
+            let muted = bolt_legacy::colors(cx).muted;
             let text = format!(
                 "Default {DEFAULT_TIMEOUT_MS} ms. Bounds the whole redirect chain. Empty uses \
                  the default."
@@ -78,7 +78,7 @@ pub(super) fn render(
         // A row this pane does not know how to edit stays read-only rather than silently
         // editing another setting.
         _ => {
-            let muted = bolt::colors(cx).muted;
+            let muted = bolt_legacy::colors(cx).muted;
             row(
                 id.to_owned(),
                 label,
@@ -109,8 +109,8 @@ fn timeout_control(
     editing: Option<Entity<InputState>>,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt::colors(cx);
-    let accent = bolt::brand(cx).accent_tint;
+    let colors = *bolt_legacy::colors(cx);
+    let accent = bolt_legacy::brand(cx).accent_tint;
     let unit = div().text_color(colors.muted).child("ms");
     let field = match editing {
         Some(input) => well("request-setting-timeout-input".to_owned(), cx)
@@ -209,7 +209,7 @@ fn toggle_row(
     settings: &Settings,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt::colors(cx);
+    let colors = *bolt_legacy::colors(cx);
     let value = toggle.value(settings);
     let name = match toggle {
         Toggle::FollowRedirects => "follow-redirects",

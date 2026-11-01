@@ -8,9 +8,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, cut, icon, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, cut, icon, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, FontWeight, ParentElement, RenderImage, Role, Styled, div, img,
     prelude::*,
@@ -235,7 +235,7 @@ impl Shell {
 
 /// The Preview view of the request `id`, element id `response-preview`.
 pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let pane = region("response-preview")
         .flex_1()
         .min_h_0()
@@ -302,7 +302,7 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
 /// the readable text, element id `response-preview-text`.
 fn html(id: &str, page: &HtmlText, send: &RequestSend, cx: &mut Context<Shell>) -> AnyElement {
     let open = open_button(id, cx);
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let title = page
         .title
         .clone()
@@ -388,7 +388,7 @@ fn text_label(paragraphs: &[String]) -> String {
 
 /// `Open in browser`, element id `response-preview-open`.
 fn open_button(id: &str, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let id = id.to_owned();
     region("response-preview-open")
         .role(Role::Button)
@@ -423,7 +423,7 @@ fn message(text: &'static str, cx: &App) -> AnyElement {
         .aria_label(text)
         .p(space::MD)
         .text_size(tokens::GRID_TEXT)
-        .text_color(bolt::colors(cx).muted)
+        .text_color(bolt_legacy::colors(cx).muted)
         .child(text)
         .into_any_element()
 }

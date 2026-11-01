@@ -21,13 +21,15 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MAX_LINES = 1000
-GPUI_PACKAGES = {"gpui-pre", "gpui-component", "gpui-pre-platform", "gpui-mcp"}
-GPUI_CRATES = {"bolt", "reqflux", "reqflux_ui"}
+# `bolt` is DBFlux's design system, taken by git rev; it draws with GPUI.
+GPUI_PACKAGES = {"gpui-pre", "gpui-component", "gpui-pre-platform", "gpui-mcp", "bolt"}
+GPUI_CRATES = {"bolt_legacy", "reqflux", "reqflux_ui"}
 
 # Each crate may depend only on the internal crates listed here.
 ALLOWED_INTERNAL = {
-    # The design system shared with DBFlux depends on no ReqFlux crate.
-    "bolt": set(),
+    # ReqFlux's own copy of Bolt, until every screen moves to the shared `bolt`; it depends
+    # on no ReqFlux crate.
+    "bolt_legacy": set(),
     "reqflux_core": set(),
     "reqflux_store": {"reqflux_core"},
     "reqflux_postman": {"reqflux_core"},
@@ -35,8 +37,14 @@ ALLOWED_INTERNAL = {
     "reqflux_script": {"reqflux_core"},
     "reqflux_engine": {"reqflux_core", "reqflux_http", "reqflux_postman", "reqflux_script", "reqflux_store"},
     "reqflux_mcp": {"reqflux_core", "reqflux_engine"},
-    "reqflux_ui": {"bolt", "reqflux_core", "reqflux_engine"},
+    "reqflux_ui": {"bolt_legacy", "reqflux_core", "reqflux_engine"},
     "reqflux": {"reqflux_core", "reqflux_engine", "reqflux_mcp", "reqflux_ui"},
+}
+
+# Crates from outside the workspace that only the listed crates may depend on.
+ALLOWED_EXTERNAL = {
+    # The design system shared with DBFlux: only the front end draws with it.
+    "bolt": {"reqflux_ui", "reqflux"},
 }
 
 
@@ -101,6 +109,9 @@ def check_layering() -> bool:
                 ok = False
             if dep in ALLOWED_INTERNAL and dep not in ALLOWED_INTERNAL[name]:
                 print(f"{name}: depends on {dep}, which ARCHITECTURE.md does not allow")
+                ok = False
+            if dep in ALLOWED_EXTERNAL and name not in ALLOWED_EXTERNAL[dep]:
+                print(f"{name}: depends on {dep}, which only {sorted(ALLOWED_EXTERNAL[dep])} may use")
                 ok = False
     return ok
 

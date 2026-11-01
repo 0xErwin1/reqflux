@@ -2,8 +2,8 @@
 //! row (label column, control, hint), the Default / On / Off radio group on the sunken track
 //! of the Body pane's mode control, the state badge and the Reset link.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, chrome, cut, family, field, space, text};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, chrome, cut, family, field, space, text};
 use gpui::{
     AnyElement, App, Div, FontWeight, Hsla, ParentElement, Role, SharedString, Stateful, Styled,
     div, prelude::*,
@@ -76,7 +76,7 @@ pub(super) fn radio_group(
     choices: impl IntoIterator<Item = Stateful<Div>>,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part(id)
         .role(Role::RadioGroup)
         .aria_label(label)
@@ -101,7 +101,7 @@ pub(super) fn choice(
     selected: bool,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let color = if selected {
         colors.strong
     } else {
@@ -137,8 +137,8 @@ pub(super) fn choice(
 
 /// The badge `id` showing `badge`.
 pub(super) fn badge(id: String, badge: Badge, cx: &App) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let accent = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let accent = bolt_legacy::brand(cx).accent_tint;
     let (label, fill, color) = match badge {
         Badge::Default => ("Default", colors.raised, colors.muted),
         Badge::Overridden => (
@@ -178,7 +178,7 @@ pub(super) fn link(id: String, label: impl Into<SharedString>, cx: &App) -> Stat
         .aria_label(label.clone())
         .flex_none()
         .text_size(tokens::NOTICE_TEXT)
-        .text_color(bolt::brand(cx).accent_tint)
+        .text_color(bolt_legacy::brand(cx).accent_tint)
         .cursor_pointer()
         .child(label)
 }

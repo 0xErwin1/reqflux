@@ -1,8 +1,8 @@
 //! The Cookies sub-tab: one row per `Set-Cookie` header, as received, so a live response
 //! shows cookie values unmasked (history masks them when it records the send).
 
-use bolt::tokens::{border, family, icon, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{border, family, icon, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{AnyElement, App, FontWeight, ParentElement, Styled, div, prelude::*};
 
 use super::cookies::{Cookie, cookies};
@@ -15,7 +15,7 @@ use crate::tokens;
 /// `response-cookie-<n>` each: name, value and attributes, or the raw header with a
 /// warning mark when it does not parse.
 pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let rows = cookies(&received.headers)
         .into_iter()
         .enumerate()

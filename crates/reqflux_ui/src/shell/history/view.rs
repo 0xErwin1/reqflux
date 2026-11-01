@@ -6,9 +6,9 @@
 //! `{{references}}` through an engine inspection, which a recorded send, already resolved and
 //! masked, has none of.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{Colors, border, chrome, cut, doc_tab, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{Colors, border, chrome, cut, doc_tab, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Div, ElementId, FontWeight, ParentElement, Role, Stateful, Styled,
     div, prelude::*,
@@ -31,7 +31,7 @@ pub(crate) const CANNOT_SEND: &str = "This record can no longer be sent.";
 /// The history tab chip, `doc-tab-history`: the History icon in the tint, the method, the
 /// name, the time `doc-tab-history-time` and the close button `doc-tab-history-close`.
 pub(in crate::shell) fn tab_chip(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (name_color, weight) = if tab.active {
         (colors.strong, FontWeight::SEMIBOLD)
     } else {
@@ -72,7 +72,7 @@ pub(in crate::shell) fn tab_chip(tab: &HistoryTab, cx: &mut Context<Shell>) -> S
         .child(
             Icon::new(IconName::RotateCcwClock)
                 .size(icon::MD)
-                .color(bolt::brand(cx).accent_tint),
+                .color(bolt_legacy::brand(cx).accent_tint),
         )
         .child(method_label(&method, cx))
         .child(
@@ -119,7 +119,7 @@ fn method_label(method: &str, cx: &App) -> Div {
         .font_family(family::MONO)
         .text_size(tokens::METHOD_LABEL_SIZE)
         .font_weight(FontWeight::BOLD)
-        .text_color(method_color(method, bolt::palette(cx)))
+        .text_color(method_color(method, bolt_legacy::palette(cx)))
         .child(method.to_owned())
 }
 
@@ -128,14 +128,14 @@ fn method_label(method: &str, cx: &App) -> Div {
 /// no longer exists, the warning that it was deleted with Resend disabled and its note.
 fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     let (warning, line, strong) = {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         (colors.warning, colors.line, colors.strong)
     };
     let (icon_name, icon_color, fill, title, meta) = if tab.source_exists {
         (
             IconName::Lock,
-            bolt::brand(cx).accent_tint,
-            bolt::accent_washes(cx).selected_row,
+            bolt_legacy::brand(cx).accent_tint,
+            bolt_legacy::accent_washes(cx).selected_row,
             READ_ONLY.to_owned(),
             tab.moment.clone(),
         )
@@ -190,7 +190,7 @@ fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
 
 /// Open source request, a ghost button with a `line_2` edge.
 fn open_source(cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region("history-open-source")
         .role(Role::Button)
         .aria_label("Open source request")
@@ -220,8 +220,8 @@ fn open_source(cx: &mut Context<Shell>) -> Stateful<Div> {
 /// `history-resend-keycap`; disabled, it sits muted under a blocker,
 /// `history-resend-disabled`, that takes the pointer.
 fn resend(enabled: bool, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let (fill, color) = if enabled {
         (brand.accent, brand.on_accent)
     } else {
@@ -274,7 +274,7 @@ fn resend(enabled: bool, cx: &mut Context<Shell>) -> Div {
 /// The recorded method `history-method` with a lock, and the URL `history-url` as sent,
 /// both read only.
 fn request_line(tab: &HistoryTab, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let method = tab.sent.method.clone();
     let url = tab.sent.url.clone();
     div()
@@ -350,7 +350,7 @@ fn params(url: &str) -> Vec<(String, String)> {
 /// The Params, Headers and Body tabs, `history-tab-<name>`, with their counts
 /// `history-tab-<name>-count`, and the caption `history-tabs-note`.
 fn recorded_tabs(tab: &HistoryTab, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let line = colors.line;
     let counts = [
         (RecordedTab::Params, Some(params(&tab.sent.url).len())),
@@ -385,7 +385,7 @@ fn recorded_tab(
     count: Option<usize>,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let (label, icon_name) = match recorded {
         RecordedTab::Params => ("Params", IconName::Hash),
         RecordedTab::Headers => ("Headers", IconName::List),
@@ -395,7 +395,7 @@ fn recorded_tab(
         (
             colors.strong,
             FontWeight::SEMIBOLD,
-            bolt::brand(cx).accent_tint,
+            bolt_legacy::brand(cx).accent_tint,
         )
     } else {
         (colors.muted, text::BODY.weight, colors.muted)
@@ -443,7 +443,7 @@ fn recorded_tab(
 /// The selected view: the params or headers grid, `history-grid`, or the body,
 /// `history-body`.
 fn pane(tab: &HistoryTab, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     match tab.tab {
         RecordedTab::Params => grid("param", "params", &params(&tab.sent.url), colors),
         RecordedTab::Headers => grid("header", "headers", &tab.sent.headers, colors),

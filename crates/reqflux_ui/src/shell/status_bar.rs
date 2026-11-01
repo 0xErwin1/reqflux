@@ -5,10 +5,10 @@
 
 use std::time::Instant;
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::StatusChip;
-use bolt::tokens::{Colors, chrome, cut, family, icon, status_chip};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::StatusChip;
+use bolt_legacy::tokens::{Colors, chrome, cut, family, icon, status_chip};
+use bolt_legacy::{Icon, IconName};
 use gpui::{Context, Hsla, IntoElement, ParentElement, Role, Styled, Window, div, prelude::*};
 
 use super::last_request::{LastKind, summary};
@@ -19,8 +19,8 @@ use super::{Shell, problems_panel, region};
 use crate::tokens;
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let last = shell.last_send.as_ref().and_then(|last| {
         let state = &shell.sends.get(&last.id)?.state;
         summary(&last.method, &last.path, state, Instant::now())
@@ -57,7 +57,7 @@ fn problems_chip(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let errors = problems.has_error().then(|| count(1, "error"));
     let warnings =
         (!problems.warnings.is_empty()).then(|| count(problems.warnings.len(), "warning"));

@@ -2,9 +2,9 @@
 //! control (a sunken track holding one segment per choice, the selected one raised), a select
 //! (a raised box with a chevron) and a field well (a sunken box with an edge).
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, chrome, cut, family, field, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{App, Div, ParentElement, Role, SharedString, Stateful, Styled, div, prelude::*};
 
 use crate::shell::rows::part;
@@ -16,7 +16,7 @@ pub(in crate::shell::request) fn track(
     segments: impl IntoIterator<Item = Stateful<Div>>,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part(id.to_owned())
         .role(Role::TabList)
         .relative()
@@ -40,7 +40,7 @@ pub(in crate::shell::request) fn segment(
     selected: bool,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let label = label.into();
     let color = if selected {
         colors.strong
@@ -84,7 +84,7 @@ pub(in crate::shell::request) fn select(
     value: impl Into<SharedString>,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let value = value.into();
     part(id)
         .role(Role::Button)
@@ -118,7 +118,7 @@ pub(in crate::shell::request) fn select(
 /// A field well `id`: a `chrome::CONTROL` high sunken box with an edge, in mono, around the
 /// value its caller adds.
 pub(in crate::shell::request) fn well(id: String, cx: &App) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part(id)
         .relative()
         .flex()
@@ -142,7 +142,7 @@ pub(in crate::shell::request) fn well(id: String, cx: &App) -> Stateful<Div> {
 /// The focus ring `id` of an editor box: the accent edge over the box's plain one, drawn only
 /// while the editor has focus.
 pub(in crate::shell::request) fn focus_ring(id: String, cx: &App) -> Stateful<Div> {
-    let accent = bolt::brand(cx).accent_tint;
+    let accent = bolt_legacy::brand(cx).accent_tint;
     part(id)
         .absolute()
         .top_0()
@@ -154,7 +154,7 @@ pub(in crate::shell::request) fn focus_ring(id: String, cx: &App) -> Stateful<Di
 /// A multi-line field well `id`, sized by its content, for the raw text and the GraphQL
 /// query.
 pub(in crate::shell::request) fn text_well(id: String, cx: &App) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part(id).relative().py(space::SM).child(
         Chamfer::new(cut::CONTROL)
             .fill(colors.background)

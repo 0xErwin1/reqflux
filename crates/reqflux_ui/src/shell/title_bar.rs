@@ -4,11 +4,11 @@
 //! palette; the bell opens the MCP approvals view and carries the pending count as a badge,
 //! `approvals-badge`.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::badge_text;
-use bolt::controls::{Field, IconButton};
-use bolt::tokens::{border, chrome, cut, family, field, icon, rail, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::badge_text;
+use bolt_legacy::controls::{Field, IconButton};
+use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, rail, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Stateful,
     Styled, Window, div, prelude::*,
@@ -51,7 +51,7 @@ fn selector(
     weight: FontWeight,
     cx: &App,
 ) -> Stateful<gpui::Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region(id)
         .flex()
         .flex_none()
@@ -79,7 +79,7 @@ fn selector(
 /// The workspace and environment selectors. The zone keeps its content width, so on a narrow
 /// window the command search shrinks instead of covering it.
 fn context(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let mut zone = region("title-context")
         .min_w_0()
         .flex()
@@ -162,11 +162,11 @@ fn environment_selector(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let name = shell.environment_name();
     let (diamond, label, color, weight) = match &name {
         Some(name) => (
-            bolt::brand(cx).accent_tint,
+            bolt_legacy::brand(cx).accent_tint,
             name.clone(),
             colors.strong,
             FontWeight::SEMIBOLD,
@@ -236,7 +236,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
 
 /// The approvals bell, `approvals`, with the pending count on its badge.
 fn bell(pending: usize, cx: &mut Context<Shell>) -> impl IntoElement {
-    let brand = bolt::brand(cx);
+    let brand = bolt_legacy::brand(cx);
     let badge = badge_text(Some(pending)).map(|count| {
         text_region("approvals-badge")
             .aria_label(count.clone())

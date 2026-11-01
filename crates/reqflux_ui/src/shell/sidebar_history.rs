@@ -8,10 +8,10 @@
 //! its text field lives in the window's element state under [`FILTER_KEY`], so it lasts while
 //! the panel is on screen.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{Colors, border, chrome, cut, family, field, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{Colors, border, chrome, cut, family, field, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Hsla, IntoElement, ParentElement, RenderOnce,
     Role, Styled, Window, div, prelude::*,
@@ -199,7 +199,7 @@ impl Sidebar {
 /// The empty state: the History icon on a raised square, the title, the explanation and the
 /// send hint with its keycap.
 fn empty(cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region("history-empty")
         .flex_1()
         .flex()
@@ -297,7 +297,7 @@ impl RenderOnce for HistoryList {
 
 /// The filter field, `history-filter`: the search icon and the text field on the field well.
 fn filter(input: &Entity<InputState>, cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     div()
         .flex_none()
         .pl(space::MD)
@@ -370,7 +370,7 @@ fn group_label(n: usize, group: &Group<'_>, cx: &App) -> impl IntoElement {
 /// with `-deleted` when the request no longer exists), the time `-time` and the status
 /// `-status` in its class color.
 fn history_row(n: usize, row: &HistoryRow, sidebar: &Entity<Sidebar>, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let id = format!("history-row-{n}");
     let status = row.status_text();
     let status_color = row.status.map_or(colors.danger, |code| {
@@ -395,7 +395,7 @@ fn history_row(n: usize, row: &HistoryRow, sidebar: &Entity<Sidebar>, cx: &App) 
     let entry = row.entry;
     let sidebar = sidebar.clone();
     let hover = colors.hover;
-    let selected = bolt::accent_washes(cx).selected_item;
+    let selected = bolt_legacy::accent_washes(cx).selected_item;
     text_role::role(
         labeled_row(id.clone(), format!("{} · {}", row.text(), row.time)),
         text::BODY,
@@ -421,7 +421,7 @@ fn history_row(n: usize, row: &HistoryRow, sidebar: &Entity<Sidebar>, cx: &App) 
             .font_family(family::MONO)
             .text_size(tokens::METHOD_LABEL_SIZE)
             .font_weight(FontWeight::BOLD)
-            .text_color(method_color(&row.method, bolt::palette(cx)))
+            .text_color(method_color(&row.method, bolt_legacy::palette(cx)))
             .child(row.method.clone()),
     )
     .child(name)

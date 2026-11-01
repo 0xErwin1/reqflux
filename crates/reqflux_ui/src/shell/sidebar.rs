@@ -13,9 +13,9 @@
 //! subscribes to it and opens the request in a document tab. The sidebar knows nothing of
 //! the documents. Tree edits go the same way: see [`super::sidebar_edit`].
 
-use bolt::controls::{Field, IconButton};
-use bolt::tokens::{border, chrome, space, text};
-use bolt::{IconName, Island};
+use bolt_legacy::controls::{Field, IconButton};
+use bolt_legacy::tokens::{border, chrome, space, text};
+use bolt_legacy::{IconName, Island};
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
     KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window, actions, div,
@@ -233,8 +233,8 @@ impl Sidebar {
     /// dragged row inside at the end, and the name shows the drop-target wash and outline
     /// meanwhile.
     fn name_drop(&self, id: &str, cx: &mut Context<Self>) -> NameDecorator {
-        let wash = bolt::accent_washes(cx).drop_target;
-        let outline = bolt::brand(cx).accent_tint;
+        let wash = bolt_legacy::accent_washes(cx).drop_target;
+        let outline = bolt_legacy::brand(cx).accent_tint;
         let id = id.to_owned();
         let on_drop = cx.listener(move |this, dragged: &DraggedRow, window, cx| {
             this.drop_row(&dragged.id, DropPlace::Inside(&id), window, cx);
@@ -368,7 +368,7 @@ impl Render for Sidebar {
                         name: row.node.name.clone(),
                     };
                     let target = id.clone();
-                    let line = bolt::brand(cx).accent_tint;
+                    let line = bolt_legacy::brand(cx).accent_tint;
                     let element = rows::tree_row(row, selected, slots, on_toggle, cx)
                         .when(dimmed, |element| {
                             element.opacity(tokens::TREE_DRAG_SOURCE_OPACITY)

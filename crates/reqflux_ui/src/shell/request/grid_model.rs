@@ -2,8 +2,8 @@
 //! the unresolved-row decision, all from the spans the engine reports, and the delete icon's
 //! colors.
 
-use bolt::controls::{IconButtonVariant, icon_button_colors};
-use bolt::tokens::Colors;
+use bolt_legacy::controls::{IconButtonVariant, icon_button_colors};
+use bolt_legacy::tokens::Colors;
 use gpui::Hsla;
 use reqflux_engine::Span;
 

@@ -11,10 +11,10 @@
 
 use std::path::Path;
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::{IconButton, Keycap};
-use bolt::tokens::{border, chrome, cut, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::{IconButton, Keycap};
+use bolt_legacy::tokens::{border, chrome, cut, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, Div, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
     ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, prelude::*,
@@ -92,7 +92,7 @@ pub(super) fn action_row(
     action: Action,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     text_role::role(labeled_row(id.to_owned(), label.to_owned()), text::BODY, cx)
         .role(Role::MenuItem)
         .flex()
@@ -158,8 +158,8 @@ fn failable_recent_row(
     failure: Option<&str>,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let n = index + 1;
     let label = format!("{} {}", recent.name, failure.unwrap_or(&detail));
     let lead = match failure {
@@ -237,7 +237,7 @@ fn failable_recent_row(
             row.bg(tokens::failed_recent_wash(colors.danger))
         })
         .when(current, |row| {
-            row.bg(bolt::accent_washes(cx).selected_item).child(
+            row.bg(bolt_legacy::accent_washes(cx).selected_item).child(
                 div()
                     .absolute()
                     .top_0()
@@ -267,7 +267,7 @@ fn failable_recent_row(
 
 /// `Retry` with element id `id`: opens the recent workspace at `index` again.
 fn retry_button(id: &str, index: usize, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     text_role::role(
         labeled_row(id.to_owned(), RETRY.to_owned()),
         text::BODY_SMALL,
@@ -301,7 +301,7 @@ pub(super) fn is_current(recent: &RecentWorkspace, current: Option<&Path>) -> bo
 
 /// The error of the last workspace that did not open, as `workspace-error`.
 pub(super) fn error_label(error: &str, cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     text_role::role(text_region("workspace-error"), text::BODY_SMALL, cx)
         .aria_label(error.to_owned())
         .pl(space::MD)
@@ -314,7 +314,7 @@ pub(super) fn error_label(error: &str, cx: &App) -> impl IntoElement {
 /// The header, `workspace-menu-header`, in capitals, with the legend of the row icons,
 /// `workspace-legend`, when there are recents.
 fn header(legend: bool, cx: &App) -> impl IntoElement {
-    let muted = bolt::colors(cx).muted;
+    let muted = bolt_legacy::colors(cx).muted;
     let title = text_role::role(
         labeled_row("workspace-menu-header".to_owned(), HEADER.to_owned()),
         text::LABEL,
@@ -354,14 +354,14 @@ fn header(legend: bool, cx: &App) -> impl IntoElement {
 fn separator(cx: &App) -> Div {
     div()
         .h(border::THIN)
-        .bg(bolt::colors(cx).line)
+        .bg(bolt_legacy::colors(cx).line)
         .my(space::HALF)
 }
 
 /// The open menu, drawn above the islands and anchored under the selector, over a backdrop
 /// the size of the window that closes it on a click outside.
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let mut menu = super::region("workspace-menu")
         .role(Role::Menu)
         .track_focus(&shell.workspace_menu_focus)

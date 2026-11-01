@@ -19,8 +19,8 @@ impl Shell {
 
     /// Switches to the mode after the installed one and saves it.
     pub(super) fn toggle_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let mode = bolt::mode(cx).next();
-        bolt::set_mode(mode, window.appearance(), cx);
+        let mode = bolt_legacy::mode(cx).next();
+        crate::theme::set_mode(mode, window.appearance(), cx);
         save_mode(self.config_path.as_deref(), mode);
         cx.notify();
     }

@@ -2,9 +2,9 @@
 //! selected one raised. The HTTP views (Body, Headers, Cookies) and the body format (Pretty,
 //! Raw, Preview) both use it.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{App, Div, Hsla, ParentElement, Role, Stateful, Styled, div, prelude::*};
 
 use crate::shell::rows::part;
@@ -16,7 +16,7 @@ pub(super) fn track(
     segments: impl IntoIterator<Item = Stateful<Div>>,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     crate::shell::region(id)
         .role(Role::TabList)
         .relative()
@@ -40,7 +40,7 @@ pub(super) fn segment(
     selected: bool,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let color = if selected {
         colors.strong
     } else {

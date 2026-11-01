@@ -5,10 +5,10 @@
 //! `request-script-<slot>-focus-ring`, shows only while the open editor has the focus. Every edit lands in the
 //! request's draft; see [`crate::shell::scripts_edit`].
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::IconButton;
-use bolt::tokens::{border, chrome, cut, family, field, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::IconButton;
+use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, Context, Div, FontWeight, ParentElement, Role, Stateful, Styled, div, prelude::*,
 };
@@ -52,7 +52,7 @@ pub(super) fn render(
 ) -> Vec<AnyElement> {
     let saved = &inspection.request.scripts;
     let shown = shell.displayed_scripts(id, saved).clone();
-    let muted = bolt::colors(cx).muted;
+    let muted = bolt_legacy::colors(cx).muted;
     let note = part("request-script-note".to_owned())
         .role(Role::Label)
         .flex()
@@ -93,7 +93,7 @@ fn editor_box(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt::colors(cx);
+    let colors = *bolt_legacy::colors(cx);
     let editing = shell
         .script_edit
         .as_ref()
@@ -203,8 +203,8 @@ fn editor_box(
 /// The empty state `request-script-<slot>-empty` of the missing script `slot`, whose
 /// button `request-script-<slot>-create` opens an empty editor.
 fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = *bolt::colors(cx);
-    let accent = bolt::brand(cx).accent_tint;
+    let colors = *bolt_legacy::colors(cx);
+    let accent = bolt_legacy::brand(cx).accent_tint;
     let (_, title, hint, action) = copy(slot);
     let slot_id = slot.id();
     let icon_name = match slot {
@@ -248,7 +248,7 @@ fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElemen
 
 /// An accent button `id` with the pencil icon and `label`.
 fn primary_button(id: String, label: &'static str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let brand = bolt::brand(cx);
+    let brand = bolt_legacy::brand(cx);
     part(id)
         .role(Role::Button)
         .aria_label(label)

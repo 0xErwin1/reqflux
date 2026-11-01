@@ -5,9 +5,9 @@
 //! history entry has the history tab, `doc-tab-history`, first in the row; while it is active
 //! no request tab is.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{chrome, cut, doc_tab, family, icon, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{chrome, cut, doc_tab, family, icon, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{Context, Div, FontWeight, ParentElement, Role, Stateful, Styled, div, prelude::*};
 
 use super::approvals_view::TITLE;
@@ -54,7 +54,7 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
 /// The active `MCP approvals` tab: the Bot icon in the tint, the title and a close button,
 /// `doc-tab-approvals-close`, that goes back to the collection tree.
 fn approvals_tab(cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let close = part("doc-tab-approvals-close".to_owned())
         .role(Role::Button)
         .aria_label("Close MCP approvals")
@@ -87,7 +87,7 @@ fn approvals_tab(cx: &mut Context<Shell>) -> Stateful<Div> {
         .child(
             Icon::new(IconName::Bot)
                 .size(icon::MD)
-                .color(bolt::brand(cx).accent_tint),
+                .color(bolt_legacy::brand(cx).accent_tint),
         )
         .child(
             div()
@@ -111,7 +111,7 @@ fn tab(
     save_error: Option<&str>,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let name_color = if active { colors.strong } else { colors.muted };
     let weight = if active {
         FontWeight::SEMIBOLD
@@ -140,7 +140,7 @@ fn tab(
     let dot_color = if conflicted {
         colors.warning
     } else {
-        bolt::brand(cx).accent_tint
+        bolt_legacy::brand(cx).accent_tint
     };
 
     let activate_id = id.clone();
@@ -168,7 +168,7 @@ fn tab(
                 .font_family(family::MONO)
                 .text_size(tokens::METHOD_LABEL_SIZE)
                 .font_weight(FontWeight::BOLD)
-                .text_color(method_color(&location.method, bolt::palette(cx)))
+                .text_color(method_color(&location.method, bolt_legacy::palette(cx)))
                 .child(location.method.clone()),
         )
         .child(

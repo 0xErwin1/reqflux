@@ -1,4 +1,6 @@
-//! Bolt, the design system shared by ReqFlux and DBFlux.
+//! ReqFlux's copy of Bolt, the design system it shares with DBFlux. Today's screens still draw
+//! with it; they move to DBFlux's `bolt` crate one by one, and this crate is deleted after the
+//! last one. Add nothing here.
 //!
 //! Bolt owns everything that does not depend on the product: color roles and washes,
 //! typography roles, spacing, cut corners, chrome metrics, the theme mapping onto

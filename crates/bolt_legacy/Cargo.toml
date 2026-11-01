@@ -1,6 +1,6 @@
 [package]
-name = "bolt"
-description = "Bolt, the design system shared by ReqFlux and DBFlux: tokens, theme and generic GPUI components."
+name = "bolt_legacy"
+description = "ReqFlux's own copy of Bolt, kept until every screen moves to DBFlux's shared bolt crate."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

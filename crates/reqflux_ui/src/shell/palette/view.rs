@@ -2,10 +2,10 @@
 //! count, the scope tabs, the rows under their headers, the empty and no-match states and the
 //! key hint footer.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, Context, Div, FontWeight, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, point,
@@ -93,8 +93,8 @@ fn render_row(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let id = format!("palette-row-{}", index + 1);
     let mut enabled = true;
     let mut label = String::new();
@@ -113,7 +113,7 @@ fn render_row(
                     .font_family(family::MONO)
                     .font_weight(FontWeight::BOLD)
                     .text_size(tokens::METHOD_LABEL_SIZE)
-                    .text_color(method_color(&entry.method, bolt::palette(cx)))
+                    .text_color(method_color(&entry.method, bolt_legacy::palette(cx)))
                     .child(entry.method.clone())
                     .into_any_element(),
             );
@@ -213,7 +213,7 @@ fn render_row(
         .pl(metrics::INSET)
         .pr(metrics::INSET)
         .when(highlighted, |row| {
-            row.bg(bolt::accent_washes(cx).selected_item)
+            row.bg(bolt_legacy::accent_washes(cx).selected_item)
                 .border_l(border::THICK)
                 .border_color(tint)
         })
@@ -259,7 +259,7 @@ fn render_header(header: &Header, cx: &Context<Shell>) -> AnyElement {
 
 /// The scope tab `palette-tab-<slug>`, labeled `<Title> <count>`, selected when active.
 fn render_tab(scope: Scope, active: bool, count: usize, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let id = format!("palette-tab-{}", scope.slug());
     let label = format!("{} {count}", scope.title());
     text_role::role(labeled_row(id, label), text::BODY_SMALL, cx)
@@ -283,7 +283,7 @@ fn render_tab(scope: Scope, active: bool, count: usize, cx: &mut Context<Shell>)
             div()
                 .font_family(family::MONO)
                 .text_color(if active {
-                    bolt::brand(cx).accent_tint
+                    bolt_legacy::brand(cx).accent_tint
                 } else {
                     colors.line_2
                 })
@@ -299,7 +299,7 @@ fn render_tab(scope: Scope, active: bool, count: usize, cx: &mut Context<Shell>)
 
 /// The empty or no-match state `palette-empty`, its title `palette-empty-title`.
 fn render_empty(listing: &Listing, workspace_open: bool, cx: &Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let noun = listing.scope.noun();
     let (title, hint) = if listing.text.is_empty() {
         let hint = if workspace_open {
@@ -405,7 +405,7 @@ pub(in crate::shell) fn render(
         let count = listing.matched.of(scope);
         tabs.push(render_tab(scope, scope == listing.scope, count, cx));
     }
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let line = colors.line;
 
     let query = region("palette-query")

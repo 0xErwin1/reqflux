@@ -7,8 +7,8 @@
 
 use std::path::Path;
 
-use bolt::PaletteMode;
-use gpui::{App, Window};
+use bolt_legacy::PaletteMode;
+use gpui::{App, Window, WindowAppearance};
 use reqflux_engine::config::{self, ThemeMode};
 use reqflux_engine::state::AppState;
 
@@ -137,20 +137,74 @@ pub(crate) fn save_mode(config: Option<&Path>, mode: PaletteMode) {
     }
 }
 
-/// Installs Bolt with ReqFlux's brand in `mode`.
+/// Installs both design systems with ReqFlux's brand in `mode`: the shared `bolt` first, then
+/// `bolt_legacy` over it.
+///
+/// Both map their palette onto gpui-component's one `Theme`. Screens still draw with
+/// `bolt_legacy`, so it goes last and its colors, metrics and editor colors are what
+/// gpui-component draws. The shared install still sets what only it owns: its brand, palette
+/// mode, density and fonts, and the rem size kept in the stored light and dark configs,
+/// which `bolt_legacy` never writes, so it survives every later switch. The reverse order
+/// would repaint today's screens in DBFlux's palette.
 pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
-    bolt::install(crate::brand::reqflux(), mode, cx);
+    if !cx.has_global::<gpui_component::theme::Theme>() {
+        gpui_component::init(cx);
+    }
+    bolt::fonts::init(cx, shared_fonts());
+    bolt::density::init(cx, bolt::density::Density::Default);
+    bolt::theme::install(
+        crate::brand::shared(),
+        shared_mode(mode),
+        bolt::density::Density::Default,
+        cx,
+    );
+    bolt_legacy::install(crate::brand::reqflux(), mode, cx);
+}
+
+/// ReqFlux's fonts for the shared `bolt`, at the default interface size (13), where a rem is
+/// 16 px as in DBFlux. ReqFlux has no interface size setting yet.
+fn shared_fonts() -> bolt::fonts::FontSettings {
+    use bolt_legacy::tokens::family;
+    bolt::fonts::FontSettings {
+        ui_family: family::INTERFACE.into(),
+        ui_size: bolt::fonts::DEFAULT_UI_FONT_SIZE,
+        editor_family: family::MONO.into(),
+        editor_size: bolt::fonts::DEFAULT_EDITOR_FONT_SIZE,
+        grid_family: family::MONO.into(),
+        grid_size: bolt::fonts::DEFAULT_GRID_FONT_SIZE,
+    }
+}
+
+/// The shared `bolt` mode of a `bolt_legacy` mode.
+fn shared_mode(mode: PaletteMode) -> bolt::palette::PaletteMode {
+    match mode {
+        PaletteMode::Dark => bolt::palette::PaletteMode::Dark,
+        PaletteMode::Light => bolt::palette::PaletteMode::Light,
+        PaletteMode::System => bolt::palette::PaletteMode::System,
+    }
 }
 
 /// Resolves the installed mode against `window`'s appearance now and whenever the OS changes
 /// it, so [`PaletteMode::System`] follows the OS.
 pub(crate) fn follow_appearance(window: &mut Window, cx: &mut App) {
-    bolt::set_mode(bolt::mode(cx), window.appearance(), cx);
+    set_mode(bolt_legacy::mode(cx), window.appearance(), cx);
     window
         .observe_window_appearance(|window, cx| {
-            if bolt::mode(cx) == PaletteMode::System {
-                bolt::set_mode(PaletteMode::System, window.appearance(), cx);
+            if bolt_legacy::mode(cx) == PaletteMode::System {
+                set_mode(PaletteMode::System, window.appearance(), cx);
             }
         })
         .detach();
 }
+
+/// Switches both design systems to `mode` at runtime, resolved against `appearance` (a
+/// window's appearance), in the order [`install`] uses.
+pub(crate) fn set_mode(mode: PaletteMode, appearance: WindowAppearance, cx: &mut App) {
+    let resolved = bolt::theme::resolve_mode(shared_mode(mode), appearance);
+    bolt::theme::apply_theme(resolved, bolt::density::active(cx), None, cx);
+    bolt_legacy::set_mode(mode, appearance, cx);
+}
+
+#[cfg(test)]
+#[path = "theme_tests.rs"]
+mod tests;

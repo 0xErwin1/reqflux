@@ -6,8 +6,8 @@
 
 pub(super) mod controls;
 
-use bolt::tokens::{border, family, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::tokens::{border, family, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{AnyElement, Context, ParentElement, Styled, Window, div, prelude::*};
 use gpui_component::input::{Enter, Escape, Textarea};
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
@@ -64,7 +64,7 @@ fn mode_row(
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let (muted, line) = {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         (colors.muted, colors.line)
     };
     let current = body_kind(body);
@@ -142,7 +142,7 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
         .body_edit
         .as_ref()
         .filter(|edit| edit.request_id == request_id)?;
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     Some(
         text_well("request-body-input".to_owned(), cx)
             .mx(space::MD)
@@ -265,7 +265,7 @@ pub(super) fn render(
             )]
         }
         Body::Binary { path } => {
-            let muted = bolt::colors(cx).muted;
+            let muted = bolt_legacy::colors(cx).muted;
             let shown = if path.is_empty() {
                 div().text_color(muted).child("No file")
             } else {

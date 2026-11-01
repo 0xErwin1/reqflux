@@ -24,8 +24,8 @@ names the alternative it rejects and, where relevant, the DBFlux experience behi
 | Postman | Import and export of collection v2.1 and environment files. Unsupported fields are preserved, not dropped. |
 | HTTP | `reqwest` with rustls, per-request clients cached by TLS and proxy configuration. |
 | GPUI | DBFlux's GPUI stack: `gpui-pre` 0.3.9, `gpui-component` 0.7.3, `gpui-pre-platform` 0.3.9 and `gpui-kit-assets` 0.7.3; every other dependency tracks its latest release. `gpui-pre`, `gpui-base`, `gpui-component` and `gpui-pre-linux` are patched, and `gpui-mcp` and `gpui-mcp-protocol` taken, from the DBFlux git repository at one pinned rev; nothing is vendored here. |
-| Crates | Ten crates in a strict one-way dependency order. Only `bolt`, `reqflux_ui` and `reqflux` link GPUI. |
-| Design system | Bolt, copied from DBFlux, in the product-agnostic `bolt` crate. ReqFlux supplies only its accent and its own tokens, so `bolt` can become a shared library without touching ReqFlux's screens. |
+| Crates | Ten crates in a strict one-way dependency order. Only `bolt_legacy`, `reqflux_ui` and `reqflux` link GPUI. |
+| Design system | DBFlux's `bolt` crate, taken by git at the same DBFlux rev as the GPUI stack, with ReqFlux's brand. Screens are moving to it from `bolt_legacy`, ReqFlux's earlier copy of Bolt, which is deleted once the last one moves. |
 | UI automation | The upstream `gpui-mcp` bridge is always installed. `reqflux mcp` exposes it as `ui_*` tools beside the engine tools, so agents declare one MCP server; the policy covers both, and its `ask` is a prompt in the window. |
 | User configuration | `~/.config/reqflux/config.toml` (theme, MCP policy) belongs to the user, not to a workspace; a workspace can only restrict the MCP policy. |
 
@@ -424,7 +424,8 @@ reqflux_core ──┬── reqflux_store ───┐
              ├── reqflux_http ────┼── reqflux_engine ──┬── reqflux_mcp ──┐
              └── reqflux_script ──┘                  └── reqflux_ui ───┴── reqflux (binary)
                                                          │
-                                              bolt ──────┘   (design system, no ReqFlux types)
+                                       bolt_legacy ──────┤   (ReqFlux's copy of Bolt, until screens move)
+                                bolt (DBFlux, git) ──────┘   (design system, no ReqFlux types)
 ```
 
 | Crate | Owns | Must not |
@@ -436,7 +437,7 @@ reqflux_core ──┬── reqflux_store ───┐
 | `reqflux_script` | The QuickJS sandbox, the `pm` API, bundled libraries, time and memory limits. | Send requests directly; `pm.sendRequest` goes through a host callback. |
 | `reqflux_engine` | The execution pipeline, collection runner, history and app state (SQLite), keyring secrets. The single API surface for all front ends. | Depend on GPUI or rmcp. |
 | `reqflux_mcp` | The MCP server: tools, resources, agent policy, audit. | Duplicate engine logic. |
-| `bolt` | Bolt, the design system shared with DBFlux: tokens, theme, generic components. | Know about ReqFlux, HTTP or any product type. |
+| `bolt_legacy` | ReqFlux's copy of Bolt that today's screens still draw with: tokens, theme, generic components. Deleted once every screen uses `bolt`. | Know about ReqFlux, HTTP or any product type; gain new components (they go to `bolt`). |
 | `reqflux_ui` | Everything GPUI: theme, components, sidebar, documents, keymap. | Contain domain rules that the engine or core should own. |
 | `reqflux` | The binary: GUI startup and the `mcp`, `run` and `import` subcommands. | Contain logic beyond wiring. |
 
@@ -1063,10 +1064,21 @@ does not back yet.
 
 The other artboards in those folders are directions that were not chosen.
 
-Bolt is copied from DBFlux for now. The goal is to make the later move to a shared library a
-dependency swap, so the copy lives behind a boundary from the start:
+Bolt is DBFlux's `bolt` crate, a git dependency pinned to the DBFlux rev the GPUI stack uses;
+ReqFlux never copies it. ReqFlux is moving to it from `crates/bolt_legacy`, its earlier copy:
 
-- **`crates/bolt`** owns everything product-agnostic: color roles and washes, typography roles,
+- **Both are installed side by side.** `reqflux_ui::theme::install` installs `bolt` first with
+  ReqFlux's `Brand` (the same values as the `bolt_legacy` brand), the mode from `config.toml`,
+  the default density and ReqFlux's fonts at the default interface size (13), so a rem is
+  16 px and `bolt::tokens` sizes are DBFlux's pixels. `bolt_legacy` installs last, so the
+  gpui-component theme today's screens draw with is unchanged; a test compares it with a
+  `bolt_legacy`-only install. Switching the theme switches both, in the same order.
+- **New code uses `bolt`.** A screen moves to `bolt` roles, tokens and components in one
+  change; `bolt_legacy` gains nothing. A control `bolt` lacks is added to `bolt` in DBFlux.
+
+What follows describes `bolt_legacy`, which still draws every screen:
+
+- **`crates/bolt_legacy`** owns everything product-agnostic: color roles and washes, typography roles,
   spacing, cuts and chrome metrics, the chamfer shape, the theme mapping onto gpui-component,
   and generic components (island, button, input, tabs, tree row, table, keycap, status chip).
   It depends on GPUI and gpui-component only and never names ReqFlux, HTTP or a ReqFlux type.
@@ -1078,16 +1090,15 @@ dependency swap, so the copy lives behind a boundary from the start:
   DBFlux does.
 - **Palettes.** `Colors::dark()` and `Colors::light()` share one set of roles; a test keeps
   strong, foreground, muted and the four semantic colors at least 4.5:1 on `panel` in both.
-  `PaletteMode::{Dark, Light, System}` is passed to `bolt::install` and switched at runtime
-  with `bolt::set_mode`, which republishes the palette, loads gpui-component's light or dark
+  `PaletteMode::{Dark, Light, System}` is passed to `bolt_legacy::install` and switched at
+  runtime with `bolt_legacy::set_mode`, which republishes the palette, loads gpui-component's light or dark
   theme config and refreshes every window; System follows the window appearance. In light the
   accent washes use the accent instead of the tint. ReqFlux's method and syntax colors read
   the active palette. The choice is the `Toggle theme` command (Ctrl+Shift+T, Dark, Light,
   System) and persists as `theme` in the user's `config.toml` (a value from the app state's
   older `settings` key is moved there once); Dark is the default.
-- Extraction then means moving `crates/bolt` to its own repository, depending on it from
-  both products, and deleting DBFlux's copy. Bolt values that change in the meantime are
-  changed in both products or recorded as a divergence in `design/system.md`.
+- Bolt values that differ between `bolt_legacy` and `bolt` in the meantime are recorded as a
+  divergence in `design/system.md`; `bolt` wins once the screen moves.
 
 ## UI automation
 

@@ -7,9 +7,9 @@
 //! into a well with a text field. The delete control removes the row, and the add row under
 //! the grid appends one.
 
-use bolt::chamfer::Chamfer;
-use bolt::tokens::{Colors, border, cut, family, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::tokens::{Colors, border, cut, family, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, Context, Div, FontWeight, Hsla, ParentElement, Role, Stateful, Styled, Toggled,
     div, prelude::*,
@@ -103,7 +103,7 @@ pub(super) fn render(
 ) -> AnyElement {
     let add = request_id.map(|id| add_row(id, table, kind, cx));
     if rows.is_empty() {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         let empty = part("request-grid-empty".to_owned())
             .pl(space::MD)
             .pt(space::MD)
@@ -119,7 +119,7 @@ pub(super) fn render(
             .into_any_element();
     }
     let hint = value_hint(shell.environment_name().as_deref());
-    let header = header(table, kind, hint, bolt::colors(cx));
+    let header = header(table, kind, hint, bolt_legacy::colors(cx));
     div()
         .flex()
         .flex_col()
@@ -215,7 +215,7 @@ fn data_row(
         Some(edit) => editing_cell(edit, cx).into_any_element(),
         None => {
             let cell = cell_part(request_id, table, n, CellField::Key, cx);
-            let colors = bolt::colors(cx);
+            let colors = bolt_legacy::colors(cx);
             cell.text_color(tone(colors, colors.strong))
                 .when(off, |this| this.line_through())
                 .child(cell_text(table, n, CellField::Key).child(row.key.clone()))
@@ -227,7 +227,7 @@ fn data_row(
         Some(edit) => editing_cell(edit, cx).into_any_element(),
         None => {
             let cell = cell_part(request_id, table, n, CellField::Value, cx);
-            let colors = bolt::colors(cx);
+            let colors = bolt_legacy::colors(cx);
             let value = cell
                 .text_color(tone(colors, colors.foreground))
                 .when(off, |this| this.line_through())
@@ -250,7 +250,7 @@ fn data_row(
         }
     };
 
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let line = colors.line;
     let description = Column::Description
         .shape(part(format!("request-{table}-description-{n}")), line)
@@ -290,7 +290,7 @@ fn delete_control(
     key: &str,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let (rest, hover) = delete_icon_colors(bolt::colors(cx));
+    let (rest, hover) = delete_icon_colors(bolt_legacy::colors(cx));
     let request = request_id.to_owned();
     let table = table.to_owned();
     part(format!("request-{table}-delete-{n}"))
@@ -334,7 +334,7 @@ fn delete_control(
 /// a plus in the enable cell and the placeholders of a new `kind` entry. Clicking it appends
 /// an empty enabled row to the request's draft and opens its key cell.
 fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let line = colors.line;
     let request = request_id.to_owned();
     let table = table.to_owned();
@@ -380,7 +380,7 @@ fn cell_part(
     field: CellField,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let cell = cell_shell(table, n, field, bolt::colors(cx).line);
+    let cell = cell_shell(table, n, field, bolt_legacy::colors(cx).line);
     match request_id {
         Some(request) => {
             let request = request.to_owned();
@@ -426,8 +426,8 @@ fn cell_text(table: &str, n: usize, field: CellField) -> Stateful<Div> {
 /// draft and Escape drops what was typed, as the URL field does. A secret value keeps its
 /// badge next to the field, which opens empty with a placeholder.
 fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line);
     cell.relative()
         .bg(colors.background)
@@ -486,8 +486,8 @@ fn enable_box(
     enabled: bool,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let request = request_id.to_owned();
     let table = table.to_owned();
     let face = if enabled {

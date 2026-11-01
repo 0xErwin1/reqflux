@@ -4,7 +4,7 @@
 //! runs; the index is the target's place among the parent's children as shown, without the
 //! moved item, which is what the engine expects.
 
-use bolt::tokens::{space, text};
+use bolt_legacy::tokens::{space, text};
 use gpui::{Context, IntoElement, ParentElement, Render, Styled, Window, div};
 
 use super::sidebar_edit::TreeCommand;
@@ -118,11 +118,11 @@ pub(crate) struct DragPreview(pub(crate) String);
 
 impl Render for DragPreview {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         text_role::role(div(), text::BODY, cx)
             .pl(space::SM)
             .pr(space::SM)
-            .bg(bolt::accent_washes(cx).selected_item)
+            .bg(bolt_legacy::accent_washes(cx).selected_item)
             .text_color(colors.strong)
             .child(self.0.clone())
     }

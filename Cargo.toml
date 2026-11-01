@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "crates/bolt",
+    "crates/bolt_legacy",
     "crates/reqflux",
     "crates/reqflux_core",
     "crates/reqflux_engine",
@@ -24,7 +24,7 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
-bolt = { path = "crates/bolt" }
+bolt_legacy = { path = "crates/bolt_legacy" }
 reqflux_core = { path = "crates/reqflux_core" }
 reqflux_engine = { path = "crates/reqflux_engine" }
 reqflux_http = { path = "crates/reqflux_http" }
@@ -90,6 +90,10 @@ gpui-platform = { package = "gpui-pre-platform", version = "=0.3.9", default-fea
 # it becomes the published repository at the same rev.
 gpui-mcp = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "785f5e18027b7de74041c48fdf9bb2a483aa6b2b", default-features = false, features = ["gpui-pre"] }
 gpui-mcp-protocol = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "785f5e18027b7de74041c48fdf9bb2a483aa6b2b" }
+
+# Bolt, the design system shared with DBFlux, from the same DBFlux rev as the GPUI stack.
+# ReqFlux installs it with its own brand beside `bolt_legacy` until every screen moves.
+bolt = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux", rev = "785f5e18027b7de74041c48fdf9bb2a483aa6b2b" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

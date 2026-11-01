@@ -61,7 +61,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use bolt::tokens::chrome;
+use bolt_legacy::tokens::chrome;
 use gpui::{
     App, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Render, Role,
     Stateful, Styled, Subscription, Window, div, prelude::*,
@@ -454,7 +454,7 @@ impl Render for Shell {
                 this.open_palette(window, cx);
             }));
         let root = commands::on_actions(root, cx);
-        let desk = bolt::colors(cx).desk;
+        let desk = bolt_legacy::colors(cx).desk;
         let panel = self.sidebar.read(cx).panel;
         let pending = self.approvals.pending();
         let middle = div()

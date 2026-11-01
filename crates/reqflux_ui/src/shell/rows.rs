@@ -2,8 +2,8 @@
 //! folder icon with the child count on the right, or the method label of a request; then
 //! the name.
 
-use bolt::tokens::{border, chrome, family, icon, space, text};
-use bolt::{Chevron, ChevronDirection, Icon, IconName};
+use bolt_legacy::tokens::{border, chrome, family, icon, space, text};
+use bolt_legacy::{Chevron, ChevronDirection, Icon, IconName};
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, ParentElement,
     Role, Stateful, Styled, Window, div, prelude::*,
@@ -54,8 +54,8 @@ pub(super) fn tree_row(
     on_toggle: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
     cx: &App,
 ) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let node = row.node;
 
     let mut element = text_role::role(
@@ -88,15 +88,17 @@ pub(super) fn tree_row(
         element = element.aria_expanded(row.expanded);
     }
     if selected {
-        element = element.bg(bolt::accent_washes(cx).selected_item).child(
-            div()
-                .absolute()
-                .top_0()
-                .bottom_0()
-                .left_0()
-                .w(border::THICK)
-                .bg(brand.accent_tint),
-        );
+        element = element
+            .bg(bolt_legacy::accent_washes(cx).selected_item)
+            .child(
+                div()
+                    .absolute()
+                    .top_0()
+                    .bottom_0()
+                    .left_0()
+                    .w(border::THICK)
+                    .bg(brand.accent_tint),
+            );
     }
 
     let name_color = match (&node.kind, selected) {
@@ -132,7 +134,7 @@ pub(super) fn tree_row(
                     .font_family(family::MONO)
                     .text_size(tokens::METHOD_LABEL_SIZE)
                     .font_weight(FontWeight::BOLD)
-                    .text_color(method_color(method, bolt::palette(cx)))
+                    .text_color(method_color(method, bolt_legacy::palette(cx)))
                     .child(method.clone()),
             )
             .child(name),

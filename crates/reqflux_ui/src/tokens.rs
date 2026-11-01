@@ -1,8 +1,8 @@
 //! ReqFlux's own tokens, on top of Bolt: method labels, the draft marker, syntax colors, shell
 //! sizes and the main window size. The only `reqflux_ui` file besides `brand.rs` that holds raw values.
 
-use bolt::Palette;
-use bolt::tokens::{Colors, hex, hex_alpha};
+use bolt_legacy::Palette;
+use bolt_legacy::tokens::{Colors, hex, hex_alpha};
 use std::time::Duration;
 
 use gpui::{Hsla, Pixels, Size, px, size};
@@ -513,7 +513,7 @@ pub(crate) const HISTORY_EMPTY_ICON: Pixels = px(20.0);
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use bolt::Palette;
+    use bolt_legacy::Palette;
     use gpui::Rgba;
 
     /// `0xRRGGBB` of an opaque `color`.

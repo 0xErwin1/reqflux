@@ -8,10 +8,10 @@
 //! workspace through the engine, masked there ([`super::approvals_model::Detail`]); this
 //! module never sees a secret value.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{border, chrome, cut, family, field, icon, space, text};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, chrome, cut, family, field, icon, space, text};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     AnyElement, App, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Role,
     Styled, div, prelude::*,
@@ -57,7 +57,7 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> AnyElement {
             )
             .into_any_element();
     };
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let mut content = div()
         .id("approval-content")
         .flex_1()
@@ -124,8 +124,8 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> AnyElement {
 
 /// The title bar: the Bot icon, the tool, `Pending` and the call id.
 fn title_bar(pending: &Pending, cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let tool = shown(&pending.request.tool);
     let call = format!("call {}", pending.request.id);
     div()
@@ -168,8 +168,8 @@ fn title_bar(pending: &Pending, cx: &App) -> impl IntoElement {
 /// The field grid, three to a row: Requested by, Environment, Policy class; Tool, Policy and
 /// Request (Target for a call that sends nothing).
 fn fields(pending: &Pending, cx: &App) -> impl IntoElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let request = &pending.request;
     let detail = &pending.detail;
     let client = client_name(request);
@@ -263,7 +263,7 @@ fn value(id: &'static str, label: String, cx: &App) -> gpui::Stateful<gpui::Div>
         .gap(space::HALF)
         .font_family(family::MONO)
         .text_size(text::CODE.size)
-        .text_color(bolt::colors(cx).strong)
+        .text_color(bolt_legacy::colors(cx).strong)
         .whitespace_nowrap()
         .overflow_hidden()
 }
@@ -285,7 +285,7 @@ fn section(caption: &'static str, body: AnyElement, cx: &App) -> AnyElement {
 
 /// The box a section's body sits in, element id `id`.
 fn boxed(id: &'static str, cx: &App) -> gpui::Stateful<gpui::Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region(id).relative().flex().flex_col().child(
         Chamfer::new(cut::INPUT)
             .fill(colors.background)
@@ -296,8 +296,8 @@ fn boxed(id: &'static str, cx: &App) -> gpui::Stateful<gpui::Div> {
 /// "What it will send": the method and URL template, the resolved URL and where it was
 /// resolved, the headers and the body, masked by the engine.
 fn sends(preview: &CallPreview, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let palette = bolt::palette(cx);
+    let colors = bolt_legacy::colors(cx);
+    let palette = bolt_legacy::palette(cx);
     let method = shown(&preview.method);
     let template = shown(&preview.inspection.url);
     let url = shown(&preview.url);
@@ -409,7 +409,7 @@ fn sends(preview: &CallPreview, cx: &App) -> AnyElement {
 
 /// `value` as runs, each [`MASK`] in the muted color.
 fn masked(value: &str, cx: &App) -> Vec<AnyElement> {
-    let muted = bolt::colors(cx).muted;
+    let muted = bolt_legacy::colors(cx).muted;
     let mut runs = Vec::new();
     for (index, run) in value.split(MASK).enumerate() {
         if index > 0 {
@@ -445,7 +445,7 @@ fn body_preview(text: &str) -> String {
 /// What the request carries, when the window could not read the call from its workspace:
 /// why, then the method, the masked URL and the targets.
 fn unavailable(request: &ApprovalRequest, reason: &str, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let reason = shown(reason);
     let targets = if request.targets.is_empty() {
         "None".to_owned()
@@ -481,7 +481,7 @@ fn unavailable(request: &ApprovalRequest, reason: &str, cx: &App) -> AnyElement 
                         text_region("approval-method")
                             .aria_label(method.clone())
                             .font_weight(FontWeight::BOLD)
-                            .text_color(method_color(&method, bolt::palette(cx)))
+                            .text_color(method_color(&method, bolt_legacy::palette(cx)))
                             .child(method),
                     )
                     .child(
@@ -512,8 +512,8 @@ fn unavailable(request: &ApprovalRequest, reason: &str, cx: &App) -> AnyElement 
 /// "Variables it uses": variable, value and source; a secret's value masked with the
 /// SECRET badge.
 fn variables(preview: &CallPreview, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand(cx).accent_tint;
+    let colors = bolt_legacy::colors(cx);
+    let tint = bolt_legacy::brand(cx).accent_tint;
     let row = || {
         div()
             .relative()
@@ -627,7 +627,7 @@ fn variables(preview: &CallPreview, cx: &App) -> AnyElement {
 /// click anywhere on it gives it the keyboard.
 fn reason_field(shell: &Shell, cx: &mut Context<Shell>) -> Option<AnyElement> {
     let input = shell.approvals.reason.clone()?;
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let empty = input.read(cx).value().is_empty();
     let target = input.clone();
     Some(
@@ -696,8 +696,8 @@ enum Action {
 /// `line_2` edge, Allow once filled with the accent; each with its key on a keycap.
 fn button(action: Action, cx: &mut Context<Shell>) -> AnyElement {
     use reqflux_engine::approvals::ApprovalDecision;
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let (id, key_id, label, key, decision) = match action {
         Action::Deny => (
             "approval-deny",

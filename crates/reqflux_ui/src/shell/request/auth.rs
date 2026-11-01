@@ -5,8 +5,8 @@
 //! secrets open a field; Add to is a segmented control. Every edit lands in the request's
 //! draft. Other auth types stay read-only.
 
-use bolt::IconName;
-use bolt::tokens::{border, chrome, family, space, text};
+use bolt_legacy::IconName;
+use bolt_legacy::tokens::{border, chrome, family, space, text};
 use gpui::{
     AnyElement, App, Context, Div, Entity, ParentElement, Stateful, Styled, Window, div, prelude::*,
 };
@@ -44,7 +44,7 @@ fn edit_of(auth: &Auth, label: &str) -> Edit {
 
 /// A form row: the `label` column, then `content` and the hints under it.
 fn form_row(row: Stateful<Div>, label: &str, content: Vec<AnyElement>, cx: &App) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     crate::shell::text::role(row, text::BODY, cx)
         .flex()
         .items_start()
@@ -74,7 +74,7 @@ fn form_row(row: Stateful<Div>, label: &str, content: Vec<AnyElement>, cx: &App)
 
 /// A muted hint `text` under a control, element `id`.
 fn hint(id: &str, text_value: String, cx: &App) -> AnyElement {
-    let muted = bolt::colors(cx).muted;
+    let muted = bolt_legacy::colors(cx).muted;
     crate::shell::text::role(
         labeled_row(id.to_owned(), text_value.clone()),
         text::CAPTION,
@@ -184,7 +184,7 @@ fn type_row(
 
 /// The open field in a well, `request-auth-input`.
 fn input_field(input: &Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     part("request-auth-input".to_owned())
         .flex_1()
         .min_w_0()
@@ -290,7 +290,7 @@ fn field_row(
             .justify_between()
             .gap(space::SM)
             .child(MASK)
-            .child(secret_badge(bolt::colors(cx)));
+            .child(secret_badge(bolt_legacy::colors(cx)));
         (MASK.to_owned(), value)
     } else {
         let value = part(format!("{well_id}-text"))
@@ -333,7 +333,7 @@ pub(super) fn render(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> Vec<AnyElement> {
-    let line = bolt::colors(cx).line;
+    let line = bolt_legacy::colors(cx).line;
     let mut rows = vec![source_row(request_id, auth, shell, cx)];
     if !matches!(auth, Auth::Inherit) {
         rows.push(type_row(request_id, auth, shell, window, cx));

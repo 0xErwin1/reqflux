@@ -4,9 +4,9 @@
 
 use std::ops::Range;
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{border, chrome, cut, family, space, text};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, chrome, cut, family, space, text};
 use gpui::{
     AnyElement, Context, FontWeight, HighlightStyle, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Pixels, Point, Role, Styled, StyledText, Window, anchored, deferred, div, point,
@@ -153,7 +153,7 @@ impl Sidebar {
             .count();
         let cancel = self.cancel_button(cx);
         let confirm = self.confirm_button(delete_button(&node.kind, count), cx);
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         let (body, bold) = delete_body(&node.kind, &node.name, count);
         let highlight = HighlightStyle {
             color: Some(colors.strong),
@@ -288,7 +288,7 @@ impl Sidebar {
                 .font_family(family::MONO)
                 .text_size(tokens::METHOD_LABEL_SIZE)
                 .font_weight(FontWeight::BOLD)
-                .text_color(method_color(&method, bolt::palette(cx)))
+                .text_color(method_color(&method, bolt_legacy::palette(cx)))
                 .child(method),
         )
         .child(
@@ -312,7 +312,7 @@ impl Sidebar {
                 .flex()
                 .items_center()
                 .gap(space::HALF)
-                .child(Diamond::new(bolt::brand(cx).accent_tint))
+                .child(Diamond::new(bolt_legacy::brand(cx).accent_tint))
                 .child("unsaved draft"),
             )
         })
@@ -321,7 +321,7 @@ impl Sidebar {
 
     /// `tree-delete-cancel`: a ghost button with its Esc keycap.
     fn cancel_button(&self, cx: &mut Context<Self>) -> AnyElement {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         text_role::role(region("tree-delete-cancel"), text::BODY, cx)
             .role(Role::Button)
             .aria_label("Cancel")
@@ -343,7 +343,7 @@ impl Sidebar {
 
     /// `tree-delete-confirm`: the danger button that runs the delete.
     fn confirm_button(&self, label: String, cx: &mut Context<Self>) -> AnyElement {
-        let colors = bolt::colors(cx);
+        let colors = bolt_legacy::colors(cx);
         text_role::role(region("tree-delete-confirm"), text::BODY, cx)
             .role(Role::Button)
             .aria_label(label.clone())

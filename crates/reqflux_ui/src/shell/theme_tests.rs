@@ -2,8 +2,8 @@
 //! System, the palette and product colors follow, and the choice persists in the user's config
 //! file (user-config-mcp-policy S1, S2). Every test uses a config file in a temp directory.
 
-use bolt::tokens::Colors;
-use bolt::{Palette, PaletteMode};
+use bolt_legacy::tokens::Colors;
+use bolt_legacy::{Palette, PaletteMode};
 use std::path::{Path, PathBuf};
 
 use gpui::{Entity, TestAppContext, VisualTestContext};
@@ -31,7 +31,7 @@ fn press(cx: &mut VisualTestContext, keys: &str) {
 }
 
 fn mode(cx: &mut VisualTestContext) -> PaletteMode {
-    cx.update(|_, cx| bolt::mode(cx))
+    cx.update(|_, cx| bolt_legacy::mode(cx))
 }
 
 /// A config file path in a fresh temp directory; the file does not exist yet.
@@ -91,13 +91,13 @@ fn ctrl_shift_t_cycles_dark_light_system_and_the_palette_follows(cx: &mut TestAp
         render_with_config(cx, &dir, &state_path, &config_path, ConfigReport::default());
     focus_shell(cx, &shell);
     assert_eq!(mode(cx), PaletteMode::Dark, "dark is the default");
-    assert_eq!(cx.update(|_, cx| *bolt::colors(cx)), Colors::dark());
-    let dark_get = cx.update(|_, cx| method_color("GET", bolt::palette(cx)));
+    assert_eq!(cx.update(|_, cx| *bolt_legacy::colors(cx)), Colors::dark());
+    let dark_get = cx.update(|_, cx| method_color("GET", bolt_legacy::palette(cx)));
 
     press(cx, "ctrl-shift-t");
     assert_eq!(mode(cx), PaletteMode::Light);
-    assert_eq!(cx.update(|_, cx| *bolt::colors(cx)), Colors::light());
-    let light_get = cx.update(|_, cx| method_color("GET", bolt::palette(cx)));
+    assert_eq!(cx.update(|_, cx| *bolt_legacy::colors(cx)), Colors::light());
+    let light_get = cx.update(|_, cx| method_color("GET", bolt_legacy::palette(cx)));
     assert_ne!(dark_get, light_get, "a product color follows the palette");
     assert_eq!(saved(&config_path), Some(ThemeMode::Light));
 
@@ -105,12 +105,12 @@ fn ctrl_shift_t_cycles_dark_light_system_and_the_palette_follows(cx: &mut TestAp
     assert_eq!(mode(cx), PaletteMode::System);
     let appearance = cx.update(|window, _| window.appearance());
     let expected = PaletteMode::System.resolve(appearance).colors();
-    assert_eq!(cx.update(|_, cx| *bolt::colors(cx)), expected);
+    assert_eq!(cx.update(|_, cx| *bolt_legacy::colors(cx)), expected);
     assert_eq!(saved(&config_path), Some(ThemeMode::System));
 
     press(cx, "ctrl-shift-t");
     assert_eq!(mode(cx), PaletteMode::Dark);
-    assert_eq!(cx.update(|_, cx| *bolt::colors(cx)), Colors::dark());
+    assert_eq!(cx.update(|_, cx| *bolt_legacy::colors(cx)), Colors::dark());
     assert_eq!(saved(&config_path), Some(ThemeMode::Dark));
     assert_eq!(
         legacy_setting(&open_state(&state_path)),
@@ -140,7 +140,7 @@ fn the_palette_lists_toggle_theme_and_runs_it(cx: &mut TestAppContext) {
 
     press(cx, "enter");
     assert_eq!(mode(cx), PaletteMode::Light);
-    assert_eq!(cx.update(|_, cx| bolt::palette(cx)), Palette::Light);
+    assert_eq!(cx.update(|_, cx| bolt_legacy::palette(cx)), Palette::Light);
 }
 
 #[gpui::test]
@@ -155,7 +155,7 @@ fn the_choice_is_installed_again_from_the_same_config_file(cx: &mut TestAppConte
         press(cx, "ctrl-shift-t");
         assert_eq!(mode(cx), PaletteMode::Light);
     }
-    cx.update(|cx| bolt::install(crate::brand::reqflux(), PaletteMode::Dark, cx));
+    cx.update(|cx| bolt_legacy::install(crate::brand::reqflux(), PaletteMode::Dark, cx));
 
     let state = open_state(&state_path);
     let startup = crate::theme::startup(Some(&config_path), Some(&state));
@@ -163,8 +163,8 @@ fn the_choice_is_installed_again_from_the_same_config_file(cx: &mut TestAppConte
     cx.update(|cx| crate::theme::install(startup.mode, cx));
 
     cx.update(|cx| {
-        assert_eq!(bolt::mode(cx), PaletteMode::Light);
-        assert_eq!(*bolt::colors(cx), Colors::light());
+        assert_eq!(bolt_legacy::mode(cx), PaletteMode::Light);
+        assert_eq!(*bolt_legacy::colors(cx), Colors::light());
     });
     let (_shell, cx) = cx.add_window_view(|_, cx| {
         Shell::with_state(

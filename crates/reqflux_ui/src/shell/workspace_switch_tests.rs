@@ -107,7 +107,9 @@ pub(super) fn render<'a>(
     picker: TestPicker,
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     cx.executor().allow_parking();
-    cx.update(|cx| bolt::install(crate::brand::reqflux(), bolt::PaletteMode::Dark, cx));
+    cx.update(|cx| {
+        bolt_legacy::install(crate::brand::reqflux(), bolt_legacy::PaletteMode::Dark, cx)
+    });
     cx.update(super::bind_keys);
     let state = open_state(state_path);
     let workspace = OpenedWorkspace::open(dir.map(Path::to_path_buf));

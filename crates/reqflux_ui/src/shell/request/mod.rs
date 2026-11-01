@@ -30,7 +30,7 @@ pub(crate) use send::{elapsed_text, size_text};
 #[cfg(test)]
 pub(crate) use sub_tabs::{shown_rows, sub_tab_badge};
 
-use bolt::tokens::space;
+use bolt_legacy::tokens::space;
 use gpui::{Context, Div, ParentElement, Stateful, StatefulInteractiveElement, Styled, Window};
 
 use super::{Shell, region};

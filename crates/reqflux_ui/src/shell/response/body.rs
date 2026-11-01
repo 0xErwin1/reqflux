@@ -1,7 +1,7 @@
 //! The response body: numbered mono lines in a virtual list, so only the visible lines are
 //! built, with JSON tokens colored in the Pretty view; or the size of a binary body.
 
-use bolt::tokens::{border, family, space};
+use bolt_legacy::tokens::{border, family, space};
 use gpui::{AnyElement, App, Hsla, ParentElement, Styled, div, prelude::*, uniform_list};
 
 use super::model::{BodyView, Token, tokens as line_tokens};
@@ -13,7 +13,7 @@ use crate::tokens::{self, SyntaxColors};
 /// The body of `received` as `view`: `response-body` with rows `response-body-line-<n>`, or
 /// `response-body-binary`.
 pub(super) fn render(received: &Received, view: BodyView, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let Some((lines, json)) = received.text.lines(view) else {
         let text = format!("Binary body, {}", size_text(received.size()));
         return text_region("response-body-binary")
@@ -51,8 +51,8 @@ pub(super) fn render(received: &Received, view: BodyView, cx: &App) -> AnyElemen
 
 /// Line `n`, element id `response-body-line-<n>`, colored as JSON when `json`.
 fn line_row(n: usize, line: &str, json: bool, cx: &App) -> AnyElement {
-    let colors = bolt::colors(cx);
-    let syntax = SyntaxColors::for_palette(bolt::palette(cx));
+    let colors = bolt_legacy::colors(cx);
+    let syntax = SyntaxColors::for_palette(bolt_legacy::palette(cx));
     let text = div()
         .flex()
         .whitespace_nowrap()

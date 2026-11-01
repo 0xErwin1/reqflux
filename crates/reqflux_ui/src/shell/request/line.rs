@@ -4,10 +4,10 @@
 //! field drawn in the same place, padding, font and height, so the text does not move.
 //! Enter in the field commits the URL and sends the request.
 
-use bolt::chamfer::Chamfer;
-use bolt::controls::Keycap;
-use bolt::tokens::{border, chrome, cut, family, icon, space};
-use bolt::{Icon, IconName};
+use bolt_legacy::chamfer::Chamfer;
+use bolt_legacy::controls::Keycap;
+use bolt_legacy::tokens::{border, chrome, cut, family, icon, space};
+use bolt_legacy::{Icon, IconName};
 use gpui::{
     Context, Div, Entity, FontWeight, ParentElement, Role, Stateful, Styled, Window, div,
     prelude::*,
@@ -48,8 +48,8 @@ pub(super) fn render(
 
 /// The Cancel button shown while the request is in flight, element id `request-cancel`.
 fn cancel(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    let brand = bolt::brand(cx);
+    let colors = bolt_legacy::colors(cx);
+    let brand = bolt_legacy::brand(cx);
     let id = id.to_owned();
     region("request-cancel")
         .role(Role::Button)
@@ -99,7 +99,7 @@ fn method(
     {
         return editing_method(edit.input.clone(), cx);
     }
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let current = shell
         .displayed_request(id, &state.inspection.request.request)
         .method
@@ -129,7 +129,7 @@ fn method(
                 .font_family(family::MONO)
                 .text_size(tokens::REQUEST_LINE_TEXT)
                 .font_weight(FontWeight::BOLD)
-                .text_color(method_color(&verb, bolt::palette(cx)))
+                .text_color(method_color(&verb, bolt_legacy::palette(cx)))
                 .child(verb),
         )
         .child(
@@ -149,7 +149,7 @@ fn method(
 /// The custom verb field, element id `request-method-input`, over the input `input`: Enter
 /// commits it, Escape discards it and Ctrl+Enter sends.
 fn editing_method(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region("request-method-input")
         .role(Role::TextInput)
         .relative()
@@ -199,7 +199,7 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
     if let Some(edit) = shell.url_edit.as_ref().filter(|edit| edit.request_id == id) {
         return editing_url(edit.input.clone(), cx);
     }
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     let url = shell.shown_url(id);
     let request = id.to_owned();
     region("request-url")
@@ -241,7 +241,7 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
 
 /// The editable URL field, element id `request-url-input`, over the input `input`.
 fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
+    let colors = bolt_legacy::colors(cx);
     region("request-url")
         .role(Role::TextInput)
         .relative()
@@ -290,7 +290,7 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
 /// The Send button, element id `request-send`, which sends the request `id`.
 fn send(id: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
     let id = id.to_owned();
-    let brand = bolt::brand(cx);
+    let brand = bolt_legacy::brand(cx);
     region("request-send")
         .role(Role::Button)
         .aria_label("Send")

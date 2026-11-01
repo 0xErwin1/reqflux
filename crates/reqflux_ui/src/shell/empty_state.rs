@@ -4,8 +4,8 @@
 //! (`empty-recent-<n>`), over the reason there is none, `document-message`, which keeps the
 //! `reqflux <directory>` hint as secondary text.
 
-use bolt::IconName;
-use bolt::tokens::{space, text};
+use bolt_legacy::IconName;
+use bolt_legacy::tokens::{space, text};
 use gpui::{Context, IntoElement, ParentElement, Styled, div};
 
 use super::workspace_menu::{

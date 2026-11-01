@@ -3,9 +3,9 @@
 //! page at its Environments section; MCP approvals opens the approvals view and carries the
 //! pending count as a badge. The active one is marked; the others do nothing yet.
 
-use bolt::IconName;
-use bolt::controls::RailButton;
-use bolt::tokens::{chrome, space};
+use bolt_legacy::IconName;
+use bolt_legacy::controls::RailButton;
+use bolt_legacy::tokens::{chrome, space};
 use gpui::{Context, IntoElement, ParentElement, Styled, div};
 
 use super::settings_page::Section;
