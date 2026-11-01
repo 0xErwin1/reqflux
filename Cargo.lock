@@ -820,7 +820,7 @@ dependencies = [
 [[package]]
 name = "bolt"
 version = "0.10.0-dev.0"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "gpui-base",
  "gpui-component",
@@ -2585,7 +2585,7 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.7.3"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -2625,7 +2625,7 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.7.3"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "anyhow",
  "chrono",
@@ -2701,7 +2701,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp"
 version = "0.1.0"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "async-channel",
  "gpui-mcp-protocol",
@@ -2722,7 +2722,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp-protocol"
 version = "0.1.0"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "directories",
  "schemars",
@@ -2734,7 +2734,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre"
 version = "0.3.9"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -2885,7 +2885,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre-linux"
 version = "0.3.9"
-source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=cefbf18d3c762a10cbb40a81865665f7b340851f#cefbf18d3c762a10cbb40a81865665f7b340851f"
+source = "git+file:///home/iperez/dev/personal/Rust/dbflux-worktree/feat-bolt-reqflux?rev=b33bd9b3c02f1e72b26d77be63d1a73f74260456#b33bd9b3c02f1e72b26d77be63d1a73f74260456"
 dependencies = [
  "accesskit",
  "accesskit_unix",
