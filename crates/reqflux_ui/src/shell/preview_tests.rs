@@ -18,7 +18,7 @@ use super::response::{BodyView, Preview, PreviewHost, cookie_count};
 use super::send_tests::{PING, Server, click, render, serve, settle};
 
 /// Starts a server that answers every connection with `200 OK`, `headers` and `body`.
-fn serve_reply(headers: &[(&str, &str)], body: Vec<u8>) -> u16 {
+pub(super) fn serve_reply(headers: &[(&str, &str)], body: Vec<u8>) -> u16 {
     let listener = match TcpListener::bind("127.0.0.1:0") {
         Ok(listener) => listener,
         Err(error) => panic!("bind: {error}"),

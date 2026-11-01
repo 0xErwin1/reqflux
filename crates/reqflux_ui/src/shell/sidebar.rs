@@ -18,9 +18,9 @@ use bolt::controls::Button;
 use bolt::primitives::{Kbd, TextVariant};
 use bolt::tokens::{Borders, HeaderMetrics, ShellMetrics, TreeMetrics};
 use gpui::{
-    App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
-    KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window, actions, div,
-    prelude::*,
+    AnyWindowHandle, App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement,
+    IntoElement, KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window,
+    actions, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 
@@ -123,6 +123,9 @@ pub(crate) struct Sidebar {
     pub(super) history: Vec<HistoryRow>,
     /// The filter field, made on first render.
     pub(super) filter: Option<TreeFilter>,
+    /// The window the sidebar last drew in, so switching to the History panel can give it
+    /// the keyboard focus after the switch's own focus change.
+    pub(super) window: Option<AnyWindowHandle>,
 }
 
 impl Sidebar {
@@ -140,6 +143,7 @@ impl Sidebar {
             panel: Panel::default(),
             history: Vec::new(),
             filter: None,
+            window: None,
         }
     }
 
@@ -362,6 +366,7 @@ fn footer(tree: &TreeState, moving: Option<&str>, cx: &App) -> impl IntoElement 
 
 impl Render for Sidebar {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.window = Some(window.window_handle());
         let mut content = region("sidebar-content").size_full().flex().flex_col();
 
         if self.panel == Panel::History && self.tree.is_some() {

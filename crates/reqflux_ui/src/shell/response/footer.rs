@@ -1,12 +1,14 @@
 //! The bottom bar of the response body, element id `response-footer`: the `Pretty` / `Raw` /
-//! `Preview` switch and the line count of a text body.
+//! `Preview` switch and the line count of a text body, and at the end Copy
+//! (`response-copy`), which puts a text body on the clipboard.
 
+use bolt::controls::Button;
 use bolt::primitives::{Icon, SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ResultMetrics};
 use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 
-use super::model::BodyView;
+use super::model::{BodyText, BodyView};
 use super::sub_tabs::effective_view;
 use crate::shell::request::segmented::control;
 use crate::shell::request::{Received, ui};
@@ -56,6 +58,15 @@ pub(super) fn render(
         BodyView::Preview => None,
         view => received.text.lines(view).map(|(lines, _)| lines.len()),
     };
+    let copy = (*received.text != BodyText::Binary).then(|| {
+        let request = id.to_owned();
+        Button::new("response-copy", "Copy")
+            .secondary()
+            .icon(ui::icon(IconName::Copy))
+            .on_click(cx.listener(move |this, _event, _window, cx| {
+                this.copy_response_body(&request, cx);
+            }))
+    });
     region("response-footer")
         .flex_none()
         .h(ResultMetrics::FOOTER_HEIGHT)
@@ -96,4 +107,6 @@ pub(super) fn render(
             )
             .child(label)
         }))
+        .child(gpui::div().flex_1())
+        .children(copy)
 }

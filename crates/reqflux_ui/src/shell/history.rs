@@ -363,9 +363,10 @@ impl Shell {
         }
     }
 
-    /// Activates the history tab.
+    /// Activates the history tab, leaving the approvals or audit view it replaces.
     pub(super) fn activate_history_tab(&mut self, cx: &mut Context<Self>) {
         self.leave_approvals(cx);
+        self.leave_audit(cx);
         if let Some(tab) = self.orphan.as_mut() {
             tab.active = true;
         }

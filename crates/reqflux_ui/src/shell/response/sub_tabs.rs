@@ -1,5 +1,5 @@
-//! The response views row, `Body`, `Headers <n>` and `Cookies <n>` with the content type,
-//! and the Headers grid.
+//! The response views row, `Body`, `Headers <n>` and `Cookies <n>` with the content type
+//! and the body search field, and the Headers grid.
 
 use bolt::primitives::SegmentedItem;
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
@@ -10,6 +10,7 @@ use gpui_kit_assets::IconName;
 
 use super::cookies::cookie_count;
 use super::model::{BodyView, ResponseTab};
+use super::search_field;
 use crate::shell::request::Received;
 use crate::shell::request::segmented::control;
 use crate::shell::request::ui;
@@ -39,7 +40,8 @@ pub(super) fn effective_view(view: BodyView, received: &Received) -> BodyView {
 }
 
 /// The views row of the response `received` of the request `id`: the `Body`, `Headers <n>`
-/// and `Cookies <n>` segments, element id `response-views`, then the content type.
+/// and `Cookies <n>` segments, element id `response-views`, then the content type and, at
+/// the end, the search field.
 pub(super) fn render(
     id: &str,
     send: &RequestSend,
@@ -116,6 +118,8 @@ pub(super) fn render(
                 .text_color(colors.muted)
                 .child(content_type.to_owned())
         }))
+        .child(div().flex_1())
+        .child(search_field::render(id, send, cx))
 }
 
 /// The headers of `received`, one row `response-headers-row-<n>` each, name then value.

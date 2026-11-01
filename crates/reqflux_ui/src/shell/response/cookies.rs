@@ -1,5 +1,8 @@
-//! The `Set-Cookie` headers of a response parsed for the Cookies sub-tab, without GPUI. The
-//! parse is read-only: no cookie is stored (the cookie jar is v1).
+//! The `Set-Cookie` headers of a response parsed for the Cookies sub-tab, without GPUI, and
+//! the table's columns with a secret value masked. The parse is read-only: no cookie is
+//! stored (the cookie jar is v1).
+
+use reqflux_engine::MASK;
 
 /// One `Set-Cookie` header.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,30 +27,77 @@ pub(crate) struct SetCookie {
     pub(crate) same_site: Option<String>,
 }
 
+/// A cookie value as the table shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum CookieValue {
+    Shown(String),
+    /// A value that holds a secret the send knows, or one history stored masked: never
+    /// shown.
+    Secret,
+}
+
+/// The columns of one row of the cookie table (response-views/02).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CookieColumns {
+    pub(crate) name: String,
+    pub(crate) value: CookieValue,
+    pub(crate) domain: String,
+    pub(crate) path: String,
+    pub(crate) expires: String,
+    /// `HttpOnly`, `Secure` and `SameSite=<value>`, in that order, the ones it has.
+    pub(crate) flags: Vec<String>,
+}
+
+/// When a cookie expires as the table shows it: `Max-Age <seconds>` when it has one (it
+/// wins over `Expires`), else the `Expires` date as `21 Oct 2026, 07:28 UTC` (as received
+/// when it does not parse), else `Session`.
+pub(crate) fn expires_text(expires: Option<&str>, max_age: Option<&str>) -> String {
+    match (max_age, expires) {
+        (Some(max_age), _) => format!("Max-Age {max_age}"),
+        (None, Some(expires)) => chrono::DateTime::parse_from_rfc2822(expires).map_or_else(
+            |_| expires.to_owned(),
+            |date| {
+                date.with_timezone(&chrono::Utc)
+                    .format("%-d %b %Y, %H:%M UTC")
+                    .to_string()
+            },
+        ),
+        (None, None) => "Session".to_owned(),
+    }
+}
+
 impl SetCookie {
-    /// The attributes as one line: `Domain=… · Path=/ · Max-Age=60 · Secure · HttpOnly ·
-    /// SameSite=Lax`, in that order, absent ones left out.
-    pub(crate) fn attributes(&self) -> String {
-        let named = [
-            ("Domain", &self.domain),
-            ("Path", &self.path),
-            ("Expires", &self.expires),
-            ("Max-Age", &self.max_age),
-        ];
-        let mut parts: Vec<String> = named
-            .iter()
-            .filter_map(|(name, value)| value.as_ref().map(|value| format!("{name}={value}")))
-            .collect();
-        if self.secure {
-            parts.push("Secure".to_owned());
-        }
+    /// The table columns, every text masked by `mask` (the send's `Masker::mask`) and the
+    /// value hidden whole when masking changes it or it already holds [`MASK`].
+    pub(crate) fn columns(&self, mask: impl Fn(&str) -> String) -> CookieColumns {
+        let masked = mask(&self.value);
+        let value = if masked != self.value || self.value.contains(MASK) {
+            CookieValue::Secret
+        } else {
+            CookieValue::Shown(masked)
+        };
+        let mut flags = Vec::new();
         if self.http_only {
-            parts.push("HttpOnly".to_owned());
+            flags.push("HttpOnly".to_owned());
+        }
+        if self.secure {
+            flags.push("Secure".to_owned());
         }
         if let Some(same_site) = &self.same_site {
-            parts.push(format!("SameSite={same_site}"));
+            flags.push(mask(&format!("SameSite={same_site}")));
         }
-        parts.join(" · ")
+        let text = |value: &Option<String>| value.as_deref().map(&mask).unwrap_or_default();
+        CookieColumns {
+            name: mask(&self.name),
+            value,
+            domain: text(&self.domain),
+            path: text(&self.path),
+            expires: mask(&expires_text(
+                self.expires.as_deref(),
+                self.max_age.as_deref(),
+            )),
+            flags,
+        }
     }
 }
 
@@ -134,13 +184,6 @@ mod tests {
                 same_site: Some("Strict".to_owned()),
             })
         );
-        assert_eq!(
-            cookie.map(|cookie| cookie.attributes()).as_deref(),
-            Some(
-                "Domain=example.com · Path=/api · Expires=Wed, 21 Oct 2026 07:28:00 GMT · \
-                 Max-Age=3600 · Secure · HttpOnly · SameSite=Strict"
-            )
-        );
     }
 
     #[test]
@@ -161,8 +204,72 @@ mod tests {
         let empty = parse("gone=; Max-Age=0");
         assert_eq!(empty.as_ref().map(|cookie| cookie.value.as_str()), Some(""));
         assert_eq!(
-            empty.map(|cookie| cookie.attributes()).as_deref(),
-            Some("Max-Age=0")
+            empty.and_then(|cookie| cookie.max_age).as_deref(),
+            Some("0")
+        );
+    }
+
+    #[test]
+    fn the_columns_split_domain_path_expires_and_flags() {
+        let cookie = parse(
+            "region=eu; Domain=.acme.com; Path=/; Expires=Mon, 30 Nov 2026 10:05:00 GMT; \
+             HttpOnly; Secure; SameSite=Lax",
+        );
+        assert_eq!(
+            cookie.map(|cookie| cookie.columns(str::to_owned)),
+            Some(CookieColumns {
+                name: "region".to_owned(),
+                value: CookieValue::Shown("eu".to_owned()),
+                domain: ".acme.com".to_owned(),
+                path: "/".to_owned(),
+                expires: "30 Nov 2026, 10:05 UTC".to_owned(),
+                flags: vec![
+                    "HttpOnly".to_owned(),
+                    "Secure".to_owned(),
+                    "SameSite=Lax".to_owned()
+                ],
+            })
+        );
+    }
+
+    #[test]
+    fn expires_reads_max_age_then_the_date_then_session() {
+        assert_eq!(expires_text(None, None), "Session");
+        assert_eq!(
+            expires_text(Some("Wed, 21 Oct 2026 07:28:00 GMT"), None),
+            "21 Oct 2026, 07:28 UTC"
+        );
+        assert_eq!(expires_text(Some("soon"), None), "soon");
+        assert_eq!(
+            expires_text(Some("Wed, 21 Oct 2026 07:28:00 GMT"), Some("60")),
+            "Max-Age 60"
+        );
+    }
+
+    #[test]
+    fn a_value_with_a_secret_the_send_knows_is_hidden() {
+        let masker = |text: &str| text.replace("tok-123", MASK);
+        let secret = parse("sid=tok-123; Domain=api.tok-123.dev");
+        let columns = secret.map(|cookie| cookie.columns(masker));
+        assert_eq!(
+            columns.as_ref().map(|columns| &columns.value),
+            Some(&CookieValue::Secret)
+        );
+        assert_eq!(
+            columns.map(|columns| columns.domain),
+            Some(format!("api.{MASK}.dev")),
+            "any other column is masked by text"
+        );
+        let recorded = parse(&format!("sid={MASK}")).map(|cookie| cookie.columns(str::to_owned));
+        assert_eq!(
+            recorded.map(|columns| columns.value),
+            Some(CookieValue::Secret),
+            "a value history stored masked"
+        );
+        let plain = parse("theme=dark").map(|cookie| cookie.columns(masker));
+        assert_eq!(
+            plain.map(|columns| columns.value),
+            Some(CookieValue::Shown("dark".to_owned()))
         );
     }
 

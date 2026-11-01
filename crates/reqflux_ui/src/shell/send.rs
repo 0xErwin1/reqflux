@@ -8,14 +8,14 @@ use gpui::{Context, Task, Window};
 use reqflux_core::model::Request;
 use reqflux_engine::state::{HistoryOutcome, RecordedResponse};
 use reqflux_engine::{
-    CancellationToken, ExecuteOptions, Executed, Execution, HttpError, ScriptOutcome,
+    CancellationToken, ExecuteOptions, Executed, Execution, HttpError, Masker, ScriptOutcome,
 };
 
 use super::Shell;
 use super::history::{Pending, Reopened};
 use super::last_request::{LastSend, path_of};
 use super::request::{Completed, Failure, Received, SendState};
-use super::response::{BodyView, Preview, ResponseTab};
+use super::response::{BodyView, Preview, ResponseTab, ViewState};
 use crate::workspace::OpenedWorkspace;
 
 /// The key context of the main window, where the command keys are bound.
@@ -40,6 +40,11 @@ pub(crate) struct RequestSend {
     pub(crate) preview_task: Option<Task<()>>,
     /// Why the last `Open in browser` could not write its file.
     pub(crate) preview_error: Option<String>,
+    /// What masks the secrets of the send the response shows; empty for a recorded
+    /// response, which history stored masked.
+    pub(crate) masker: Masker,
+    /// The response's search, Tests and Console filters, scroll and focus.
+    pub(crate) views: ViewState,
     running: Option<Running>,
     /// The task preparing the current send: it runs the engine's `execute` on the
     /// background executor and hands the execution to `running`. Held so it is not
@@ -335,6 +340,7 @@ fn spawn(
     // A transport error can echo the URL with a query secret, and a response can echo a
     // secret in its headers or body: history keeps them masked.
     let masker = execution.masker();
+    let shown = masker.clone();
     let key = id.to_owned();
     let wait = cx.spawn(async move |this, cx| {
         let (completed, recorded, writes) = match execution.finish().await {
@@ -383,6 +389,9 @@ fn spawn(
             shell.persist_script_writes(&key, &options, &writes, cx);
             if let (Some(pending), Some((sent, outcome))) = (pending, recorded) {
                 shell.record_send(pending, sent, outcome, cx);
+            }
+            if let Some(send) = shell.sends.get_mut(&key) {
+                send.masker = shown;
             }
             shell.finish_send(&key, completed, cx);
         }) {

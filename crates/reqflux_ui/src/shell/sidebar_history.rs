@@ -145,9 +145,20 @@ fn sends_text(count: usize) -> String {
 pub(crate) struct OpenHistory(pub(crate) i64);
 
 impl Sidebar {
-    /// Shows `panel` in the island.
+    /// Shows `panel` in the island. The History panel with rows takes the keyboard focus
+    /// once the switch's own focus change is done, so `/` reaches its filter at once; the
+    /// empty one has nothing to focus and leaves the focus where the switch put it.
     pub(crate) fn set_panel(&mut self, panel: Panel, cx: &mut Context<Self>) {
         self.panel = panel;
+        let focusable = panel == Panel::History && !self.history.is_empty();
+        if let (true, Some(window)) = (focusable, self.window) {
+            let focus = self.focus.clone();
+            cx.defer(move |cx| {
+                if let Err(error) = window.update(cx, |_, window, cx| focus.focus(window, cx)) {
+                    log::debug!("the History panel's window closed: {error}");
+                }
+            });
+        }
         cx.notify();
     }
 

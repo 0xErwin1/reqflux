@@ -1019,10 +1019,22 @@ shows its title and readable text (tags stripped, scripts and styles dropped) an
 `Open in browser` (`response-preview-open`), which writes the body to a new file under
 `$XDG_CACHE_HOME/reqflux/preview/` and opens it with the system handler; ReqFlux never fetches
 anything to render a page. An image over 20 MB or HTML over 5 MB is too large to preview. The
-Cookies sub-tab (`response-tab-cookies`) parses every `Set-Cookie` header into name, value and
-attributes (`response-cookie-<n>`), raw with a warning mark when it does not parse; nothing is
-stored, since the cookie jar comes later. History keeps `Set-Cookie` headers as received apart
-from secret values; MCP output masks their cookie values (see "History").
+Cookies sub-tab (`response-tab-cookies`) is a table of every `Set-Cookie` header
+(`response-cookie-<n>`): name, value, domain, path, expires (`Max-Age N`, the `Expires` date in
+UTC, or `Session`) and the HttpOnly, Secure and SameSite flags; a header that does not parse
+shows raw with a warning mark. Every cell goes through the send's masker, and a value that holds
+a secret the send knows, or that history stored masked, shows as dots with the SECRET badge.
+Nothing is stored, since the cookie jar comes later. History keeps `Set-Cookie` headers as
+received apart from secret values; MCP output masks their cookie values (see "History").
+
+Clicking the response content gives it the keyboard focus; Ctrl F there (or a click on
+`response-search`) opens the body search in the views row: case-insensitive matches over the
+lines the body shows, the count `n / total`, Enter and Shift+Enter or the arrows step and wrap,
+the current match filled in the warning color and the others washed in it, and Escape closes
+it. The Tests pane has an All / Failed filter under `<n> passed` and `<n> failed` badges, the
+Console pane an All / Warnings / Errors filter with counts; rows keep their numbers under a
+filter. Copy (`response-copy`) in the body's bottom bar puts a UTF-8 body on the clipboard.
+The search, the filters and the focus live with each request's send state.
 
 The rail's History button (`rail-history`) swaps the sidebar tree for the History panel
 (`history-row-<n>`, newest first, `METHOD path · status · time ago` or `failed`; the 200
@@ -1032,8 +1044,9 @@ Clicking a row opens its request's tab and shows the recorded response under
 `Resend` (`history-resend`) sends the recorded document again through `execute_draft` and
 records the result as a new entry. A row whose request was deleted opens a read-only view
 (`history-readonly`) with the recorded method, URL and response, and Resend disabled.
-In the history tab the response tab reads `Recorded response`; `/` in the History panel
-focuses its filter (`history-filter`); Next and Previous tab cycle through the history tab,
+In the history tab the response tab reads `Recorded response`; switching to the History
+panel (the rail or Ctrl+2) gives it the keyboard focus, so `/` focuses its filter
+(`history-filter`) at once; activating the history tab leaves the approvals or audit view; Next and Previous tab cycle through the history tab,
 first in the row.
 
 The settings page's App section (`design/app-settings/02-workspace-page-app-section.html`,

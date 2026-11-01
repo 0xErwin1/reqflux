@@ -1,14 +1,18 @@
 //! The response view: the tab row (S5), the body and headers (S6), the error banner and
-//! Retry (S7) and the empty state, against a local HTTP server.
+//! Retry (S7) and the empty state, against a local HTTP server; and the body search, the
+//! Tests and Console filters, the cookie table and Copy (app-pending S7).
 
 use gpui::{Pixels, TestAppContext, VisualTestContext};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::thread;
 
+use super::draft_tests::state_file;
+use super::preview_tests::serve_reply;
 use super::send_tests::{
-    PING, Server, click, closed_port, render, render_files, response, serve, settle,
+    JSON, PING, Server, click, closed_port, render, render_files, response, serve, settle,
 };
+use crate::workspace_tests::{demo_workspace, write};
 
 const PASSING_TEST: &str =
     "pm.test(\"status is 200\", function () {\n  pm.expect(pm.response.code).to.eql(200);\n});\n";
@@ -360,6 +364,227 @@ fn the_body_format_switch_sits_in_the_bottom_bar(cx: &mut TestAppContext) {
     click(cx, "response-tab-headers");
     assert!(absent(cx, "response-footer"));
     assert!(absent(cx, "response-view-pretty"));
+}
+
+/// The accessible label of the element `selector`, which must be on screen.
+fn label(cx: &mut VisualTestContext, selector: &str) -> String {
+    present(cx, selector);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(selector)
+        .and_then(|node| node.label.clone())
+        .unwrap_or_default()
+}
+
+fn press(cx: &mut VisualTestContext, keys: &str) {
+    cx.simulate_keystrokes(keys);
+    cx.run_until_parked();
+}
+
+fn type_text(cx: &mut VisualTestContext, text: &str) {
+    cx.simulate_input(text);
+    cx.run_until_parked();
+}
+
+/// Sends `GET Ping`, whose JSON body pretty-prints as six lines, two holding an `a`
+/// (`"tags"` and `"a"`).
+fn sent(cx: &mut TestAppContext) -> &mut VisualTestContext {
+    let (shell, cx) = render(cx, serve(Server::Ok));
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+    cx
+}
+
+#[gpui::test]
+fn ctrl_f_in_the_response_searches_the_body(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    present(cx, "response-search-keycap");
+    assert!(absent(cx, "response-search-count"));
+
+    click(cx, "response-body");
+    press(cx, "ctrl-f");
+    assert_eq!(label(cx, "response-search-count"), "0 / 0");
+    type_text(cx, "A");
+    assert_eq!(label(cx, "response-search-count"), "1 / 2");
+    present(cx, "response-body-hit-1");
+    present(cx, "response-body-hit-2");
+    assert!(absent(cx, "response-body-hit-3"));
+
+    press(cx, "enter");
+    assert_eq!(label(cx, "response-search-count"), "2 / 2");
+    press(cx, "enter");
+    assert_eq!(label(cx, "response-search-count"), "1 / 2", "wraps around");
+    press(cx, "shift-enter");
+    assert_eq!(label(cx, "response-search-count"), "2 / 2");
+    click(cx, "response-search-next");
+    assert_eq!(label(cx, "response-search-count"), "1 / 2");
+    click(cx, "response-search-previous");
+    assert_eq!(label(cx, "response-search-count"), "2 / 2");
+
+    type_text(cx, "zz");
+    assert_eq!(label(cx, "response-search-count"), "0 / 0");
+    assert!(absent(cx, "response-body-hit-1"));
+}
+
+#[gpui::test]
+fn escape_closes_the_search_and_its_highlights(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    click(cx, "response-search");
+    present(cx, "response-search-count");
+    type_text(cx, "tags");
+    present(cx, "response-body-hit-1");
+
+    press(cx, "escape");
+    assert!(absent(cx, "response-search-count"));
+    assert!(absent(cx, "response-body-hit-1"));
+    present(cx, "response-search-keycap");
+    present(cx, "response-body-line-1");
+}
+
+#[gpui::test]
+fn ctrl_f_outside_the_response_does_not_search(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    click(cx, "request-pane");
+    press(cx, "ctrl-f");
+    assert!(absent(cx, "response-search-count"));
+}
+
+#[gpui::test]
+fn copy_puts_the_body_on_the_clipboard(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    let copy = present(cx, "response-copy");
+    assert!(present(cx, "response-footer").contains(&copy.center()));
+    click(cx, "response-copy");
+    let copied = cx.update(|_, cx| cx.read_from_clipboard().and_then(|item| item.text()));
+    assert_eq!(copied.as_deref(), Some(JSON));
+}
+
+/// A test script with a passing and a failing test, and console entries at every level.
+const MIXED_RESULTS: &str = "pm.test(\"passes\", function () {});\n\
+    pm.test(\"fails\", function () {\n  pm.expect(1, \"bad\").to.eql(2);\n});\n\
+    console.log(\"plain\");\nconsole.warn(\"careful\");\nconsole.error(\"broken\");\n";
+
+#[gpui::test]
+fn the_tests_filter_keeps_the_failed_tests(cx: &mut TestAppContext) {
+    let (shell, cx) = render_files(cx, serve(Server::Ok), &[("ping.test.js", MIXED_RESULTS)]);
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, "response-tab-tests");
+    assert_eq!(label(cx, "response-tests-passed"), "1 passed");
+    assert_eq!(label(cx, "response-tests-failed"), "1 failed");
+    present(cx, "response-test-1");
+    present(cx, "response-test-2");
+
+    click(cx, "response-tests-filter-failed");
+    assert!(absent(cx, "response-test-1"));
+    present(cx, "response-test-2");
+    present(cx, "response-test-2-message");
+
+    click(cx, "response-tests-filter-all");
+    present(cx, "response-test-1");
+    present(cx, "response-test-2");
+}
+
+#[gpui::test]
+fn failed_without_failures_says_so(cx: &mut TestAppContext) {
+    let (shell, cx) = render_files(cx, serve(Server::Ok), &[("ping.test.js", PASSING_TEST)]);
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, "response-tab-tests");
+    click(cx, "response-tests-filter-failed");
+    assert!(absent(cx, "response-test-1"));
+    assert_eq!(label(cx, "response-tests-none"), "No failed tests");
+}
+
+#[gpui::test]
+fn the_console_filter_keeps_warnings_or_errors(cx: &mut TestAppContext) {
+    let (shell, cx) = render_files(cx, serve(Server::Ok), &[("ping.test.js", MIXED_RESULTS)]);
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, "response-tab-console");
+    present(cx, "response-console-note");
+    for n in 1..=3 {
+        present(cx, &format!("response-console-{n}"));
+    }
+
+    click(cx, "response-console-filter-warnings");
+    assert_eq!(label(cx, "response-console-2"), "warn: careful");
+    assert!(absent(cx, "response-console-1"));
+    assert!(absent(cx, "response-console-3"));
+
+    click(cx, "response-console-filter-errors");
+    assert_eq!(label(cx, "response-console-3"), "error: broken");
+    assert!(absent(cx, "response-console-1"));
+    assert!(absent(cx, "response-console-2"));
+
+    click(cx, "response-console-filter-all");
+    present(cx, "response-console-1");
+}
+
+const KEYED: &str = "01J00000000000000000000036";
+const TOKEN: &str = "tok-s3cret-value";
+
+#[gpui::test]
+fn the_cookie_table_has_its_columns_and_hides_a_secret_value(cx: &mut TestAppContext) {
+    let port = serve_reply(
+        &[
+            ("content-type", "text/plain"),
+            (
+                "set-cookie",
+                &format!("sid={TOKEN}; Path=/; HttpOnly; Secure"),
+            ),
+            (
+                "set-cookie",
+                "region=eu; Domain=.acme.com; Path=/; Expires=Mon, 30 Nov 2026 10:05:00 GMT; SameSite=Lax",
+            ),
+        ],
+        b"ok".to_vec(),
+    );
+    let dir = demo_workspace();
+    write(
+        dir.path(),
+        "collections/api/collection.toml",
+        "id = \"01J00000000000000000000035\"\nname = \"API\"\n",
+    );
+    write(
+        dir.path(),
+        "collections/api/keyed.req.toml",
+        &format!(
+            "id = \"{KEYED}\"\nname = \"Keyed\"\nmethod = \"GET\"\n\
+             url = \"http://127.0.0.1:{port}/\"\n\n[auth]\ntype = \"bearer\"\ntoken = \"{TOKEN}\"\n"
+        ),
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = super::draft_tests::render(cx, &dir, &state_path);
+    click_selector(cx, &format!("tree-row-{KEYED}"));
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, KEYED).as_deref(), Some("200 OK"));
+
+    click(cx, "response-tab-cookies");
+    present(cx, "response-cookies-header");
+    present(cx, "response-cookie-1-secret");
+    let secret_row = label(cx, "response-cookie-1");
+    assert!(!secret_row.contains(TOKEN), "{secret_row}");
+    assert!(secret_row.starts_with("sid=••"), "{secret_row}");
+    assert_eq!(
+        label(cx, "response-cookie-2"),
+        "region=eu · .acme.com · / · 30 Nov 2026, 10:05 UTC · SameSite=Lax"
+    );
+    assert!(absent(cx, "response-cookie-2-secret"));
+    for column in ["name", "value", "domain", "path", "expires", "flags"] {
+        present(cx, &format!("response-cookie-2-{column}"));
+    }
+}
+
+fn click_selector(cx: &mut VisualTestContext, selector: &str) {
+    click(cx, Box::leak(selector.to_owned().into_boxed_str()));
 }
 
 #[gpui::test]

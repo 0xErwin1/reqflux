@@ -167,7 +167,26 @@ pub(crate) fn variable_wash(color: Hsla) -> Hsla {
 
 /// The grid columns: key and value; the description fills the rest.
 pub(crate) const GRID_KEY_COLUMN: Pixels = px(200.0);
-pub(crate) const GRID_VALUE_COLUMN: Pixels = px(420.0);
+
+/// The response cookie table columns (response-views/02): name, value, domain, path and
+/// expires; the flags fill the rest.
+pub(crate) const COOKIE_NAME_COLUMN: Pixels = px(200.0);
+pub(crate) const COOKIE_VALUE_COLUMN: Pixels = px(190.0);
+pub(crate) const COOKIE_DOMAIN_COLUMN: Pixels = px(200.0);
+pub(crate) const COOKIE_PATH_COLUMN: Pixels = px(50.0);
+pub(crate) const COOKIE_EXPIRES_COLUMN: Pixels = px(150.0);
+
+/// The filter bar over the response's Tests and Console panes (response-views/02): its
+/// height, side padding and gap.
+pub(crate) const RESULTS_BAR_HEIGHT: Pixels = px(36.0);
+pub(crate) const RESULTS_BAR_PADDING_X: Pixels = px(14.0);
+pub(crate) const RESULTS_BAR_GAP: Pixels = px(10.0);
+
+/// The wash behind a search match in the response body other than the current one: the
+/// color at `VARIABLE_WASH`, as the artboard draws both.
+pub(crate) fn search_wash(color: Hsla) -> Hsla {
+    wash(color, VARIABLE_WASH)
+}
 
 /// The variables grid columns of the workspace settings page (variables/01): row number,
 /// enable box, key, initial value, current value and where the value is stored; the
@@ -282,6 +301,7 @@ pub(crate) const AUDIT_TIME_COLUMN: Pixels = px(110.0);
 pub(crate) const AUDIT_CLASS_COLUMN: Pixels = px(100.0);
 pub(crate) const AUDIT_TOOL_COLUMN: Pixels = px(190.0);
 pub(crate) const AUDIT_WORKSPACE_COLUMN: Pixels = px(130.0);
+pub(crate) const AUDIT_OUTCOME_COLUMN: Pixels = px(110.0);
 
 /// The width of the workspace menu's `New workspace` name popover (workspace-menu/01).
 pub(crate) const NEW_WORKSPACE_POPOVER_WIDTH: Pixels = px(340.0);
@@ -291,7 +311,6 @@ pub(crate) const IMPORT_DIALOG_WIDTH: Pixels = px(1000.0);
 
 /// The width of the import dialog's Files column; the counts take the rest (bolt-v2/11).
 pub(crate) const IMPORT_FILES_WIDTH: Pixels = px(430.0);
-pub(crate) const AUDIT_OUTCOME_COLUMN: Pixels = px(110.0);
 
 #[cfg(test)]
 pub(crate) mod tests {

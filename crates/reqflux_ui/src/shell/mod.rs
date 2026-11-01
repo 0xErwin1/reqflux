@@ -99,6 +99,7 @@ pub(crate) fn bind_keys(cx: &mut App) {
     commands::bind_keys(cx);
     approvals::bind_keys(cx);
     problems_panel::bind_keys(cx);
+    response::bind_keys(cx);
 }
 
 /// The root view of the main window.

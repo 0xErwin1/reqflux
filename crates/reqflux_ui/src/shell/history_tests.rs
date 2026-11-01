@@ -560,6 +560,73 @@ fn slash_in_the_history_panel_focuses_its_filter(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_rail_or_ctrl_2_gives_the_history_panel_the_keyboard(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    assert_eq!(send(cx, &shell, OTHER).as_deref(), Some("200 OK"));
+
+    click(cx, "rail-history");
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("oth");
+    cx.run_until_parked();
+    assert_eq!(label(cx, "history-row-1-name"), "Other");
+    assert!(
+        bounds(cx, "history-row-2").is_none(),
+        "Ping is filtered out"
+    );
+
+    click(cx, "rail-collections");
+    click(cx, &format!("doc-tab-{PING}"));
+    cx.simulate_keystrokes("ctrl-2");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("/");
+    cx.simulate_input("x");
+    cx.run_until_parked();
+    assert!(
+        bounds(cx, "history-row-1").is_none(),
+        "`/` after Ctrl+2 reached the filter: `othx` matches nothing"
+    );
+
+    // The window's keys still reach the shell from the focused panel.
+    cx.simulate_keystrokes("ctrl-1");
+    cx.run_until_parked();
+    assert!(bounds(cx, "history-panel").is_none());
+    present(cx, "collection-tree");
+}
+
+#[gpui::test]
+fn activating_the_history_tab_leaves_the_audit_view(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    open_top_row(cx);
+    click(cx, "rail-audit");
+    present(cx, "audit-view");
+
+    click(cx, "doc-tab-history");
+    assert!(bounds(cx, "audit-view").is_none());
+    present(cx, "history-banner");
+}
+
+#[gpui::test]
+fn activating_the_history_tab_still_leaves_the_approvals_view(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    open_top_row(cx);
+    click(cx, "rail-approvals");
+    present(cx, "approvals-view");
+
+    click(cx, "doc-tab-history");
+    assert!(bounds(cx, "approvals-view").is_none());
+    present(cx, "history-banner");
+}
+
+#[gpui::test]
 fn next_and_previous_tab_include_the_history_tab(cx: &mut TestAppContext) {
     let dir = history_workspace(serve(Server::Ok));
     let (_state_dir, state_path) = state_file();
