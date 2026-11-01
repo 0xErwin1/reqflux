@@ -85,7 +85,7 @@ pub use error::{
     VariableError,
 };
 pub use guard::HostGuard;
-pub use import::{ImportSummary, postman};
+pub use import::{ImportPreview, ImportSummary, postman, postman_preview};
 pub use managed::{
     create_managed_workspace, create_managed_workspace_in, is_managed, is_managed_in,
     managed_workspaces_dir,

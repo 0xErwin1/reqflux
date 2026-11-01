@@ -3,11 +3,14 @@
 //! [`postman`] maps the JSON documents with [`reqflux_postman`](crate) (no IO) and then
 //! writes the entities through `reqflux_store`, atomically, after checking that nothing it
 //! would write already exists: an import never overwrites a collection, folder, request
-//! or environment that is already there.
+//! or environment that is already there. [`postman_preview`] runs the same mapping and
+//! checks and lists what [`postman`] would write, writing nothing (app-pending S6).
+
+mod preview;
 
 use std::path::{Path, PathBuf};
 
-use reqflux_core::model::{Id, Item, WorkspaceManifest};
+use reqflux_core::model::{CollectionNode, EnvironmentNode, Id, Item, WorkspaceManifest};
 use reqflux_store::{
     Parent, ScriptHashes, ScriptOwner, checked_collection_file, checked_environment_file,
     checked_folder_file, checked_request_file, manifest_file, save_collection, save_environment,
@@ -16,6 +19,8 @@ use reqflux_store::{
 use serde_json::Value;
 
 use crate::error::ImportError;
+
+pub use preview::{ImportPreview, postman_preview};
 
 /// What an import wrote (S9).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,44 +61,13 @@ pub fn postman(
     collection: &Value,
     environments: &[Value],
 ) -> Result<ImportSummary, ImportError> {
-    let imported = reqflux_postman::collection(collection)?;
-    let mut taken = imported.slugs.clone();
-    let mut environment_nodes = Vec::with_capacity(environments.len());
-    for value in environments {
-        environment_nodes.push(reqflux_postman::environment_in(value, &mut taken)?);
-    }
-    let node = imported.collection;
+    let Plan {
+        node,
+        environments: environment_nodes,
+        create_manifest,
+    } = plan(root, collection, environments)?;
     let manifest_path = manifest_file(root);
-    let create_manifest = !manifest_path.exists();
-
-    let mut targets = Vec::new();
-    if create_manifest {
-        targets.push(manifest_path.clone());
-    }
     let collection_path = target_path(checked_collection_file(root, &node.slug), root)?;
-    let mut targets = Vec::new();
-    if create_manifest {
-        targets.push(manifest_path.clone());
-    }
-    targets.push(collection_path.clone());
-    targets.extend(sidecars(&ScriptOwner::Collection(node.slug.clone()), root));
-    collect_targets(
-        root,
-        &node.items,
-        &Parent::collection(&node.slug),
-        &mut targets,
-    )?;
-    for environment in &environment_nodes {
-        let file = target_path(checked_environment_file(root, &environment.slug), root)?;
-        targets.push(file);
-    }
-    for target in &targets {
-        if target.exists() {
-            return Err(ImportError::Exists {
-                path: target.clone(),
-            });
-        }
-    }
 
     if create_manifest {
         let manifest = WorkspaceManifest {
@@ -135,6 +109,62 @@ pub fn postman(
             .map_err(|error| store_error(&file, error))?;
     }
     Ok(summary)
+}
+
+/// A mapped import whose every target is free: what [`postman`] writes and
+/// [`postman_preview`] lists.
+struct Plan {
+    node: CollectionNode,
+    environments: Vec<EnvironmentNode>,
+    /// Whether `root` has no manifest yet, so the import creates one.
+    create_manifest: bool,
+}
+
+/// Maps the documents and checks that nothing the import would write exists.
+///
+/// # Errors
+///
+/// As [`postman`], before anything is written.
+fn plan(root: &Path, collection: &Value, environments: &[Value]) -> Result<Plan, ImportError> {
+    let imported = reqflux_postman::collection(collection)?;
+    let mut taken = imported.slugs.clone();
+    let mut environment_nodes = Vec::with_capacity(environments.len());
+    for value in environments {
+        environment_nodes.push(reqflux_postman::environment_in(value, &mut taken)?);
+    }
+    let node = imported.collection;
+    let manifest_path = manifest_file(root);
+    let create_manifest = !manifest_path.exists();
+
+    let collection_path = target_path(checked_collection_file(root, &node.slug), root)?;
+    let mut targets = Vec::new();
+    if create_manifest {
+        targets.push(manifest_path);
+    }
+    targets.push(collection_path);
+    targets.extend(sidecars(&ScriptOwner::Collection(node.slug.clone()), root));
+    collect_targets(
+        root,
+        &node.items,
+        &Parent::collection(&node.slug),
+        &mut targets,
+    )?;
+    for environment in &environment_nodes {
+        let file = target_path(checked_environment_file(root, &environment.slug), root)?;
+        targets.push(file);
+    }
+    for target in &targets {
+        if target.exists() {
+            return Err(ImportError::Exists {
+                path: target.clone(),
+            });
+        }
+    }
+    Ok(Plan {
+        node,
+        environments: environment_nodes,
+        create_manifest,
+    })
 }
 
 fn write_items(

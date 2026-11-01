@@ -620,6 +620,9 @@ later: `require()` of the bundled libraries.
   collection, its folders and requests with their scripts and the environments through
   `reqflux_store`, creating the workspace manifest when the directory is empty and never
   overwriting a file that is already there.
+- `reqflux_engine::postman_preview` runs the same mapping and collision checks and returns the
+  counts and the files the import would write, writing nothing; the app's import dialog shows it
+  before it imports.
 - A fixture corpus of real exported collections drives round-trip tests: import, export and
   compare the JSON structurally.
 - `reqflux import <collection.json> [--workspace <dir>] [--environment <file>]...` imports into a
@@ -869,12 +872,21 @@ its active environment per workspace (by environment id, in the app state's `set
 restores it when the workspace opens. The title bar's workspace
 selector (`workspace-selector`) opens a menu (`workspace-menu`) with the recent workspaces
 (`workspace-recent-<n>`, the name with `In ReqFlux` for a workspace the app keeps or the path
-for a directory, the current one marked; `workspace-recent-remove-<n>` drops one from the list
-and deletes nothing), `New workspace…` (`workspace-new`, an inline name field
-`workspace-new-name`; Enter creates a workspace kept by the app and opens it, Escape cancels),
+for a directory, the current one marked; `workspace-recent-remove-<n>`, shown while its row is
+hovered or holds the keyboard focus and always on a row that did not load, drops one from the
+list and deletes nothing), `New workspace…` (`workspace-new`, the name popover
+`workspace-new-popover` beside the menu with the field `workspace-new-name`,
+`workspace-new-cancel` and `workspace-new-create`; Enter or Create makes a workspace kept by the
+app and opens it, Escape, Cancel or a click outside closes it and creates nothing),
 `New workspace in folder…` (`workspace-new-folder`, the OS save dialog;
 `reqflux_engine::create_workspace` writes a `reqflux.toml` named after the directory into a
 missing or empty directory), `Open folder…` (`workspace-open`, the OS folder dialog),
+`Import Postman collection…` (`workspace-import`, while a workspace is open: the import dialog
+`import-backdrop` of `design/bolt-v2/11-import-postman.html` asks for a collection file, shows
+what the import would write through `reqflux_engine::postman_preview` (the counts
+`import-count-<kind>`, the files `import-file-<n>`) or why it cannot import (`import-error`), and
+`import-confirm` writes it into the open workspace with `reqflux_engine::postman` and reloads
+it; Cancel or Escape writes nothing),
 `Workspace settings…` (`workspace-settings`, the settings page at Globals) and
 `Close workspace` (`workspace-close`). Switching cancels sends in flight, closes every tab,
 restores the new workspace's remembered environment and loads its drafts and current values;

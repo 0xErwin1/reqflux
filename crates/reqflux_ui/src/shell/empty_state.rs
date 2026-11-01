@@ -1,8 +1,8 @@
 //! The document island without a workspace (recent-workspaces S5): `Open folder…`
-//! (`empty-open`), `New workspace…` (`empty-new`, which opens the workspace menu's name
-//! field), `New workspace in folder…` (`empty-new-folder`) and the recent workspaces
-//! (`empty-recent-<n>`), over the reason there is none, `document-message`, which keeps the
-//! `reqflux <directory>` hint as secondary text.
+//! (`empty-open`), `New workspace…` (`empty-new`, which opens the workspace menu with its name
+//! popover), `New workspace in folder…` (`empty-new-folder`) and the recent workspaces
+//! (`empty-recent-<n>`, whose `Remove` always shows here), over the reason there is none,
+//! `document-message`, which keeps the `reqflux <directory>` hint as secondary text.
 
 use bolt::primitives::TextVariant;
 use bolt::tokens::{ShellMetrics, Spacing};

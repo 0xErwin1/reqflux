@@ -9,6 +9,8 @@
 //! its error in its row, `workspace-error`, with `Retry`; any other error shows under the
 //! recents. Escape or a click outside closes the menu.
 
+use std::cell::Cell;
+use std::collections::HashMap;
 use std::path::Path;
 
 use bolt::composites::{ListRow, MenuItem, menu_frame, menu_row, render_separator};
@@ -16,8 +18,9 @@ use bolt::controls::Button;
 use bolt::primitives::{Icon, Kbd, TextVariant};
 use bolt::tokens::{MenuMetrics, ShellMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Context, Div, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
-    ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, prelude::*,
+    AnyElement, App, Context, Div, FocusHandle, InteractiveElement, IntoElement, KeyDownEvent,
+    MouseButton, ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div,
+    prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_engine::state::RecentWorkspace;
@@ -45,6 +48,9 @@ pub(crate) const NEW_WORKSPACE: &str = "New workspace…";
 /// `New workspace in folder…`.
 pub(crate) const NEW_WORKSPACE_IN_FOLDER: &str = "New workspace in folder…";
 
+/// `Import Postman collection…`: opens the import dialog over the open workspace.
+pub(crate) const IMPORT_POSTMAN: &str = "Import Postman collection…";
+
 /// `Close workspace`.
 pub(crate) const CLOSE_WORKSPACE: &str = "Close workspace";
 
@@ -58,12 +64,31 @@ pub(crate) const FOOTER_NOTE: &str = "One workspace is open at a time. Drafts st
 /// `Retry` on a recent workspace that did not load.
 const RETRY: &str = "Retry";
 
+/// The focus of each recent row by its element id, made the first time the row draws, so a
+/// row reached with Tab keeps its focus across frames and shows its `Remove`.
+#[derive(Default)]
+pub(super) struct RecentFocus(Cell<HashMap<String, FocusHandle>>);
+
+impl RecentFocus {
+    /// The focus of the row `id`, made on first use.
+    fn handle(&self, id: &str, cx: &mut App) -> FocusHandle {
+        let mut handles = self.0.take();
+        let handle = handles
+            .entry(id.to_owned())
+            .or_insert_with(|| cx.focus_handle().tab_stop(true))
+            .clone();
+        self.0.set(handles);
+        handle
+    }
+}
+
 /// What a menu or empty state action does.
 #[derive(Clone, Copy)]
 pub(super) enum Action {
     Open,
     New,
     NewInFolder,
+    Import,
     Settings,
     Close,
 }
@@ -75,6 +100,7 @@ impl Action {
             Self::Open => shell.pick_folder(window, cx),
             Self::New => shell.start_new_workspace(window, cx),
             Self::NewInFolder => shell.pick_new(window, cx),
+            Self::Import => shell.open_import(window, cx),
             Self::Settings => {
                 shell.open_settings(super::settings_page::Section::Globals, cx);
                 shell.restore_focus(window, cx);
@@ -140,12 +166,35 @@ pub(super) fn recent_row(
     current: bool,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    failable_recent_row(prefix, index, recent, detail, current, None, cx)
+    failable_recent_row(
+        prefix,
+        index,
+        recent,
+        detail,
+        current,
+        None,
+        Reveal::Always,
+        cx,
+    )
+}
+
+/// When a recent row shows its `Remove`.
+pub(super) enum Reveal {
+    /// Always: the empty state, which has room for it.
+    Always,
+    /// While the row is hovered or holds the keyboard focus (the workspace menu, as
+    /// workspace-menu/01 draws it); `focused` is whether `focus` holds it now.
+    OnHover { focus: FocusHandle, focused: bool },
 }
 
 /// [`recent_row`], or with `failure`, the error of its last open: the alert icon
 /// `<prefix>-recent-failed-<n>`, the error in place of the detail as `<prefix>-error` and
-/// `Retry`, `<prefix>-recent-retry-<n>`, over a danger wash.
+/// `Retry`, `<prefix>-recent-retry-<n>`, over a danger wash; a row that did not load shows
+/// its `Remove` whatever `reveal` says.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one row of the menu, its parts passed as the menu reads them"
+)]
 fn failable_recent_row(
     prefix: &'static str,
     index: usize,
@@ -153,6 +202,7 @@ fn failable_recent_row(
     detail: String,
     current: bool,
     failure: Option<&str>,
+    reveal: Reveal,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
     let colors = bolt::colors(cx);
@@ -227,10 +277,24 @@ fn failable_recent_row(
         .icon(ui::icon(IconName::Close))
         .icon_only()
         .on_click(cx.listener(move |this, _event, _window, cx| this.remove_recent(index, cx)));
-    ListRow::new(format!("{prefix}-recent-row-{n}"))
+    let group = format!("{prefix}-recent-row-{n}");
+    let hidden = failure.is_none() && matches!(reveal, Reveal::OnHover { focused: false, .. });
+    let remove = div()
+        .flex_none()
+        .when(hidden, |slot| {
+            slot.invisible()
+                .group_hover(group.clone(), |style| style.visible())
+        })
+        .child(remove);
+    let row = ListRow::new(group.clone())
         .selected(current)
         .selection_bar(true)
-        .build(cx)
+        .build(cx);
+    let row = match &reveal {
+        Reveal::Always => row,
+        Reveal::OnHover { focus, .. } => row.track_focus(focus),
+    };
+    row.group(group)
         .flex()
         .flex_shrink_0()
         .items_center()
@@ -369,6 +433,10 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         let detail = shell.recent_detail(recent);
         let failure = error.filter(|_| failed == Some(recent.path.as_path()));
         error_in_row |= failure.is_some();
+        let focus = shell
+            .recent_focus
+            .handle(&format!("workspace-recent-row-{}", index + 1), cx);
+        let focused = focus.contains_focused(window, cx);
         menu = menu.child(failable_recent_row(
             "workspace",
             index,
@@ -376,6 +444,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             detail,
             selected,
             failure,
+            Reveal::OnHover { focus, focused },
             cx,
         ));
     }
@@ -392,7 +461,6 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             Some(CommandId::NewWorkspace),
             cx,
         ))
-        .children(shell.new_name_field(cx))
         .child(menu_action(
             "workspace-new-folder",
             IconName::FolderPlus,
@@ -410,6 +478,14 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             cx,
         ));
     if matches!(shell.workspace, OpenedWorkspace::Loaded(_)) {
+        menu = menu.child(menu_action(
+            "workspace-import",
+            IconName::Import,
+            IMPORT_POSTMAN,
+            Action::Import,
+            None,
+            cx,
+        ));
         menu = menu.child(separator(cx)).child(menu_action(
             "workspace-settings",
             IconName::Settings,
@@ -452,7 +528,19 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .top_full()
         .left_0()
         .child(deferred(anchored().position(Point::default()).child(backdrop)).with_priority(1))
-        .child(deferred(anchored().child(menu)).with_priority(2))
+        .child(
+            deferred(
+                anchored().child(
+                    div()
+                        .flex()
+                        .items_end()
+                        .gap(Spacing::XS)
+                        .child(menu)
+                        .children(shell.new_workspace_popover(cx)),
+                ),
+            )
+            .with_priority(2),
+        )
         .into_any_element()
 }
 

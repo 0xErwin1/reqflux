@@ -282,6 +282,15 @@ pub(crate) const AUDIT_TIME_COLUMN: Pixels = px(110.0);
 pub(crate) const AUDIT_CLASS_COLUMN: Pixels = px(100.0);
 pub(crate) const AUDIT_TOOL_COLUMN: Pixels = px(190.0);
 pub(crate) const AUDIT_WORKSPACE_COLUMN: Pixels = px(130.0);
+
+/// The width of the workspace menu's `New workspace` name popover (workspace-menu/01).
+pub(crate) const NEW_WORKSPACE_POPOVER_WIDTH: Pixels = px(340.0);
+
+/// The width of the Postman import dialog (bolt-v2/11).
+pub(crate) const IMPORT_DIALOG_WIDTH: Pixels = px(1000.0);
+
+/// The width of the import dialog's Files column; the counts take the rest (bolt-v2/11).
+pub(crate) const IMPORT_FILES_WIDTH: Pixels = px(430.0);
 pub(crate) const AUDIT_OUTCOME_COLUMN: Pixels = px(110.0);
 
 #[cfg(test)]

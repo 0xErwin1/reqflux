@@ -1,16 +1,18 @@
 //! The workspace menu as workspace-menu/01-refined-dropdown draws it with the bolt-v2/02
 //! copy (design-catch-up T4): the `Workspaces` header, the actions in order with their keys,
 //! the footer note, and a recent workspace that did not load keeping its error and Retry in
-//! its row.
+//! its row; `Remove` on hover and keyboard focus and `Import Postman collection…`
+//! (app-pending S6).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gpui::{TestAppContext, VisualTestContext};
+use gpui::{Modifiers, TestAppContext, VisualTestContext};
 
+use super::super::workspace_new_tests::hover;
 use super::super::workspace_picker::TestPicker;
 use super::super::workspace_switch_tests::{bounds, click, name, pair, present, render};
-use super::{FOOTER_NOTE, HEADER, OPEN_WORKSPACE};
+use super::{FOOTER_NOTE, HEADER, IMPORT_POSTMAN, OPEN_WORKSPACE};
 
 fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
     automation
@@ -67,6 +69,7 @@ fn the_menu_has_the_workspaces_header_actions_in_order_and_the_note(cx: &mut Tes
         "workspace-new",
         "workspace-new-folder",
         "workspace-open",
+        "workspace-import",
         "workspace-settings",
         "workspace-close",
         "workspace-menu-note",
@@ -78,8 +81,71 @@ fn the_menu_has_the_workspaces_header_actions_in_order_and_the_note(cx: &mut Tes
     present(cx, "workspace-legend");
     present(cx, "workspace-new-keycap");
     present(cx, "workspace-open-keycap");
-    assert!(bounds(cx, "workspace-import").is_none());
+    assert_eq!(IMPORT_POSTMAN, "Import Postman collection…");
+    assert_eq!(
+        label(&automation, "workspace-import").as_deref(),
+        Some(IMPORT_POSTMAN)
+    );
     present(cx, "workspace-settings-keycap");
+}
+
+#[gpui::test]
+fn without_a_workspace_the_menu_offers_no_import(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let (_shell, cx) = render(cx, None, &pair.state_path, TestPicker::default());
+    click(cx, "workspace-selector");
+    present(cx, "workspace-open");
+    assert!(bounds(cx, "workspace-import").is_none());
+}
+
+#[gpui::test]
+fn remove_shows_only_while_its_row_is_hovered(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let (_shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    click(cx, "workspace-selector");
+    assert!(bounds(cx, "workspace-recent-remove-1").is_none());
+    assert!(bounds(cx, "workspace-recent-remove-2").is_none());
+
+    hover(cx, "workspace-recent-2");
+    present(cx, "workspace-recent-remove-2");
+    assert!(bounds(cx, "workspace-recent-remove-1").is_none());
+
+    hover(cx, "workspace-menu-note");
+    assert!(bounds(cx, "workspace-recent-remove-2").is_none());
+}
+
+#[gpui::test]
+fn remove_shows_while_its_row_holds_the_keyboard_focus(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let (_shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    click(cx, "workspace-selector");
+    hover(cx, "workspace-menu-note");
+    assert!(bounds(cx, "workspace-recent-remove-1").is_none());
+    // The app binds no Tab key yet; move along the tab stops as a Tab binding would.
+    let mut reached = false;
+    for _ in 0..80 {
+        cx.update(|window, cx| window.focus_next(cx));
+        cx.run_until_parked();
+        if bounds(cx, "workspace-recent-remove-1").is_some() {
+            reached = true;
+            break;
+        }
+    }
+    assert!(
+        reached,
+        "focus reaches the first recent row and shows its Remove"
+    );
+    present(cx, "workspace-menu");
 }
 
 #[gpui::test]
@@ -104,6 +170,10 @@ fn a_recent_that_did_not_load_keeps_its_error_and_retry_in_its_row(cx: &mut Test
     assert!(bounds(cx, "workspace-recent-retry-1").is_none());
     let retry = present(cx, "workspace-recent-retry-2");
     assert!(retry.left() > row.left());
+    let away = present(cx, "workspace-menu-note").center();
+    cx.simulate_mouse_move(away, None, Modifiers::none());
+    cx.run_until_parked();
+    present(cx, "workspace-recent-remove-2");
 
     if let Err(error) = fs::rename(&aside, pair.second.path()) {
         panic!("rename back: {error}");

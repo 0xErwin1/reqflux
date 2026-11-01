@@ -22,6 +22,7 @@ mod drafts;
 mod empty_state;
 mod environment_menu;
 mod history;
+mod import_flow;
 mod last_request;
 mod method_edit;
 mod palette;
@@ -128,6 +129,10 @@ pub(crate) struct Shell {
     managed_dir: Option<PathBuf>,
     /// Focused while the workspace menu is open, so Escape reaches it.
     workspace_menu_focus: FocusHandle,
+    /// The focus of each recent workspace row, so a row reached with Tab shows its Remove.
+    recent_focus: workspace_menu::RecentFocus,
+    /// The Postman import dialog, while open, and its file dialog.
+    import: import_flow::Import,
     sidebar: Entity<Sidebar>,
     /// The collection trees of the loaded workspace, which tabs and the path bar read names
     /// and locations from; empty without one.
@@ -247,6 +252,8 @@ impl Shell {
             new_workspace_name: None,
             managed_dir: workspace_new::default_managed_dir(),
             workspace_menu_focus: cx.focus_handle(),
+            recent_focus: workspace_menu::RecentFocus::default(),
+            import: import_flow::Import::new(cx),
             sidebar,
             roots,
             documents: Documents::default(),
@@ -496,6 +503,7 @@ impl Render for Shell {
             .child(middle)
             .child(status_bar::render(self, window, cx))
             .children(palette::render(self, window, cx))
+            .children(import_flow::render(self, window, cx))
     }
 }
 

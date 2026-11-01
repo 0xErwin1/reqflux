@@ -1,12 +1,13 @@
-//! `New workspace…` by name (standalone-workspaces S3) and managed recent rows (S4).
+//! `New workspace…` by name in its popover (standalone-workspaces S3, app-pending S6) and
+//! managed recent rows (S4).
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, Modifiers, TestAppContext, VisualTestContext};
 
 use super::Shell;
-use super::workspace_new::IN_REQFLUX;
+use super::workspace_new::{IN_REQFLUX, POPOVER_HINT, POPOVER_TITLE};
 use super::workspace_picker::TestPicker;
 use super::workspace_switch_tests::{
     bounds, canonical, click, name, pair, present, recents, render, temp_dir,
@@ -35,6 +36,29 @@ fn type_name(cx: &mut VisualTestContext, text: &str) {
 
 fn field_text(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
     cx.update(|_, cx| shell.read(cx).new_name_text(cx))
+}
+
+/// Moves the mouse over `selector`.
+pub(super) fn hover(cx: &mut VisualTestContext, selector: &str) {
+    let target = present(cx, selector).center();
+    cx.simulate_mouse_move(target, None, Modifiers::none());
+    cx.run_until_parked();
+}
+
+/// Clicks near the bottom of the window, outside the menu and the popover.
+fn click_outside(cx: &mut VisualTestContext) {
+    let viewport = cx.update(|window, _| window.viewport_size());
+    let outside = gpui::point(viewport.width / 2., viewport.height - gpui::px(4.));
+    cx.simulate_click(outside, Modifiers::none());
+    cx.run_until_parked();
+}
+
+fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
 }
 
 #[gpui::test]
@@ -71,7 +95,7 @@ fn new_workspace_by_name_creates_a_managed_one_and_remove_keeps_it(cx: &mut Test
     );
 
     click(cx, "workspace-selector");
-    present(cx, "workspace-recent-1");
+    hover(cx, "workspace-recent-1");
     let details: Vec<String> = cx.update(|_, cx| {
         let shell = shell.read(cx);
         shell
@@ -145,6 +169,8 @@ fn the_empty_state_offers_new_by_name(cx: &mut TestAppContext) {
     for id in ["empty-new", "empty-new-folder", "empty-open"] {
         present(cx, id);
     }
+    // The empty state has room for Remove, so it shows without a hover.
+    present(cx, "empty-recent-remove-1");
     click(cx, "empty-new");
     present(cx, "workspace-new-name");
     type_name(cx, "Personal");
@@ -155,7 +181,50 @@ fn the_empty_state_offers_new_by_name(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_click_outside_the_name_field_creates_the_workspace(cx: &mut TestAppContext) {
+fn the_popover_sits_beside_the_menu_with_its_title_hint_and_buttons(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let (_shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    click(cx, "workspace-selector");
+    click(cx, "workspace-new");
+
+    let menu = present(cx, "workspace-menu");
+    let popover = present(cx, "workspace-new-popover");
+    assert!(
+        popover.left() >= menu.right(),
+        "{popover:?} beside {menu:?}"
+    );
+    for id in [
+        "workspace-new-name",
+        "workspace-new-cancel",
+        "workspace-new-create",
+    ] {
+        assert!(
+            popover.contains(&present(cx, id).center()),
+            "{id} in the popover"
+        );
+    }
+    assert_eq!(
+        label(&automation, "workspace-new-title").as_deref(),
+        Some(POPOVER_TITLE)
+    );
+    assert_eq!(
+        label(&automation, "workspace-new-hint").as_deref(),
+        Some(POPOVER_HINT)
+    );
+    let cancel = present(cx, "workspace-new-cancel");
+    let create = present(cx, "workspace-new-create");
+    assert!(cancel.right() <= create.left(), "Create is last");
+}
+
+#[gpui::test]
+fn create_makes_the_workspace_as_enter_does(cx: &mut TestAppContext) {
     let pair = pair("https://first/x");
     let managed = temp_dir();
     let (shell, cx) = render(
@@ -168,14 +237,56 @@ fn a_click_outside_the_name_field_creates_the_workspace(cx: &mut TestAppContext)
     click(cx, "workspace-selector");
     click(cx, "workspace-new");
     type_name(cx, "Billing");
-    let viewport = cx.update(|window, _| window.viewport_size());
-    let outside = gpui::point(viewport.width / 2., viewport.height - gpui::px(4.));
-    cx.simulate_click(outside, gpui::Modifiers::none());
-    cx.run_until_parked();
+    click(cx, "workspace-new-create");
 
     assert_eq!(managed_dirs(managed.path()).len(), 1);
     assert_eq!(name(cx, &shell).as_deref(), Some("Billing"));
-    assert!(bounds(cx, "workspace-new-name").is_none());
+    assert!(bounds(cx, "workspace-new-popover").is_none());
+}
+
+#[gpui::test]
+fn cancel_closes_the_popover_and_creates_nothing(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let managed = temp_dir();
+    let (shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    with_managed(cx, &shell, managed.path());
+    click(cx, "workspace-selector");
+    click(cx, "workspace-new");
+    type_name(cx, "Billing");
+    click(cx, "workspace-new-cancel");
+
+    assert!(managed_dirs(managed.path()).is_empty());
+    assert_eq!(name(cx, &shell).as_deref(), Some("First"));
+    assert!(bounds(cx, "workspace-new-popover").is_none());
+    assert_eq!(field_text(cx, &shell), None);
+    present(cx, "workspace-menu");
+}
+
+#[gpui::test]
+fn a_click_outside_the_popover_cancels_it(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let managed = temp_dir();
+    let (shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    with_managed(cx, &shell, managed.path());
+    click(cx, "workspace-selector");
+    click(cx, "workspace-new");
+    type_name(cx, "Billing");
+    click_outside(cx);
+
+    assert!(managed_dirs(managed.path()).is_empty());
+    assert_eq!(name(cx, &shell).as_deref(), Some("First"));
+    assert!(bounds(cx, "workspace-new-popover").is_none());
+    assert_eq!(field_text(cx, &shell), None);
 }
 
 #[gpui::test]
@@ -191,10 +302,7 @@ fn a_click_outside_an_empty_name_field_creates_nothing(cx: &mut TestAppContext) 
     with_managed(cx, &shell, managed.path());
     click(cx, "workspace-selector");
     click(cx, "workspace-new");
-    let viewport = cx.update(|window, _| window.viewport_size());
-    let outside = gpui::point(viewport.width / 2., viewport.height - gpui::px(4.));
-    cx.simulate_click(outside, gpui::Modifiers::none());
-    cx.run_until_parked();
+    click_outside(cx);
 
     assert!(managed_dirs(managed.path()).is_empty());
     assert_eq!(name(cx, &shell).as_deref(), Some("First"));

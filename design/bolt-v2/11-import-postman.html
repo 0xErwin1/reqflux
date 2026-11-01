@@ -466,6 +466,7 @@ button{font:inherit;white-space:nowrap}
         <svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px;padding:18px">
+        <!-- bolt gap: no stepper component in bolt; the app leaves the stepper out until bolt has one. -->
         <div style="display:flex;align-items:center;gap:8px">
           <div class="step"><span class="c4" style="background:#1A181E;color:#7BE0A0"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span>File</div>
           <span class="step-line"></span>
@@ -482,14 +483,20 @@ button{font:inherit;white-space:nowrap}
                 <button aria-label="Choose another file" title="Choose another file" class="c6 ib"><svg class="ico" style="width:15px;height:15px"><use href="#i-folder-open"/></svg></button>
               </div>
               <span style="display:flex;align-items:center;gap:8px;font-size:12px;color:#8E8996">
-                <span class="c4 badge" style="background:rgba(123,224,160,.12);color:#7BE0A0"><svg class="ico" style="width:11px;height:11px"><use href="#i-check"/></svg>Postman v2.1</span>
-                detected · 86 KB · exported Oct 27
+                <span class="c4 badge" style="background:rgba(123,224,160,.12);color:#7BE0A0"><svg class="ico" style="width:11px;height:11px"><use href="#i-check"/></svg>Postman collection</span>
+                86 KB
               </span>
             </div>
             <div style="display:flex;flex-direction:column;gap:10px">
               <span class="cap">What will be created</span>
-              <div class="c8 box" style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr))"><div class="meta" style="padding:10px 12px;"><span>Collection</span><span style="font-size:15px;font-weight:700">1</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Folders</span><span style="font-size:15px;font-weight:700">3</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Requests</span><span style="font-size:15px;font-weight:700">24</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Environments</span><span style="font-size:15px;font-weight:700">2</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Scripts</span><span style="font-size:15px;font-weight:700">5</span></div></div>
+              <div class="c8 box" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr))"><div class="meta" style="padding:10px 12px;"><span>Collection</span><span style="font-size:15px;font-weight:700">1</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Folders</span><span style="font-size:15px;font-weight:700">3</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Requests</span><span style="font-size:15px;font-weight:700">24</span></div><div class="meta" style="padding:10px 12px;border-left:1px solid #18161B;"><span>Scripts</span><span style="font-size:15px;font-weight:700">5</span></div></div>
             </div>
+            <!-- Error state (app-pending S6): a file that cannot be imported shows one danger banner here in place of the counts and the file list, and Import is disabled. Titles: "The file cannot be read.", "The file is not JSON.", "This is not a Postman collection.", "The workspace already has what this file holds." (an import never overwrites), "The workspace cannot be written."; the body is the error, which names a path, never a value. -->
+            <div class="c8 banner" style="background:rgba(255,107,94,.08);box-shadow:#FF6B5E 3px 0 0 inset">
+              <svg class="ico" style="width:14px;height:14px;margin-top:2px;color:#FF6B5E"><use href="#i-alert"/></svg>
+              <span><span style="color:#F7F4F7">The workspace already has what this file holds.</span> <span style="color:#8E8996">collections/billing-api/collection.toml already exists; an import never overwrites a file</span></span>
+            </div>
+            <!-- The importer reports no warnings, environments or keyring moves for a single collection file, so the earlier OAuth, keyring and renamed-environment banners are not drawn.
             <div style="display:flex;flex-direction:column;gap:10px">
               <span class="cap">Warnings · 3</span>
               <div class="c8 banner" style="background:rgba(255,194,61,.08);box-shadow:#FFC23D 3px 0 0 inset">
@@ -505,9 +512,28 @@ button{font:inherit;white-space:nowrap}
                 <span><span style="color:#F7F4F7">Environment staging already exists.</span> <span style="color:#8E8996">The imported one is saved as <span class="m" style="font-size:12px;color:#C6C3CC">staging-2</span>; rename it later in Workspace settings.</span></span>
               </div>
             </div>
+            -->
           </div>
           <div style="display:flex;flex-direction:column;gap:10px;min-width:0">
-            <div style="display:flex;align-items:center"><span class="cap">Files</span><span style="flex-grow:1"></span><span class="m" style="font-size:11.5px;color:#8E8996">35 files · <span style="color:#7BE0A0">+35</span></span></div>
+            <div style="display:flex;align-items:center"><span class="cap">Files</span><span style="flex-grow:1"></span><span class="m" style="font-size:11.5px;color:#8E8996">14 files</span></div>
+            <!-- Every file the importer writes, by its path in the workspace, in write order. Method tags, per-file notes and environments are not drawn: the preview does not carry them. -->
+            <div class="c8 box m" style="padding:8px 0;font-size:12px">
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/collection.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/invoices/folder.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/invoices/list-invoices.req.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/invoices/create-invoice.req.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-code"/></svg><span style="color:#F7F4F7">collections/billing-api/invoices/create-invoice.pre.js</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-code"/></svg><span style="color:#F7F4F7">collections/billing-api/invoices/create-invoice.test.js</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/invoices/void-invoice.req.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/customers/folder.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/customers/list-customers.req.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/customers/create-customer.req.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-code"/></svg><span style="color:#F7F4F7">collections/billing-api/customers/create-customer.test.js</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/webhooks/folder.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/webhooks/register-endpoint.req.toml</span></div>
+<div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg><span style="color:#F7F4F7">collections/billing-api/webhooks/remove-endpoint.req.toml</span></div>
+            </div>
+            <!-- The earlier tree view, kept for reference; not drawn by the app.
             <div class="c8 box m" style="padding:8px 0;font-size:12px">
 <div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px 0 14px;white-space:nowrap"><span style="width:10px"></span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-folder"/></svg><span style="color:#C6C3CC">collections/billing-api/</span><span style="flex-grow:1"></span></div>
 <div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px 0 30px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-file"/></svg><span style="color:#F7F4F7">collection.toml</span><span style="flex-grow:1"></span><span style="color:#8E8996">auth, variables</span></div>
@@ -528,6 +554,7 @@ button{font:inherit;white-space:nowrap}
 <div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px 0 30px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-file"/></svg><span style="color:#F7F4F7">sandbox.env.toml</span><span style="flex-grow:1"></span><span style="color:#8E8996">new</span></div>
 <div style="display:flex;align-items:center;gap:7px;height:22px;padding:0 14px 0 30px;white-space:nowrap"><span style="width:10px;color:#7BE0A0">+</span><svg class="ico" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-file"/></svg><span style="color:#F7F4F7">staging-2.env.toml</span><span style="flex-grow:1"></span><span style="color:#FFC23D">was staging</span></div>
             </div>
+            -->
           </div>
         </div>
       </div>

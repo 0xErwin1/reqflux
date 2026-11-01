@@ -494,7 +494,7 @@ impl Shell {
     /// Loads the workspace from disk into the same loaded state, keeping the active
     /// environment, the open requests and their sub-tabs. A failure keeps the loaded
     /// workspace as it was.
-    fn reload_workspace(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn reload_workspace(&mut self, cx: &mut Context<Self>) {
         let OpenedWorkspace::Loaded(engine) = &mut self.workspace else {
             return;
         };
