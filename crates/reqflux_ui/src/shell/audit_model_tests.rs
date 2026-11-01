@@ -94,7 +94,7 @@ fn an_entry_without_a_time_is_always_shown() {
 fn class_and_outcome_narrow_the_rows() {
     let filters = Filters {
         range: Range::Week,
-        class: Some("write"),
+        class: vec!["write"],
         ..Filters::default()
     };
     assert_eq!(
@@ -102,10 +102,32 @@ fn class_and_outcome_narrow_the_rows() {
         ["request_update", "environment_set"]
     );
     let filters = Filters {
-        outcome: Some(Decision::Refused),
+        outcome: vec![Decision::Refused],
         ..filters
     };
     assert_eq!(tools(&log(), &filters), ["environment_set"]);
+}
+
+#[test]
+fn several_classes_or_outcomes_keep_each_of_them() {
+    let filters = Filters {
+        range: Range::Week,
+        class: vec!["execute", "destructive"],
+        ..Filters::default()
+    };
+    assert_eq!(tools(&log(), &filters), ["request_execute", "item_delete"]);
+    let filters = Filters {
+        range: Range::Week,
+        outcome: vec![Decision::Allowed, Decision::Refused],
+        ..Filters::default()
+    };
+    assert_eq!(tools(&log(), &filters).len(), 4);
+    let filters = Filters {
+        class: vec!["write", "destructive"],
+        outcome: vec![Decision::Refused],
+        ..filters
+    };
+    assert_eq!(tools(&log(), &filters), ["item_delete", "environment_set"]);
 }
 
 #[test]
@@ -137,21 +159,20 @@ fn the_filters_are_cleared_back_to_their_defaults() {
     let filters = Filters {
         query: "x".to_owned(),
         range: Range::Week,
-        class: Some("read"),
-        outcome: Some(Decision::Allowed),
+        class: vec!["read"],
+        outcome: vec![Decision::Allowed],
     };
     assert!(filters.is_filtered());
     assert!(!Filters::default().is_filtered());
 }
 
 #[test]
-fn the_selects_offer_all_first() {
-    assert_eq!(CLASSES.first(), Some(&("Class · all", None)));
-    assert_eq!(CLASSES.len(), 5);
-    assert_eq!(OUTCOMES.first(), Some(&("Outcome · all", None)));
+fn the_selects_offer_each_class_and_outcome() {
+    let classes: Vec<&str> = CLASSES.iter().map(|&(_, class)| class).collect();
+    assert_eq!(classes, ["read", "write", "execute", "destructive"]);
     assert_eq!(
-        OUTCOMES.get(2),
-        Some(&("Outcome · refused", Some(Decision::Refused)))
+        OUTCOMES.get(1),
+        Some(&("Refused", "refused", Decision::Refused))
     );
 }
 

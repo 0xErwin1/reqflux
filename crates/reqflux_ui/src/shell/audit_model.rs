@@ -53,29 +53,29 @@ impl Range {
     }
 }
 
-/// The Class select: its labels and the class each keeps, all first.
-pub(crate) const CLASSES: [(&str, Option<&str>); 5] = [
-    ("Class · all", None),
-    ("Class · read", Some("read")),
-    ("Class · write", Some("write")),
-    ("Class · execute", Some("execute")),
-    ("Class · destructive", Some("destructive")),
+/// The Class multi-select: its items' labels and the class each keeps, which is also the
+/// item's value.
+pub(crate) const CLASSES: [(&str, &str); 4] = [
+    ("Read", "read"),
+    ("Write", "write"),
+    ("Execute", "execute"),
+    ("Destructive", "destructive"),
 ];
 
-/// The Outcome select: its labels and the decision each keeps, all first.
-pub(crate) const OUTCOMES: [(&str, Option<Decision>); 3] = [
-    ("Outcome · all", None),
-    ("Outcome · allowed", Some(Decision::Allowed)),
-    ("Outcome · refused", Some(Decision::Refused)),
+/// The Outcome multi-select: its items' labels, values and the decision each keeps.
+pub(crate) const OUTCOMES: [(&str, &str, Decision); 2] = [
+    ("Allowed", "allowed", Decision::Allowed),
+    ("Refused", "refused", Decision::Refused),
 ];
 
-/// The filters of the toolbar.
+/// The filters of the toolbar. An empty class or outcome set keeps every entry, as the
+/// multi-select's `Class · all` says.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Filters {
     pub(crate) query: String,
     pub(crate) range: Range,
-    pub(crate) class: Option<&'static str>,
-    pub(crate) outcome: Option<Decision>,
+    pub(crate) class: Vec<&'static str>,
+    pub(crate) outcome: Vec<Decision>,
 }
 
 impl Filters {
@@ -91,8 +91,8 @@ impl Filters {
             .millis
             .is_none_or(|millis| now - millis <= self.range.millis());
         in_range
-            && self.class.is_none_or(|class| entry.class == class)
-            && self.outcome.is_none_or(|outcome| entry.decision == outcome)
+            && (self.class.is_empty() || self.class.contains(&entry.class.as_str()))
+            && (self.outcome.is_empty() || self.outcome.contains(&entry.decision))
             && searched(entry, &self.query)
     }
 }

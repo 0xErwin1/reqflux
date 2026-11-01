@@ -194,7 +194,8 @@ pub(crate) fn next(mode: PaletteMode) -> PaletteMode {
 
 /// Installs `bolt`, DBFlux's design system, with ReqFlux's brand in `mode`: the bundled
 /// fonts at the default interface size, where a rem is 16 px as in DBFlux, the default
-/// density, and DBFlux's palette drawn with ReqFlux's accent on gpui-component's `Theme`.
+/// density, DBFlux's palette drawn with ReqFlux's accent on gpui-component's `Theme`, and
+/// ReqFlux's answers to `bolt`'s texts ([`crate::strings`]).
 /// [`set_font_size`] then applies the config file's interface size.
 pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
     if !cx.has_global::<gpui_component::theme::Theme>() {
@@ -211,6 +212,7 @@ pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
         cx,
     );
     install_modal_seams(cx);
+    crate::strings::install(cx);
     cx.set_global(bolt::composites::ShellIcons {
         search: bolt::icon::IconSource::Svg(IconName::Search.path()),
         bell: bolt::icon::IconSource::Svg(IconName::Bell.path()),

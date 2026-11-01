@@ -835,9 +835,10 @@ ignored and a missing file is empty. The view reads the log when it opens and on
 (`audit-refresh`). The header shows `audit-title` ("Audit log") and `audit-subtitle`. The
 toolbar has the search field `audit-search` (tool, class, targets, method, URL, reason and
 workspace id, ignoring case), the time range `audit-range` (`audit-range-15m`, `-1h`, `-6h`,
-`-24h` by default, `-7d`; an entry whose time does not parse is always kept), the single
-selects `audit-class` and `audit-outcome` (all, allowed, refused) and, while a filter is set,
-`audit-clear`. Under it, `audit-timeline` draws 48 bars over the range, the refused calls
+`-24h` by default, `-7d`; an entry whose time does not parse is always kept), `bolt`'s
+multi-selects `audit-class` (read, write, execute, destructive) and `audit-outcome` (allowed,
+refused), which keep the entries of any value they hold, all of them when they hold none, and
+say so on their trigger (`Class · all`, `Class · 2`), and, while a filter is set, `audit-clear`. Under it, `audit-timeline` draws 48 bars over the range, the refused calls
 stacked on the others. The table has a row per kept entry, `audit-row-<n>` from 1 at the top:
 `-time` (local), `-class` (badge), `-tool`, `-target` (the method and masked URL of an
 execute, else the target ids, named from the open workspace when the entry is its own),
@@ -1180,7 +1181,7 @@ scrollbars, the code editor) is DBFlux's palette with ReqFlux's accent.
 |-------|------|
 | What `bolt` owns | Everything product-agnostic: color roles and washes, typography roles, spacing, cuts and chrome metrics, the chamfer shape, the theme mapping onto gpui-component, and the components (button, field, select trigger, segmented control, tabs, menu, badge, keycap, banner, checkbox, list row, empty state, modal, splitter, island, status chip). It never names ReqFlux, HTTP or a ReqFlux type. |
 | What ReqFlux passes in | `reqflux_ui::brand::reqflux()`, the `Brand` (cobalt accent fill, hover, pressed, tint, text on accent, app name), and its own tokens in `reqflux_ui::tokens` (method hues, syntax colors, ReqFlux-only widths). |
-| Install | `reqflux_ui::theme::install` loads `bolt`'s bundled fonts (Archivo, Archivo Expanded, JetBrains Mono) at the default interface size (13), so a rem is 16 px and `bolt::tokens` sizes are DBFlux's pixels; then the default density and `bolt::theme::install` with the brand and the mode from `config.toml`. It also installs `bolt`'s modal seams: Escape cancels, Enter confirms, the scroll keys scroll. |
+| Install | `reqflux_ui::theme::install` loads `bolt`'s bundled fonts (Archivo, Archivo Expanded, JetBrains Mono) at the default interface size (13), so a rem is 16 px and `bolt::tokens` sizes are DBFlux's pixels; then the default density and `bolt::theme::install` with the brand and the mode from `config.toml`. It also installs `bolt`'s modal seams: Escape cancels, Enter confirms, the scroll keys scroll; and ReqFlux's translator into `bolt::strings` (`reqflux_ui::strings`), which answers in English every key `bolt`'s surfaces read (dropdown and multi-select, toasts, command palette, chart legend), interpolating `%{name}`, and answers an unknown key with the key itself so a missing one shows instead of rendering blank. A test lists every key `bolt` uses at the pinned rev. |
 | Icons | The Lucide catalog of `gpui-kit-assets` (the one gpui-component bundles), drawn through `bolt`'s `IconSource::Svg`; `reqflux_ui::assets()` is its asset source. |
 | Screens | Use `bolt` roles (`bolt::colors(cx)`, `bolt::brand::brand(cx)`) and components, never gpui-component `Theme` fields or raw colors. A guardrail test rejects color literals and bare pixel values outside `tokens.rs` and `brand.rs`, as DBFlux does. A control `bolt` lacks is added to `bolt` in DBFlux; until then the stand-in carries a `// bolt gap:` comment that says what is missing. |
 | Theme parity | A test compares the gpui-component theme ReqFlux installs with `bolt::theme::install` alone (DBFlux's install) with ReqFlux's brand, in dark and light and after a switch: ReqFlux overrides no field. |

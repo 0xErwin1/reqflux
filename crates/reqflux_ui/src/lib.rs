@@ -4,6 +4,7 @@ mod brand;
 mod open_file;
 mod shell;
 mod startup;
+mod strings;
 mod theme;
 mod tokens;
 mod ui_automation;

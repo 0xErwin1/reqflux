@@ -6,7 +6,8 @@
   has the time, tool, class, decision (allowed or refused), reason, workspace id, target ids
   and, for an execute, the method and masked URL. So there is no actor, environment,
   duration, response, request body, call id or export, and no row for a person's decision.
-  Class and Outcome are single selects (bolt's Dropdown; bolt has no multi-select yet).
+  Class and Outcome are bolt's MultiSelect with a summary trigger: "Class · all" while none is
+  checked, "Class · 2" with two; the open list has a checkbox per value and Clear all.
 -->
 <!--
   ReqFlux main window rebuilt on DBFlux's islands artboard (03-isl-editor.html).

@@ -6,8 +6,8 @@
 
 use std::path::PathBuf;
 
-use bolt::controls::{Dropdown, DropdownItem, DropdownSelectionChanged, InputEvent, InputState};
-use gpui::{AppContext as _, Context, Entity, Subscription, Window};
+use bolt::controls::{DropdownItem, InputEvent, InputState, MultiSelect, MultiSelectChanged};
+use gpui::{AppContext as _, Context, Entity, SharedString, Subscription, Window};
 use gpui_kit_assets::IconName;
 use reqflux_engine::audit::{AuditLog, read_log};
 
@@ -40,8 +40,8 @@ pub(crate) struct AuditView {
 /// The toolbar's stateful controls.
 pub(crate) struct Controls {
     pub(crate) search: Entity<InputState>,
-    pub(crate) class: Entity<Dropdown>,
-    pub(crate) outcome: Entity<Dropdown>,
+    pub(crate) class: Entity<MultiSelect>,
+    pub(crate) outcome: Entity<MultiSelect>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -111,30 +111,30 @@ impl Shell {
         });
     }
 
-    /// Keeps the entries of the Class select's item `index`.
-    pub(super) fn select_audit_class(
-        &mut self,
-        index: usize,
-        _window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(&(_, class)) = CLASSES.get(index) {
-            self.audit.filters.class = class;
-            self.select_item(|controls| &controls.class, index, cx);
-        }
+    /// Keeps the entries of the classes whose values the Class multi-select holds; none keeps
+    /// every class.
+    pub(super) fn select_audit_classes(&mut self, values: &[SharedString], cx: &mut Context<Self>) {
+        self.audit.filters.class = CLASSES
+            .iter()
+            .filter(|(_, class)| values.iter().any(|value| value == class))
+            .map(|&(_, class)| class)
+            .collect();
+        cx.notify();
     }
 
-    /// Keeps the entries of the Outcome select's item `index`.
-    pub(super) fn select_audit_outcome(
+    /// Keeps the entries of the decisions whose values the Outcome multi-select holds; none
+    /// keeps every decision.
+    pub(super) fn select_audit_outcomes(
         &mut self,
-        index: usize,
-        _window: &mut Window,
+        values: &[SharedString],
         cx: &mut Context<Self>,
     ) {
-        if let Some(&(_, outcome)) = OUTCOMES.get(index) {
-            self.audit.filters.outcome = outcome;
-            self.select_item(|controls| &controls.outcome, index, cx);
-        }
+        self.audit.filters.outcome = OUTCOMES
+            .iter()
+            .filter(|(_, value, _)| values.iter().any(|selected| selected == value))
+            .map(|&(_, _, decision)| decision)
+            .collect();
+        cx.notify();
     }
 
     /// Shows the entries of `range`.
@@ -157,42 +157,30 @@ impl Shell {
                 .search
                 .update(cx, |search, cx| search.set_value("", window, cx));
             for select in [&controls.class, &controls.outcome] {
-                select.update(cx, |select, cx| select.set_selected_index(Some(0), cx));
-            }
-        }
-        cx.notify();
-    }
-
-    /// Shows item `index` in the select `which` picks, without a selection event.
-    fn select_item(
-        &self,
-        which: impl Fn(&Controls) -> &Entity<Dropdown>,
-        index: usize,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(controls) = &self.audit.controls {
-            let select = which(controls).clone();
-            if select.read(cx).selected() != Some(index) {
-                select.update(cx, |select, cx| select.set_selected_index(Some(index), cx));
+                select.update(cx, |select, cx| select.set_selected_values(&[], cx));
             }
         }
         cx.notify();
     }
 }
 
-/// The search field and the Class and Outcome selects, subscribed to the shell.
+/// The search field and the Class and Outcome multi-selects, subscribed to the shell.
 fn controls(window: &mut Window, cx: &mut Context<Shell>) -> Controls {
     let search = cx.new(|cx| InputState::new(window, cx).placeholder(SEARCH_PLACEHOLDER));
-    let class = cx.new(|_| {
-        Dropdown::new("audit-class")
-            .items(items(CLASSES.iter().map(|&(label, _)| label)))
-            .selected_index(Some(0))
-            .leading_icon(ui::icon(IconName::SlidersHorizontal))
+    let class = cx.new(|cx| {
+        let mut select = MultiSelect::new("audit-class")
+            .summary("Class")
+            .leading_icon(ui::icon(IconName::SlidersHorizontal));
+        select.set_items(items(CLASSES.iter().copied()), cx);
+        select
     });
-    let outcome = cx.new(|_| {
-        Dropdown::new("audit-outcome")
-            .items(items(OUTCOMES.iter().map(|&(label, _)| label)))
-            .selected_index(Some(0))
+    let outcome = cx.new(|cx| {
+        let mut select = MultiSelect::new("audit-outcome").summary("Outcome");
+        select.set_items(
+            items(OUTCOMES.iter().map(|&(label, value, _)| (label, value))),
+            cx,
+        );
+        select
     });
     let subscriptions = vec![
         cx.subscribe(&search, |this, search, event: &InputEvent, cx| {
@@ -201,20 +189,12 @@ fn controls(window: &mut Window, cx: &mut Context<Shell>) -> Controls {
                 cx.notify();
             }
         }),
-        cx.subscribe_in(
-            &class,
-            window,
-            |this, _, event: &DropdownSelectionChanged, window, cx| {
-                this.select_audit_class(event.index, window, cx);
-            },
-        ),
-        cx.subscribe_in(
-            &outcome,
-            window,
-            |this, _, event: &DropdownSelectionChanged, window, cx| {
-                this.select_audit_outcome(event.index, window, cx);
-            },
-        ),
+        cx.subscribe(&class, |this, _, event: &MultiSelectChanged, cx| {
+            this.select_audit_classes(&event.selected_values, cx);
+        }),
+        cx.subscribe(&outcome, |this, _, event: &MultiSelectChanged, cx| {
+            this.select_audit_outcomes(&event.selected_values, cx);
+        }),
     ];
     Controls {
         search,
@@ -224,6 +204,8 @@ fn controls(window: &mut Window, cx: &mut Context<Shell>) -> Controls {
     }
 }
 
-fn items<'a>(labels: impl Iterator<Item = &'a str>) -> Vec<DropdownItem> {
-    labels.map(DropdownItem::new).collect()
+fn items<'a>(entries: impl Iterator<Item = (&'a str, &'a str)>) -> Vec<DropdownItem> {
+    entries
+        .map(|(label, value)| DropdownItem::with_value(label, value))
+        .collect()
 }

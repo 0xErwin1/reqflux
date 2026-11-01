@@ -13,6 +13,9 @@ use super::draft_tests::{bounds, click, present, render, state_file};
 use crate::workspace_tests::demo_workspace;
 
 const WORKSPACE: &str = "01J00000000000000000000900";
+/// The triggers of the Class and Outcome multi-selects, which show their summaries.
+const CLASS_TRIGGER: &str = "audit-class.ms-trigger-wrap.ms-trigger";
+const OUTCOME_TRIGGER: &str = "audit-outcome.ms-trigger-wrap.ms-trigger";
 
 /// An execute a minute before now and a refused delete two days before.
 fn lines() -> String {
@@ -163,18 +166,11 @@ fn the_range_class_and_outcome_filter_the_rows(cx: &mut TestAppContext) {
     assert_eq!(f.label("audit-row-2-outcome").as_deref(), Some("Refused"));
     assert_eq!(f.label("audit-count").as_deref(), Some("2 events in 7d"));
 
-    let shell = f.shell.clone();
-    f.cx.update(|window, cx| {
-        shell.update(cx, |shell, cx| shell.select_audit_outcome(2, window, cx));
-    });
-    f.cx.run_until_parked();
+    choose(f.cx, &f.shell, |controls| &controls.outcome, &["refused"]);
     assert_eq!(f.label("audit-row-1-tool").as_deref(), Some("item_delete"));
     assert!(bounds(f.cx, "audit-row-2").is_none());
 
-    f.cx.update(|window, cx| {
-        shell.update(cx, |shell, cx| shell.select_audit_class(3, window, cx));
-    });
-    f.cx.run_until_parked();
+    choose(f.cx, &f.shell, |controls| &controls.class, &["execute"]);
     present(f.cx, "audit-no-match");
 
     click(f.cx, "audit-clear");
@@ -183,6 +179,76 @@ fn the_range_class_and_outcome_filter_the_rows(cx: &mut TestAppContext) {
         Some("request_execute")
     );
     assert!(bounds(f.cx, "audit-row-2").is_none(), "back to 24h");
+    assert_eq!(f.label(CLASS_TRIGGER).as_deref(), Some("Class · all"));
+}
+
+#[gpui::test]
+fn several_classes_and_outcomes_can_be_selected(cx: &mut TestAppContext) {
+    let f = fixture(cx, Some(&lines()));
+    click(f.cx, "rail-audit");
+    click(f.cx, "audit-range-7d");
+    assert_eq!(f.label(CLASS_TRIGGER).as_deref(), Some("Class · all"));
+    assert_eq!(f.label(OUTCOME_TRIGGER).as_deref(), Some("Outcome · all"));
+
+    choose(
+        f.cx,
+        &f.shell,
+        |controls| &controls.class,
+        &["execute", "destructive"],
+    );
+    assert_eq!(f.label(CLASS_TRIGGER).as_deref(), Some("Class · 2"));
+    assert_eq!(
+        f.label("audit-row-1-tool").as_deref(),
+        Some("request_execute")
+    );
+    assert_eq!(f.label("audit-row-2-tool").as_deref(), Some("item_delete"));
+    present(f.cx, "audit-clear");
+
+    choose(
+        f.cx,
+        &f.shell,
+        |controls| &controls.outcome,
+        &["allowed", "refused"],
+    );
+    assert_eq!(f.label(OUTCOME_TRIGGER).as_deref(), Some("Outcome · 2"));
+    present(f.cx, "audit-row-2");
+
+    choose(f.cx, &f.shell, |controls| &controls.class, &["write"]);
+    present(f.cx, "audit-no-match");
+
+    choose(f.cx, &f.shell, |controls| &controls.class, &[]);
+    assert_eq!(f.label(CLASS_TRIGGER).as_deref(), Some("Class · all"));
+    present(f.cx, "audit-row-2");
+}
+
+/// Selects `values` in the multi-select `which` picks, emitting the change it emits on a click.
+fn choose(
+    cx: &mut VisualTestContext,
+    shell: &Entity<Shell>,
+    which: impl Fn(&super::audit::Controls) -> &Entity<bolt::controls::MultiSelect>,
+    values: &[&str],
+) {
+    let select = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .audit
+            .controls
+            .as_ref()
+            .map(|controls| which(controls).clone())
+    });
+    let Some(select) = select else {
+        panic!("the audit view has no controls");
+    };
+    let values: Vec<String> = values.iter().map(|value| (*value).to_owned()).collect();
+    cx.update(|_, cx| {
+        select.update(cx, |select, cx| {
+            select.set_selected_values(&values, cx);
+            cx.emit(bolt::controls::MultiSelectChanged {
+                selected_values: select.selected_values(),
+            });
+        });
+    });
+    cx.run_until_parked();
 }
 
 #[gpui::test]
