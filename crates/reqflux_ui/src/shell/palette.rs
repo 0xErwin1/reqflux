@@ -155,7 +155,6 @@ impl Shell {
     }
 }
 
-mod metrics;
 pub(crate) mod model;
 mod view;
 

@@ -793,8 +793,8 @@ and `approval-body` (the first lines); then "Variables it uses" (`approval-varia
 badge and `keyring`). When the call works on another workspace than the open one, or its
 request cannot be read, the box shows `approval-unavailable` (why) with the method, masked URL
 and `approval-targets` the request carries. Then the reason field `approval-reason`, `approval-deny` (`d`),
-`approval-allow-session` (`s`) and `approval-allow` (`a`), each with its key on a keycap
-(`approval-*-key`), and the footnote `approval-footnote`; with nothing pending,
+`approval-allow-session` (`s`) and `approval-allow` (`a`), each with its key on a keycap,
+and the footnote `approval-footnote`; with nothing pending,
 `approvals-empty`. With the list focused `j`/`k` and the arrows move, `a` allows once, `s`
 allows for this session and `d` denies; the reason field sits outside the list, so typing
 never answers. Escape answers
@@ -950,6 +950,25 @@ field and Send 30, result rows 28, body-format footer 36. Pieces `bolt` cannot d
 `// bolt gap:` comment (segmented control ids and counts, debug selectors, the splitter, a
 multi-line editor, a menu check mark).
 
+The views and overlays draw with DBFlux's `bolt` too. The MCP approvals view uses
+`ApprovalsMetrics`, DBFlux's own approvals sizes (pending list 380 wide, 52 px detail title,
+22 px between sections, 14 by 16 payload padding), `ListRow` rows with the selection bar,
+`Badge` for the class and `Pending`, `Kbd`, `Input` for the reason field and `Button` for
+Refresh, Deny, Allow for this session and Allow once. The history tab is a document tab, its
+banner DBFlux's 34 px editor banner, its grid `GridMetrics` (header 40, rows 31); the History
+panel uses the tree's `ShellMetrics` and `TreeMetrics` (header and footer 46, rows 26) and
+`EmptyState`. The command palette is DBFlux's (`PaletteMetrics`: 56 px query row, 38 px rows
+and footer) with document tabs as scope tabs. The settings page draws `Island`s, `ListRow`
+nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox`, `Badge`
+for `file` and `KEYRING`, and `Button`. The workspace and environment menus are
+`menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. Pieces
+`bolt` cannot draw yet carry a `// bolt gap:` comment: ids on `Badge`, `Kbd`, `EmptyState`
+and a `Button`'s keycap (so `approval-*-key` and `history-resend-keycap` are gone until `Kbd`
+takes one), the menu check mark, and the frameless input padding. `reqflux_ui::theme`
+installs `bolt`'s `ModalSeams` as DBFlux's theme does: ReqFlux's modal actions bound in the
+`Modal` key context (Escape cancels, Enter confirms, the arrows, Page Up, Page Down, Home and
+End scroll), the `Esc` keycap and the close button, so every `bolt` modal answers its keys.
+
 An image or HTML response (by `Content-Type`, then PNG, JPEG, GIF or WebP magic bytes) adds
 `Preview` (`response-view-preview`). An image is decoded off the UI thread and drawn at its
 natural size, shrunk to fit and never enlarged, with its size and format
@@ -1097,8 +1116,9 @@ ReqFlux never copies it. ReqFlux is moving to it from `crates/bolt_legacy`, its 
 - **New code uses `bolt`.** A screen moves to `bolt` roles, tokens and components in one
   change; `bolt_legacy` gains nothing. A control `bolt` lacks is added to `bolt` in DBFlux.
 
-What follows describes `bolt_legacy`, which still draws every screen outside the request
-and response panes and the shell chrome:
+What follows describes `bolt_legacy`, which no screen draws with any more apart from the
+document island frame; it is still installed last, so the gpui-component theme is still its
+palette until it is removed:
 
 - **`crates/bolt_legacy`** owns everything product-agnostic: color roles and washes, typography roles,
   spacing, cuts and chrome metrics, the chamfer shape, the theme mapping onto gpui-component,

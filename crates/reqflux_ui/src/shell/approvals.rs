@@ -291,7 +291,7 @@ impl Shell {
     /// Opens the MCP approvals view and gives its list the keyboard.
     pub(super) fn open_approvals(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.approvals.reason.is_none() {
-            let reason = cx.new(|cx| InputState::new(window, cx));
+            let reason = cx.new(|cx| InputState::new(window, cx).placeholder(REASON_PLACEHOLDER));
             self.approvals.reason = Some(reason);
         }
         self.show_panel(Panel::Approvals, cx);

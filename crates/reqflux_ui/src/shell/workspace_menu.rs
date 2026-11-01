@@ -11,10 +11,11 @@
 
 use std::path::Path;
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::{IconButton, Keycap};
-use bolt_legacy::tokens::{border, chrome, cut, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::composites::{ListRow, MenuItem, menu_frame, menu_row, render_separator};
+use bolt::controls::Button;
+use bolt::primitives::{Icon, Kbd, TextVariant};
+use bolt::tokens::{MenuMetrics, ShellMetrics, Spacing};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
     ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, prelude::*,
@@ -22,8 +23,8 @@ use gpui::{
 use reqflux_engine::state::RecentWorkspace;
 
 use super::commands::{CommandId, command, key_label};
+use super::request::ui;
 use super::rows::{labeled_row, part};
-use super::text as text_role;
 use super::workspace_new::IN_REQFLUX;
 use super::{Shell, text_region};
 use crate::tokens;
@@ -84,7 +85,7 @@ impl Action {
     }
 }
 
-/// A clickable action row `id` with `icon` and `label`.
+/// A clickable action row `id`, `bolt`'s menu row with `icon` and `label`.
 pub(super) fn action_row(
     id: &str,
     icon_name: IconName,
@@ -92,23 +93,19 @@ pub(super) fn action_row(
     action: Action,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    text_role::role(labeled_row(id.to_owned(), label.to_owned()), text::BODY, cx)
-        .role(Role::MenuItem)
-        .flex()
-        .items_center()
-        .gap(space::MD)
-        .h(tokens::ENVIRONMENT_OPTION)
-        .pl(space::MD)
-        .pr(space::MD)
-        .cursor_pointer()
-        .hover(|style| style.bg(colors.hover))
-        .child(Icon::new(icon_name).size(icon::MD).color(colors.muted))
-        .child(label)
-        .on_click(cx.listener(move |this, _event, window, cx| action.run(this, window, cx)))
+    menu_row(
+        id.to_owned(),
+        &MenuItem::new(label).icon(ui::icon(icon_name)),
+        false,
+        cx,
+    )
+    .aria_label(label)
+    .on_click(cx.listener(move |this, _event, window, cx| action.run(this, window, cx)))
 }
 
 /// A menu action row, followed by the key of the command `key` runs, `<id>-keycap`.
+// bolt gap: menu_row draws its shortcut as plain text without an element id, and Kbd takes
+// none, so the keycap is a Kbd in a wrapper that carries `<id>-keycap`.
 fn menu_action(
     id: &str,
     icon_name: IconName,
@@ -119,15 +116,16 @@ fn menu_action(
 ) -> Stateful<Div> {
     let row = action_row(id, icon_name, label, action, cx);
     match key.and_then(command) {
-        Some(command) => row.child(div().flex_1()).child(Keycap::new(
-            format!("{id}-keycap"),
-            command
-                .key
-                .split('-')
-                .map(key_label)
-                .collect::<Vec<_>>()
-                .join(" "),
-        )),
+        Some(command) => row.child(
+            ui::tagged(format!("{id}-keycap")).child(Kbd::new(
+                command
+                    .key
+                    .split('-')
+                    .map(key_label)
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            )),
+        ),
         None => row,
     }
 }
@@ -158,14 +156,14 @@ fn failable_recent_row(
     failure: Option<&str>,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let n = index + 1;
     let label = format!("{} {}", recent.name, failure.unwrap_or(&detail));
     let lead = match failure {
         Some(_) => part(format!("{prefix}-recent-failed-{n}")).child(
-            Icon::new(IconName::TriangleAlert)
-                .size(icon::MD)
+            Icon::new(ui::icon(IconName::TriangleAlert))
+                .size(MenuMetrics::ICON)
                 .color(colors.danger),
         ),
         None => {
@@ -175,31 +173,37 @@ fn failable_recent_row(
                 IconName::Folder
             };
             let color = if current { tint } else { colors.muted };
-            part(format!("{prefix}-recent-icon-{n}"))
-                .child(Icon::new(name).size(icon::MD).color(color))
+            part(format!("{prefix}-recent-icon-{n}")).child(
+                Icon::new(ui::icon(name))
+                    .size(MenuMetrics::ICON)
+                    .color(color),
+            )
         }
     };
     let detail_line = match failure {
-        Some(error) => text_role::role(
+        Some(error) => ui::role(
             part(format!("{prefix}-error")).role(Role::Label),
-            text::CAPTION,
+            TextVariant::Caption,
             cx,
         )
+        .text_size(MenuMetrics::DETAIL_FONT)
         .aria_label(error.to_owned())
         .text_color(colors.danger)
         .child(error.to_owned()),
-        None => text_role::role(
+        None => ui::role(
             part(format!("{prefix}-recent-detail-{n}")),
-            text::CAPTION,
+            TextVariant::Caption,
             cx,
         )
+        .text_size(MenuMetrics::DETAIL_FONT)
         .child(detail),
     };
-    let open = text_role::role(
+    let open = ui::role(
         labeled_row(format!("{prefix}-recent-{n}"), label),
-        text::BODY,
+        TextVariant::Body,
         cx,
     )
+    .text_size(MenuMetrics::ROW_FONT)
     .role(Role::MenuItem)
     .aria_selected(current)
     .flex_1()
@@ -218,41 +222,35 @@ fn failable_recent_row(
     )
     .child(detail_line.overflow_hidden().whitespace_nowrap())
     .on_click(cx.listener(move |this, _event, window, cx| this.open_recent(index, window, cx)));
-    let remove = IconButton::new(
-        format!("{prefix}-recent-remove-{n}"),
-        IconName::Close,
-        "Remove",
-    )
-    .on_click(cx.listener(move |this, _event, _window, cx| this.remove_recent(index, cx)));
-    div()
-        .relative()
+    let remove = Button::new(format!("{prefix}-recent-remove-{n}"), "Remove")
+        .ghost()
+        .inline()
+        .icon(ui::icon(IconName::Close))
+        .icon_only()
+        .on_click(cx.listener(move |this, _event, _window, cx| this.remove_recent(index, cx)));
+    ListRow::new(format!("{prefix}-recent-row-{n}"))
+        .selected(current)
+        .selection_bar(true)
+        .build(cx)
         .flex()
+        .flex_shrink_0()
         .items_center()
-        .gap(space::SM)
-        .h(tokens::WORKSPACE_RECENT_ROW)
-        .pl(space::MD)
-        .pr(space::SM)
-        .hover(|style| style.bg(colors.hover))
+        .gap(MenuMetrics::ROW_GAP)
+        .h(MenuMetrics::DETAIL_ROW_HEIGHT)
+        .pl(MenuMetrics::ROW_PADDING_X)
+        .pr(Spacing::SM)
         .when(failure.is_some(), |row| {
-            row.bg(tokens::failed_recent_wash(colors.danger))
-        })
-        .when(current, |row| {
-            row.bg(bolt_legacy::accent_washes(cx).selected_item).child(
-                div()
-                    .absolute()
-                    .top_0()
-                    .bottom_0()
-                    .left_0()
-                    .w(border::THICK)
-                    .bg(tint),
-            )
+            row.bg(colors.danger.opacity(ShellMetrics::FAILURE_ALPHA))
         })
         .child(lead)
         .child(open)
         .when(current, |row| {
             row.child(
-                part(format!("{prefix}-recent-current-{n}"))
-                    .child(Icon::new(IconName::Check).size(icon::MD).color(tint)),
+                part(format!("{prefix}-recent-current-{n}")).child(
+                    Icon::new(ui::icon(IconName::Check))
+                        .size(MenuMetrics::ICON)
+                        .color(tint),
+                ),
             )
         })
         .when(failure.is_some(), |row| {
@@ -266,32 +264,12 @@ fn failable_recent_row(
 }
 
 /// `Retry` with element id `id`: opens the recent workspace at `index` again.
-fn retry_button(id: &str, index: usize, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    text_role::role(
-        labeled_row(id.to_owned(), RETRY.to_owned()),
-        text::BODY_SMALL,
-        cx,
-    )
-    .role(Role::Button)
-    .relative()
-    .flex_none()
-    .flex()
-    .items_center()
-    .gap(space::XS)
-    .h(chrome::CONTROL_INLINE)
-    .pl(space::SM)
-    .pr(space::SM)
-    .cursor_pointer()
-    .text_color(colors.foreground)
-    .child(Chamfer::new(cut::KEYCAP).fill(colors.raised))
-    .child(
-        Icon::new(IconName::RefreshCw)
-            .size(icon::SM)
-            .color(colors.muted),
-    )
-    .child(RETRY)
-    .on_click(cx.listener(move |this, _event, window, cx| this.open_recent(index, window, cx)))
+fn retry_button(id: &str, index: usize, cx: &mut Context<Shell>) -> Button {
+    Button::new(id.to_owned(), RETRY)
+        .secondary()
+        .inline()
+        .icon(ui::icon(IconName::RefreshCw))
+        .on_click(cx.listener(move |this, _event, window, cx| this.open_recent(index, window, cx)))
 }
 
 /// Whether `recent` is the workspace at `current`.
@@ -301,50 +279,62 @@ pub(super) fn is_current(recent: &RecentWorkspace, current: Option<&Path>) -> bo
 
 /// The error of the last workspace that did not open, as `workspace-error`.
 pub(super) fn error_label(error: &str, cx: &App) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
-    text_role::role(text_region("workspace-error"), text::BODY_SMALL, cx)
+    let colors = bolt::colors(cx);
+    ui::role(text_region("workspace-error"), TextVariant::BodySm, cx)
         .aria_label(error.to_owned())
-        .pl(space::MD)
-        .pr(space::MD)
-        .py(space::HALF)
+        .pl(MenuMetrics::HEADER_PADDING_X)
+        .pr(MenuMetrics::HEADER_PADDING_X)
+        .py(Spacing::XS)
         .text_color(colors.danger)
         .child(error.to_owned())
 }
 
 /// The header, `workspace-menu-header`, in capitals, with the legend of the row icons,
-/// `workspace-legend`, when there are recents.
+/// `workspace-legend`, when there are recents: `bolt`'s menu header geometry.
 fn header(legend: bool, cx: &App) -> impl IntoElement {
-    let muted = bolt_legacy::colors(cx).muted;
-    let title = text_role::role(
+    let muted = bolt::colors(cx).muted;
+    let title = ui::role(
         labeled_row("workspace-menu-header".to_owned(), HEADER.to_owned()),
-        text::LABEL,
+        TextVariant::Label,
         cx,
     )
     .child(HEADER.to_uppercase());
     div()
         .flex()
+        .flex_shrink_0()
         .items_center()
-        .pl(space::MD)
-        .pr(space::MD)
-        .py(space::HALF)
+        .gap(MenuMetrics::HEADER_GAP)
+        .pt(MenuMetrics::HEADER_PADDING_TOP)
+        .pb(MenuMetrics::HEADER_PADDING_BOTTOM)
+        .pl(MenuMetrics::HEADER_PADDING_X)
+        .pr(MenuMetrics::HEADER_PADDING_X)
         .child(title)
         .child(div().flex_1())
         .when(legend, |row| {
             row.child(
-                text_role::role(
+                ui::role(
                     labeled_row(
                         "workspace-legend".to_owned(),
                         format!("folder · {}", IN_REQFLUX.to_lowercase()),
                     ),
-                    text::CAPTION,
+                    TextVariant::Caption,
                     cx,
                 )
+                .text_size(MenuMetrics::HEADER_FONT)
                 .flex()
                 .items_center()
-                .gap(space::XS)
-                .child(Icon::new(IconName::Folder).size(icon::SM).color(muted))
+                .gap(Spacing::XS)
+                .child(
+                    Icon::new(ui::icon(IconName::Folder))
+                        .size(MenuMetrics::HEADER_ICON)
+                        .color(muted),
+                )
                 .child("folder ·")
-                .child(Icon::new(IconName::LayoutGrid).size(icon::SM).color(muted))
+                .child(
+                    Icon::new(ui::icon(IconName::LayoutGrid))
+                        .size(MenuMetrics::HEADER_ICON)
+                        .color(muted),
+                )
                 .child(IN_REQFLUX.to_lowercase()),
             )
         })
@@ -352,30 +342,19 @@ fn header(legend: bool, cx: &App) -> impl IntoElement {
 
 /// A line between groups of the menu.
 fn separator(cx: &App) -> Div {
-    div()
-        .h(border::THIN)
-        .bg(bolt_legacy::colors(cx).line)
-        .my(space::HALF)
+    render_separator(cx)
 }
 
 /// The open menu, drawn above the islands and anchored under the selector, over a backdrop
 /// the size of the window that closes it on a click outside.
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    let mut menu = super::region("workspace-menu")
+    let mut menu = menu_frame(cx)
+        .id("workspace-menu")
+        .debug_selector(|| "workspace-menu".to_owned())
         .role(Role::Menu)
         .track_focus(&shell.workspace_menu_focus)
         .occlude()
-        .relative()
         .w(tokens::WORKSPACE_MENU_WIDTH)
-        .py(space::HALF)
-        .flex()
-        .flex_col()
-        .child(
-            Chamfer::new(cut::OVERLAY)
-                .fill(colors.raised)
-                .edge(colors.line_2, border::THIN),
-        )
         .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" && !this.cancel_new_workspace(window, cx) {
                 this.close_workspace_menu(window, cx);
@@ -450,15 +429,15 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         ));
     }
     menu = menu.child(
-        text_role::role(
+        ui::role(
             labeled_row("workspace-menu-note".to_owned(), FOOTER_NOTE.to_owned()),
-            text::CAPTION,
+            TextVariant::Caption,
             cx,
         )
-        .pl(space::MD)
-        .pr(space::MD)
-        .pt(space::SM)
-        .pb(space::HALF)
+        .text_size(MenuMetrics::DETAIL_FONT)
+        .pl(MenuMetrics::HEADER_PADDING_X)
+        .pr(MenuMetrics::HEADER_PADDING_X)
+        .py(Spacing::XS)
         .child(FOOTER_NOTE),
     );
     let backdrop = super::region("workspace-menu-backdrop")

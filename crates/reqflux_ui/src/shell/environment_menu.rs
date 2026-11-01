@@ -1,17 +1,18 @@
-//! The environment menu under the title bar environment button: an `ENVIRONMENTS` header, a
-//! `No environment` row, then the workspace environments by name. Clicking a row makes it the
-//! window's active environment; Escape or a click outside closes the menu.
+//! The environment menu under the title bar environment button: `bolt`'s menu frame with an
+//! `ENVIRONMENTS` header, a `No environment` row, then the workspace environments by name.
+//! Clicking a row makes it the window's active environment; Escape or a click outside closes
+//! the menu.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{border, cut, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::composites::{MenuItem, menu_frame, menu_row, render_menu_header};
+use bolt::primitives::Icon;
+use bolt::tokens::MenuMetrics;
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, InteractiveElement, IntoElement, KeyDownEvent, MouseButton, ParentElement,
     Point, Role, Styled, Window, anchored, deferred, div, prelude::*,
 };
 
-use super::rows::labeled_row;
-use super::text as text_role;
+use super::request::ui;
 use super::title_bar::ENVIRONMENT_PLACEHOLDER;
 use super::{Shell, region};
 use crate::tokens;
@@ -33,47 +34,29 @@ fn environments(workspace: &OpenedWorkspace) -> Vec<(String, String)> {
 }
 
 /// The row that makes `slug` active, `None` being No environment.
+// bolt gap: menu_row has no check mark, so the selected row adds the check here, drawn as
+// the row draws its icons; pass it to `MenuItem` once it takes one.
 fn option(
     slug: Option<String>,
     name: String,
     selected: bool,
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let tint = bolt::brand::brand(cx).accent_tint;
     // `environment-none` cannot collide with an environment, whose slug may well be `none`.
     let id = slug.as_deref().map_or_else(
         || "environment-none".to_owned(),
         |slug| format!("environment-option-{slug}"),
     );
-    text_role::role(labeled_row(id, name.clone()), text::BODY, cx)
-        .role(Role::MenuItem)
+    menu_row(id, &MenuItem::new(name.clone()), selected, cx)
+        .aria_label(name)
         .aria_selected(selected)
-        .relative()
-        .flex()
-        .items_center()
-        .gap(space::MD)
-        .h(tokens::ENVIRONMENT_OPTION)
-        .pl(space::MD)
-        .pr(space::MD)
-        .cursor_pointer()
-        .hover(|style| style.bg(colors.hover))
         .when(selected, |row| {
-            row.bg(bolt_legacy::accent_washes(cx).selected_item)
-                .text_color(colors.strong)
-                .child(
-                    div()
-                        .absolute()
-                        .top_0()
-                        .bottom_0()
-                        .left_0()
-                        .w(border::THICK)
-                        .bg(tint),
-                )
-        })
-        .child(div().flex_1().min_w_0().overflow_hidden().child(name))
-        .when(selected, |row| {
-            row.child(Icon::new(IconName::Check).size(icon::MD).color(tint))
+            row.child(
+                Icon::new(ui::icon(IconName::Check))
+                    .size(MenuMetrics::ICON)
+                    .color(tint),
+            )
         })
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.close_environment_menu(window, cx);
@@ -85,29 +68,15 @@ fn option(
 /// the size of the window that closes it on a click outside. The backdrop also covers the
 /// button, so a click on it closes the menu instead of reopening it.
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
     let active = shell.active_environment.as_deref();
-    let mut menu = region("environment-menu")
+    let mut menu = menu_frame(cx)
+        .id("environment-menu")
+        .debug_selector(|| "environment-menu".to_owned())
         .role(Role::Menu)
         .track_focus(&shell.environment_menu_focus)
         .occlude()
-        .relative()
         .w(tokens::ENVIRONMENT_MENU_WIDTH)
-        .py(space::HALF)
-        .flex()
-        .flex_col()
-        .child(
-            Chamfer::new(cut::OVERLAY)
-                .fill(colors.raised)
-                .edge(colors.line_2, border::THIN),
-        )
-        .child(
-            text_role::role(div(), text::LABEL, cx)
-                .pl(space::MD)
-                .pr(space::MD)
-                .py(space::HALF)
-                .child("ENVIRONMENTS"),
-        )
+        .child(render_menu_header(&MenuItem::header("ENVIRONMENTS"), cx))
         .child(option(
             None,
             ENVIRONMENT_PLACEHOLDER.to_owned(),

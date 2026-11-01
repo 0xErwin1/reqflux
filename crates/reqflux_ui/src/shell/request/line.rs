@@ -269,21 +269,3 @@ fn send(id: &str, cx: &mut Context<Shell>) -> Div {
                 .on_click(cx.listener(move |this, _event, window, cx| this.send(&id, window, cx))),
         )
 }
-
-/// The `Ctrl ↵` keycap on an accent button, for the screens still on `bolt_legacy`; the
-/// request and response panes use `bolt::controls::Button::kbd`.
-pub(crate) fn accent_keycap() -> Div {
-    use bolt_legacy::chamfer::Chamfer;
-    use bolt_legacy::tokens::{cut, family};
-    div()
-        .relative()
-        .pl(tokens::KEYCAP_PADDING_X)
-        .pr(tokens::KEYCAP_PADDING_X)
-        .py(tokens::KEYCAP_PADDING_Y)
-        .font_family(family::MONO)
-        .text_size(tokens::SMALL_MONO_TEXT)
-        .font_weight(FontWeight::NORMAL)
-        .text_color(tokens::keycap_on_accent_text())
-        .child(Chamfer::new(cut::KEYCAP).fill(tokens::keycap_on_accent_fill()))
-        .child("Ctrl ↵")
-}

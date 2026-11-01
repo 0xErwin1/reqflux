@@ -469,29 +469,3 @@ fn enable_box(
 pub(crate) fn secret() -> Badge {
     Badge::new("SECRET", BadgeTone::Neutral).icon(ui::icon(IconName::Lock))
 }
-
-/// The SECRET badge for the screens still on `bolt_legacy`; the request panes use
-/// [`secret`].
-pub(crate) fn secret_badge(colors: &bolt_legacy::tokens::Colors) -> Div {
-    use bolt_legacy::Icon;
-    use bolt_legacy::chamfer::Chamfer;
-    use bolt_legacy::tokens::{cut, family, space};
-    div()
-        .relative()
-        .flex()
-        .items_center()
-        .gap(space::XS)
-        .pl(space::HALF)
-        .pr(space::HALF)
-        .font_family(family::INTERFACE)
-        .text_size(tokens::BADGE_TEXT)
-        .font_weight(FontWeight::BOLD)
-        .text_color(colors.muted)
-        .child(Chamfer::new(cut::KEYCAP).fill(colors.raised))
-        .child(
-            Icon::new(IconName::Lock)
-                .size(tokens::BADGE_TEXT)
-                .color(colors.muted),
-        )
-        .child("SECRET")
-}

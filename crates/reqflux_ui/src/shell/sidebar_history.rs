@@ -7,22 +7,27 @@
 //! entry's history tab. The filter narrows the rows already loaded, by name, URL or status;
 //! its text field lives in the window's element state under [`FILTER_KEY`], so it lasts while
 //! the panel is on screen.
+//!
+//! It draws with DBFlux's `bolt` as the collection tree does: the sidebar's `ShellMetrics`
+//! header (46), filter and footer (46), rows as `ListRow` at `TreeMetrics` (26), and
+//! `EmptyState` for the panel without sends.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{Colors, border, chrome, cut, family, field, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::Colors;
+use bolt::composites::{EmptyState, ListRow};
+use bolt::controls::{GpuiInput, InputState};
+use bolt::primitives::{Chamfer, Icon, TextVariant};
+use bolt::tokens::{ChamferCut, Fields, HeaderMetrics, ShellMetrics, Spacing, TreeMetrics};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Hsla, IntoElement, ParentElement, RenderOnce,
     Role, Styled, Window, div, prelude::*,
 };
-use gpui_component::input::{Input, InputState};
 
-use super::request::StatusClass;
+use super::request::{StatusClass, ui};
 use super::rows::{labeled_row, part};
-use super::sidebar::Sidebar;
-use super::{region, text as text_role, text_region};
-use crate::tokens::{self, method_color};
+use super::sidebar::{Sidebar, keycap};
+use super::{region, text_region};
+use crate::tokens::{self, method_hue};
 
 /// The title of the History panel without entries.
 pub(crate) const EMPTY: &str = "No requests sent yet";
@@ -166,22 +171,30 @@ impl Sidebar {
     pub(super) fn history_panel(&self, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let header = region("history-header")
             .flex_none()
-            .h(tokens::SIDEBAR_HEADER)
+            .h(ShellMetrics::SIDEBAR_HEADER_HEIGHT)
             .flex()
             .items_center()
-            .pl(space::LG)
-            .pr(space::MD)
-            .child(text_role::role(text_region("history-label"), text::LABEL, cx).child("HISTORY"));
+            .gap(HeaderMetrics::PANEL_GAP)
+            .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+            .pr(HeaderMetrics::PANEL_PADDING_RIGHT)
+            .child(
+                ui::role(text_region("history-label"), TextVariant::Label, cx)
+                    .text_size(ShellMetrics::SECTION_LABEL_FONT)
+                    .child("HISTORY"),
+            );
         if self.history.is_empty() {
             return vec![header.into_any_element(), empty(cx).into_any_element()];
         }
-        let footer = text_role::role(text_region("history-footer"), text::CAPTION, cx)
+        let footer = text_region("history-footer")
             .flex_none()
-            .h(tokens::SIDEBAR_FOOTER)
+            .h(ShellMetrics::SIDEBAR_FOOTER_HEIGHT)
             .flex()
             .items_center()
-            .pl(space::LG)
-            .pr(space::LG)
+            .pl(ShellMetrics::SIDEBAR_FOOTER_PADDING_X)
+            .pr(ShellMetrics::SIDEBAR_FOOTER_PADDING_X)
+            .font_family(bolt::fonts::ui_family(cx))
+            .text_size(ShellMetrics::SIDEBAR_FOOTER_FONT)
+            .text_color(bolt::colors(cx).muted)
             .whitespace_nowrap()
             .child(sends_text(self.history.len()));
         vec![
@@ -196,54 +209,49 @@ impl Sidebar {
     }
 }
 
-/// The empty state: the History icon on a raised square, the title, the explanation and the
-/// send hint with its keycap.
+/// The empty state, `bolt`'s `EmptyState` with the History icon, the title and the
+/// explanation, over the send hint with its keycap.
+// bolt gap: EmptyState takes no element id and its parts and action keys none either, so the
+// title, text and hint carry their ids on labeled nodes beside it, and the hint draws its
+// action as EmptyState draws one.
 fn empty(cx: &App) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     region("history-empty")
         .flex_1()
         .flex()
         .flex_col()
         .items_center()
         .justify_center()
-        .gap(space::MD)
-        .pl(space::XL)
-        .pr(space::XL)
+        .gap(Spacing::MD)
+        .pl(Spacing::XL)
+        .pr(Spacing::XL)
         .child(
             div()
                 .relative()
-                .size(chrome::CONTROL_LARGE)
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(Chamfer::new(cut::LARGE_CONTROL).fill(colors.raised))
+                .flex_none()
+                .child(EmptyState::new(ui::icon(IconName::RotateCcwClock), EMPTY_TEXT).title(EMPTY))
                 .child(
-                    Icon::new(IconName::RotateCcwClock)
-                        .size(tokens::HISTORY_EMPTY_ICON)
-                        .color(colors.muted),
+                    text_region("history-empty-title")
+                        .absolute()
+                        .inset_0()
+                        .aria_label(EMPTY),
+                )
+                .child(
+                    text_region("history-empty-text")
+                        .absolute()
+                        .inset_0()
+                        .aria_label(EMPTY_TEXT),
                 ),
         )
         .child(
-            text_role::role(text_region("history-empty-title"), text::BODY, cx)
-                .aria_label(EMPTY)
-                .text_color(colors.strong)
-                .font_weight(FontWeight::SEMIBOLD)
-                .child(EMPTY),
-        )
-        .child(
-            text_role::role(text_region("history-empty-text"), text::CAPTION, cx)
-                .aria_label(EMPTY_TEXT)
-                .text_center()
-                .child(EMPTY_TEXT),
-        )
-        .child(
-            text_role::role(text_region("history-empty-hint"), text::CAPTION, cx)
+            ui::role(text_region("history-empty-hint"), TextVariant::Caption, cx)
                 .aria_label(EMPTY_HINT)
                 .flex()
                 .items_center()
-                .gap(space::HALF)
+                .gap(Spacing::XXS)
+                .text_color(colors.foreground)
                 .child(EMPTY_HINT)
-                .child(Keycap::new("history-empty-hint-keycap", "Ctrl ↵")),
+                .child(keycap("history-empty-hint-keycap", "Ctrl ↵")),
         )
 }
 
@@ -270,10 +278,10 @@ impl RenderOnce for HistoryList {
             .flex_col();
         if groups.is_empty() {
             list = list.child(
-                text_role::role(text_region("history-no-match"), text::CAPTION, cx)
+                ui::role(text_region("history-no-match"), TextVariant::Caption, cx)
                     .aria_label(NO_MATCH)
-                    .pl(space::LG)
-                    .pr(space::LG)
+                    .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+                    .pr(HeaderMetrics::PANEL_PADDING_LEFT)
                     .child(NO_MATCH),
             );
         }
@@ -295,14 +303,17 @@ impl RenderOnce for HistoryList {
     }
 }
 
-/// The filter field, `history-filter`: the search icon and the text field on the field well.
+/// The filter field, `history-filter`, drawn as the tree's filter: the search icon and the
+/// text field on the field well.
+// bolt gap: bolt's Input without its appearance keeps gpui-component's padding and text size,
+// so the field draws its frame around a frameless input.
 fn filter(input: &Entity<InputState>, cx: &App) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     div()
         .flex_none()
-        .pl(space::MD)
-        .pr(space::MD)
-        .pb(tokens::SIDEBAR_FILTER_BOTTOM)
+        .pl(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
+        .pr(ShellMetrics::SIDEBAR_FILTER_PADDING_X)
+        .pb(ShellMetrics::SIDEBAR_FILTER_PADDING_BOTTOM)
         .child(
             region("history-filter")
                 .role(Role::TextInput)
@@ -310,29 +321,30 @@ fn filter(input: &Entity<InputState>, cx: &App) -> impl IntoElement {
                 .relative()
                 .flex()
                 .items_center()
-                .gap(field::GAP)
-                .h(chrome::CONTROL)
-                .pl(field::PADDING_X)
-                .pr(field::PADDING_X)
-                .font_family(family::INTERFACE)
-                .text_size(field::FONT)
+                .gap(Fields::GAP)
+                .h(Fields::HEIGHT)
+                .pl(Fields::PADDING_X)
+                .pr(Fields::PADDING_X)
+                .font_family(bolt::fonts::ui_family(cx))
+                .text_size(Fields::TEXT)
                 .child(
-                    Chamfer::new(cut::CONTROL)
+                    Chamfer::new(ChamferCut::CONTROL)
                         .fill(colors.background)
-                        .edge(colors.line, border::THIN),
+                        .border(colors.line),
                 )
                 .child(
-                    Icon::new(IconName::Search)
-                        .size(icon::MD)
+                    Icon::new(ui::icon(IconName::Search))
+                        .size(ShellMetrics::SIDEBAR_FILTER_ICON)
                         .color(colors.muted),
                 )
                 .child(
-                    Input::new(input)
+                    GpuiInput::new(input)
                         .appearance(false)
                         .bordered(false)
+                        .p_0()
                         .flex_1()
                         .min_w_0()
-                        .text_size(field::FONT)
+                        .text_size(Fields::TEXT)
                         .text_color(colors.foreground),
                 ),
         )
@@ -342,25 +354,27 @@ fn filter(input: &Entity<InputState>, cx: &App) -> impl IntoElement {
 /// `history-group-<n>-count`.
 fn group_label(n: usize, group: &Group<'_>, cx: &App) -> impl IntoElement {
     let count = group.rows.len().to_string();
-    text_role::role(
+    ui::role(
         labeled_row(format!("history-group-{n}"), group.day.to_owned()),
-        text::LABEL,
+        TextVariant::Label,
         cx,
     )
+    .text_size(ShellMetrics::SECTION_LABEL_FONT)
     .flex_none()
-    .h(tokens::HISTORY_GROUP_ROW)
     .flex()
     .items_center()
-    .pl(space::LG)
-    .pr(space::LG)
+    .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+    .pr(HeaderMetrics::PANEL_PADDING_LEFT)
+    .pt(HeaderMetrics::LABEL_PADDING_TOP)
+    .pb(HeaderMetrics::LABEL_PADDING_BOTTOM)
     .child(group.day.to_owned())
     .child(div().flex_1())
     .child(
         part(format!("history-group-{n}-count"))
             .role(Role::Label)
             .aria_label(count.clone())
-            .font_family(family::MONO)
-            .text_size(tokens::TREE_COUNT_SIZE)
+            .font_family(bolt::fonts::editor_family(cx))
+            .text_size(TreeMetrics::META_FONT)
             .font_weight(FontWeight::NORMAL)
             .child(count),
     )
@@ -370,11 +384,11 @@ fn group_label(n: usize, group: &Group<'_>, cx: &App) -> impl IntoElement {
 /// with `-deleted` when the request no longer exists), the time `-time` and the status
 /// `-status` in its class color.
 fn history_row(n: usize, row: &HistoryRow, sidebar: &Entity<Sidebar>, cx: &App) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let id = format!("history-row-{n}");
     let status = row.status_text();
     let status_color = row.status.map_or(colors.danger, |code| {
-        class_color(StatusClass::of(code), colors)
+        class_color(StatusClass::of(code), &colors)
     });
     let name = part(format!("{id}-name"))
         .role(Role::Label)
@@ -394,64 +408,63 @@ fn history_row(n: usize, row: &HistoryRow, sidebar: &Entity<Sidebar>, cx: &App) 
         .child(row.name.clone());
     let entry = row.entry;
     let sidebar = sidebar.clone();
-    let hover = colors.hover;
-    let selected = bolt_legacy::accent_washes(cx).selected_item;
-    text_role::role(
-        labeled_row(id.clone(), format!("{} · {}", row.text(), row.time)),
-        text::BODY,
-        cx,
-    )
-    .flex_none()
-    .h(chrome::TREE_ROW)
-    .flex()
-    .items_center()
-    .gap(tokens::TREE_ROW_GAP)
-    .pl(space::LG)
-    .pr(space::LG)
-    .whitespace_nowrap()
-    .cursor_pointer()
-    .when(row.selected, |element| element.bg(selected))
-    .hover(|style| style.bg(hover))
-    .child(
-        part(format!("{id}-method"))
-            .role(Role::Label)
-            .aria_label(row.method.clone())
-            .flex_none()
-            .w(tokens::TREE_METHOD_COLUMN)
-            .font_family(family::MONO)
-            .text_size(tokens::METHOD_LABEL_SIZE)
-            .font_weight(FontWeight::BOLD)
-            .text_color(method_color(&row.method, bolt_legacy::palette(cx)))
-            .child(row.method.clone()),
-    )
-    .child(name)
-    .child(
-        part(format!("{id}-time"))
-            .role(Role::Label)
-            .aria_label(row.time.clone())
-            .flex_none()
-            .font_family(family::MONO)
-            .text_size(tokens::TREE_COUNT_SIZE)
-            .text_color(colors.muted)
-            .child(row.time.clone()),
-    )
-    .child(
-        part(format!("{id}-status"))
-            .role(Role::Label)
-            .aria_label(status.clone())
-            .flex_none()
-            .w(tokens::HISTORY_STATUS_COLUMN)
-            .text_right()
-            .font_family(family::MONO)
-            .text_size(tokens::TREE_COUNT_SIZE)
-            .font_weight(FontWeight::SEMIBOLD)
-            .text_color(status_color)
-            .child(status),
-    )
-    .on_click(move |_event, _window, cx| {
-        sidebar.update(cx, |_, cx| cx.emit(OpenHistory(entry)));
-    })
-    .into_any_element()
+    let mono = bolt::fonts::editor_family(cx);
+    let element = ListRow::new(id.clone())
+        .selected(row.selected)
+        .selection_bar(true)
+        .build(cx)
+        .role(Role::Label)
+        .aria_label(format!("{} · {}", row.text(), row.time))
+        .aria_selected(row.selected);
+    ui::role(element, TextVariant::Body, cx)
+        .flex_none()
+        .h(TreeMetrics::ROW_HEIGHT)
+        .flex()
+        .items_center()
+        .gap(TreeMetrics::GAP)
+        .pl(TreeMetrics::PADDING_X)
+        .pr(TreeMetrics::PADDING_X)
+        .whitespace_nowrap()
+        .child(
+            part(format!("{id}-method"))
+                .role(Role::Label)
+                .aria_label(row.method.clone())
+                .flex_none()
+                .w(tokens::TREE_METHOD_COLUMN)
+                .font_family(mono.clone())
+                .text_size(tokens::METHOD_LABEL_SIZE)
+                .font_weight(FontWeight::BOLD)
+                .text_color(method_hue(&row.method, cx))
+                .child(row.method.clone()),
+        )
+        .child(name)
+        .child(
+            part(format!("{id}-time"))
+                .role(Role::Label)
+                .aria_label(row.time.clone())
+                .flex_none()
+                .font_family(mono.clone())
+                .text_size(TreeMetrics::META_FONT)
+                .text_color(colors.muted)
+                .child(row.time.clone()),
+        )
+        .child(
+            part(format!("{id}-status"))
+                .role(Role::Label)
+                .aria_label(status.clone())
+                .flex_none()
+                .w(tokens::HISTORY_STATUS_COLUMN)
+                .text_right()
+                .font_family(mono)
+                .text_size(TreeMetrics::META_FONT)
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(status_color)
+                .child(status),
+        )
+        .on_click(move |_event, _window, cx| {
+            sidebar.update(cx, |_, cx| cx.emit(OpenHistory(entry)));
+        })
+        .into_any_element()
 }
 
 /// The color of a status class.

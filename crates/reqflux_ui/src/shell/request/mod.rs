@@ -23,8 +23,7 @@ pub(super) mod spans;
 pub(super) mod sub_tabs;
 pub(super) mod ui;
 
-pub(crate) use grid::secret_badge;
-pub(crate) use line::accent_keycap;
+pub(crate) use grid::secret;
 #[cfg(test)]
 pub(crate) use model::count;
 pub(crate) use model::{RequestState, SubTab};

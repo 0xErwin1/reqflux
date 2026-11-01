@@ -3,94 +3,38 @@
 //! beside the rail: a header row with the workspace and `settings-close`, the section nav
 //! island (`settings-nav`) and the content island with the section title, the environment
 //! list in the Environments section and the variables column of [`super::variables_document`].
+//!
+//! It draws with DBFlux's `bolt`: `Island`s on the desk, the breadcrumb sizes of
+//! `NavigationMetrics`, nav entries and environment rows as `ListRow`, `Button` and `Input`.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::IconButton;
-use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName, Island};
+use bolt::composites::{Island, ListRow};
+use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape};
+use bolt::primitives::{Chamfer, ChamferRing, Icon, TextVariant};
+use bolt::tokens::{
+    Borders, ChamferCut, Fields, HeaderMetrics, Heights, IslandMetrics, MasterListMetrics,
+    NavigationMetrics, ShellMetrics, Spacing, TreeMetrics,
+};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, InteractiveElement, IntoElement, ParentElement,
-    Pixels, Role, Stateful, Styled, Window, div, prelude::*, transparent_black,
+    Role, Stateful, Styled, Window, div, prelude::*,
 };
-use gpui_component::input::{Enter, Escape, Input};
 use reqflux_core::model::{Id, Workspace};
 use reqflux_engine::SecretScope;
 
-use super::request::option_menu;
+use super::request::{option_menu, ui};
 use super::rows::labeled_row;
 use super::settings_page::Section;
 use super::variables_model::{
     ScopeEntry, collections, environments, scope_file, scope_name, variable_count,
 };
-use super::{Shell, region, text as text_role, text_region, variables_document};
+use super::{Shell, region, text_region, variables_document};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
 
 /// The note at the foot of the nav.
 const RESOLUTION: &str =
     "Resolution order: Globals, collection, environment. Current values win over initial ones.";
-
-/// The tone of a page button.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ButtonTone {
-    /// Filled with the accent.
-    Primary,
-    /// On the raised fill.
-    Neutral,
-    /// Danger on its wash, with a danger edge.
-    Danger,
-}
-
-/// The button `id`, `height` tall, with `icon` and `label`; the caller adds the click.
-pub(super) fn button(
-    id: &str,
-    icon_name: Option<IconName>,
-    label: &'static str,
-    tone: ButtonTone,
-    height: Pixels,
-    cx: &App,
-) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let brand = bolt_legacy::brand(cx);
-    let (chamfer, color, weight) = match tone {
-        ButtonTone::Primary => (
-            Chamfer::new(cut::CONTROL).fill(brand.accent),
-            brand.on_accent,
-            FontWeight::BOLD,
-        ),
-        ButtonTone::Neutral => (
-            Chamfer::new(cut::CONTROL).fill(colors.raised),
-            colors.foreground,
-            FontWeight::MEDIUM,
-        ),
-        ButtonTone::Danger => (
-            Chamfer::new(cut::CONTROL)
-                .fill(tokens::wash(colors.danger, tokens::APPROVAL_DENY_WASH))
-                .edge(colors.danger, border::THIN),
-            colors.danger,
-            FontWeight::SEMIBOLD,
-        ),
-    };
-    labeled_row(id.to_owned(), label.to_owned())
-        .role(Role::Button)
-        .relative()
-        .flex_none()
-        .flex()
-        .items_center()
-        .gap(space::SM)
-        .h(height)
-        .pl(space::MD)
-        .pr(space::MD)
-        .cursor_pointer()
-        .font_family(family::INTERFACE)
-        .text_size(tokens::REQUEST_LINE_TEXT)
-        .font_weight(weight)
-        .text_color(color)
-        .whitespace_nowrap()
-        .child(chamfer)
-        .children(icon_name.map(|name| Icon::new(name).size(icon::MD).color(color)))
-        .child(label)
-}
 
 /// The page, `settings-page`.
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
@@ -116,8 +60,8 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
                 .flex_1()
                 .min_h_0()
                 .flex()
-                .gap(chrome::ISLAND_GAP)
-                .pb(chrome::ISLAND_GAP)
+                .gap(IslandMetrics::GAP)
+                .pb(IslandMetrics::GAP)
                 .child(
                     Island::new()
                         .flex_none()
@@ -130,16 +74,11 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .into_any_element()
 }
 
-/// The header row: `Workspace settings` › the workspace and its path, and the close button.
+/// The header row, a breadcrumb: `Workspace settings` › the workspace and its path, and the
+/// close button.
 fn header(shell: &Shell, workspace: &Workspace, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
-    let (strong, foreground, muted, line_2) = (
-        colors.strong,
-        colors.foreground,
-        colors.muted,
-        colors.line_2,
-    );
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let path = shell
         .workspace_path
         .as_ref()
@@ -148,29 +87,37 @@ fn header(shell: &Shell, workspace: &Workspace, cx: &mut Context<Shell>) -> Div 
     let name = workspace.manifest.name.clone();
     div()
         .flex_none()
-        .h(tokens::SETTINGS_HEADER)
+        .h(HeaderMetrics::PANEL_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pl(space::SM)
-        .child(Icon::new(IconName::Settings).size(icon::ITEM).color(tint))
+        .gap(NavigationMetrics::BREADCRUMB_GAP)
+        .pl(Spacing::SM)
+        .text_size(NavigationMetrics::BREADCRUMB_FONT)
         .child(
-            text_role::role(text_region("settings-title"), text::BODY, cx)
+            Icon::new(ui::icon(IconName::Settings))
+                .size(NavigationMetrics::BREADCRUMB_ICON)
+                .color(tint),
+        )
+        .child(
+            ui::role(text_region("settings-title"), TextVariant::Body, cx)
                 .aria_label("Workspace settings")
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(strong)
+                .text_color(colors.strong)
                 .child("Workspace settings"),
         )
         .child(
-            Icon::new(IconName::ChevronRight)
-                .size(icon::SM)
-                .color(line_2),
+            Icon::new(ui::icon(IconName::ChevronRight))
+                .size(NavigationMetrics::BREADCRUMB_CHEVRON)
+                .color(colors.line_2),
         )
-        .child(Icon::new(IconName::LayoutGrid).size(icon::CHIP).color(tint))
+        .child(
+            Icon::new(ui::icon(IconName::LayoutGrid))
+                .size(NavigationMetrics::BREADCRUMB_ICON)
+                .color(tint),
+        )
         .child(
             labeled_row("settings-workspace".to_owned(), name.clone())
-                .text_size(tokens::REQUEST_LINE_TEXT)
-                .text_color(foreground)
+                .text_color(colors.foreground)
                 .child(name),
         )
         .child(
@@ -178,14 +125,17 @@ fn header(shell: &Shell, workspace: &Workspace, cx: &mut Context<Shell>) -> Div 
                 .min_w_0()
                 .overflow_hidden()
                 .whitespace_nowrap()
-                .font_family(family::MONO)
-                .text_size(tokens::SETTINGS_PATH_TEXT)
-                .text_color(muted)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(NavigationMetrics::BREADCRUMB_META_FONT)
+                .text_color(colors.muted)
                 .child(path),
         )
         .child(div().flex_1())
         .child(
-            IconButton::new("settings-close", IconName::Close, "Close settings")
+            Button::new("settings-close", "Close settings")
+                .ghost()
+                .icon(ui::icon(IconName::Close))
+                .icon_only()
                 .on_click(cx.listener(|this, _event, window, cx| this.close_settings(window, cx))),
         )
 }
@@ -216,7 +166,6 @@ fn nav(workspace: &Workspace, section: Section, cx: &mut Context<Shell>) -> Stat
         .size_full()
         .flex()
         .flex_col()
-        .pt(space::SM)
         .child(caption("WORKSPACE", cx))
         .child(nav_entry(
             "variables-scope-globals".to_owned(),
@@ -240,20 +189,22 @@ fn nav(workspace: &Workspace, section: Section, cx: &mut Context<Shell>) -> Stat
         .children(entries)
         .child(div().flex_1())
         .child(
-            text_role::role(div(), text::CAPTION, cx)
-                .p(space::LG)
-                .pt(space::MD)
-                .pb(space::MD)
+            ui::role(div(), TextVariant::Caption, cx)
+                .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+                .pr(HeaderMetrics::PANEL_PADDING_LEFT)
+                .py(Spacing::MD)
                 .child(RESOLUTION),
         )
 }
 
+/// A section caption of the nav, as the sidebar draws its section labels.
 fn caption(label: &'static str, cx: &App) -> Div {
-    text_role::role(div(), text::LABEL, cx)
-        .pt(space::MD)
-        .pb(space::HALF)
-        .pl(space::LG)
-        .pr(space::LG)
+    ui::role(div(), TextVariant::Label, cx)
+        .text_size(ShellMetrics::SECTION_LABEL_FONT)
+        .pt(HeaderMetrics::LABEL_PADDING_TOP)
+        .pb(HeaderMetrics::LABEL_PADDING_BOTTOM)
+        .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+        .pr(HeaderMetrics::PANEL_PADDING_LEFT)
         .child(label)
 }
 
@@ -266,31 +217,28 @@ fn nav_entry(
     target: Section,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
-    let wash = bolt_legacy::accent_washes(cx).selected_item;
-    let (hover, strong, muted) = (colors.hover, colors.strong, colors.muted);
-    text_role::role(labeled_row(id, format!("{name} {count}")), text::BODY, cx)
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
+    let element = ListRow::new(id)
+        .selected(active)
+        .selection_bar(true)
+        .build(cx)
         .role(Role::Link)
-        .aria_selected(active)
+        .aria_label(format!("{name} {count}"))
+        .aria_selected(active);
+    ui::role(element, TextVariant::Body, cx)
         .flex_none()
-        .h(tokens::SETTINGS_NAV_ITEM)
+        .h(Heights::TOOLBAR)
         .flex()
         .items_center()
-        .gap(space::MD)
-        .pl(space::LG)
-        .pr(space::LG)
-        .border_l(border::THICK)
-        .border_color(transparent_black())
-        .cursor_pointer()
-        .hover(move |style| style.bg(hover))
-        .when(active, |entry| {
-            entry.bg(wash).border_color(tint).text_color(strong)
-        })
+        .gap(TreeMetrics::GAP)
+        .pl(HeaderMetrics::PANEL_PADDING_LEFT)
+        .pr(HeaderMetrics::PANEL_PADDING_LEFT)
+        .when(active, |entry| entry.text_color(colors.strong))
         .child(
-            Icon::new(icon_name)
-                .size(icon::ITEM)
-                .color(if active { tint } else { muted }),
+            Icon::new(ui::icon(icon_name))
+                .size(TreeMetrics::ICON)
+                .color(if active { tint } else { colors.muted }),
         )
         .child(
             div()
@@ -302,9 +250,9 @@ fn nav_entry(
         )
         .child(
             div()
-                .font_family(family::MONO)
-                .text_size(tokens::SETTINGS_COUNT_TEXT)
-                .text_color(muted)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(TreeMetrics::META_FONT)
+                .text_color(colors.muted)
                 .child(count.to_string()),
         )
         .on_click(cx.listener(move |this, _event, window, cx| {
@@ -340,27 +288,27 @@ fn content(
              stay on this machine. Secrets live in the OS keyring.",
         ),
     };
-    let line = bolt_legacy::colors(cx).line;
+    let colors = bolt::colors(cx);
     let title = div()
         .flex_none()
         .flex()
         .flex_col()
-        .gap(space::XS)
-        .pt(tokens::SETTINGS_TITLE_TOP)
-        .pl(tokens::SETTINGS_TITLE_INSET)
-        .pr(tokens::SETTINGS_TITLE_INSET)
-        .pb(tokens::SETTINGS_TITLE_BOTTOM)
-        .border_b(border::THIN)
-        .border_color(line)
+        .gap(HeaderMetrics::SECTION_GAP)
+        .pt(HeaderMetrics::SECTION_PADDING_TOP)
+        .pl(HeaderMetrics::SECTION_PADDING_X)
+        .pr(HeaderMetrics::SECTION_PADDING_X)
+        .pb(Spacing::MD)
+        .border_b(Borders::THIN)
+        .border_color(colors.line)
         .child(
-            text_role::role(text_region("settings-heading"), text::TITLE, cx)
+            ui::role(text_region("settings-heading"), TextVariant::Title, cx)
                 .aria_label(heading.clone())
                 .child(heading),
         )
         .child(
-            text_role::role(text_region("settings-description"), text::BODY, cx)
+            ui::role(text_region("settings-description"), TextVariant::Body, cx)
                 .aria_label(description)
-                .text_color(bolt_legacy::colors(cx).muted)
+                .text_color(colors.muted)
                 .child(description),
         );
     let variables = match scope {
@@ -369,11 +317,15 @@ fn content(
             let file = scope_file(workspace, scope).unwrap_or_default();
             variables_document::render(shell, scope, &name, &file, cx)
         }
-        None => text_role::role(text_region("variables-no-environment"), text::CAPTION, cx)
-            .aria_label("No environments yet")
-            .p(tokens::VARIABLES_PANEL_INSET)
-            .child("No environments yet")
-            .into_any_element(),
+        None => ui::role(
+            text_region("variables-no-environment"),
+            TextVariant::Caption,
+            cx,
+        )
+        .aria_label("No environments yet")
+        .p(tokens::VARIABLES_PANEL_INSET)
+        .child("No environments yet")
+        .into_any_element(),
     };
     let list = matches!(section, Section::Environments(_))
         .then(|| environment_list(shell, workspace, section, window, cx));
@@ -396,19 +348,19 @@ fn content(
 /// The error of the last failed write, `variables-error`, in the danger tone, or the warning
 /// of the last one that succeeded, `variables-warning`.
 fn message(shell: &Shell, cx: &App) -> Option<AnyElement> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let (id, message, color) = match (&shell.settings.error, &shell.settings.warning) {
         (Some(error), _) => ("variables-error", error.clone(), colors.danger),
         (None, Some(warning)) => ("variables-warning", warning.clone(), colors.warning),
         (None, None) => return None,
     };
     Some(
-        text_role::role(text_region(id), text::CAPTION, cx)
+        ui::role(text_region(id), TextVariant::Caption, cx)
             .aria_label(message.clone())
             .flex_none()
-            .pt(space::SM)
-            .pl(tokens::SETTINGS_TITLE_INSET)
-            .pr(tokens::SETTINGS_TITLE_INSET)
+            .pt(Spacing::SM)
+            .pl(HeaderMetrics::SECTION_PADDING_X)
+            .pr(HeaderMetrics::SECTION_PADDING_X)
             .text_color(color)
             .child(message)
             .into_any_element(),
@@ -424,7 +376,7 @@ fn environment_list(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let line = bolt_legacy::colors(cx).line;
+    let line = bolt::colors(cx).line;
     let selected = match section {
         Section::Environments(id) => id,
         Section::Globals | Section::Collection(_) => None,
@@ -441,21 +393,16 @@ fn environment_list(
         .h_full()
         .flex()
         .flex_col()
-        .border_r(border::THIN)
+        .border_r(Borders::THIN)
         .border_color(line)
         .child(
-            div().flex_none().p(space::MD).child(
-                button(
-                    "variables-new-environment",
-                    Some(IconName::Plus),
-                    "New environment",
-                    ButtonTone::Primary,
-                    chrome::CONTROL,
-                    cx,
-                )
-                .on_click(cx.listener(|this, _event, window, cx| {
-                    this.new_environment(window, cx);
-                })),
+            div().flex_none().p(Spacing::MD).child(
+                Button::new("variables-new-environment", "New environment")
+                    .primary()
+                    .icon(ui::icon(IconName::Plus))
+                    .on_click(cx.listener(|this, _event, window, cx| {
+                        this.new_environment(window, cx);
+                    })),
             ),
         )
         .children(prompt)
@@ -479,105 +426,86 @@ fn environment_row(
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let id = entry.id;
-    let divider = bolt_legacy::colors(cx).row_divider;
+    let colors = bolt::colors(cx);
     if let Some(field) = rename_field(shell, id, cx) {
         return div()
             .flex_none()
             .flex()
             .flex_col()
-            .gap(space::HALF)
-            .pt(space::SM)
-            .pb(space::SM)
-            .pl(tokens::SETTINGS_ENVIRONMENT_INSET)
-            .pr(tokens::SETTINGS_ENVIRONMENT_INSET)
-            .border_b(border::THIN)
-            .border_color(divider)
+            .pl(MasterListMetrics::ROW_PADDING_X)
+            .pr(MasterListMetrics::ROW_PADDING_X)
+            .py(Spacing::SM)
+            .border_b(Borders::THIN)
+            .border_color(colors.row_divider)
             .child(field)
             .into_any_element();
     }
     let active = selected == Some(id);
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
-    let wash = bolt_legacy::accent_washes(cx).selected_item;
-    let (hover, strong, muted) = (colors.hover, colors.strong, colors.muted);
     let meta = format!("{} · {}.env.toml", variable_count(entry.count), entry.slug);
-    let menu_button = super::rows::part(format!("variables-scope-menu-{id}"))
-        .role(Role::Button)
-        .aria_label(format!("Actions for {}", entry.name))
-        .flex_none()
-        .cursor_pointer()
-        .child(Icon::new(IconName::Ellipsis).size(icon::MD).color(muted))
-        .on_click(
-            cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
-                cx.stop_propagation();
-                this.open_settings_menu(id, event.position(), window, cx);
-            }),
-        );
+    let menu_button = Button::new(
+        gpui::ElementId::Name(format!("variables-scope-menu-{id}").into()),
+        format!("Actions for {}", entry.name),
+    )
+    .icon(ui::icon(IconName::Ellipsis))
+    .icon_only()
+    .inline()
+    .ghost()
+    .tab_stop(false)
+    .on_click(
+        cx.listener(move |this, event: &gpui::ClickEvent, window, cx| {
+            cx.stop_propagation();
+            this.open_settings_menu(id, event.position(), window, cx);
+        }),
+    );
     let menu = (shell.settings.menu == Some(id)).then(|| environment_menu(shell, id, window, cx));
-    text_role::role(
-        labeled_row(
-            format!("variables-scope-environment-{id}"),
-            entry.name.clone(),
-        ),
-        text::BODY,
-        cx,
-    )
+    let element = ListRow::new(gpui::ElementId::Name(
+        format!("variables-scope-environment-{id}").into(),
+    ))
+    .selected(active)
+    .selection_bar(true)
+    .build(cx)
     .role(Role::ListItem)
-    .aria_selected(active)
-    .relative()
-    .flex_none()
-    .flex()
-    .flex_col()
-    .gap(space::XS)
-    .pt(space::SM)
-    .pb(space::SM)
-    .pl(tokens::SETTINGS_ENVIRONMENT_INSET)
-    .pr(tokens::SETTINGS_ENVIRONMENT_INSET)
-    .border_b(border::THIN)
-    .border_color(divider)
-    .cursor_pointer()
-    .hover(move |style| style.bg(hover))
-    // The left edge marks the selected environment, as the nav marks its section.
-    .when(active, |row| {
-        row.bg(wash).child(
+    .aria_label(entry.name.clone())
+    .aria_selected(active);
+    ui::role(element, TextVariant::Body, cx)
+        .flex_none()
+        .flex()
+        .flex_col()
+        .gap(MasterListMetrics::ROW_LINE_GAP)
+        .pl(MasterListMetrics::ROW_PADDING_X)
+        .pr(MasterListMetrics::ROW_PADDING_X)
+        .py(MasterListMetrics::ROW_PADDING_Y)
+        .border_b(Borders::THIN)
+        .border_color(colors.row_divider)
+        .child(
             div()
-                .absolute()
-                .left_0()
-                .top_0()
-                .bottom_0()
-                .w(border::THICK)
-                .bg(tint),
+                .flex()
+                .items_center()
+                .gap(Spacing::SM)
+                .text_color(colors.strong)
+                .font_weight(FontWeight::SEMIBOLD)
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .overflow_hidden()
+                        .whitespace_nowrap()
+                        .child(entry.name.clone()),
+                )
+                .child(menu_button)
+                .children(menu),
         )
-    })
-    .child(
-        div()
-            .flex()
-            .items_center()
-            .gap(space::SM)
-            .text_color(strong)
-            .font_weight(FontWeight::SEMIBOLD)
-            .child(
-                div()
-                    .flex_1()
-                    .min_w_0()
-                    .overflow_hidden()
-                    .whitespace_nowrap()
-                    .child(entry.name.clone()),
-            )
-            .child(menu_button)
-            .children(menu),
-    )
-    .child(
-        labeled_row(format!("variables-environment-meta-{id}"), meta.clone())
-            .font_family(family::MONO)
-            .text_size(tokens::SETTINGS_ENVIRONMENT_META_TEXT)
-            .text_color(muted)
-            .child(meta),
-    )
-    .on_click(cx.listener(move |this, _event, window, cx| {
-        this.select_settings_section(Section::Environments(Some(id)), window, cx);
-    }))
-    .into_any_element()
+        .child(
+            labeled_row(format!("variables-environment-meta-{id}"), meta.clone())
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(MasterListMetrics::ROW_DETAIL_FONT)
+                .text_color(colors.muted)
+                .child(meta),
+        )
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            this.select_settings_section(Section::Environments(Some(id)), window, cx);
+        }))
+        .into_any_element()
 }
 
 /// The `…` menu of the environment `id`: Rename and Delete environment….
@@ -610,14 +538,16 @@ fn environment_menu(shell: &Shell, id: Id, window: &Window, cx: &mut Context<She
 }
 
 /// The rename field of the environment `id`, `variables-rename-input`, over its hint.
+// bolt gap: bolt's Input without its appearance keeps gpui-component's padding and text size,
+// so the field draws its focused frame around a frameless input, as the tree's rename does.
 fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
     let rename = shell
         .settings
         .rename
         .as_ref()
         .filter(|rename| rename.id == id)?;
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let hint = format!(
         "Enter renames {} and its file · Esc cancels",
         rename.original
@@ -625,40 +555,47 @@ fn rename_field(shell: &Shell, id: Id, cx: &mut Context<Shell>) -> Option<Div> {
     let field = region("variables-rename-input")
         .role(Role::TextInput)
         .relative()
-        .h(tokens::SETTINGS_ENVIRONMENT_FIELD)
+        .h(Fields::HEIGHT)
         .flex()
         .items_center()
-        .pl(space::HALF)
-        .pr(space::HALF)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
         .child(
-            Chamfer::new(cut::CONTROL)
+            Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.background)
-                .edge(tint, border::FOCUS_RING),
+                .border(colors.line)
+                .ring(ChamferRing::focus(tint)),
         )
-        .on_action(cx.listener(|this, _: &Enter, window, cx| {
+        .on_action(cx.listener(|this, _: &InputEnter, window, cx| {
             this.commit_environment_rename(window, cx);
         }))
-        .on_action(cx.listener(|this, _: &Escape, window, cx| {
+        .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.cancel_environment_rename(window, cx);
         }))
         .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
             this.commit_environment_rename(window, cx);
         }))
         .child(
-            Input::new(&rename.input)
+            GpuiInput::new(&rename.input)
                 .appearance(false)
                 .bordered(false)
+                .p_0()
                 .flex_1()
                 .min_w_0()
-                .font_family(family::MONO)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(Fields::TEXT)
                 .text_color(colors.strong),
         );
     Some(
-        div().flex().flex_col().gap(space::HALF).child(field).child(
-            text_role::role(text_region("variables-rename-hint"), text::CAPTION, cx)
-                .aria_label(hint.clone())
-                .text_size(tokens::SETTINGS_ENVIRONMENT_META_TEXT)
-                .child(hint),
+        div().flex().flex_col().gap(Spacing::XS).child(field).child(
+            ui::role(
+                text_region("variables-rename-hint"),
+                TextVariant::Caption,
+                cx,
+            )
+            .aria_label(hint.clone())
+            .text_size(MasterListMetrics::ROW_DETAIL_FONT)
+            .child(hint),
         ),
     )
 }
@@ -674,60 +611,47 @@ fn environment_delete_prompt(
     let name = entries.iter().find(|entry| entry.id == id)?.name.clone();
     let question = format!("Delete environment \"{name}\"?");
     let detail = "Its file is deleted. Keyring entries of its secrets stay.";
-    let colors = bolt_legacy::colors(cx);
-    let (divider, strong) = (colors.row_divider, colors.strong);
+    let colors = bolt::colors(cx);
     Some(
-        text_role::role(div(), text::BODY, cx)
+        ui::role(div(), TextVariant::Body, cx)
             .flex_none()
             .flex()
             .flex_col()
-            .gap(space::SM)
-            .p(tokens::SETTINGS_ENVIRONMENT_INSET)
-            .border_b(border::THIN)
-            .border_color(divider)
+            .gap(Spacing::SM)
+            .pl(MasterListMetrics::ROW_PADDING_X)
+            .pr(MasterListMetrics::ROW_PADDING_X)
+            .py(MasterListMetrics::ROW_PADDING_Y)
+            .border_b(Borders::THIN)
+            .border_color(colors.row_divider)
             .child(
                 region("variables-delete-prompt")
                     .role(Role::Dialog)
                     .aria_label(question.clone())
                     .flex()
                     .flex_col()
-                    .gap(space::XS)
-                    .child(div().text_color(strong).child(question))
-                    .child(text_role::role(div(), text::CAPTION, cx).child(detail)),
+                    .gap(Spacing::XS)
+                    .child(div().text_color(colors.strong).child(question))
+                    .child(ui::role(div(), TextVariant::Caption, cx).child(detail)),
             )
             .child(
                 div()
                     .flex()
-                    .gap(space::HALF)
+                    .gap(Spacing::XXS)
                     .child(
-                        button(
-                            "variables-delete-confirm",
-                            None,
-                            "Delete",
-                            ButtonTone::Danger,
-                            chrome::CONTROL_INLINE,
-                            cx,
-                        )
-                        .on_click(cx.listener(
-                            |this, _event, window, cx| {
+                        Button::new("variables-delete-confirm", "Delete")
+                            .danger()
+                            .inline()
+                            .on_click(cx.listener(|this, _event, window, cx| {
                                 this.confirm_environment_delete(window, cx);
-                            },
-                        )),
+                            })),
                     )
                     .child(
-                        button(
-                            "variables-delete-cancel",
-                            None,
-                            "Cancel",
-                            ButtonTone::Neutral,
-                            chrome::CONTROL_INLINE,
-                            cx,
-                        )
-                        .on_click(cx.listener(
-                            |this, _event, window, cx| {
+                        Button::new("variables-delete-cancel", "Cancel")
+                            .secondary()
+                            .inline()
+                            .on_click(cx.listener(|this, _event, window, cx| {
                                 this.cancel_environment_delete(window, cx);
-                            },
-                        )),
+                            })),
                     ),
             ),
     )

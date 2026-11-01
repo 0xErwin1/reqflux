@@ -168,7 +168,12 @@ fn ctrl_p_and_the_search_field_open_it_and_a_click_outside_closes_it(cx: &mut Te
     click(cx, "command-search");
     assert!(is_open(cx, &shell));
     assert!(input_focused(cx, &shell));
-    click(cx, "palette-backdrop");
+    // The palette, at DBFlux's sizes, covers the middle of the window: click the backdrop
+    // below it.
+    let panel = present(cx, "palette");
+    let below = gpui::point(panel.center().x, panel.bottom() + gpui::px(20.0));
+    cx.simulate_click(below, gpui::Modifiers::none());
+    cx.run_until_parked();
     assert!(!is_open(cx, &shell));
     assert!(bounds(cx, "palette").is_none());
 }

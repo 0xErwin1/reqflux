@@ -9,14 +9,19 @@
 //! The list carries the [`APPROVALS_CONTEXT`] keys: `j`/`k` and the arrows move, `a` allows
 //! once, `s` allows for this session and `d` denies. The reason field sits outside it, so
 //! typing never answers. Every value shown is cut and stripped of control characters.
+//!
+//! It draws with DBFlux's `bolt`: the document `Island`, `DocumentMetrics` for the header,
+//! `ApprovalsMetrics` (DBFlux's own approvals view) with `ListRow` for the pending rows,
+//! `Badge`, `Kbd` and `Button`.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{border, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName, Island};
+use bolt::composites::{Island, ListRow};
+use bolt::controls::Button;
+use bolt::primitives::{Badge, BadgeTone, Icon, Kbd, TextVariant};
+use bolt::tokens::{ApprovalsMetrics, Borders, DocumentMetrics};
+use bolt_legacy::IconName;
 use gpui::{
-    AnyElement, App, Context, FontWeight, Hsla, InteractiveElement, IntoElement, ParentElement,
-    Role, Styled, div, prelude::*,
+    AnyElement, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Role, Styled,
+    div, prelude::*,
 };
 use reqflux_engine::approvals::ApprovalDecision;
 
@@ -26,9 +31,10 @@ use super::approvals::{
 };
 use super::approvals_model::{class_label, client_name, waiting_label};
 use super::history::now_millis;
+use super::request::ui;
 use super::rows::{labeled_row, part};
-use super::{Shell, approvals_detail, region, tabs, text as text_role, text_region};
-use crate::tokens::{self, method_color, wash};
+use super::{Shell, approvals_detail, region, tabs, text_region};
+use crate::tokens::method_hue;
 
 /// The view's title and subtitle.
 pub(crate) const TITLE: &str = "MCP approvals";
@@ -37,50 +43,39 @@ const SUBTITLE: &str = "agent calls that a policy parked for a person";
 /// The footer of the list, after its `j` and `k` keycaps.
 const FOOTER: &str = "move · decisions go to the audit log";
 
-/// The color of the class `class`: read is info, write and execute warning, destructive
+/// The tone of the class `class`: read is info, write and execute warning, destructive
 /// danger.
-pub(super) fn class_color(class: &str, cx: &App) -> Hsla {
-    let colors = bolt_legacy::colors(cx);
+pub(super) fn class_tone(class: &str) -> BadgeTone {
     match class {
-        "read" => colors.info,
-        "destructive" => colors.danger,
-        _ => colors.warning,
+        "read" => BadgeTone::Info,
+        "destructive" => BadgeTone::Danger,
+        _ => BadgeTone::Warning,
     }
 }
 
-/// A badge `id` printing `label` in `color` on its wash at `alpha`, cut at the keycap size.
-pub(super) fn badge(id: String, label: String, color: Hsla, alpha: f32) -> AnyElement {
+/// `bolt`'s badge printing `label` in `tone`, found by tests as `id`.
+// bolt gap: Badge takes no element id, so a labeled wrapper carries it.
+pub(super) fn badge(id: String, label: String, tone: BadgeTone) -> AnyElement {
     labeled_row(id, label.clone())
         .flex_none()
-        .relative()
-        .flex()
-        .items_center()
-        .h(tokens::APPROVAL_BADGE)
-        .pl(space::HALF)
-        .pr(space::HALF)
-        .font_family(family::INTERFACE)
-        .text_size(tokens::APPROVAL_BADGE_TEXT)
-        .font_weight(FontWeight::SEMIBOLD)
-        .text_color(color)
-        .whitespace_nowrap()
-        .child(Chamfer::new(cut::KEYCAP).fill(wash(color, alpha)))
-        .child(div().relative().child(label))
+        .child(Badge::new(label, tone))
         .into_any_element()
 }
 
 /// The badge of `class`, element id `id`.
-pub(super) fn class_badge(id: String, class: &str, cx: &App) -> AnyElement {
-    badge(
-        id,
-        class_label(class),
-        class_color(class, cx),
-        tokens::APPROVAL_BADGE_WASH,
-    )
+pub(super) fn class_badge(id: String, class: &str) -> AnyElement {
+    badge(id, class_label(class), class_tone(class))
+}
+
+/// `bolt`'s keycap `key`, found by tests as `id`.
+// bolt gap: Kbd takes no element id, so a wrapper carries it.
+pub(super) fn keycap(id: impl Into<String>, key: &'static str) -> AnyElement {
+    ui::tagged(id).child(Kbd::new(key)).into_any_element()
 }
 
 /// The view in the document island.
 pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
-    let line = bolt_legacy::colors(cx).line;
+    let line = bolt::colors(cx).line;
     region("approvals-view").flex_1().min_w_0().h_full().child(
         Island::new()
             .size_full()
@@ -91,7 +86,7 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement
                     .flex_1()
                     .min_h_0()
                     .flex()
-                    .border_t(border::THIN)
+                    .border_t(Borders::THIN)
                     .border_color(line)
                     .child(list(shell, cx))
                     .child(approvals_detail::render(shell, cx)),
@@ -101,30 +96,33 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement
 
 /// The header: the Bot icon, the title, the subtitle and Refresh.
 fn header(cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
-    let hover = colors.hover;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     div()
         .flex_none()
-        .h(tokens::APPROVALS_HEADER)
+        .h(DocumentMetrics::HEADER_HEIGHT)
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pl(space::MD)
-        .pr(space::MD)
-        .border_t(border::THIN)
+        .gap(DocumentMetrics::GAP)
+        .pl(DocumentMetrics::PADDING_X)
+        .pr(DocumentMetrics::PADDING_X)
+        .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(Icon::new(IconName::Bot).size(icon::LG).color(tint))
         .child(
-            text_role::role(text_region("approvals-title"), text::BODY, cx)
+            Icon::new(ui::icon(IconName::Bot))
+                .size(DocumentMetrics::TITLE_ICON)
+                .color(tint),
+        )
+        .child(
+            ui::role(text_region("approvals-title"), TextVariant::Body, cx)
                 .aria_label(TITLE)
-                .text_size(tokens::APPROVALS_TITLE_TEXT)
+                .text_size(DocumentMetrics::TITLE_FONT)
                 .font_weight(FontWeight::BOLD)
                 .text_color(colors.strong)
                 .child(TITLE),
         )
         .child(
-            text_role::role(text_region("approvals-subtitle"), text::BODY, cx)
+            ui::role(text_region("approvals-subtitle"), TextVariant::Body, cx)
                 .aria_label(SUBTITLE)
                 .text_color(colors.muted)
                 .whitespace_nowrap()
@@ -133,28 +131,9 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
         )
         .child(div().flex_1())
         .child(
-            text_role::role(text_region("approvals-refresh"), text::BODY, cx)
-                .role(Role::Button)
-                .aria_label("Refresh")
-                .cursor_pointer()
-                .relative()
-                .flex_none()
-                .flex()
-                .items_center()
-                .gap(space::SM)
-                .h(bolt_legacy::tokens::chrome::CONTROL)
-                .pl(space::MD)
-                .pr(space::MD)
-                .text_size(bolt_legacy::tokens::field::FONT)
-                .text_color(colors.foreground)
-                .child(Chamfer::new(cut::CONTROL).fill(colors.raised))
-                .hover(move |style| style.bg(hover))
-                .child(
-                    Icon::new(IconName::RefreshCw)
-                        .size(icon::ITEM)
-                        .color(colors.foreground),
-                )
-                .child(div().relative().child("Refresh"))
+            Button::new("approvals-refresh", "Refresh")
+                .secondary()
+                .icon(ui::icon(IconName::RefreshCw))
                 .on_click(cx.listener(|this, _event, window, cx| {
                     this.refresh_approvals(window, cx);
                 })),
@@ -163,7 +142,7 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
 
 /// The list: the `PENDING · N` header, a row per call and the keys footer.
 fn list(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
-    let colors = *bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let count = shell.approvals.pending();
     let pending_label = format!("Pending · {count}");
     let now = now_millis();
@@ -195,25 +174,28 @@ fn list(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
             this.answer_approval(ApprovalDecision::Deny, window, cx);
         }))
         .flex_none()
-        .w(tokens::APPROVALS_LIST_WIDTH)
+        .w(ApprovalsMetrics::LIST_WIDTH)
         .h_full()
         .flex()
         .flex_col()
         .bg(colors.background)
-        .border_r(border::THIN)
+        .border_r(Borders::THIN)
         .border_color(colors.line)
         .child(
             div()
                 .flex_none()
-                .pl(space::LG)
-                .pr(space::LG)
-                .pt(space::MD)
-                .pb(space::MD)
+                .pl(ApprovalsMetrics::LIST_PADDING_X)
+                .pr(ApprovalsMetrics::LIST_PADDING_X)
+                .py(ApprovalsMetrics::LIST_PADDING_Y)
                 .child(
-                    text_role::role(text_region("approvals-pending-label"), text::LABEL, cx)
-                        .aria_label(pending_label.clone())
-                        .text_size(tokens::APPROVAL_CAPTION_TEXT)
-                        .child(pending_label.to_uppercase()),
+                    ui::role(
+                        text_region("approvals-pending-label"),
+                        TextVariant::Label,
+                        cx,
+                    )
+                    .aria_label(pending_label.clone())
+                    .text_size(ApprovalsMetrics::SECTION_LABEL_FONT)
+                    .child(pending_label.to_uppercase()),
                 ),
         )
         .child(
@@ -227,21 +209,21 @@ fn list(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
                 .children(rows),
         )
         .child(
-            text_role::role(text_region("approvals-footer"), text::CAPTION, cx)
+            ui::role(text_region("approvals-footer"), TextVariant::Caption, cx)
                 .aria_label(format!("j k {FOOTER}"))
                 .flex_none()
                 .flex()
                 .items_center()
-                .gap(space::XS)
-                .pl(space::LG)
-                .pr(space::LG)
-                .pt(space::MD)
-                .pb(space::MD)
-                .border_t(border::THIN)
+                .gap(ApprovalsMetrics::HINT_GAP)
+                .pl(ApprovalsMetrics::LIST_PADDING_X)
+                .pr(ApprovalsMetrics::LIST_PADDING_X)
+                .py(ApprovalsMetrics::LIST_PADDING_Y)
+                .text_size(DocumentMetrics::TABLE_META_FONT)
+                .border_t(Borders::THIN)
                 .border_color(colors.line)
                 .whitespace_nowrap()
-                .child(Keycap::new("approvals-footer-j", "j"))
-                .child(Keycap::new("approvals-footer-k", "k"))
+                .child(keycap("approvals-footer-j", "j"))
+                .child(keycap("approvals-footer-k", "k"))
                 .child(FOOTER),
         )
 }
@@ -255,9 +237,8 @@ fn row(
     now: i64,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = *bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
-    let hover = colors.hover;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let n = index + 1;
     let request = &pending.request;
     let detail = &pending.detail;
@@ -272,7 +253,7 @@ fn row(
         Some((method, path)) => {
             line.push(
                 div()
-                    .text_color(method_color(&method, bolt_legacy::palette(cx)))
+                    .text_color(method_hue(&method, cx))
                     .child(method.clone())
                     .into_any_element(),
             );
@@ -295,40 +276,34 @@ fn row(
         line_label = format!("{line_label} · {environment}");
     }
     let label = format!("{tool} {} {line_label} {meta}", class_label(&request.class));
-    labeled_row(format!("approvals-row-{n}"), label)
+    ListRow::new(format!("approvals-row-{n}"))
+        .selected(selected)
+        .selection_bar(true)
+        .build(cx)
+        .role(Role::Label)
+        .aria_label(label)
         .aria_selected(selected)
-        .relative()
         .flex_none()
         .flex()
         .flex_col()
-        .gap(space::HALF)
-        .pl(space::LG)
-        .pr(space::LG)
-        .pt(space::MD)
-        .pb(space::MD)
-        .border_b(border::THIN)
+        .gap(ApprovalsMetrics::ROW_GAP)
+        .pl(ApprovalsMetrics::LIST_PADDING_X)
+        .pr(ApprovalsMetrics::LIST_PADDING_X)
+        .py(ApprovalsMetrics::LIST_PADDING_Y)
+        .border_b(Borders::THIN)
         .border_color(colors.row_divider)
-        .cursor_pointer()
-        .when(selected, |row| {
-            row.bg(wash(tint, tokens::APPROVAL_SELECTED_WASH)).child(
-                div()
-                    .absolute()
-                    .left_0()
-                    .top_0()
-                    .bottom_0()
-                    .w(border::THICK)
-                    .bg(tint),
-            )
-        })
-        .when(!selected, |row| row.hover(move |style| style.bg(hover)))
         .child(
             div()
                 .flex()
                 .items_center()
-                .gap(space::SM)
-                .child(Icon::new(IconName::Bot).size(icon::MD).color(tint))
+                .gap(DocumentMetrics::GAP)
                 .child(
-                    text_role::role(div(), text::CODE, cx)
+                    Icon::new(ui::icon(IconName::Bot))
+                        .size(ApprovalsMetrics::ROW_ICON)
+                        .color(tint),
+                )
+                .child(
+                    ui::role(div(), TextVariant::Code, cx)
                         .flex_1()
                         .min_w_0()
                         .overflow_hidden()
@@ -340,31 +315,34 @@ fn row(
                 .child(class_badge(
                     format!("approvals-row-{n}-class"),
                     &request.class,
-                    cx,
                 )),
         )
         .child(
-            part(format!("approvals-row-{n}-request"))
-                .role(Role::Label)
-                .aria_label(line_label)
-                .flex()
-                .font_family(family::MONO)
-                .text_size(tokens::APPROVALS_ROW_REQUEST_TEXT)
-                .text_color(colors.foreground)
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .children(line),
+            ui::role(
+                part(format!("approvals-row-{n}-request")),
+                TextVariant::Code,
+                cx,
+            )
+            .role(Role::Label)
+            .aria_label(line_label)
+            .flex()
+            .text_size(DocumentMetrics::TABLE_META_FONT)
+            .whitespace_nowrap()
+            .overflow_hidden()
+            .children(line),
         )
         .child(
-            part(format!("approvals-row-{n}-meta"))
-                .role(Role::Label)
-                .aria_label(meta.clone())
-                .font_family(family::INTERFACE)
-                .text_size(tokens::APPROVALS_ROW_META_TEXT)
-                .text_color(colors.muted)
-                .whitespace_nowrap()
-                .overflow_hidden()
-                .child(meta),
+            ui::role(
+                part(format!("approvals-row-{n}-meta")),
+                TextVariant::Caption,
+                cx,
+            )
+            .role(Role::Label)
+            .aria_label(meta.clone())
+            .text_size(ApprovalsMetrics::META_FONT)
+            .whitespace_nowrap()
+            .overflow_hidden()
+            .child(meta),
         )
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.select_approval(index, window, cx);

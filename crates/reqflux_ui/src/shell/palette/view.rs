@@ -1,24 +1,33 @@
 //! The palette as drawn in design/command-palette/02-scope-tabs.html: the query row with the
 //! count, the scope tabs, the rows under their headers, the empty and no-match states and the
 //! key hint footer.
+//!
+//! It draws as DBFlux's command palette (`PaletteMetrics`): the 56 px query row, 38 px rows
+//! as `ListRow` with the selection bar, section headers in the label role, `Kbd` keycaps and
+//! the 38 px footer; the scope tabs are `bolt` document tabs.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::controls::Keycap;
-use bolt_legacy::tokens::{border, chrome, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::composites::{EmptyState, ListRow, document_tab, document_tab_title};
+use bolt::controls::{
+    GpuiInput, InputEnter as Enter, InputEscape as Escape, InputIndentInline as IndentInline,
+    InputMoveDown as MoveDown, InputMoveUp as MoveUp, InputOutdentInline as OutdentInline,
+};
+use bolt::primitives::{Chamfer, Icon, Kbd, TextVariant};
+use bolt::tokens::{
+    Borders, ChamferCut, HeaderMetrics, PaletteMetrics, ShellMetrics, Spacing, TabMetrics,
+};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, Div, FontWeight, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, point,
     prelude::*,
 };
-use gpui_component::input::{Enter, Escape, IndentInline, Input, MoveDown, MoveUp, OutdentInline};
 
 use super::super::commands::{CommandId, command, key_label};
+use super::super::request::ui;
 use super::super::rows::{labeled_row, part};
-use super::super::{Shell, region, text as text_role};
-use super::metrics;
+use super::super::{Shell, region, text_region};
 use super::model::{Header, Listing, PaletteRow, Scope, VariableValue};
-use crate::tokens::{self, method_color};
+use crate::tokens::{self, method_hue};
 
 /// The longest row label the automation tree gets; longer ones are cut.
 const MAX_LABEL: usize = 200;
@@ -57,28 +66,35 @@ fn command_icon(id: CommandId) -> IconName {
     }
 }
 
-/// The keycaps of `key`, one per part: `ctrl-shift-r` is `Ctrl`, `Shift`, `R`.
+/// `bolt`'s keycap `key`, found by tests as `id`.
+// bolt gap: Kbd takes no element id, so a wrapper carries it.
+fn keycap(id: String, key: String) -> AnyElement {
+    ui::tagged(id).child(Kbd::new(key)).into_any_element()
+}
+
+/// The keycaps of `key`, one per part as DBFlux's palette draws them: `ctrl-shift-r` is
+/// `Ctrl`, `Shift`, `R`.
 fn keycaps(id: &str, key: &str) -> Vec<AnyElement> {
     key_label(key)
         .split('+')
         .enumerate()
-        .map(|(index, part)| {
-            Keycap::new(format!("{id}-key-{}", index + 1), part.to_owned()).into_any_element()
-        })
+        .map(|(index, part)| keycap(format!("{id}-key-{}", index + 1), part.to_owned()))
         .collect()
 }
 
-/// A caption in the muted role.
+/// A caption in the muted role, at the palette's qualifier size.
 fn caption(content: impl IntoElement, cx: &Context<Shell>) -> Div {
-    text_role::role(div(), text::CAPTION, cx)
+    ui::role(div(), TextVariant::Caption, cx)
+        .text_size(PaletteMetrics::QUALIFIER_FONT)
         .flex_none()
         .whitespace_nowrap()
         .child(content)
 }
 
-/// A caption in the mono key hint role.
+/// A qualifier in the mono key hint role.
 fn mono(content: impl IntoElement, cx: &Context<Shell>) -> Div {
-    text_role::role(div(), text::KEY_HINT, cx)
+    ui::role(div(), TextVariant::KeyHint, cx)
+        .text_size(PaletteMetrics::QUALIFIER_FONT)
         .whitespace_nowrap()
         .overflow_hidden()
         .child(content)
@@ -93,8 +109,8 @@ fn render_row(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let id = format!("palette-row-{}", index + 1);
     let mut enabled = true;
     let mut label = String::new();
@@ -109,11 +125,11 @@ fn render_row(
             lead = Some(
                 div()
                     .flex_none()
-                    .w(metrics::METHOD_COLUMN)
-                    .font_family(family::MONO)
+                    .w(tokens::TREE_METHOD_COLUMN)
+                    .font_family(bolt::fonts::editor_family(cx))
                     .font_weight(FontWeight::BOLD)
                     .text_size(tokens::METHOD_LABEL_SIZE)
-                    .text_color(method_color(&entry.method, bolt_legacy::palette(cx)))
+                    .text_color(method_hue(&entry.method, cx))
                     .child(entry.method.clone())
                     .into_any_element(),
             );
@@ -125,9 +141,9 @@ fn render_row(
             if let Some(command) = command(*command_id) {
                 label = row_label(command.label, &key_label(command.key));
                 lead = Some(
-                    Icon::new(command_icon(*command_id))
-                        .size(icon::MD)
-                        .color(colors.muted)
+                    Icon::new(ui::icon(command_icon(*command_id)))
+                        .size(PaletteMetrics::ROW_ICON)
+                        .color(if highlighted { tint } else { colors.muted })
                         .into_any_element(),
                 );
                 title = command.label.to_owned();
@@ -150,8 +166,8 @@ fn render_row(
                 &format!("{} {}", entry.scope, entry.value_label()),
             );
             lead = Some(
-                Icon::new(IconName::Braces)
-                    .size(icon::MD)
+                Icon::new(ui::icon(IconName::Braces))
+                    .size(PaletteMetrics::ROW_ICON)
                     .color(tint)
                     .into_any_element(),
             );
@@ -164,15 +180,19 @@ fn render_row(
                     .aria_label("secret value hidden")
                     .flex()
                     .items_center()
-                    .gap(space::SM)
+                    .gap(Spacing::SM)
                     .child(mono(MASK, cx))
                     .child(
                         caption("secret", cx)
                             .flex()
                             .items_center()
-                            .gap(space::XS)
+                            .gap(Spacing::XS)
                             .text_color(tint)
-                            .child(Icon::new(IconName::KeyRound).size(icon::SM).color(tint)),
+                            .child(
+                                Icon::new(ui::icon(IconName::KeyRound))
+                                    .size(PaletteMetrics::QUALIFIER_FONT)
+                                    .color(tint),
+                            ),
                     )
                     .into_any_element(),
                 VariableValue::Empty => value
@@ -190,8 +210,8 @@ fn render_row(
             title = format!("Search everything for \u{201c}{text}\u{201d}");
             label = row_label(&title, "");
             lead = Some(
-                Icon::new(IconName::Search)
-                    .size(icon::MD)
+                Icon::new(ui::icon(IconName::Search))
+                    .size(PaletteMetrics::ROW_ICON)
                     .color(colors.muted)
                     .into_any_element(),
             );
@@ -202,24 +222,23 @@ fn render_row(
         (true, true) => colors.strong,
         (true, false) => colors.foreground,
     };
-    text_role::role(labeled_row(id, label), text::BODY, cx)
+    let element = ListRow::new(id)
+        .selected(highlighted)
+        .selection_bar(true)
+        .interactive(enabled)
+        .build(cx)
         .role(Role::MenuItem)
+        .aria_label(label)
         .aria_selected(highlighted)
-        .aria_disabled(!enabled)
+        .aria_disabled(!enabled);
+    ui::role(element, TextVariant::Body, cx)
+        .flex_none()
         .flex()
         .items_center()
-        .gap(space::MD)
-        .h(metrics::ROW)
-        .pl(metrics::INSET)
-        .pr(metrics::INSET)
-        .when(highlighted, |row| {
-            row.bg(bolt_legacy::accent_washes(cx).selected_item)
-                .border_l(border::THICK)
-                .border_color(tint)
-        })
-        .when(enabled, |row| {
-            row.cursor_pointer().hover(|style| style.bg(colors.hover))
-        })
+        .gap(PaletteMetrics::ROW_GAP)
+        .h(PaletteMetrics::ROW_HEIGHT)
+        .pl(PaletteMetrics::PADDING_X)
+        .pr(PaletteMetrics::PADDING_X)
         .children(lead)
         .child(
             div()
@@ -227,8 +246,11 @@ fn render_row(
                 .max_w_full()
                 .overflow_hidden()
                 .whitespace_nowrap()
+                .text_size(PaletteMetrics::ROW_FONT)
                 .text_color(title_color)
-                .when(title_mono, |title| title.font_family(family::MONO))
+                .when(title_mono, |title| {
+                    title.font_family(bolt::fonts::editor_family(cx))
+                })
                 .child(title),
         )
         .children(detail)
@@ -243,63 +265,65 @@ fn render_row(
 /// The section header `palette-group-<slug>`: the title in the label role and its hint.
 fn render_header(header: &Header, cx: &Context<Shell>) -> AnyElement {
     let id = format!("palette-group-{}", header.slug);
-    text_role::role(labeled_row(id, header.title.clone()), text::LABEL, cx)
-        .flex()
-        .items_center()
-        .gap(space::SM)
-        .pt(space::MD)
-        .pb(space::HALF)
-        .pl(metrics::INSET)
-        .pr(metrics::INSET)
-        .child(header.title.clone())
-        .child(div().flex_1())
-        .children(header.hint.clone().map(|hint| caption(hint, cx)))
-        .into_any_element()
+    ui::role(
+        labeled_row(id, header.title.clone()),
+        TextVariant::Label,
+        cx,
+    )
+    .text_size(PaletteMetrics::SECTION_FONT)
+    .flex()
+    .items_center()
+    .gap(Spacing::SM)
+    .pt(PaletteMetrics::SECTION_PADDING_TOP)
+    .pb(PaletteMetrics::SECTION_PADDING_BOTTOM)
+    .pl(PaletteMetrics::PADDING_X)
+    .pr(PaletteMetrics::PADDING_X)
+    .child(header.title.clone())
+    .child(div().flex_1())
+    .children(header.hint.clone().map(|hint| caption(hint, cx)))
+    .into_any_element()
 }
 
-/// The scope tab `palette-tab-<slug>`, labeled `<Title> <count>`, selected when active.
+/// The scope tab `palette-tab-<slug>`, a `bolt` document tab labeled `<Title> <count>`,
+/// selected when active.
 fn render_tab(scope: Scope, active: bool, count: usize, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let id = format!("palette-tab-{}", scope.slug());
     let label = format!("{} {count}", scope.title());
-    text_role::role(labeled_row(id, label), text::BODY_SMALL, cx)
+    document_tab(id, active, cx)
         .role(Role::Tab)
+        .aria_label(label)
         .aria_selected(active)
-        .relative()
-        .flex()
-        .flex_none()
-        .items_center()
-        .gap(space::HALF)
-        .h(metrics::TAB)
-        .pl(space::SM)
-        .pr(space::SM)
-        .cursor_pointer()
-        .text_color(if active { colors.strong } else { colors.muted })
-        .when(active, |tab| {
-            tab.font_weight(FontWeight::SEMIBOLD)
-                .child(Chamfer::new(cut::CONTROL).fill(colors.raised))
-        })
+        .font_family(bolt::fonts::ui_family(cx))
         .children(scope.prefix().map(|prefix| {
             div()
-                .font_family(family::MONO)
+                .font_family(bolt::fonts::editor_family(cx))
                 .text_color(if active {
-                    bolt_legacy::brand(cx).accent_tint
+                    bolt::brand::brand(cx).accent_tint
                 } else {
                     colors.line_2
                 })
                 .child(prefix.to_string())
         }))
-        .child(scope.title())
-        .child(mono(count.to_string(), cx))
+        .child(document_tab_title(scope.title(), active, cx))
+        .child(
+            div()
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_size(TabMetrics::RESULT_META_SIZE)
+                .text_color(colors.muted)
+                .child(count.to_string()),
+        )
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.pick_scope(scope, window, cx);
         }))
         .into_any_element()
 }
 
-/// The empty or no-match state `palette-empty`, its title `palette-empty-title`.
-fn render_empty(listing: &Listing, workspace_open: bool, cx: &Context<Shell>) -> AnyElement {
-    let colors = bolt_legacy::colors(cx);
+/// The empty or no-match state `palette-empty`, `bolt`'s `EmptyState`, its title
+/// `palette-empty-title`.
+// bolt gap: EmptyState takes no element id and its title none either, so the title carries
+// its id on a labeled node over it.
+fn render_empty(listing: &Listing, workspace_open: bool) -> AnyElement {
     let noun = listing.scope.noun();
     let (title, hint) = if listing.text.is_empty() {
         let hint = if workspace_open {
@@ -322,47 +346,31 @@ fn render_empty(listing: &Listing, workspace_open: bool, cx: &Context<Shell>) ->
         )
     };
     region("palette-empty")
+        .relative()
         .flex()
         .flex_col()
-        .items_center()
-        .gap(space::HALF)
-        .pt(space::XL)
-        .pb(space::MD)
-        .pl(metrics::INSET)
-        .pr(metrics::INSET)
+        .py(Spacing::XL)
+        .pl(PaletteMetrics::PADDING_X)
+        .pr(PaletteMetrics::PADDING_X)
+        .child(EmptyState::new(ui::icon(IconName::Search), hint).title(title.clone()))
         .child(
-            div()
-                .relative()
-                .flex()
-                .items_center()
-                .justify_center()
-                .size(metrics::EMPTY_ICON_BOX)
-                .child(Chamfer::new(cut::LARGE_CONTROL).fill(colors.raised))
-                .child(
-                    Icon::new(IconName::Search)
-                        .size(icon::LG)
-                        .color(colors.muted),
-                ),
+            labeled_row("palette-empty-title".to_owned(), title)
+                .absolute()
+                .inset_0(),
         )
-        .child(
-            text_role::role(
-                labeled_row("palette-empty-title".to_owned(), title.clone()),
-                text::BODY,
-                cx,
-            )
-            .text_color(colors.strong)
-            .font_weight(FontWeight::SEMIBOLD)
-            .child(title),
-        )
-        .child(caption(hint, cx))
         .into_any_element()
 }
 
 /// A key hint in the footer: the keycap, then what it does.
 fn hint(id: &str, key: &str, does: &str, cx: &Context<Shell>) -> [AnyElement; 2] {
     [
-        Keycap::new(format!("palette-hint-{id}"), key.to_owned()).into_any_element(),
-        caption(does.to_owned(), cx).into_any_element(),
+        keycap(format!("palette-hint-{id}"), key.to_owned()),
+        ui::role(div(), TextVariant::Caption, cx)
+            .text_size(PaletteMetrics::FOOTER_FONT)
+            .flex_none()
+            .whitespace_nowrap()
+            .child(does.to_owned())
+            .into_any_element(),
     ]
 }
 
@@ -386,7 +394,6 @@ pub(in crate::shell) fn render(
                 shell.workspace,
                 crate::workspace::OpenedWorkspace::Loaded(_)
             ),
-            cx,
         ));
     }
     let mut index = 0;
@@ -405,65 +412,67 @@ pub(in crate::shell) fn render(
         let count = listing.matched.of(scope);
         tabs.push(render_tab(scope, scope == listing.scope, count, cx));
     }
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let line = colors.line;
 
     let query = region("palette-query")
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::MD)
-        .h(metrics::QUERY_ROW)
-        .pl(metrics::INSET)
-        .pr(metrics::INSET)
-        .border_b(border::THIN)
+        .gap(PaletteMetrics::SEARCH_GAP)
+        .h(PaletteMetrics::SEARCH_HEIGHT)
+        .pl(PaletteMetrics::PADDING_X)
+        .pr(PaletteMetrics::PADDING_X)
+        .border_b(Borders::THIN)
         .border_color(line)
         .child(
-            Icon::new(IconName::Search)
-                .size(icon::LG)
-                .color(colors.foreground),
+            Icon::new(ui::icon(IconName::Search))
+                .size(PaletteMetrics::SEARCH_ICON)
+                .color(bolt::brand::brand(cx).accent_tint),
         )
         .child(
             region("palette-input")
                 .role(Role::TextInput)
                 .flex_1()
                 .min_w_0()
-                .h(chrome::CONTROL)
                 .flex()
                 .items_center()
                 .child(
-                    Input::new(&input)
+                    GpuiInput::new(&input)
                         .appearance(false)
                         .bordered(false)
+                        .px_0()
                         .flex_1()
                         .min_w_0()
+                        .text_size(PaletteMetrics::QUERY_FONT)
                         .text_color(colors.strong),
                 ),
         )
         .child({
             let count = listing.count_text();
-            mono(count.clone(), cx)
-                .id("palette-count")
-                .role(Role::Label)
-                .aria_label(count)
+            ui::role(text_region("palette-count"), TextVariant::KeyHint, cx)
+                .text_size(PaletteMetrics::COUNT_FONT)
+                .whitespace_nowrap()
+                .aria_label(count.clone())
                 .flex_none()
+                .child(count)
         })
-        .child(Keycap::new("palette-hint-escape", "Esc"));
+        .child(keycap("palette-hint-escape".to_owned(), "Esc".to_owned()));
 
     let tab_row = region("palette-tabs")
         .role(Role::TabList)
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::XS)
-        .h(metrics::TAB_ROW)
-        .pl(space::MD)
-        .pr(space::MD)
-        .border_b(border::THIN)
+        .gap(TabMetrics::DOCUMENT_BAR_GAP)
+        .h(HeaderMetrics::PANEL_HEIGHT)
+        .pl(TabMetrics::DOCUMENT_BAR_PADDING_X)
+        .pr(TabMetrics::DOCUMENT_BAR_PADDING_X)
+        .border_b(Borders::THIN)
         .border_color(line)
         .children(tabs)
         .child(div().flex_1())
-        .child(div().flex().items_center().gap(space::HALF).children(hint(
+        .child(div().flex().items_center().gap(Spacing::XXS).children(hint(
             "tab",
             "Tab",
             "next scope",
@@ -483,25 +492,27 @@ pub(in crate::shell) fn render(
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::SM)
-        .h(metrics::FOOTER)
-        .pl(metrics::INSET)
-        .pr(metrics::INSET)
-        .border_t(border::THIN)
+        .gap(Spacing::SM)
+        .h(PaletteMetrics::FOOTER_HEIGHT)
+        .pl(PaletteMetrics::PADDING_X)
+        .pr(PaletteMetrics::PADDING_X)
+        .border_t(Borders::THIN)
         .border_color(line)
         .children(footer_hints);
 
+    let width = bolt::fonts::ui_px(cx, PaletteMetrics::WIDTH);
     let panel = region("palette")
         .role(Role::Dialog)
         .occlude()
         .relative()
-        .w(tokens::PALETTE_WIDTH)
+        .w(width)
         .flex()
         .flex_col()
+        .overflow_hidden()
         .child(
-            Chamfer::new(cut::CARD)
+            Chamfer::new(ChamferCut::CARD)
                 .fill(colors.panel)
-                .edge(colors.line_2, border::THIN),
+                .border(colors.line_2),
         )
         .capture_action(cx.listener(|this, _: &MoveUp, _, cx| {
             cx.stop_propagation();
@@ -531,7 +542,8 @@ pub(in crate::shell) fn render(
         .child(rows_region(list))
         .child(footer);
     let viewport = window.viewport_size();
-    let left = ((viewport.width - tokens::PALETTE_WIDTH) / 2.).max(gpui::Pixels::ZERO);
+    let left = ((viewport.width - width) / 2.).max(gpui::Pixels::ZERO);
+    let top = bolt::fonts::ui_px(cx, ShellMetrics::TITLE_BAR_HEIGHT);
     let backdrop = region("palette-backdrop")
         .occlude()
         .w(viewport.width)
@@ -546,14 +558,7 @@ pub(in crate::shell) fn render(
             .top_0()
             .left_0()
             .child(deferred(anchored().position(Point::default()).child(backdrop)).with_priority(3))
-            .child(
-                deferred(
-                    anchored()
-                        .position(point(left, chrome::TITLE_BAR))
-                        .child(panel),
-                )
-                .with_priority(4),
-            )
+            .child(deferred(anchored().position(point(left, top)).child(panel)).with_priority(4))
             .into_any_element(),
     )
 }
@@ -563,7 +568,7 @@ fn rows_region(list: Vec<AnyElement>) -> Stateful<Div> {
     region("palette-rows")
         .flex()
         .flex_col()
-        .pb(space::SM)
+        .pb(PaletteMetrics::LIST_PADDING_BOTTOM)
         .max_h(tokens::PALETTE_LIST_HEIGHT)
         .overflow_y_scroll()
         .children(list)

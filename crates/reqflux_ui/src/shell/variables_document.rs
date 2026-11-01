@@ -9,22 +9,26 @@
 //! the ghost row `variables-add` appends one. A secret has no initial value in the file and
 //! shows its current value as `••••••••`. The undeclared rows `variables-undeclared-<n>`
 //! show a key a script set, its editable current value, `Declare` and a discard control.
+//!
+//! It draws with DBFlux's `bolt`: the grid sizes of `GridMetrics` (header 40, rows 31),
+//! `Checkbox`, `Badge`, `Button`, and the section labels of `HeaderMetrics`.
 
-use bolt_legacy::chamfer::Chamfer;
-use bolt_legacy::tokens::{Colors, border, cut, family, icon, space, text};
-use bolt_legacy::{Icon, IconName};
+use bolt::Colors;
+use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter as Enter, InputEscape as Escape};
+use bolt::primitives::{Badge, BadgeTone, Icon, TextVariant};
+use bolt::tokens::{Borders, FontSizes, GridMetrics, HeaderMetrics, ResultMetrics, Spacing};
+use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, Div, FontWeight, Hsla, ParentElement, Pixels, Role, Stateful, Styled,
     Toggled, div, prelude::*,
 };
-use gpui_component::input::{Enter, Escape, Input};
 use reqflux_core::model::Variable;
 use reqflux_engine::{SecretKey, SecretScope};
 
+use super::request::ui;
 use super::rows::{labeled_row, part};
-use super::settings_view::{ButtonTone, button};
 use super::variables_model::{Column, current_keys, empty_count, is_empty, undeclared};
-use super::{Shell, region, text as text_role};
+use super::{Shell, region};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
 
@@ -62,7 +66,7 @@ pub(super) fn render(
     };
     let heading = heading(shell, scope, &variables, title, cx);
     let add = add_row(scope, cx);
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let mut column = region("variables-document")
         .flex_1()
         .min_w_0()
@@ -70,7 +74,7 @@ pub(super) fn render(
         .overflow_y_scroll()
         .pl(tokens::VARIABLES_PANEL_INSET)
         .pr(tokens::VARIABLES_PANEL_INSET)
-        .pb(space::XL)
+        .pb(Spacing::XL)
         .flex()
         .flex_col()
         .child(heading)
@@ -80,7 +84,7 @@ pub(super) fn render(
                 .flex_none()
                 .flex()
                 .flex_col()
-                .child(header(colors))
+                .child(header(&colors, cx))
                 .children(rows)
                 .child(add),
         );
@@ -110,8 +114,8 @@ fn heading(
 ) -> Div {
     let empty = empty_count(&shell.current, scope, variables);
     let resettable = !current_keys(&shell.current, scope, variables).is_empty();
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let warning = colors.warning;
     let line = colors.line;
     let empty_label = (empty > 0).then(|| {
@@ -123,48 +127,48 @@ fn heading(
         labeled_row("variables-empty".to_owned(), text.clone())
             .flex()
             .items_center()
-            .gap(space::HALF)
-            .text_size(tokens::NOTICE_TEXT)
+            .gap(ResultMetrics::FOOTER_ITEM_GAP)
+            .text_size(FontSizes::XS)
             .text_color(warning)
             .whitespace_nowrap()
             .child(
-                Icon::new(IconName::TriangleAlert)
-                    .size(icon::CHIP)
+                Icon::new(ui::icon(IconName::TriangleAlert))
+                    .size(ResultMetrics::FOOTER_ICON)
                     .color(warning),
             )
             .child(text)
     });
     let reset = resettable.then(|| {
-        button(
-            "variables-reset-current",
-            Some(IconName::RotateCcw),
-            "Reset current values",
-            ButtonTone::Neutral,
-            tokens::VARIABLES_HEADING_ACTION,
-            cx,
-        )
-        .ml(space::SM)
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.reset_current_values(scope, window, cx);
-        }))
+        Button::new("variables-reset-current", "Reset current values")
+            .secondary()
+            .inline()
+            .icon(ui::icon(IconName::RotateCcw))
+            .on_click(cx.listener(move |this, _event, window, cx| {
+                this.reset_current_values(scope, window, cx);
+            }))
     });
     div()
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pt(tokens::VARIABLES_HEADING_TOP)
-        .pb(space::HALF)
-        .mb(space::HALF)
-        .border_b(border::THIN)
+        .gap(Spacing::SM)
+        .pt(HeaderMetrics::LABEL_PADDING_TOP)
+        .pb(HeaderMetrics::LABEL_PADDING_BOTTOM)
+        .mb(HeaderMetrics::LABEL_PADDING_BOTTOM)
+        .border_b(Borders::THIN)
         .border_color(line)
-        .child(Icon::new(IconName::Variable).size(icon::ITEM).color(tint))
         .child(
-            text_role::role(
+            Icon::new(ui::icon(IconName::Variable))
+                .size(HeaderMetrics::LABEL_ICON)
+                .color(tint),
+        )
+        .child(
+            ui::role(
                 labeled_row("variables-title".to_owned(), title.clone()),
-                text::LABEL,
+                TextVariant::Label,
                 cx,
             )
+            .text_size(HeaderMetrics::LABEL_FONT)
             .child(title),
         )
         .child(div().flex_1())
@@ -172,12 +176,12 @@ fn heading(
         .children(reset)
 }
 
-fn header(colors: &Colors) -> Div {
+fn header(colors: &Colors, cx: &Context<Shell>) -> Div {
     let muted = colors.muted;
     let hint = move |text: &'static str| {
         div()
-            .ml(space::HALF)
-            .text_size(tokens::SMALL_MONO_TEXT)
+            .ml(GridMetrics::HEADER_GAP)
+            .text_size(GridMetrics::TYPE_FONT)
             .font_weight(FontWeight::NORMAL)
             .text_color(muted)
             .child(text)
@@ -186,10 +190,10 @@ fn header(colors: &Colors) -> Div {
         .flex_none()
         .flex()
         .items_center()
-        .h(tokens::GRID_HEADER)
+        .h(GridMetrics::HEADER_HEIGHT)
         .bg(colors.background)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_HEADER_TEXT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(GridMetrics::FONT)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
         .child(column(tokens::VARIABLES_NUMBER_COLUMN))
@@ -220,7 +224,8 @@ fn declared_row(
 ) -> AnyElement {
     let current_value = shell.current.get(scope, &variable.key).map(str::to_owned);
     let empty = is_empty(variable, current_value.as_deref());
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
+    let ui_family = bolt::fonts::ui_family(cx);
     let (muted, strong, warning) = (colors.muted, colors.strong, colors.warning);
     let dim = |cell: Stateful<Div>| {
         if variable.enabled {
@@ -249,11 +254,15 @@ fn declared_row(
             tokens::VARIABLES_VALUE_COLUMN,
             NOT_IN_FILE,
         ))
-        .font_family(family::INTERFACE)
-        .text_size(tokens::NOTICE_TEXT)
+        .font_family(ui_family.clone())
+        .text_size(FontSizes::XS)
         .text_color(muted)
-        .gap(space::HALF)
-        .child(Icon::new(IconName::Lock).size(icon::SM).color(muted))
+        .gap(GridMetrics::HEADER_GAP)
+        .child(
+            Icon::new(ui::icon(IconName::Lock))
+                .size(GridMetrics::HEADER_ICON)
+                .color(muted),
+        )
         .child(NOT_IN_FILE)
         .into_any_element()
     } else {
@@ -306,8 +315,8 @@ fn declared_row(
         } else if empty {
             cell.child(empty_tag(warning)).into_any_element()
         } else if current_value.is_none() {
-            cell.font_family(family::INTERFACE)
-                .text_size(tokens::NOTICE_TEXT)
+            cell.font_family(ui_family.clone())
+                .text_size(FontSizes::XS)
                 .text_color(muted)
                 .child("= initial")
                 .into_any_element()
@@ -327,69 +336,78 @@ fn declared_row(
         cx,
     )
     .flex_1()
-    .font_family(family::INTERFACE)
-    .text_size(tokens::NOTICE_TEXT)
+    .font_family(ui_family)
+    .text_size(FontSizes::XS)
     .text_color(if empty { warning } else { muted })
     .child(description_text.clone())
     .into_any_element();
     let delete = delete_control(scope, n, &variable.key, cx);
-    let colors = bolt_legacy::colors(cx);
     let number_color = if empty { colors.warning } else { colors.line_2 };
-    row(format!("variables-row-{n}"), variable.key.clone(), colors)
-        .text_color(colors.foreground)
-        .when(empty, |row| row.bg(tokens::unresolved_row_wash(colors)))
-        .child(number(n, number_color))
-        .child(enable)
-        .child(key)
-        .child(value)
-        .child(current)
-        .child(stored)
-        .child(description)
-        .child(delete)
-        .into_any_element()
+    row(
+        format!("variables-row-{n}"),
+        variable.key.clone(),
+        &colors,
+        cx,
+    )
+    .text_color(colors.foreground)
+    .when(empty, |row| row.bg(tokens::unresolved_wash(colors.warning)))
+    .child(number(n, number_color))
+    .child(enable)
+    .child(key)
+    .child(value)
+    .child(current)
+    .child(stored)
+    .child(description)
+    .child(delete)
+    .into_any_element()
 }
 
 /// The `empty` tag of a value that resolves to nothing.
 fn empty_tag(warning: Hsla) -> Div {
     div()
-        .pl(space::XS)
-        .pr(space::XS)
-        .bg(tokens::wash(warning, tokens::VARIABLES_EMPTY_TAG_WASH))
-        .border_b(border::THIN)
+        .pl(Spacing::XS)
+        .pr(Spacing::XS)
+        .bg(tokens::variable_wash(warning))
+        .border_b(Borders::THIN)
         .border_color(warning)
         .text_color(warning)
         .child("empty")
 }
 
 fn undeclared_heading(cx: &mut Context<Shell>) -> Div {
-    let colors = bolt_legacy::colors(cx);
-    let tint = bolt_legacy::brand(cx).accent_tint;
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
     let description = "Current values set by scripts with no declared variable. Not sent to \
                        the file.";
     div()
         .flex_none()
         .flex()
         .items_center()
-        .gap(space::SM)
-        .pt(tokens::VARIABLES_SECOND_HEADING_TOP)
-        .pb(space::HALF)
-        .mb(space::HALF)
-        .border_b(border::THIN)
+        .gap(Spacing::SM)
+        .pt(HeaderMetrics::SECTION_PADDING_TOP)
+        .pb(HeaderMetrics::LABEL_PADDING_BOTTOM)
+        .mb(HeaderMetrics::LABEL_PADDING_BOTTOM)
+        .border_b(Borders::THIN)
         .border_color(colors.line)
-        .child(Icon::new(IconName::Info).size(icon::ITEM).color(tint))
         .child(
-            text_role::role(
+            Icon::new(ui::icon(IconName::Info))
+                .size(HeaderMetrics::LABEL_ICON)
+                .color(tint),
+        )
+        .child(
+            ui::role(
                 labeled_row(
                     "variables-undeclared-title".to_owned(),
                     "ONLY ON THIS MACHINE".to_owned(),
                 ),
-                text::LABEL,
+                TextVariant::Label,
                 cx,
             )
+            .text_size(HeaderMetrics::LABEL_FONT)
             .child("ONLY ON THIS MACHINE"),
         )
         .child(
-            text_role::role(div().ml(space::SM), text::CAPTION, cx)
+            ui::role(div().ml(Spacing::SM), TextVariant::Caption, cx)
                 .min_w_0()
                 .overflow_hidden()
                 .whitespace_nowrap()
@@ -416,74 +434,72 @@ fn undeclared_row(
     )
     .child(value.to_owned())
     .into_any_element();
-    let declare = button(
-        &format!("variables-declare-{n}"),
-        Some(IconName::ArrowUp),
-        "Declare",
-        ButtonTone::Neutral,
-        tokens::VARIABLES_ROW_ACTION,
+    let declare = Button::new(format!("variables-declare-{n}"), "Declare")
+        .secondary()
+        .inline()
+        .icon(ui::icon(IconName::ArrowUp))
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            this.declare_undeclared(scope, n, window, cx);
+        }));
+    let discard = Button::new(
+        format!("variables-discard-{n}"),
+        format!("Discard the current value of {key}"),
+    )
+    .ghost()
+    .inline()
+    .icon(ui::icon(IconName::Close))
+    .icon_only()
+    .on_click(cx.listener(move |this, _event, window, cx| {
+        this.discard_undeclared(scope, n, window, cx);
+    }));
+    let colors = bolt::colors(cx);
+    row(
+        format!("variables-undeclared-{n}"),
+        key.to_owned(),
+        &colors,
         cx,
     )
-    .on_click(cx.listener(move |this, _event, window, cx| {
-        this.declare_undeclared(scope, n, window, cx);
-    }));
-    let muted = bolt_legacy::colors(cx).muted;
-    let discard = part(format!("variables-discard-{n}"))
-        .role(Role::Button)
-        .aria_label(format!("Discard the current value of {key}"))
-        .cursor_pointer()
-        .flex_none()
-        .w(tokens::VARIABLES_DISCARD_WIDTH)
-        .h(tokens::VARIABLES_ROW_ACTION)
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(Icon::new(IconName::Close).size(icon::CHIP).color(muted))
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.discard_undeclared(scope, n, window, cx);
-        }));
-    let colors = bolt_legacy::colors(cx);
-    row(format!("variables-undeclared-{n}"), key.to_owned(), colors)
-        .text_color(colors.foreground)
-        .child(
-            div()
-                .flex_none()
-                .w(tokens::VARIABLES_NUMBER_COLUMN + tokens::VARIABLES_ON_COLUMN),
+    .text_color(colors.foreground)
+    .child(
+        div()
+            .flex_none()
+            .w(tokens::VARIABLES_NUMBER_COLUMN + tokens::VARIABLES_ON_COLUMN),
+    )
+    .child(
+        static_cell(
+            format!("variables-undeclared-key-{n}"),
+            tokens::VARIABLES_KEY_COLUMN,
+            key,
         )
-        .child(
-            static_cell(
-                format!("variables-undeclared-key-{n}"),
-                tokens::VARIABLES_KEY_COLUMN,
-                key,
-            )
-            .text_color(colors.strong)
-            .child(key.to_owned()),
+        .text_color(colors.strong)
+        .child(key.to_owned()),
+    )
+    .child(
+        static_cell(
+            format!("variables-undeclared-hint-{n}"),
+            tokens::VARIABLES_VALUE_COLUMN,
+            "not declared",
         )
-        .child(
-            static_cell(
-                format!("variables-undeclared-hint-{n}"),
-                tokens::VARIABLES_VALUE_COLUMN,
-                "not declared",
-            )
-            .font_family(family::INTERFACE)
-            .text_size(tokens::NOTICE_TEXT)
-            .text_color(colors.muted)
-            .child("not declared"),
-        )
-        .child(current)
-        .child(div().flex_none().w(tokens::VARIABLES_UNDECLARED_NOTE))
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .flex()
-                .justify_end()
-                .gap(space::HALF)
-                .pl(space::SM)
-                .child(declare)
-                .child(discard),
-        )
-        .into_any_element()
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_size(FontSizes::XS)
+        .text_color(colors.muted)
+        .child("not declared"),
+    )
+    .child(current)
+    .child(div().flex_none().w(tokens::VARIABLES_UNDECLARED_NOTE))
+    .child(
+        div()
+            .flex_1()
+            .min_w_0()
+            .flex()
+            .justify_end()
+            .gap(Spacing::XS)
+            .pl(Spacing::SM)
+            .pr(Spacing::SM)
+            .child(declare)
+            .child(discard),
+    )
+    .into_any_element()
 }
 
 /// The notes under the grids: where the first secret lives in the keyring, and what Declare
@@ -496,7 +512,7 @@ fn notes(
     file: &str,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let (muted, foreground) = (colors.muted, colors.foreground);
     let workspace_id = match &shell.workspace {
         OpenedWorkspace::Loaded(engine) => Some(engine.workspace().manifest.id),
@@ -522,12 +538,16 @@ fn notes(
             )
             .flex()
             .items_center()
-            .gap(space::SM)
-            .child(Icon::new(IconName::Lock).size(icon::CHIP).color(muted))
+            .gap(Spacing::SM)
+            .child(
+                Icon::new(ui::icon(IconName::Lock))
+                    .size(ResultMetrics::FOOTER_ICON)
+                    .color(muted),
+            )
             .child(prefix)
             .child(
                 div()
-                    .font_family(family::MONO)
+                    .font_family(bolt::fonts::editor_family(cx))
                     .text_color(foreground)
                     .child(entry),
             )
@@ -540,40 +560,44 @@ fn notes(
         labeled_row("variables-declare-note".to_owned(), text.clone())
             .flex()
             .items_center()
-            .gap(space::SM)
-            .child(Icon::new(IconName::Info).size(icon::CHIP).color(muted))
+            .gap(Spacing::SM)
+            .child(
+                Icon::new(ui::icon(IconName::Info))
+                    .size(ResultMetrics::FOOTER_ICON)
+                    .color(muted),
+            )
             .child(text)
     });
     div()
         .flex_none()
         .flex()
         .flex_col()
-        .gap(space::SM)
-        .mt(space::LG)
-        .text_size(tokens::NOTICE_TEXT)
+        .gap(Spacing::SM)
+        .mt(Spacing::LG)
+        .text_size(FontSizes::XS)
         .text_color(muted)
         .children(keyring)
         .children(declare)
 }
 
-fn row(id: String, label: String, colors: &Colors) -> Stateful<Div> {
+fn row(id: String, label: String, colors: &Colors, cx: &Context<Shell>) -> Stateful<Div> {
     labeled_row(id, label)
         .role(Role::Row)
         .flex_none()
         .flex()
         .items_center()
-        .h(tokens::GRID_ROW)
-        .border_b(border::THIN)
+        .h(GridMetrics::ROW_HEIGHT)
+        .border_b(Borders::THIN)
         .border_color(colors.row_divider)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(GridMetrics::FONT)
 }
 
 fn number(n: usize, color: Hsla) -> Div {
     div()
         .w(tokens::VARIABLES_NUMBER_COLUMN)
         .flex_none()
-        .pr(space::MD)
+        .pr(Spacing::SM)
         .text_right()
         .text_color(color)
         .child(n.to_string())
@@ -605,7 +629,9 @@ fn cell(
     if shell.is_editing(scope, column, n)
         && let Some(edit) = shell.cell_edit.as_ref()
     {
-        let foreground = bolt_legacy::colors(cx).foreground;
+        let foreground = bolt::colors(cx).foreground;
+        // bolt gap: bolt's Input without its appearance keeps gpui-component's padding and
+        // text size, so the open cell is gpui-component's frameless input.
         return base
             .on_action(cx.listener(|this, action: &Enter, window, cx| {
                 if action.secondary {
@@ -618,14 +644,15 @@ fn cell(
                 this.discard_cell_edit(window, cx);
             }))
             .child(
-                Input::new(&edit.input)
+                GpuiInput::new(&edit.input)
                     .id("variables-cell-input")
                     .appearance(false)
                     .bordered(false)
+                    .p_0()
                     .flex_1()
                     .min_w_0()
-                    .text_size(tokens::GRID_TEXT)
-                    .font_family(family::MONO)
+                    .text_size(GridMetrics::FONT)
+                    .font_family(bolt::fonts::editor_family(cx))
                     .text_color(foreground),
             );
     }
@@ -641,8 +668,8 @@ fn static_cell(id: String, width: Pixels, label: &str) -> Stateful<Div> {
         .flex()
         .items_center()
         .flex_none()
-        .pl(space::MD)
-        .pr(space::MD)
+        .pl(GridMetrics::CELL_PADDING_X)
+        .pr(GridMetrics::CELL_PADDING_X)
         .min_w_0()
         .overflow_hidden()
         .whitespace_nowrap();
@@ -653,86 +680,49 @@ fn static_cell(id: String, width: Pixels, label: &str) -> Stateful<Div> {
     }
 }
 
-/// The enable box `variables-enabled-<n>`: a cut box, filled with the accent and checked
-/// when enabled.
+/// The enable box `variables-enabled-<n>`, `bolt`'s checkbox, checked when enabled.
 fn enable_box(scope: SecretScope, n: usize, variable: &Variable, cx: &mut Context<Shell>) -> Div {
-    let colors = bolt_legacy::colors(cx);
-    let brand = bolt_legacy::brand(cx);
-    let chamfer = if variable.enabled {
-        Chamfer::new(cut::KEYCAP).fill(brand.accent)
-    } else {
-        Chamfer::new(cut::KEYCAP).edge(colors.line_2, border::FOCUS_RING)
-    };
-    let on_accent = brand.on_accent;
+    let shell = cx.entity().downgrade();
     div()
         .flex_none()
         .w(tokens::VARIABLES_ON_COLUMN)
         .pl(tokens::VARIABLES_NARROW_PADDING)
         .pr(tokens::VARIABLES_NARROW_PADDING)
         .child(
-            part(format!("variables-enabled-{n}"))
-                .role(Role::CheckBox)
-                .aria_label(format!("Enable {}", variable.key))
-                .aria_toggled(toggled(variable.enabled))
-                .cursor_pointer()
-                .relative()
-                .w(tokens::VARIABLES_CHECKBOX)
-                .h(tokens::VARIABLES_CHECKBOX)
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(chamfer)
-                .when(variable.enabled, |this| {
-                    this.child(Icon::new(IconName::Check).size(icon::SM).color(on_accent))
-                })
-                .on_click(cx.listener(move |this, _event, window, cx| {
+            Checkbox::new(gpui::ElementId::Name(
+                format!("variables-enabled-{n}").into(),
+            ))
+            .checked(variable.enabled)
+            .aria_label(format!("Enable {}", variable.key))
+            .on_click(move |_checked, window, cx| {
+                let toggled = shell.update(cx, |this, cx| {
                     this.toggle_variable_enabled(scope, n, window, cx);
-                })),
+                });
+                if let Err(error) = toggled {
+                    log::warn!("variable enable toggle: {error}");
+                }
+            }),
         )
 }
 
-/// The `stored in` toggle `variables-secret-<n>`: the `file` pill, or the `KEYRING` badge
+/// The `stored in` toggle `variables-secret-<n>`: the `file` badge, or the `KEYRING` badge
 /// while the variable is secret, as `variables-stored-<n>`. A click moves the value between
 /// them.
+// bolt gap: Badge takes no element id, so a labeled wrapper carries `variables-stored-<n>`.
 fn stored_toggle(
     scope: SecretScope,
     n: usize,
     variable: &Variable,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
-    let (label, icon_name, mono) = if variable.secret {
-        ("KEYRING", IconName::KeyRound, false)
+    let (label, icon_name) = if variable.secret {
+        ("KEYRING", IconName::KeyRound)
     } else {
-        ("file", IconName::File, true)
+        ("file", IconName::File)
     };
     let pill = labeled_row(format!("variables-stored-{n}"), label.to_owned())
-        .relative()
-        .flex()
-        .items_center()
-        .gap(space::XS)
-        .h(tokens::VARIABLES_PILL)
-        .pl(tokens::VARIABLES_PILL_PADDING)
-        .pr(tokens::VARIABLES_PILL_PADDING)
-        .font_family(family::INTERFACE)
-        .text_size(if mono {
-            tokens::VARIABLES_PILL_TEXT
-        } else {
-            tokens::BADGE_TEXT
-        })
-        .font_weight(if mono {
-            FontWeight::SEMIBOLD
-        } else {
-            FontWeight::BOLD
-        })
-        .text_color(colors.muted)
-        .child(Chamfer::new(cut::KEYCAP).fill(colors.raised))
-        .child(
-            Icon::new(icon_name)
-                .size(tokens::VARIABLES_PILL_ICON)
-                .color(colors.muted),
-        )
-        .child(label);
+        .flex_none()
+        .child(Badge::new(label, BadgeTone::Neutral).icon(ui::icon(icon_name)));
     part(format!("variables-secret-{n}"))
         .role(Role::CheckBox)
         .aria_label(format!("Keep {} in the keyring", variable.key))
@@ -743,37 +733,31 @@ fn stored_toggle(
         .h_full()
         .flex()
         .items_center()
-        .pl(space::MD)
+        .pl(GridMetrics::CELL_PADDING_X)
         .child(pill)
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.toggle_variable_secret(scope, n, window, cx);
         }))
 }
 
-fn delete_control(
-    scope: SecretScope,
-    n: usize,
-    key: &str,
-    cx: &mut Context<Shell>,
-) -> Stateful<Div> {
-    let muted = bolt_legacy::colors(cx).muted;
-    part(format!("variables-delete-{n}"))
-        .role(Role::Button)
-        .aria_label(format!("Delete {key}"))
-        .cursor_pointer()
-        .flex_none()
-        .pl(space::MD)
-        .pr(space::MD)
-        .child(Icon::new(IconName::Close).size(icon::CHIP).color(muted))
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.delete_variable(scope, n, window, cx);
-        }))
+fn delete_control(scope: SecretScope, n: usize, key: &str, cx: &mut Context<Shell>) -> Div {
+    div().flex_none().pl(Spacing::XS).pr(Spacing::XS).child(
+        Button::new(format!("variables-delete-{n}"), format!("Delete {key}"))
+            .ghost()
+            .inline()
+            .icon(ui::icon(IconName::Close))
+            .icon_only()
+            .tab_stop(false)
+            .on_click(cx.listener(move |this, _event, window, cx| {
+                this.delete_variable(scope, n, window, cx);
+            })),
+    )
 }
 
 /// The ghost row `variables-add`: placeholders in the key and value columns; a click
 /// appends a variable.
 fn add_row(scope: SecretScope, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let colors = bolt_legacy::colors(cx);
+    let colors = bolt::colors(cx);
     let ghost = colors.line_2;
     part("variables-add".to_owned())
         .role(Role::Button)
@@ -782,9 +766,9 @@ fn add_row(scope: SecretScope, cx: &mut Context<Shell>) -> Stateful<Div> {
         .flex_none()
         .flex()
         .items_center()
-        .h(tokens::GRID_ROW)
-        .font_family(family::MONO)
-        .text_size(tokens::GRID_TEXT)
+        .h(GridMetrics::ROW_HEIGHT)
+        .font_family(bolt::fonts::editor_family(cx))
+        .text_size(GridMetrics::FONT)
         .text_color(ghost)
         .hover(|style| style.bg(colors.hover))
         .child(
@@ -793,7 +777,11 @@ fn add_row(scope: SecretScope, cx: &mut Context<Shell>) -> Stateful<Div> {
                 .w(tokens::VARIABLES_NUMBER_COLUMN)
                 .flex()
                 .justify_end()
-                .child(Icon::new(IconName::Plus).size(icon::SM).color(ghost)),
+                .child(
+                    Icon::new(ui::icon(IconName::Plus))
+                        .size(GridMetrics::HEADER_ICON)
+                        .color(ghost),
+                ),
         )
         .child(div().flex_none().w(tokens::VARIABLES_ON_COLUMN))
         .child(column(tokens::VARIABLES_KEY_COLUMN).child("Variable"))
@@ -812,8 +800,8 @@ fn column(width: Pixels) -> Div {
     div()
         .w(width)
         .flex_none()
-        .pl(space::MD)
-        .pr(space::MD)
+        .pl(GridMetrics::CELL_PADDING_X)
+        .pr(GridMetrics::CELL_PADDING_X)
         .overflow_hidden()
         .whitespace_nowrap()
 }
@@ -830,8 +818,8 @@ fn fill() -> Div {
     div()
         .flex_1()
         .min_w_0()
-        .pl(space::MD)
-        .pr(space::MD)
+        .pl(GridMetrics::CELL_PADDING_X)
+        .pr(GridMetrics::CELL_PADDING_X)
         .overflow_hidden()
         .whitespace_nowrap()
 }

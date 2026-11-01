@@ -2,14 +2,16 @@
 //! sizes and the main window size. The only `reqflux_ui` file besides `brand.rs` that holds raw values.
 
 use bolt_legacy::Palette;
-use bolt_legacy::tokens::{Colors, hex, hex_alpha};
+use bolt_legacy::tokens::hex;
 use std::time::Duration;
 
 use gpui::{App, Hsla, Pixels, Size, px, size};
 
 /// The label color of the uppercase HTTP `verb` on `palette`: Bolt's semantic hues, as DBFlux
 /// colors its object kinds. GET success, POST warning, PUT info, PATCH the null purple, DELETE
-/// danger, and HEAD, OPTIONS and custom verbs cyan.
+/// danger, and HEAD, OPTIONS and custom verbs cyan. Screens draw [`method_hue`]; this pins
+/// the hues by palette for the tests.
+#[cfg(test)]
 pub(crate) fn method_color(verb: &str, palette: Palette) -> Hsla {
     let colors = palette.colors();
     match verb {
@@ -22,8 +24,7 @@ pub(crate) fn method_color(verb: &str, palette: Palette) -> Hsla {
     }
 }
 
-/// The label color of `verb` on the palette `bolt` has installed: [`method_color`] for the
-/// screens that draw with `bolt`.
+/// The label color of `verb` on the palette `bolt` has installed.
 pub(crate) fn method_hue(verb: &str, cx: &App) -> Hsla {
     let colors = bolt::colors(cx);
     let palette = bolt_palette(cx);
@@ -111,110 +112,18 @@ pub(crate) const TREE_METHOD_COLUMN: Pixels = px(46.0);
 /// The size of a method label in a tree row or tab.
 pub(crate) const METHOD_LABEL_SIZE: Pixels = px(10.0);
 
-/// The size of the child count on the right of a collection or folder row.
-pub(crate) const TREE_COUNT_SIZE: Pixels = px(11.0);
-
-/// The gap between the parts of a tree row.
-pub(crate) const TREE_ROW_GAP: Pixels = px(7.0);
-
-/// The height of the sidebar header that holds `COLLECTIONS` and the new-request button.
-pub(crate) const SIDEBAR_HEADER: Pixels = px(46.0);
-
-/// The bottom padding under the sidebar filter field.
-pub(crate) const SIDEBAR_FILTER_BOTTOM: Pixels = px(10.0);
-
-/// The height of the sidebar footer with the request and collection counts.
-pub(crate) const SIDEBAR_FOOTER: Pixels = px(40.0);
-
-/// The width of the command palette.
-pub(crate) const PALETTE_WIDTH: Pixels = px(640.0);
-
 /// The tallest the command palette's list grows before it scrolls.
 pub(crate) const PALETTE_LIST_HEIGHT: Pixels = px(432.0);
 
-/// The height of the MCP approvals header: the title, the subtitle and Refresh.
-pub(crate) const APPROVALS_HEADER: Pixels = px(44.0);
-
-/// The text size of the MCP approvals title.
-pub(crate) const APPROVALS_TITLE_TEXT: Pixels = px(14.0);
-
-/// The width of the pending list of the MCP approvals view.
-pub(crate) const APPROVALS_LIST_WIDTH: Pixels = px(330.0);
-
-/// The text size of a pending row's request line and of its client and wait.
-pub(crate) const APPROVALS_ROW_REQUEST_TEXT: Pixels = px(12.0);
-pub(crate) const APPROVALS_ROW_META_TEXT: Pixels = px(11.5);
-
-/// The height of the selected call's title bar and the text size of its tool name.
-pub(crate) const APPROVAL_TITLE_BAR: Pixels = px(52.0);
-pub(crate) const APPROVAL_TITLE_TEXT: Pixels = px(15.0);
-
-/// The text size of the call id at the right of the title bar.
-pub(crate) const APPROVAL_CALL_ID_TEXT: Pixels = px(11.5);
-
-/// The height and text size of a class or state badge.
-pub(crate) const APPROVAL_BADGE: Pixels = px(20.0);
-pub(crate) const APPROVAL_BADGE_TEXT: Pixels = px(11.0);
-
-/// The opacity of the wash behind a class or state badge, in its color.
-pub(crate) const APPROVAL_BADGE_WASH: f32 = 0.133;
-
-/// The opacity of the wash behind the selected row and the Pending badge, in the tint.
-pub(crate) const APPROVAL_SELECTED_WASH: f32 = 0.12;
-pub(crate) const APPROVAL_PENDING_WASH: f32 = 0.14;
-
-/// The gap between the fields of the detail grid, and between a field's name and value.
-pub(crate) const APPROVAL_FIELD_GAP: Pixels = px(18.0);
-pub(crate) const APPROVAL_FIELD_NAME_GAP: Pixels = px(5.0);
-
-/// The text size of a field name of the detail grid.
-pub(crate) const APPROVAL_FIELD_NAME_TEXT: Pixels = px(11.0);
-
-/// The gap between the sections of the detail, and between a section's caption and box.
-pub(crate) const APPROVAL_SECTION_GAP: Pixels = px(20.0);
-pub(crate) const APPROVAL_CAPTION_GAP: Pixels = px(10.0);
-
-/// The text size of the uppercase section captions.
-pub(crate) const APPROVAL_CAPTION_TEXT: Pixels = px(10.0);
-
-/// The line height of "What it will send", and the gap between its URL, headers and body.
-pub(crate) const APPROVAL_SEND_LINE: Pixels = px(22.75);
-pub(crate) const APPROVAL_SEND_GAP: Pixels = px(8.0);
-
-/// The variables table: its variable and source columns, row height and header text size.
+/// The variables table of an approval: its variable and source columns.
 pub(crate) const APPROVAL_VARIABLE_COLUMN: Pixels = px(160.0);
 pub(crate) const APPROVAL_SOURCE_COLUMN: Pixels = px(120.0);
-pub(crate) const APPROVAL_TABLE_ROW: Pixels = px(30.0);
-pub(crate) const APPROVAL_TABLE_HEADER_TEXT: Pixels = px(11.5);
-pub(crate) const APPROVAL_TABLE_TEXT: Pixels = px(12.5);
-
-/// The padding of the detail's content and action bar.
-pub(crate) const APPROVAL_PADDING: Pixels = px(20.0);
-pub(crate) const APPROVAL_ACTIONS_PADDING_Y: Pixels = px(14.0);
-
-/// The opacity of the danger wash behind Deny.
-pub(crate) const APPROVAL_DENY_WASH: f32 = 0.14;
-
-/// The keycap on Allow once: white over the accent.
-pub(crate) fn approval_keycap_on_accent() -> Hsla {
-    hex_alpha(0xFFFFFF, 0.14)
-}
-
-/// The side of the environment diamond in the title bar.
-pub(crate) const ENVIRONMENT_DIAMOND: Pixels = px(7.0);
 
 /// The width of the title bar environment menu.
 pub(crate) const ENVIRONMENT_MENU_WIDTH: Pixels = px(360.0);
 
-/// The height of a row of the environment menu.
-pub(crate) const ENVIRONMENT_OPTION: Pixels = px(36.0);
-
 /// The width of the title bar workspace menu.
 pub(crate) const WORKSPACE_MENU_WIDTH: Pixels = px(420.0);
-
-/// The height of a recent workspace row, name over path, in the workspace menu and the
-/// empty state.
-pub(crate) const WORKSPACE_RECENT_ROW: Pixels = px(48.0);
 
 /// The width of the recent list and actions of the empty state.
 pub(crate) const EMPTY_STATE_WIDTH: Pixels = px(420.0);
@@ -234,17 +143,8 @@ pub(crate) const REQUEST_LINE: Pixels = px(48.0);
 /// The width of the method chip on the request line.
 pub(crate) const METHOD_CHIP_WIDTH: Pixels = px(96.0);
 
-/// The height of the URL field and the Send button.
-pub(crate) const URL_FIELD: Pixels = px(32.0);
-
 /// The side of the draft marker dot on a document tab.
 pub(crate) const DIRTY_DOT: Pixels = px(5.0);
-
-/// The text size of the method chip and the Send button.
-pub(crate) const REQUEST_LINE_TEXT: Pixels = px(12.5);
-
-/// The text size of the URL.
-pub(crate) const URL_TEXT: Pixels = px(13.0);
 
 /// The opacity of the wash behind a `{{name}}` reference in the URL.
 pub(crate) const VARIABLE_WASH: f32 = 0.12;
@@ -254,40 +154,7 @@ pub(crate) fn variable_wash(color: Hsla) -> Hsla {
     wash(color, VARIABLE_WASH)
 }
 
-/// The horizontal and vertical padding of the keycap on the Send button.
-pub(crate) const KEYCAP_PADDING_X: Pixels = px(6.0);
-pub(crate) const KEYCAP_PADDING_Y: Pixels = px(2.0);
-
-/// The text size of keycaps and sub-tab row counts.
-pub(crate) const SMALL_MONO_TEXT: Pixels = px(10.5);
-
-/// The keycap fill on the accent: the accent darkened. The accent fill and the text on it are
-/// the same on both palettes, so the keycap is too.
-pub(crate) fn keycap_on_accent_fill() -> Hsla {
-    hex_alpha(0x000000, 0.25)
-}
-
-/// The keycap text on the accent.
-pub(crate) fn keycap_on_accent_text() -> Hsla {
-    hex_alpha(0xFFFFFF, 0.82)
-}
-
-/// The height of the request sub-tab bar.
-pub(crate) const SUB_TAB_BAR: Pixels = px(42.0);
-
-/// The text size of the unresolved notice at the right of the sub-tab bar.
-pub(crate) const NOTICE_TEXT: Pixels = px(12.0);
-
-/// The heights of the Params and Headers grid header and data rows.
-pub(crate) const GRID_HEADER: Pixels = px(32.0);
-pub(crate) const GRID_ROW: Pixels = px(29.0);
-
-/// The text sizes of the grid header and data rows.
-pub(crate) const GRID_HEADER_TEXT: Pixels = px(12.0);
-pub(crate) const GRID_TEXT: Pixels = px(12.5);
-
-/// The grid columns: row number, key and value; the description fills the rest.
-pub(crate) const GRID_NUMBER_COLUMN: Pixels = px(46.0);
+/// The grid columns: key and value; the description fills the rest.
 pub(crate) const GRID_KEY_COLUMN: Pixels = px(200.0);
 pub(crate) const GRID_VALUE_COLUMN: Pixels = px(420.0);
 
@@ -304,55 +171,17 @@ pub(crate) const VARIABLES_STORED_COLUMN: Pixels = px(92.0);
 pub(crate) const VARIABLES_UNDECLARED_NOTE: Pixels = px(118.0);
 /// The padding of a narrow grid cell (the enable box column).
 pub(crate) const VARIABLES_NARROW_PADDING: Pixels = px(6.0);
-/// The enable box of a variables row.
-pub(crate) const VARIABLES_CHECKBOX: Pixels = px(16.0);
-/// The `file` and `KEYRING` pills of the `stored in` column.
-pub(crate) const VARIABLES_PILL: Pixels = px(20.0);
-pub(crate) const VARIABLES_PILL_TEXT: Pixels = px(11.0);
-pub(crate) const VARIABLES_PILL_PADDING: Pixels = px(7.0);
-pub(crate) const VARIABLES_PILL_ICON: Pixels = px(11.0);
 /// The opacity of the key and values of a disabled variable.
 pub(crate) const VARIABLES_DISABLED_OPACITY: f32 = 0.55;
-/// The warning wash of the `empty` tag and, fainter, of an empty variable's row.
-pub(crate) const VARIABLES_EMPTY_TAG_WASH: f32 = 0.12;
-/// The height of the Declare and discard buttons of an undeclared row.
-pub(crate) const VARIABLES_ROW_ACTION: Pixels = px(24.0);
-/// The width of the discard button of an undeclared row.
-pub(crate) const VARIABLES_DISCARD_WIDTH: Pixels = px(26.0);
-/// The height of the section heading's `Reset current values` button.
-pub(crate) const VARIABLES_HEADING_ACTION: Pixels = px(26.0);
 /// The horizontal padding of the variables column of the page.
 pub(crate) const VARIABLES_PANEL_INSET: Pixels = px(20.0);
-/// The padding above a section heading of the variables column.
-pub(crate) const VARIABLES_HEADING_TOP: Pixels = px(18.0);
-/// The padding above the second section heading.
-pub(crate) const VARIABLES_SECOND_HEADING_TOP: Pixels = px(22.0);
 
-/// The workspace settings page (variables/01): its header row, the section nav and its
-/// entries, the environment list, and the title block of the content island.
-pub(crate) const SETTINGS_HEADER: Pixels = px(40.0);
+/// The workspace settings page (variables/01): the section nav and the environment list.
 pub(crate) const SETTINGS_NAV_WIDTH: Pixels = px(230.0);
-pub(crate) const SETTINGS_NAV_ITEM: Pixels = px(32.0);
 pub(crate) const SETTINGS_ENVIRONMENT_LIST: Pixels = px(244.0);
-pub(crate) const SETTINGS_ENVIRONMENT_INSET: Pixels = px(14.0);
-pub(crate) const SETTINGS_ENVIRONMENT_FIELD: Pixels = px(28.0);
-pub(crate) const SETTINGS_ENVIRONMENT_META_TEXT: Pixels = px(11.5);
-pub(crate) const SETTINGS_TITLE_TOP: Pixels = px(22.0);
-pub(crate) const SETTINGS_TITLE_INSET: Pixels = px(28.0);
-pub(crate) const SETTINGS_TITLE_BOTTOM: Pixels = px(14.0);
-pub(crate) const SETTINGS_PATH_TEXT: Pixels = px(11.5);
-pub(crate) const SETTINGS_COUNT_TEXT: Pixels = px(11.0);
-
-/// The text and icon size of the SECRET badge.
-pub(crate) const BADGE_TEXT: Pixels = px(10.0);
 
 /// The opacity of the warning wash on a grid row with an unresolved reference.
 const UNRESOLVED_ROW_WASH: f32 = 0.05;
-
-/// The wash of a grid row with an unresolved reference: the warning, faint.
-pub(crate) fn unresolved_row_wash(colors: &Colors) -> Hsla {
-    unresolved_wash(colors.warning)
-}
 
 /// The wash of a grid row with an unresolved reference, from the palette's `warning`.
 pub(crate) fn unresolved_wash(warning: Hsla) -> Hsla {
@@ -389,27 +218,6 @@ pub(crate) fn image_size(width: u32, height: u32) -> Size<Pixels> {
 
 /// The size the main window opens at.
 pub(crate) const MAIN_WINDOW_SIZE: Size<Pixels> = size(px(1200.0), px(800.0));
-
-/// The danger wash behind a recent workspace that did not load, in the workspace menu: the
-/// palette's `danger` at 8% opacity.
-pub(crate) fn failed_recent_wash(danger: Hsla) -> Hsla {
-    Hsla { a: 0.08, ..danger }
-}
-
-/// The command palette's query row height (design/command-palette/02-scope-tabs.html).
-pub(crate) const PALETTE_QUERY_ROW: Pixels = px(56.0);
-/// The palette's scope tab row height.
-pub(crate) const PALETTE_TAB_ROW: Pixels = px(40.0);
-/// The height of one scope tab.
-pub(crate) const PALETTE_TAB: Pixels = px(28.0);
-/// The height of a palette row and of its key hint footer.
-pub(crate) const PALETTE_ROW: Pixels = px(38.0);
-/// The horizontal padding of the palette's query row, rows, headers and footer.
-pub(crate) const PALETTE_INSET: Pixels = px(18.0);
-/// The width of the method column of a request row in the palette.
-pub(crate) const PALETTE_METHOD_COLUMN: Pixels = px(44.0);
-/// The square that holds the icon of the palette's empty and no-match states.
-pub(crate) const PALETTE_EMPTY_ICON_BOX: Pixels = px(40.0);
 
 /// How far the rename hint under a tree row starts past the row's indent
 /// (design/tree-editing/01-context-menu-modal.html).
@@ -453,19 +261,14 @@ pub(crate) const GRID_ACTIONS_COLUMN: Pixels = px(34.0);
 /// The width of the Settings pane's timeout field (request-panes/01 frame C).
 pub(crate) const SETTING_NUMBER_FIELD: Pixels = px(160.0);
 
-/// The history views (history/01): the read-only banner of a history tab and the opacity of
-/// its warning wash, a day group's label row, the status column of a row and the icon of
-/// the empty state.
-pub(crate) const HISTORY_BANNER: Pixels = px(44.0);
-pub(crate) const HISTORY_BANNER_WASH: f32 = 0.06;
-pub(crate) const HISTORY_GROUP_ROW: Pixels = px(28.0);
+/// The status column of a History panel row (history/01).
 pub(crate) const HISTORY_STATUS_COLUMN: Pixels = px(26.0);
-pub(crate) const HISTORY_EMPTY_ICON: Pixels = px(20.0);
 
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
     use bolt_legacy::Palette;
+    use bolt_legacy::tokens::Colors;
     use gpui::Rgba;
 
     /// `0xRRGGBB` of an opaque `color`.

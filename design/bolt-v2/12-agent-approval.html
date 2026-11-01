@@ -68,7 +68,7 @@ button{font:inherit;white-space:nowrap}
 .c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
 .cap{font-family:'Archivo',system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
 .badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font-size:11px;font-weight:600;white-space:nowrap}
-.meta{display:flex;flex-direction:column;gap:5px}
+.meta{display:flex;flex-direction:column;gap:4px}
 .meta>span:first-child{font-size:11px;color:#8E8996}
 .meta>span+span{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:13px;color:#F7F4F7;white-space:nowrap}
 .box{background:#09090B;box-shadow:#232128 0 0 0 1px inset}
@@ -88,7 +88,7 @@ button{font:inherit;white-space:nowrap}
 .state-head{display:flex;align-items:baseline;gap:12px}
 .frame{width:1344px;box-sizing:border-box;background:#100F13;box-shadow:#232128 0 0 0 1px inset;overflow:hidden}
 .dh{display:flex;align-items:center;gap:10px;height:52px;padding:0 20px;border-bottom:1px solid #232128}
-.db{display:flex;flex-direction:column;gap:20px;padding:20px}
+.db{display:flex;flex-direction:column;gap:22px;padding:22px 20px}
 .mg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 </style>
 </head>
@@ -298,7 +298,7 @@ button{font:inherit;white-space:nowrap}
           <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-refresh"/></svg>Refresh</button>
         </div>
         <div style="flex-grow:1;min-height:0;display:flex">
-          <aside style="width:330px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #232128;background:#09090B">
+          <aside style="width:380px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #232128;background:#09090B">
             <div style="display:flex;align-items:center;gap:8px;padding:12px 16px"><span class="cap">Pending · 2</span></div>
             <div style="display:flex;flex-direction:column;gap:6px;padding:12px 16px;border-bottom:1px solid #18161B;background:rgba(157,177,255,.12);box-shadow:#9DB1FF 2px 0 0 inset">
               <div style="display:flex;align-items:center;gap:8px"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-bot"/></svg><span class="m" style="color:#F7F4F7;font-weight:700">request_execute</span><span style="flex-grow:1"></span><span class="c4 badge" style="background:rgba(255,194,61,.133);color:#FFC23D">Execute</span></div>
@@ -320,7 +320,7 @@ button{font:inherit;white-space:nowrap}
               <span style="flex-grow:1"></span>
               <span class="m" style="font-size:11.5px;color:#8E8996">call 0193a2f1-…-7c4e</span>
             </div>
-            <div style="display:flex;flex-direction:column;gap:20px;padding:20px;flex-grow:1;min-height:0">
+            <div style="display:flex;flex-direction:column;gap:22px;padding:22px 20px;flex-grow:1;min-height:0">
               <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px">
                 <div class="meta"><span>Requested by</span><span><svg class="ico" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-bot"/></svg>Claude Code</span></div>
                 <div class="meta"><span>Environment</span><span><span class="dia" style="background:#9DB1FF"></span>prod</span></div>
@@ -331,7 +331,7 @@ button{font:inherit;white-space:nowrap}
               </div>
               <div style="display:flex;flex-direction:column;gap:10px">
                 <span class="cap">What it will send</span>
-                <div class="c8 box m" style="padding:12px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
+                <div class="c8 box m" style="padding:14px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
                   <div style="white-space:pre"><span class="post" style="font-weight:700">POST</span> <span class="var">{{base_url}}</span>/v1/invoices</div>
                   <div style="display:flex;align-items:center;gap:8px;white-space:pre;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-arrow"/></svg><span style="color:#C6C3CC">https://api.billing.acme.com/v1/invoices</span><span style="font-family:Archivo,system-ui,sans-serif;font-size:12px">resolved in prod</span></div>
                   <div style="height:8px"></div>
@@ -387,7 +387,7 @@ button{font:inherit;white-space:nowrap}
       <div class="meta"><span>Environment</span><span><span class="dia" style="background:#9DB1FF"></span>staging</span></div>
       <div class="meta"><span>Policy class</span><span><span class="c4 badge" style="background:rgba(255,194,61,.133);color:#FFC23D">Execute</span></span></div>
     </div>
-    <div class="approval-unavailable c8 box" role="note" style="display:flex;align-items:flex-start;gap:10px;padding:12px 16px;font-size:13px;line-height:1.5;color:#8E8996"><svg class="ico" style="width:14px;height:14px;margin-top:3px"><use href="#i-info"/></svg><span>Details are not available: the call is for workspace <span style="color:#C6C3CC">Payments</span>, which is not open in this window.</span></div>
+    <div class="approval-unavailable c8 box" role="note" style="display:flex;align-items:flex-start;gap:10px;padding:14px 16px;font-size:13px;line-height:1.5;color:#8E8996"><svg class="ico" style="width:14px;height:14px;margin-top:3px"><use href="#i-info"/></svg><span>Details are not available: the call is for workspace <span style="color:#C6C3CC">Payments</span>, which is not open in this window.</span></div>
     <div class="c8 box m" style="padding:12px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
       <div style="white-space:pre"><span class="post" style="font-weight:700">POST</span> https://api.payments.acme.com/v1/refunds?api_key=<span style="color:#8E8996;letter-spacing:.1em">••••••••</span></div>
       <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Archivo,system-ui,sans-serif;font-size:12px;color:#8E8996">Targets</span><span style="color:#C6C3CC">Payments › refunds › Create refund</span></div>
@@ -419,7 +419,7 @@ button{font:inherit;white-space:nowrap}
     </div>
     <div style="display:flex;flex-direction:column;gap:10px">
       <span class="cap">What it will send</span>
-      <div class="c8 box m" style="padding:12px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
+      <div class="c8 box m" style="padding:14px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
         <div style="white-space:pre"><span class="get" style="font-weight:700">GET</span> <span class="var">{{base_url}}</span>/v1/invoices?status=open</div>
         <div style="display:flex;align-items:center;gap:8px;white-space:pre;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-arrow"/></svg><span style="color:#C6C3CC">http://localhost:8080/v1/invoices?status=open</span><span style="font-family:Archivo,system-ui,sans-serif;font-size:12px">resolved with no environment</span></div>
         <div style="height:8px"></div>
@@ -430,7 +430,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 <div class="state"><div class="state-head"><h3>Nothing pending</h3><p>The list says so; the detail pane stays empty with one line pointing to the footer note.</p></div>
 <div class="frame" style="display:flex;height:300px">
-  <aside style="width:330px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #232128;background:#09090B">
+  <aside style="width:380px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid #232128;background:#09090B">
     <div style="display:flex;align-items:center;gap:8px;padding:12px 16px"><span class="cap">Pending · 0</span></div>
     <div style="padding:12px 16px;font-size:12.5px;color:#8E8996">No agent call is waiting</div>
     <div style="margin-top:auto;padding:12px 16px;border-top:1px solid #232128;font-size:12px;color:#8E8996"><span class="c4 kc">j</span> <span class="c4 kc">k</span> move · decisions go to the audit log</div>
@@ -442,7 +442,7 @@ button{font:inherit;white-space:nowrap}
   <div class="db">
     <div style="display:flex;flex-direction:column;gap:10px">
       <span class="cap">What it will send</span>
-      <div class="c8 box m" style="padding:12px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
+      <div class="c8 box m" style="padding:14px 16px;font-size:13px;line-height:1.75;color:#F7F4F7">
         <div style="white-space:pre"><span class="post" style="font-weight:700">POST</span> <span class="var">{{base_url}}</span>/v1/invoices</div>
         <div style="display:flex;align-items:center;gap:8px;white-space:pre;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-arrow"/></svg><span style="color:#C6C3CC">https://api.billing.acme.com/v1/invoices</span><span style="font-family:Archivo,system-ui,sans-serif;font-size:12px">resolved in prod</span></div>
         <div style="height:8px"></div>

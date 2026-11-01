@@ -353,8 +353,9 @@ fn a_row_opens_the_read_only_history_tab(cx: &mut TestAppContext) {
     );
     present(cx, "history-banner-meta");
     present(cx, "history-open-source");
+    // The `Ctrl ↵` keycap is bolt's Button keycap, which carries no element id yet
+    // (`history-resend-keycap` comes back once Kbd takes one).
     assert_eq!(label(cx, "history-resend"), "Resend");
-    present(cx, "history-resend-keycap");
     assert!(bounds(cx, "history-resend-disabled").is_none());
     assert_eq!(label(cx, "history-method"), "GET");
     assert!(label(cx, "history-url").ends_with("/ping"));

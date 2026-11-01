@@ -7,13 +7,41 @@
 
 use std::path::Path;
 
+use bolt::modals::{
+    MODAL_KEY_CONTEXT, ModalKey, ModalKeyHandler, ModalSeams, ScrollKey, on_modal_key,
+};
 use bolt_legacy::PaletteMode;
-use gpui::{App, Window, WindowAppearance};
+use gpui::{App, Div, KeyBinding, Stateful, Window, WindowAppearance, actions};
 use reqflux_engine::config::{self, ThemeMode};
 use reqflux_engine::state::AppState;
 
 /// The app state setting earlier builds kept the palette mode in.
 pub(crate) const THEME_SETTING: &str = "theme";
+
+/// The label of the key that cancels a modal, on its Cancel keycap.
+pub(crate) const MODAL_ESCAPE_LABEL: &str = "Esc";
+
+actions!(
+    modal,
+    [
+        /// Closes the open modal.
+        CancelModal,
+        /// Confirms the open modal.
+        ConfirmModal,
+        /// Scrolls the open modal's body a line up.
+        ScrollModalUp,
+        /// Scrolls the open modal's body a line down.
+        ScrollModalDown,
+        /// Scrolls the open modal's body a page up.
+        ScrollModalPageUp,
+        /// Scrolls the open modal's body a page down.
+        ScrollModalPageDown,
+        /// Scrolls the open modal's body to its top.
+        ScrollModalToTop,
+        /// Scrolls the open modal's body to its bottom.
+        ScrollModalToBottom,
+    ]
+);
 
 /// What the window starts with.
 #[derive(Debug, Clone, PartialEq)]
@@ -158,7 +186,48 @@ pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
         bolt::density::Density::Default,
         cx,
     );
+    install_modal_seams(cx);
     bolt_legacy::install(crate::brand::reqflux(), mode, cx);
+}
+
+/// Installs what `bolt`'s modals read from the product, as DBFlux's theme does: ReqFlux's
+/// modal actions, bound in the `Modal` key context (Escape cancels, Enter confirms, the
+/// arrows, Page Up, Page Down, Home and End scroll), the Escape keycap, and the close
+/// button's icon and name. A modal rendered without them answers no keys.
+fn install_modal_seams(cx: &mut App) {
+    cx.set_global(ModalSeams {
+        attach_keys: attach_modal_keys,
+        // No ReqFlux modal leaves its keys to its owner.
+        defer_to_owner: |_, _, _| {},
+        escape_label: |_| Some(MODAL_ESCAPE_LABEL.into()),
+        close_icon: bolt::icon::IconSource::Svg(bolt_legacy::IconName::CircleX.path()),
+        close_label: || "Close".into(),
+    });
+    let context = Some(MODAL_KEY_CONTEXT);
+    cx.bind_keys([
+        KeyBinding::new("escape", CancelModal, context),
+        KeyBinding::new("enter", ConfirmModal, context),
+        KeyBinding::new("up", ScrollModalUp, context),
+        KeyBinding::new("down", ScrollModalDown, context),
+        KeyBinding::new("pageup", ScrollModalPageUp, context),
+        KeyBinding::new("pagedown", ScrollModalPageDown, context),
+        KeyBinding::new("home", ScrollModalToTop, context),
+        KeyBinding::new("end", ScrollModalToBottom, context),
+    ]);
+}
+
+/// Registers the backdrop handlers of ReqFlux's modal actions.
+fn attach_modal_keys(backdrop: Stateful<Div>, handler: ModalKeyHandler) -> Stateful<Div> {
+    let scroll = |key| ModalKey::Scroll(key);
+    let backdrop = on_modal_key::<CancelModal>(backdrop, ModalKey::Cancel, &handler);
+    let backdrop = on_modal_key::<ConfirmModal>(backdrop, ModalKey::Execute, &handler);
+    let backdrop = on_modal_key::<ScrollModalUp>(backdrop, scroll(ScrollKey::LineUp), &handler);
+    let backdrop = on_modal_key::<ScrollModalDown>(backdrop, scroll(ScrollKey::LineDown), &handler);
+    let backdrop = on_modal_key::<ScrollModalPageUp>(backdrop, scroll(ScrollKey::PageUp), &handler);
+    let backdrop =
+        on_modal_key::<ScrollModalPageDown>(backdrop, scroll(ScrollKey::PageDown), &handler);
+    let backdrop = on_modal_key::<ScrollModalToTop>(backdrop, scroll(ScrollKey::Top), &handler);
+    on_modal_key::<ScrollModalToBottom>(backdrop, scroll(ScrollKey::Bottom), &handler)
 }
 
 /// ReqFlux's fonts for the shared `bolt`, at the default interface size (13), where a rem is

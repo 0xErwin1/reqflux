@@ -236,15 +236,17 @@ fn the_detail_shows_what_it_will_send_from_the_open_workspace_masked(cx: &mut Te
         ]
     );
     assert_eq!(
-        label(&automation, "approval-reason-placeholder").as_deref(),
+        label(&automation, "approval-reason").as_deref(),
         Some("Reason (sent back to the agent when denying)")
     );
-    for (id, key) in [
-        ("approval-deny-key", "d"),
-        ("approval-allow-session-key", "s"),
-        ("approval-allow-key", "a"),
+    // The keys `d`, `s` and `a` are keycaps of bolt's Button, which carry no element id
+    // yet (`approval-*-key` come back once Kbd takes one); the buttons are named.
+    for (id, name) in [
+        ("approval-deny", "Deny"),
+        ("approval-allow-session", "Allow for this session"),
+        ("approval-allow", "Allow once"),
     ] {
-        assert_eq!(label(&automation, id).as_deref(), Some(key), "{id}");
+        assert_eq!(label(&automation, id).as_deref(), Some(name), "{id}");
     }
     assert!(
         label(&automation, "approval-footnote")
