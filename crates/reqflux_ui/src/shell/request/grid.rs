@@ -11,11 +11,11 @@
 use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter, InputEscape};
 use bolt::primitives::{Badge, BadgeTone, Icon};
 use bolt::tokens::{Borders, Fields, FontSizes, GridMetrics, Spacing, TabMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, Hsla, InteractiveElement, ParentElement, Stateful,
     Styled, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_core::model::KeyValue;
 use reqflux_engine::Inspection;
 

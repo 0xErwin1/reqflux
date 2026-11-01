@@ -15,12 +15,12 @@ use bolt::primitives::{Chamfer, Icon, Kbd, TextVariant};
 use bolt::tokens::{
     Borders, ChamferCut, HeaderMetrics, PaletteMetrics, ShellMetrics, Spacing, TabMetrics,
 };
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, Div, FontWeight, InteractiveElement, IntoElement, MouseButton,
     ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, point,
     prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::super::commands::{CommandId, command, key_label};
 use super::super::request::ui;

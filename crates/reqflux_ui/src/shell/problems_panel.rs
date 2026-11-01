@@ -9,12 +9,12 @@
 
 use bolt::primitives::{Chamfer, Icon, TextVariant};
 use bolt::tokens::{Borders, ChamferCut, NotificationMetrics, ShellMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     Anchor, AnyElement, App, Context, FontWeight, InteractiveElement, IntoElement, KeyBinding,
     MouseButton, ParentElement, Pixels, Point, Styled, Window, actions, anchored, deferred, div,
     point, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::problems::{CONFIG_ERROR_TITLE, Problem, Problems};
 use super::request::ui;

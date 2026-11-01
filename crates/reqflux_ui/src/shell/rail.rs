@@ -10,12 +10,12 @@
 
 use bolt::primitives::{Chamfer, Icon};
 use bolt::tokens::{ButtonMetrics, ChamferCut, ShellMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, ClickEvent, Context, FontWeight, IntoElement, ParentElement, Role,
     SharedString, StatefulInteractiveElement, Styled, Window, div, prelude::*,
 };
 use gpui_component::tooltip::Tooltip;
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::settings_page::Section;

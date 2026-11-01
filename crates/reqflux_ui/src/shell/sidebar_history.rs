@@ -17,11 +17,11 @@ use bolt::composites::{EmptyState, ListRow};
 use bolt::controls::{Input, InputState};
 use bolt::primitives::{Icon, TextVariant};
 use bolt::tokens::{HeaderMetrics, ShellMetrics, Spacing, TreeMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Entity, FontWeight, Hsla, IntoElement, ParentElement, RenderOnce,
     Role, Styled, Window, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::request::{StatusClass, ui};
 use super::rows::{labeled_row, part};

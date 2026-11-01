@@ -9,11 +9,11 @@ use bolt::composites::field_row as bolt_field_row;
 use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
 use bolt::primitives::{SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ModalMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, Entity, ParentElement, SharedString, Stateful, Styled, Window,
     div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_core::model::{ApiKeyLocation, Auth};
 use reqflux_engine::Inspection;
 

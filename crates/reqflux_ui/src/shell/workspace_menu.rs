@@ -15,11 +15,11 @@ use bolt::composites::{ListRow, MenuItem, menu_frame, menu_row, render_separator
 use bolt::controls::Button;
 use bolt::primitives::{Icon, Kbd, TextVariant};
 use bolt::tokens::{MenuMetrics, ShellMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
     ParentElement, Point, Role, Stateful, Styled, Window, anchored, deferred, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_engine::state::RecentWorkspace;
 
 use super::commands::{CommandId, command, key_label};

@@ -10,10 +10,10 @@ use bolt::Colors;
 use bolt::composites::StatusChip;
 use bolt::primitives::Icon;
 use bolt::tokens::{Fields, ShellMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     Context, FontWeight, Hsla, IntoElement, ParentElement, Role, Styled, Window, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::last_request::{LastKind, summary};
 use super::problems::{Problems, count};

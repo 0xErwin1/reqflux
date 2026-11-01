@@ -3,8 +3,8 @@
 
 use bolt::primitives::Icon;
 use bolt::tokens::{Borders, Fields, GridMetrics, Heights, Spacing};
-use bolt_legacy::IconName;
 use gpui::{AnyElement, App, FontWeight, ParentElement, Styled, div, prelude::*};
+use gpui_kit_assets::IconName;
 
 use super::cookies::{Cookie, cookies};
 use crate::shell::region;

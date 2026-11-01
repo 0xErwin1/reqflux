@@ -10,10 +10,10 @@ use std::sync::Arc;
 
 use bolt::controls::Button;
 use bolt::tokens::{Borders, ResultMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, FontWeight, ParentElement, RenderImage, Styled, div, img, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::preview_model::{HtmlText, ImageKind, PreviewKind, html_text, too_large};
 use crate::shell::request::{Completed, Received, SendState, ui};

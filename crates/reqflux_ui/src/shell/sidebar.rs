@@ -17,12 +17,12 @@ use bolt::composites::Island;
 use bolt::controls::Button;
 use bolt::primitives::{Chamfer, Icon, Kbd, TextVariant};
 use bolt::tokens::{Borders, ChamferCut, Fields, HeaderMetrics, ShellMetrics, TreeMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     App, Context, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement,
     KeyBinding, MouseButton, MouseDownEvent, ParentElement, Render, Styled, Window, actions, div,
     prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::rows::{NameDecorator, RowSlots};

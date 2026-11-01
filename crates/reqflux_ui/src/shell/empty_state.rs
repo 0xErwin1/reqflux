@@ -6,8 +6,8 @@
 
 use bolt::primitives::TextVariant;
 use bolt::tokens::{ShellMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{Context, IntoElement, ParentElement, Styled, div};
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::workspace_menu::{

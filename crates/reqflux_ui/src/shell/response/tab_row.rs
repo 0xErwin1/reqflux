@@ -7,11 +7,11 @@ use bolt::Colors;
 use bolt::composites::{document_tab, document_tab_bar, document_tab_title};
 use bolt::primitives::{Badge, BadgeTone, Icon};
 use bolt::tokens::{Fields, ResultMetrics, Spacing, TabMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     Animation, AnimationExt, App, Context, Div, Hsla, InteractiveElement, ParentElement, Role,
     Stateful, Styled, div, prelude::*, relative,
 };
+use gpui_kit_assets::IconName;
 
 use super::model::ResponseTab;
 use super::sub_tabs::effective_tab;

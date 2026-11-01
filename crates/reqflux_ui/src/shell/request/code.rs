@@ -4,8 +4,8 @@
 use bolt::composites::EmptyState;
 use bolt::primitives::TextVariant;
 use bolt::tokens::{EditorMetrics, GridMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{AnyElement, App, Div, ParentElement, Styled, div, prelude::*};
+use gpui_kit_assets::IconName;
 use reqflux_engine::Inspection;
 
 use super::pane_model::numbered_lines;

@@ -8,11 +8,11 @@
 use bolt::composites::{document_tab, document_tab_bar, document_tab_title};
 use bolt::primitives::Icon;
 use bolt::tokens::{FontSizes, TabMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     ClickEvent, Context, Div, ElementId, FontWeight, InteractiveElement, ParentElement, Role,
     Stateful, Styled, Window, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::approvals_view::TITLE;
 use super::documents::{Location, locate};

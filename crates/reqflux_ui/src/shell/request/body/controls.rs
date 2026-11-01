@@ -5,8 +5,8 @@
 use bolt::controls::SelectTrigger;
 use bolt::primitives::{Chamfer, ChamferRing};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
-use bolt_legacy::IconName;
 use gpui::{App, Div, ElementId, ParentElement, SharedString, Stateful, Styled};
+use gpui_kit_assets::IconName;
 
 use crate::shell::request::ui;
 use crate::shell::rows::part;

@@ -18,11 +18,11 @@ use bolt::composites::{Island, ListRow};
 use bolt::controls::Button;
 use bolt::primitives::{Badge, BadgeTone, Icon, Kbd, TextVariant};
 use bolt::tokens::{ApprovalsMetrics, Borders, DocumentMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Role, Styled,
     div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_engine::approvals::ApprovalDecision;
 
 use super::approvals::{

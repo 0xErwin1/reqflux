@@ -13,12 +13,12 @@ use bolt::primitives::{Chamfer, Icon, Kbd, status_diamond};
 use bolt::tokens::{
     Borders, ButtonMetrics, ChamferCut, Feedback, Fields, IslandMetrics, ShellMetrics, Spacing,
 };
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Stateful,
     StatefulInteractiveElement, Styled, Window, div, prelude::*,
 };
 use gpui_component::tooltip::Tooltip;
+use gpui_kit_assets::IconName;
 
 use super::rail::{badge_text, count_badge};
 use super::request::ui;

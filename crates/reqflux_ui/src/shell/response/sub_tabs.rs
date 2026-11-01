@@ -3,10 +3,10 @@
 
 use bolt::primitives::SegmentedItem;
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, ParentElement, SharedString, Styled, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::cookies::cookie_count;
 use super::model::{BodyView, ResponseTab};

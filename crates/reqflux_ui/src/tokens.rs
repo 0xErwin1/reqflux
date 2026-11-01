@@ -1,11 +1,36 @@
 //! ReqFlux's own tokens, on top of Bolt: method labels, the draft marker, syntax colors, shell
 //! sizes and the main window size. The only `reqflux_ui` file besides `brand.rs` that holds raw values.
 
-use bolt_legacy::Palette;
-use bolt_legacy::tokens::hex;
 use std::time::Duration;
 
+use bolt::Colors;
+use bolt::theme::rgb_to_hsla as hex;
 use gpui::{App, Hsla, Pixels, Size, px, size};
+
+/// The palette `bolt` draws: dark or light.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Palette {
+    Dark,
+    Light,
+}
+
+impl Palette {
+    /// `bolt`'s color roles of this palette.
+    pub(crate) fn colors(self) -> Colors {
+        match self {
+            Self::Dark => Colors::dark(),
+            Self::Light => Colors::light(),
+        }
+    }
+
+    /// The palette `bolt` has installed.
+    pub(crate) fn current(cx: &App) -> Self {
+        match bolt::palette::resolved_mode(cx) {
+            bolt::palette::PaletteMode::Light => Self::Light,
+            bolt::palette::PaletteMode::Dark | bolt::palette::PaletteMode::System => Self::Dark,
+        }
+    }
+}
 
 /// The label color of the uppercase HTTP `verb` on `palette`: Bolt's semantic hues, as DBFlux
 /// colors its object kinds. GET success, POST warning, PUT info, PATCH the null purple, DELETE
@@ -27,7 +52,7 @@ pub(crate) fn method_color(verb: &str, palette: Palette) -> Hsla {
 /// The label color of `verb` on the palette `bolt` has installed.
 pub(crate) fn method_hue(verb: &str, cx: &App) -> Hsla {
     let colors = bolt::colors(cx);
-    let palette = bolt_palette(cx);
+    let palette = Palette::current(cx);
     match verb {
         "GET" => colors.success,
         "POST" => colors.warning,
@@ -35,14 +60,6 @@ pub(crate) fn method_hue(verb: &str, cx: &App) -> Hsla {
         "PATCH" => method_patch(palette),
         "DELETE" => colors.danger,
         _ => method_other(palette),
-    }
-}
-
-/// Whether `bolt` draws dark or light.
-fn bolt_palette(cx: &App) -> Palette {
-    match bolt::palette::resolved_mode(cx) {
-        bolt::palette::PaletteMode::Light => Palette::Light,
-        bolt::palette::PaletteMode::Dark | bolt::palette::PaletteMode::System => Palette::Dark,
     }
 }
 
@@ -95,13 +112,7 @@ impl SyntaxColors {
 
     /// The syntax colors on the palette `bolt` has installed.
     pub(crate) fn current(cx: &App) -> Self {
-        let palette = bolt_palette(cx);
-        let colors = bolt::colors(cx);
-        Self {
-            string: colors.success,
-            punct: colors.muted,
-            ..Self::for_palette(palette)
-        }
+        Self::for_palette(Palette::current(cx))
     }
 }
 
@@ -254,8 +265,6 @@ pub(crate) const HISTORY_STATUS_COLUMN: Pixels = px(26.0);
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use bolt_legacy::Palette;
-    use bolt_legacy::tokens::Colors;
     use gpui::Rgba;
 
     /// `0xRRGGBB` of an opaque `color`.
@@ -327,8 +336,9 @@ pub(crate) mod tests {
     fn light_syntax_colors_read_on_the_light_panel() {
         let syntax = SyntaxColors::for_palette(Palette::Light);
         assert_eq!(rgb_of(syntax.key), 0x5C5766);
-        assert_eq!(rgb_of(syntax.string), 0x1C7A45);
+        // DBFlux's light success and muted (were 1C7A45 and 6B6673).
+        assert_eq!(rgb_of(syntax.string), 0x1C7F45);
         assert_eq!(rgb_of(syntax.number), 0x7445D6);
-        assert_eq!(rgb_of(syntax.punct), 0x6B6673);
+        assert_eq!(rgb_of(syntax.punct), 0x6B6572);
     }
 }

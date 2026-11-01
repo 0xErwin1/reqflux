@@ -8,9 +8,9 @@ use bolt::composites::{
 };
 use bolt::primitives::key_label;
 use bolt::tokens::KbdMetrics;
-use bolt_legacy::IconName;
 use gpui::prelude::*;
 use gpui::{AnyElement, Context, InteractiveElement, ParentElement, Role, Styled, Window};
+use gpui_kit_assets::IconName;
 
 use crate::shell::request::{option_menu, ui};
 use crate::shell::rows::part;

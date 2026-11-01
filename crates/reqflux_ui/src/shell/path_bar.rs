@@ -3,8 +3,8 @@
 
 use bolt::primitives::{Icon, TextVariant};
 use bolt::tokens::{Borders, EditorMetrics, Fields, Spacing};
-use bolt_legacy::IconName;
 use gpui::{App, Div, ParentElement, Stateful, Styled, div};
+use gpui_kit_assets::IconName;
 
 use super::documents::Location;
 use super::region;

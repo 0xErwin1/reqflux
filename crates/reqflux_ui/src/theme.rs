@@ -10,8 +10,9 @@ use std::path::Path;
 use bolt::modals::{
     MODAL_KEY_CONTEXT, ModalKey, ModalKeyHandler, ModalSeams, ScrollKey, on_modal_key,
 };
-use bolt_legacy::PaletteMode;
-use gpui::{App, Div, KeyBinding, Stateful, Window, WindowAppearance, actions};
+pub(crate) use bolt::palette::PaletteMode;
+use gpui::{App, Div, Global, KeyBinding, Stateful, Window, WindowAppearance, actions};
+use gpui_kit_assets::IconName;
 use reqflux_engine::config::{self, ThemeMode};
 use reqflux_engine::state::AppState;
 
@@ -165,29 +166,47 @@ pub(crate) fn save_mode(config: Option<&Path>, mode: PaletteMode) {
     }
 }
 
-/// Installs both design systems with ReqFlux's brand in `mode`: the shared `bolt` first, then
-/// `bolt_legacy` over it.
-///
-/// Both map their palette onto gpui-component's one `Theme`. Screens still draw with
-/// `bolt_legacy`, so it goes last and its colors, metrics and editor colors are what
-/// gpui-component draws. The shared install still sets what only it owns: its brand, palette
-/// mode, density and fonts, and the rem size kept in the stored light and dark configs,
-/// which `bolt_legacy` never writes, so it survives every later switch. The reverse order
-/// would repaint today's screens in DBFlux's palette.
+/// The mode the user selected, which `bolt` keeps only resolved: [`PaletteMode::System`]
+/// stays here so the window can follow the OS and `Toggle theme` can cycle from it.
+struct SelectedMode(PaletteMode);
+
+impl Global for SelectedMode {}
+
+/// The mode the user selected, Dark before [`install`].
+pub(crate) fn mode(cx: &App) -> PaletteMode {
+    cx.try_global::<SelectedMode>()
+        .map(|selected| selected.0)
+        .unwrap_or_default()
+}
+
+/// The mode after `mode` in the cycle Dark, Light, System.
+pub(crate) fn next(mode: PaletteMode) -> PaletteMode {
+    match mode {
+        PaletteMode::Dark => PaletteMode::Light,
+        PaletteMode::Light => PaletteMode::System,
+        PaletteMode::System => PaletteMode::Dark,
+    }
+}
+
+/// Installs `bolt`, DBFlux's design system, with ReqFlux's brand in `mode`: the bundled
+/// fonts at the default interface size, where a rem is 16 px as in DBFlux, the default
+/// density, and DBFlux's palette drawn with ReqFlux's accent on gpui-component's `Theme`.
 pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
     if !cx.has_global::<gpui_component::theme::Theme>() {
         gpui_component::init(cx);
     }
-    bolt::fonts::init(cx, shared_fonts());
+    bolt::typography::load_bundled_fonts(cx);
+    // ReqFlux has no interface size setting yet.
+    bolt::fonts::init(cx, bolt::fonts::FontSettings::default());
     bolt::density::init(cx, bolt::density::Density::Default);
+    cx.set_global(SelectedMode(mode));
     bolt::theme::install(
-        crate::brand::shared(),
-        shared_mode(mode),
+        crate::brand::reqflux(),
+        mode,
         bolt::density::Density::Default,
         cx,
     );
     install_modal_seams(cx);
-    bolt_legacy::install(crate::brand::reqflux(), mode, cx);
 }
 
 /// Installs what `bolt`'s modals read from the product, as DBFlux's theme does: ReqFlux's
@@ -200,7 +219,7 @@ fn install_modal_seams(cx: &mut App) {
         // No ReqFlux modal leaves its keys to its owner.
         defer_to_owner: |_, _, _| {},
         escape_label: |_| Some(MODAL_ESCAPE_LABEL.into()),
-        close_icon: bolt::icon::IconSource::Svg(bolt_legacy::IconName::CircleX.path()),
+        close_icon: bolt::icon::IconSource::Svg(IconName::CircleX.path()),
         close_label: || "Close".into(),
     });
     let context = Some(MODAL_KEY_CONTEXT);
@@ -230,48 +249,24 @@ fn attach_modal_keys(backdrop: Stateful<Div>, handler: ModalKeyHandler) -> State
     on_modal_key::<ScrollModalToBottom>(backdrop, scroll(ScrollKey::Bottom), &handler)
 }
 
-/// ReqFlux's fonts for the shared `bolt`, at the default interface size (13), where a rem is
-/// 16 px as in DBFlux. ReqFlux has no interface size setting yet.
-fn shared_fonts() -> bolt::fonts::FontSettings {
-    use bolt_legacy::tokens::family;
-    bolt::fonts::FontSettings {
-        ui_family: family::INTERFACE.into(),
-        ui_size: bolt::fonts::DEFAULT_UI_FONT_SIZE,
-        editor_family: family::MONO.into(),
-        editor_size: bolt::fonts::DEFAULT_EDITOR_FONT_SIZE,
-        grid_family: family::MONO.into(),
-        grid_size: bolt::fonts::DEFAULT_GRID_FONT_SIZE,
-    }
-}
-
-/// The shared `bolt` mode of a `bolt_legacy` mode.
-fn shared_mode(mode: PaletteMode) -> bolt::palette::PaletteMode {
-    match mode {
-        PaletteMode::Dark => bolt::palette::PaletteMode::Dark,
-        PaletteMode::Light => bolt::palette::PaletteMode::Light,
-        PaletteMode::System => bolt::palette::PaletteMode::System,
-    }
-}
-
 /// Resolves the installed mode against `window`'s appearance now and whenever the OS changes
 /// it, so [`PaletteMode::System`] follows the OS.
 pub(crate) fn follow_appearance(window: &mut Window, cx: &mut App) {
-    set_mode(bolt_legacy::mode(cx), window.appearance(), cx);
+    set_mode(mode(cx), window.appearance(), cx);
     window
         .observe_window_appearance(|window, cx| {
-            if bolt_legacy::mode(cx) == PaletteMode::System {
+            if mode(cx) == PaletteMode::System {
                 set_mode(PaletteMode::System, window.appearance(), cx);
             }
         })
         .detach();
 }
 
-/// Switches both design systems to `mode` at runtime, resolved against `appearance` (a
-/// window's appearance), in the order [`install`] uses.
+/// Switches to `mode` at runtime, resolved against `appearance` (a window's appearance).
 pub(crate) fn set_mode(mode: PaletteMode, appearance: WindowAppearance, cx: &mut App) {
-    let resolved = bolt::theme::resolve_mode(shared_mode(mode), appearance);
+    cx.set_global(SelectedMode(mode));
+    let resolved = bolt::theme::resolve_mode(mode, appearance);
     bolt::theme::apply_theme(resolved, bolt::density::active(cx), None, cx);
-    bolt_legacy::set_mode(mode, appearance, cx);
 }
 
 #[cfg(test)]

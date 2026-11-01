@@ -58,14 +58,11 @@ pub(crate) fn render<'a>(
     // The engine wakes the awaiting task from its own threads.
     cx.executor().allow_parking();
     // bolt's components read gpui-component's Theme, as the app installs it at startup.
-    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
+    cx.update(|cx| crate::theme::install(crate::theme::PaletteMode::Dark, cx));
     let state = match AppState::open(state_path) {
         Ok(state) => state,
         Err(error) => panic!("open state: {error}"),
     };
-    cx.update(|cx| {
-        bolt_legacy::install(crate::brand::reqflux(), bolt_legacy::PaletteMode::Dark, cx)
-    });
     cx.update(super::bind_keys);
     let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
     let (shell, cx) = cx.add_window_view(|_, cx| Shell::with_state(workspace, Some(state), cx));

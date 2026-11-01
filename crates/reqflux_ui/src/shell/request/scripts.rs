@@ -9,9 +9,9 @@ use bolt::composites::EmptyState;
 use bolt::controls::{Button, InputEnter, InputEscape};
 use bolt::primitives::{Chamfer, Icon, TextVariant};
 use bolt::tokens::{Borders, ChamferCut, EditorMetrics, Fields, HeaderMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{AnyElement, Context, ParentElement, Role, Styled, div, prelude::*};
 use gpui_component::input::Textarea;
+use gpui_kit_assets::IconName;
 use reqflux_engine::Inspection;
 
 use super::body::controls::focus_ring;

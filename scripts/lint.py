@@ -23,13 +23,10 @@ ROOT = Path(__file__).resolve().parent.parent
 MAX_LINES = 1000
 # `bolt` is DBFlux's design system, taken by git rev; it draws with GPUI.
 GPUI_PACKAGES = {"gpui-pre", "gpui-component", "gpui-pre-platform", "gpui-mcp", "bolt"}
-GPUI_CRATES = {"bolt_legacy", "reqflux", "reqflux_ui"}
+GPUI_CRATES = {"reqflux", "reqflux_ui"}
 
 # Each crate may depend only on the internal crates listed here.
 ALLOWED_INTERNAL = {
-    # ReqFlux's own copy of Bolt, until every screen moves to the shared `bolt`; it depends
-    # on no ReqFlux crate.
-    "bolt_legacy": set(),
     "reqflux_core": set(),
     "reqflux_store": {"reqflux_core"},
     "reqflux_postman": {"reqflux_core"},
@@ -37,7 +34,7 @@ ALLOWED_INTERNAL = {
     "reqflux_script": {"reqflux_core"},
     "reqflux_engine": {"reqflux_core", "reqflux_http", "reqflux_postman", "reqflux_script", "reqflux_store"},
     "reqflux_mcp": {"reqflux_core", "reqflux_engine"},
-    "reqflux_ui": {"bolt_legacy", "reqflux_core", "reqflux_engine"},
+    "reqflux_ui": {"reqflux_core", "reqflux_engine"},
     "reqflux": {"reqflux_core", "reqflux_engine", "reqflux_mcp", "reqflux_ui"},
 }
 

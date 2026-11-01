@@ -24,11 +24,11 @@ use bolt::primitives::Icon;
 use bolt::tokens::{
     Borders, ButtonMetrics, Fields, HeaderMetrics, ResultMetrics, Spacing, SplitterMetrics,
 };
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, Div, FocusHandle, FontWeight, Hsla, MouseButton, ParentElement, Pixels,
     Stateful, Styled, canvas, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_engine::state::AppState;
 
 use super::request::{Completed, SendState, StatusClass, elapsed_text, size_text, ui};

@@ -14,11 +14,11 @@ use bolt::tokens::{
     Borders, ChamferCut, Fields, HeaderMetrics, Heights, IslandMetrics, MasterListMetrics,
     NavigationMetrics, ShellMetrics, Spacing, TreeMetrics,
 };
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, InteractiveElement, IntoElement, ParentElement,
     Role, Stateful, Styled, Window, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_core::model::{Id, Workspace};
 use reqflux_engine::SecretScope;
 

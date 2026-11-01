@@ -14,10 +14,10 @@ workspace = true
 [dependencies]
 anyhow.workspace = true
 bolt.workspace = true
-bolt_legacy.workspace = true
 chrono.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true
+gpui-kit-assets.workspace = true
 gpui-mcp.workspace = true
 image.workspace = true
 log.workspace = true

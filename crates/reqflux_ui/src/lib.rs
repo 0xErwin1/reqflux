@@ -19,13 +19,14 @@ use reqflux_engine::state::AppState;
 use crate::shell::Shell;
 use crate::workspace::OpenedWorkspace;
 
-/// The asset source the main window needs: the icons Bolt draws. Pass it to
-/// `Application::with_assets` before [`open_main_window`]; without it, icons paint nothing.
+/// The asset source the main window needs: the Lucide icons gpui-component bundles, which
+/// ReqFlux and gpui-component's own widgets draw. Pass it to `Application::with_assets`
+/// before [`open_main_window`]; without it, icons paint nothing.
 pub fn assets() -> impl gpui::AssetSource {
-    bolt_legacy::assets()
+    gpui_kit_assets::AllAssets
 }
 
-/// Installs Bolt with ReqFlux's brand in the theme saved in the user's config file and opens the main
+/// Installs `bolt` with ReqFlux's brand in the theme saved in the user's config file and opens the main
 /// window on the workspace at `workspace`. Without one it opens the most recent workspace
 /// that loads, else a new managed workspace named `Personal`, else the empty state
 /// (standalone-workspaces S2).
@@ -55,7 +56,7 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
     let options = WindowOptions {
         app_id: Some("reqflux".into()),
         titlebar: Some(TitlebarOptions {
-            title: Some(bolt_legacy::brand(cx).name.clone()),
+            title: Some(bolt::brand::brand(cx).name),
             ..Default::default()
         }),
         window_bounds: Some(WindowBounds::Windowed(bounds)),

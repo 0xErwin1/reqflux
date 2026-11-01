@@ -1,25 +1,24 @@
-//! Installing the shared `bolt` beside `bolt_legacy` (shared-bolt S1, S4): the shared theme
-//! carries ReqFlux's brand and the interface font size, its rem sizes match DBFlux's, and the
-//! gpui-component theme today's screens draw with stays the one `bolt_legacy` installs.
+//! Installing `bolt` (shared-bolt S1, S4): the theme carries ReqFlux's brand and the interface
+//! font size, its rem sizes match DBFlux's, and the gpui-component theme every widget draws
+//! with is DBFlux's palette with ReqFlux's accent.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use bolt::Colors;
 use bolt::modals::{Modal, ModalSeams};
-use bolt::palette::PaletteMode as SharedMode;
 use bolt::tokens::{FontSizes, Heights};
-use bolt_legacy::PaletteMode;
 use gpui::{
     App, Context, FocusHandle, IntoElement, ParentElement as _, Render, Styled as _,
     TestAppContext, Window, WindowAppearance, div, px,
 };
 use gpui_component::theme::Theme;
 
-use super::{MODAL_ESCAPE_LABEL, install, set_mode};
+use super::{MODAL_ESCAPE_LABEL, PaletteMode, install, mode, set_mode};
 use crate::tokens::tests::rgb_of;
 
 /// The gpui-component theme as widgets draw it. The stored light and dark configs are left out:
-/// the shared install also keeps the rem size there, so a later reload keeps it.
+/// the install also keeps the rem size there, so a later reload keeps it.
 fn drawn_theme(cx: &App) -> serde_json::Value {
     let mut value = match serde_json::to_value(Theme::global(cx)) {
         Ok(value) => value,
@@ -33,7 +32,7 @@ fn drawn_theme(cx: &App) -> serde_json::Value {
 }
 
 #[gpui::test]
-fn the_shared_brand_is_reqflux_cobalt(cx: &mut TestAppContext) {
+fn the_brand_is_reqflux_cobalt(cx: &mut TestAppContext) {
     cx.update(|cx| {
         install(PaletteMode::Dark, cx);
         let brand = bolt::brand::brand(cx);
@@ -47,7 +46,7 @@ fn the_shared_brand_is_reqflux_cobalt(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn shared_sizes_resolve_to_dbflux_pixels_at_the_default_font_size(cx: &mut TestAppContext) {
+fn sizes_resolve_to_dbflux_pixels_at_the_default_font_size(cx: &mut TestAppContext) {
     cx.update(|cx| {
         install(PaletteMode::Dark, cx);
         assert!(cx.has_global::<bolt::fonts::FontSettingsGlobal>());
@@ -79,18 +78,22 @@ fn shared_sizes_resolve_to_dbflux_pixels_at_the_default_font_size(cx: &mut TestA
 }
 
 #[gpui::test]
-fn the_shared_palette_follows_the_installed_mode(cx: &mut TestAppContext) {
+fn the_palette_follows_the_installed_mode(cx: &mut TestAppContext) {
     cx.update(|cx| {
         install(PaletteMode::Light, cx);
-        assert_eq!(bolt::palette::mode(cx), SharedMode::Light);
+        assert_eq!(bolt::palette::mode(cx), PaletteMode::Light);
+        assert_eq!(bolt::colors(cx), Colors::light());
 
         set_mode(PaletteMode::Dark, WindowAppearance::Light, cx);
-        assert_eq!(bolt::palette::mode(cx), SharedMode::Dark);
-        assert_eq!(bolt_legacy::mode(cx), PaletteMode::Dark);
+        assert_eq!(bolt::palette::mode(cx), PaletteMode::Dark);
+        assert_eq!(mode(cx), PaletteMode::Dark);
+        assert_eq!(bolt::colors(cx), Colors::dark());
 
+        // `bolt` keeps the resolved palette; the selection stays System.
         set_mode(PaletteMode::System, WindowAppearance::Light, cx);
-        assert_eq!(bolt::palette::mode(cx), SharedMode::Light);
-        assert_eq!(bolt_legacy::mode(cx), PaletteMode::System);
+        assert_eq!(bolt::palette::mode(cx), PaletteMode::Light);
+        assert_eq!(mode(cx), PaletteMode::System);
+        assert_eq!(bolt::colors(cx), Colors::light());
     });
 }
 
@@ -151,25 +154,41 @@ fn modals_answer_escape_and_enter(cx: &mut TestAppContext) {
     assert_eq!(confirmed.load(Ordering::SeqCst), 1, "Enter confirms");
 }
 
-/// Today's screens draw with `bolt_legacy`'s theme: installing the shared `bolt` too changes
-/// nothing in it, at startup or after a switch.
+/// DBFlux's theme with ReqFlux's brand: `bolt`'s install alone, as DBFlux runs it.
+fn dbflux_palette(mode: PaletteMode, cx: &mut App) {
+    if !cx.has_global::<Theme>() {
+        gpui_component::init(cx);
+    }
+    bolt::theme::install(
+        crate::brand::reqflux(),
+        mode,
+        bolt::density::Density::Default,
+        cx,
+    );
+}
+
+/// What gpui-component draws is DBFlux's palette with ReqFlux's accent, at startup and after
+/// a switch: ReqFlux overrides no field of the theme `bolt` installs.
 #[gpui::test]
-fn the_legacy_theme_is_what_gpui_component_draws(
-    legacy: &mut TestAppContext,
-    both: &mut TestAppContext,
+fn the_drawn_theme_is_dbflux_palette_with_the_reqflux_accent(
+    dbflux: &mut TestAppContext,
+    reqflux: &mut TestAppContext,
 ) {
     for mode in [PaletteMode::Dark, PaletteMode::Light] {
-        legacy.update(|cx| bolt_legacy::install(crate::brand::reqflux(), mode, cx));
-        both.update(|cx| install(mode, cx));
-        let expected = legacy.update(|cx| drawn_theme(cx));
-        assert_eq!(both.update(|cx| drawn_theme(cx)), expected, "{mode:?}");
+        dbflux.update(|cx| dbflux_palette(mode, cx));
+        reqflux.update(|cx| install(mode, cx));
+        let expected = dbflux.update(|cx| drawn_theme(cx));
+        assert_eq!(reqflux.update(|cx| drawn_theme(cx)), expected, "{mode:?}");
+        reqflux.update(|cx| {
+            assert_eq!(rgb_of(Theme::global(cx).primary), 0x2B45B8, "{mode:?}");
+        });
     }
 
-    legacy.update(|cx| bolt_legacy::set_mode(PaletteMode::Dark, WindowAppearance::Light, cx));
-    both.update(|cx| set_mode(PaletteMode::Dark, WindowAppearance::Light, cx));
-    let expected = legacy.update(|cx| drawn_theme(cx));
+    dbflux.update(|cx| dbflux_palette(PaletteMode::Dark, cx));
+    reqflux.update(|cx| set_mode(PaletteMode::Dark, WindowAppearance::Light, cx));
+    let expected = dbflux.update(|cx| drawn_theme(cx));
     assert_eq!(
-        both.update(|cx| drawn_theme(cx)),
+        reqflux.update(|cx| drawn_theme(cx)),
         expected,
         "after a switch"
     );

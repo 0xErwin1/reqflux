@@ -8,7 +8,7 @@ use super::sidebar_tests::{API, HEALTH, LIST, TOKEN, USERS, sidebar_workspace};
 use crate::workspace::OpenedWorkspace;
 
 fn render(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
-    cx.update(|cx| crate::theme::install(bolt_legacy::PaletteMode::Dark, cx));
+    cx.update(|cx| crate::theme::install(crate::theme::PaletteMode::Dark, cx));
     cx.update(super::bind_keys);
     let dir = sidebar_workspace();
     let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));

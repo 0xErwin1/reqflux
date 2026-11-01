@@ -5,8 +5,8 @@
 use bolt::controls::Button;
 use bolt::primitives::{BannerBlock, BannerVariant};
 use bolt::tokens::Spacing;
-use bolt_legacy::IconName;
 use gpui::{AnyElement, App, Context, Div, ParentElement, Role, Styled, div, prelude::*};
+use gpui_kit_assets::IconName;
 
 use super::results::{console_row, list, test_row};
 use crate::shell::request::{Failure, ui};

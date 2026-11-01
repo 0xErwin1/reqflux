@@ -3,8 +3,8 @@
 
 use bolt::icon::IconSource;
 use bolt::primitives::{TextDefaultColor, TextVariant};
-use bolt_legacy::IconName;
 use gpui::{App, Styled};
+use gpui_kit_assets::IconName;
 
 /// The `bolt` icon source of the Lucide icon `name`.
 pub(crate) fn icon(name: IconName) -> IconSource {

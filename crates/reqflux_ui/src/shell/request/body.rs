@@ -9,9 +9,9 @@ pub(super) mod controls;
 use bolt::controls::{InputEnter, InputEscape};
 use bolt::primitives::{Icon, SegmentedItem};
 use bolt::tokens::{Borders, EditorMetrics, Fields, ResultMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{AnyElement, Context, ParentElement, SharedString, Styled, Window, div, prelude::*};
 use gpui_component::input::Textarea;
+use gpui_kit_assets::IconName;
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
 

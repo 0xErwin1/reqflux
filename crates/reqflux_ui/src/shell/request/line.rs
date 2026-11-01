@@ -7,11 +7,11 @@
 use bolt::controls::{Button, GpuiInput, Input, InputEnter, InputEscape, InputState};
 use bolt::primitives::{Chamfer, Icon, TextVariant};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     Context, Div, Entity, FontWeight, ParentElement, Pixels, Role, Stateful, Styled, Window, div,
     prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::model::RequestState;
 use super::{method_menu, spans, ui};

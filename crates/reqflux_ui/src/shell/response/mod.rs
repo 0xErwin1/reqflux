@@ -27,8 +27,8 @@ pub(crate) use preview_model::{PreviewKind, preview_kind};
 
 use bolt::composites::{EmptyState, EmptyStateAction};
 use bolt::tokens::{Borders, Spacing};
-use bolt_legacy::IconName;
 use gpui::{AnyElement, App, Context, Div, ParentElement, Stateful, Styled, div, prelude::*};
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::request::{Completed, SendState};

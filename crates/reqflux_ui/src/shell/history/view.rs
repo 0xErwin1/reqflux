@@ -11,11 +11,11 @@ use bolt::composites::{EmptyState, document_tab, document_tab_title};
 use bolt::controls::Button;
 use bolt::primitives::{Chamfer, Icon, TextVariant};
 use bolt::tokens::{Borders, ChamferCut, EditorMetrics, Fields, GridMetrics, Spacing, TabMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Div, ElementId, FontWeight, ParentElement, Role, Stateful, Styled,
     div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_engine::SentBody;
 
 use super::{HistoryTab, RESEND_NOTE, RecordedTab};

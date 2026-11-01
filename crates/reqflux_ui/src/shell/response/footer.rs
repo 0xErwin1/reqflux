@@ -3,8 +3,8 @@
 
 use bolt::primitives::{Icon, SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ResultMetrics};
-use bolt_legacy::IconName;
 use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
+use gpui_kit_assets::IconName;
 
 use super::model::BodyView;
 use super::sub_tabs::effective_view;

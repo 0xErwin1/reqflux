@@ -116,15 +116,15 @@ body{background:#050507}
 
 /* splitters */
 .sp{position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:#100F13;touch-action:none}
-.sp-y{height:9px;cursor:row-resize;border-top:1px solid #232128;border-bottom:1px solid #232128}
+.sp-y{height:6px;cursor:row-resize}
 .sp-x{width:9px;cursor:col-resize;border-left:1px solid #232128;border-right:1px solid #232128}
 .sp .grip{background-image:radial-gradient(circle,#37333D 1.1px,transparent 1.4px)}
-.sp-y .grip{width:30px;height:5px;background-size:6px 5px}
+.sp-y .grip{width:18px;height:5px;background-size:6px 5px}
 .sp-x .grip{width:5px;height:30px;background-size:5px 6px}
 .sp:hover,.sp.drag{background:rgba(157,177,255,.06)}
 .sp:hover .grip,.sp.drag .grip{background-image:radial-gradient(circle,#9DB1FF 1.1px,transparent 1.4px)}
 .sp.drag::after{content:"";position:absolute;background:#9DB1FF}
-.sp-y.drag::after{left:0;right:0;top:3px;height:2px}
+.sp-y.drag::after{left:0;right:0;top:2px;height:2px}
 .sp-x.drag::after{top:0;bottom:0;left:3px;width:2px}
 .split{display:flex;flex-grow:1;min-height:0;min-width:0}
 .split>.pane-req{display:flex;min-height:0;min-width:0;overflow:hidden}

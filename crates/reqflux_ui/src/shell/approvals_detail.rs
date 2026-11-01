@@ -17,11 +17,11 @@ use bolt::primitives::{BadgeTone, Chamfer, Icon, TextVariant, status_diamond};
 use bolt::tokens::{
     ApprovalsMetrics, Borders, ChamferCut, DocumentMetrics, Feedback, ModalMetrics, Spacing,
 };
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, FontWeight, InteractiveElement, IntoElement, ParentElement, Styled,
     div, prelude::*, relative,
 };
+use gpui_kit_assets::IconName;
 use reqflux_engine::approvals::{ApprovalRequest, CallPreview, UsedVariable};
 use reqflux_engine::{MASK, SentBody};
 

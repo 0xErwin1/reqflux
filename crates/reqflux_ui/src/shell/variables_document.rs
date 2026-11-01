@@ -17,11 +17,11 @@ use bolt::Colors;
 use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter as Enter, InputEscape as Escape};
 use bolt::primitives::{Badge, BadgeTone, Icon, TextVariant};
 use bolt::tokens::{Borders, FontSizes, GridMetrics, HeaderMetrics, ResultMetrics, Spacing};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, Div, FontWeight, Hsla, ParentElement, Pixels, Role, Stateful, Styled,
     Toggled, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 use reqflux_core::model::Variable;
 use reqflux_engine::{SecretKey, SecretScope};
 

@@ -11,11 +11,11 @@ use std::collections::HashSet;
 use bolt::controls::{Button, GpuiInput, InputEnter, InputEscape, InputState};
 use bolt::primitives::{Chamfer, TextVariant};
 use bolt::tokens::{ChamferCut, Fields, HeaderMetrics, Spacing, TreeMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, Context, Entity, FocusHandle, InteractiveElement, IntoElement, ParentElement,
     Pixels, Point, Styled, Window, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::sidebar::Sidebar;

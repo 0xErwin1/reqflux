@@ -5,11 +5,11 @@
 use bolt::composites::ListRow;
 use bolt::primitives::{Icon, TextVariant};
 use bolt::tokens::{Borders, TreeMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, FontWeight, InteractiveElement, ParentElement,
     Role, Stateful, Styled, Window, div, prelude::*,
 };
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::tree_model::{NodeKind, VisibleRow};

@@ -3,9 +3,11 @@
 ReqFlux uses **Bolt**, the design system of DBFlux, with its own accent. ReqFlux and DBFlux are a
 family of apps: same structure, typography, shapes and density; one accent per product.
 
-Source: `DESIGN.md` of DBFlux at commit `f0afcc771e8ab3c059d71f85e34d6074d33f48bc`
-(`~/dev/personal/Rust/dbflux-worktree/main`). Bolt is copied for now and will move to a shared
-library later. Until then, change Bolt values in both products or record the divergence here.
+Source: the tokens come from DBFlux's `bolt` crate (`crates/bolt`, `bolt::tokens`,
+`bolt::Colors`, `docs/DESIGN_SYSTEM.md`), which ReqFlux takes by git at the DBFlux rev pinned
+in `Cargo.toml` (`b33bd9b3c02f1e72b26d77be63d1a73f74260456`). ReqFlux copies none of it: a
+Bolt value changes in DBFlux, and ReqFlux follows when it moves the pin. This page restates the
+values for the artboards; where it and `bolt` disagree, `bolt` wins.
 
 ## What ReqFlux takes from Bolt unchanged
 
@@ -59,6 +61,10 @@ State markers:
 |--------|------|-------|-----|
 | Accent | byzantine `#702963`, tint `#D48CC8` | cobalt `#2B45B8`, tint `#9DB1FF` | One accent per product in the family |
 
+The accent is the only divergence. ReqFlux's earlier copy of Bolt differed in the light
+palette and in what gpui-component draws; since ReqFlux installs DBFlux's `bolt` alone, those
+are DBFlux's values (see "Light theme" below).
+
 ReqFlux has no rules of its own on top of Bolt's composition: earlier "hierarchy rules" drifted
 the design away from DBFlux and were dropped.
 
@@ -67,9 +73,20 @@ the design away from DBFlux and were dropped.
 - ReqFlux has no logo yet; the welcome artboard uses a placeholder mark.
 - The focus ring does not follow the cut corners in the artboards (CSS `clip-path` removes
   outlines). In GPUI the ring is drawn as its own path, so the app can trace the cuts.
-- Light theme: Bolt's `Colors::light()` (desk `#EDECF0`, panel `#FCFBFD`, strong `#17151B`,
-  foreground `#3A3740`, muted `#6B6673`, semantic colors darkened to at least 4.5:1 on the
-  panel; a test checks the contrast) and `PaletteMode::{Dark, Light, System}`. In light the
-  washes use the accent (cobalt `#2B45B8`) instead of the tint; a brand cannot set its own
-  light tint yet. ReqFlux's light method colors: PATCH `#7445D6`, HEAD/OPTIONS `#0E7C83`.
-  The artboards are dark only.
+- Light theme: DBFlux's `bolt::Colors::light()` and `PaletteMode::{Dark, Light, System}`:
+  desk `#E6E1E9`, background `#F6F4F7`, panel `#FFFFFF`, raised `#EEEAF0`, line `#E3DEE6`,
+  line-2 `#CBC4D1`, row divider `#F0ECF2`, strong `#141118`, foreground `#3B3740`, muted
+  `#6B6572`, hover `#141118` 4 %, alternating row `#141118` 1.5 %, island edge `#141118` 6 %,
+  scrim `#1E1423` 28 %, success `#1C7F45`, info `#1F5FD1`, warning `#B7791F`, danger
+  `#C7362B`. ReqFlux's earlier copy had desk `#EDECF0`, background `#F4F3F6`, panel
+  `#FCFBFD`, raised `#EFEDF2`, line `#E0DEE5`, line-2 `#C9C5D0`, row divider `#EEECF1`,
+  strong `#17151B`, foreground `#3A3740`, muted `#6B6673`, black washes (4, 2, 6 %), scrim
+  `#17151B` 32 %, success `#1C7A45`, info `#1F5FCC`, warning `#8A5A00`, danger `#C4352B`.
+  In light the washes use the accent (cobalt `#2B45B8`) instead of the tint; a brand cannot
+  set its own light tint yet. ReqFlux's light method colors: PATCH `#7445D6`, HEAD/OPTIONS
+  `#0E7C83`. The artboards are dark only.
+- Dark theme: the roles are unchanged; what gpui-component draws from the theme now follows
+  DBFlux: sidebar, list, tab, tab bar and table head `#09090B` (were `#100F13`), title and
+  status bar `#09090B` with a `#232128` border (were `#050507`, no border), table head text
+  strong, cyan `#6FD3D8`, the code editor's background, active line and line numbers, its
+  syntax colors, and window shadows on.

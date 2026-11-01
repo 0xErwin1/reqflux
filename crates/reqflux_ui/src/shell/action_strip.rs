@@ -5,10 +5,10 @@
 
 use bolt::controls::Button;
 use bolt::tokens::{Borders, EditorMetrics};
-use bolt_legacy::IconName;
 use gpui::{
     AnyElement, Context, Div, ElementId, IntoElement, ParentElement, Stateful, Styled, div,
 };
+use gpui_kit_assets::IconName;
 
 use super::request::ui;
 use super::{Shell, region};

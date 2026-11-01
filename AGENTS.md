@@ -5,19 +5,17 @@ on-disk format and the crate boundaries.
 
 ## Rules
 
-- Respect the crate order in ARCHITECTURE.md. Only `bolt_legacy`, `reqflux_ui` and `reqflux` may
-  depend on GPUI, and only `reqflux_ui` and `reqflux` on `bolt`; `scripts/lint.py layering`
-  enforces it.
+- Respect the crate order in ARCHITECTURE.md. Only `reqflux_ui` and `reqflux` may depend on
+  GPUI or on `bolt`; `scripts/lint.py layering` enforces it.
 - `bolt` is DBFlux's design system, a git dependency pinned to a DBFlux rev. It never names
   ReqFlux, HTTP or a ReqFlux type; ReqFlux-specific tokens and the brand live in `reqflux_ui`.
   Screens use `bolt` roles and components, never gpui-component `Theme` fields or raw colors.
-- `bolt_legacy` is ReqFlux's earlier copy of Bolt, kept only until every screen moves to `bolt`.
-  Add nothing to it; a screen you touch moves to `bolt`.
 - `bolt` is a component library, not a palette. A control a screen needs (button, field,
   select, segmented control, tabs, menu, chip, badge, grid, splitter, dialog, empty state) comes
   from `bolt`; when it is missing or lacks an option, add it to `bolt` in DBFlux, matching
-  DBFlux's component and sizes, never a copy in `reqflux_ui`. A size that two screens share is
-  a `bolt` token, not a `reqflux_ui` one.
+  DBFlux's component and sizes, never a copy in `reqflux_ui`. Until it lands, the stand-in in
+  `reqflux_ui` carries a `// bolt gap:` comment naming what `bolt` lacks. A size that two
+  screens share is a `bolt` token, not a `reqflux_ui` one.
 - `reqflux_engine` is the only API the UI, MCP and CLI use. Never reimplement engine logic in a
   front end.
 - No source file over 1000 lines. Split by responsibility before you reach it;

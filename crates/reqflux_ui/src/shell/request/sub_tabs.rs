@@ -6,9 +6,9 @@
 use bolt::composites::{document_tab, document_tab_title};
 use bolt::primitives::Icon;
 use bolt::tokens::{Borders, Fields, Spacing, TabMetrics};
-use bolt_legacy::IconName;
 use gpui::{App, Div, Hsla, ParentElement, Role, Stateful, Styled, div, prelude::*};
 use gpui::{Context, InteractiveElement};
+use gpui_kit_assets::IconName;
 
 use super::model::{RequestState, SubTab, count, unresolved_text};
 use super::ui;

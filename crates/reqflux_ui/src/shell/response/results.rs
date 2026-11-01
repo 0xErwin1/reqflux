@@ -4,8 +4,8 @@
 
 use bolt::primitives::Icon;
 use bolt::tokens::{Borders, Fields, GridMetrics, Heights, Spacing};
-use bolt_legacy::IconName;
 use gpui::{AnyElement, App, Div, ParentElement, Stateful, Styled, div, prelude::*};
+use gpui_kit_assets::IconName;
 use reqflux_engine::{ConsoleEntry, ConsoleLevel, TestResult};
 
 use crate::shell::region;
