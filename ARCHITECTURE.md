@@ -328,9 +328,16 @@ masker works on text. `PreparedRequest`'s `Debug` prints no URL, header value or
   user editing the same request meet at that conflict, not at a silent overwrite.
 
 What the window does today: clicking the URL of an open request swaps it for a field
-(`request-url-input`); typing stores a draft on every keystroke, Enter commits it to the
-draft and Escape drops what was typed. In the Params and Headers grids, each row carries an
-enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
+(`request-url-input`) at the same position as the text it replaces; typing stores a draft on
+every keystroke, Enter commits it to the draft and sends the request, and Escape drops what
+was typed. The URL's query string and the Params grid are one list (`reqflux_core::query`):
+the draft keeps the base URL and the params as rows, a query typed in the field becomes rows
+(merged into the rows the request had when the field opened, so order, descriptions and
+disabled or blank rows survive), and the line shows the base plus the params that are sent.
+A row with an empty key and an empty value is never sent, and params go before a `#fragment`.
+The response pane and the split appear after the request's first send in the session, or at
+once when its history has a send (the newest one, masked as recorded); before that the request
+uses the whole height. In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
 and clicking a row's key or value cell (`request-<table>-<key|value>-<n>`) swaps the cell
 for a field (`request-cell-input`) seeded with the cell's text; Enter commits it to that
