@@ -1,16 +1,18 @@
 //! The query string (S6).
 
-/// Appends `query` to `base`, percent-encoded, after `&` when `base` already has a `?`.
+/// Appends `query` to `base`, percent-encoded, after `&` when `base` already has a `?`. A
+/// pair with an empty value is still sent as `key=`.
 pub(super) fn with_query(base: String, query: &[(String, String)]) -> String {
-    let encoded: Vec<(String, String)> = query
+    let encoded: Vec<String> = query
         .iter()
-        .map(|(key, value)| (encode(key), encode(value)))
+        .map(|(key, value)| format!("{}={}", encode(key), encode(value)))
         .collect();
-    append(base, &encoded)
+    reqflux_core::query::append_query(base, &encoded)
 }
 
 /// Appends `query` to `base` as written, without encoding, after the same separator as
-/// [`with_query`] and before a `#fragment`; front ends show requests this way.
+/// [`with_query`] and before a `#fragment`; a pair with an empty value is its bare key.
+/// Front ends show requests this way.
 pub(super) fn append(base: String, query: &[(String, String)]) -> String {
     reqflux_core::query::append(base, query)
 }

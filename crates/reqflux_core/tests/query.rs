@@ -102,7 +102,7 @@ fn compose_appends_the_sent_rows_as_written() {
     ];
     assert_eq!(
         compose("{{base}}/p", &params),
-        "{{base}}/p?a={{x}}&b=&id=1&id=2"
+        "{{base}}/p?a={{x}}&b&id=1&id=2"
     );
 }
 
@@ -135,6 +135,22 @@ fn append_after_an_existing_query_uses_an_ampersand() {
         "http://h?a=1&b=2#f"
     );
     assert_eq!(append("http://h".to_owned(), &[]), "http://h");
+}
+
+#[test]
+fn a_pair_without_a_value_is_written_without_an_equals_sign() {
+    assert_eq!(compose("http://h", &[row("b", "")]), "http://h?b");
+    let pairs = [
+        ("b".to_owned(), String::new()),
+        (String::new(), "v".to_owned()),
+    ];
+    assert_eq!(append("http://h".to_owned(), &pairs), "http://h?b&=v");
+}
+
+#[test]
+fn a_typed_key_without_a_value_round_trips_as_typed() {
+    let (base, rows) = split("http://h?a=1&b");
+    assert_eq!(compose(&base, &rows), "http://h?a=1&b");
 }
 
 #[test]

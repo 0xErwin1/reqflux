@@ -134,6 +134,87 @@ fn toggling_and_deleting_rows_updates_the_shown_url(cx: &mut TestAppContext) {
     assert_eq!(shown(cx, &shell), format!("{base}?off=x"));
 }
 
+/// The byte offset of the cursor in the URL field, when it is open.
+fn field_cursor(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<usize> {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .url_edit
+            .as_ref()
+            .map(|edit| edit.input.read(cx).cursor())
+    })
+}
+
+#[gpui::test]
+fn the_open_field_follows_toggled_and_deleted_rows(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = query_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{QUERY}"));
+    click(cx, "request-tab-params");
+    let base = format!("http://127.0.0.1:{port}/q");
+
+    click(cx, "request-url");
+    cx.simulate_keystrokes("home right right right");
+    click(cx, "request-params-enabled-1");
+    assert_eq!(
+        field_text(cx, &shell),
+        Some(format!("{base}?b={{{{v}}}}")),
+        "the field shows the toggled row"
+    );
+    assert_eq!(field_cursor(cx, &shell), Some(3), "the cursor stays");
+    click(cx, "request-params-delete-3");
+    assert_eq!(field_text(cx, &shell), Some(base));
+}
+
+#[gpui::test]
+fn typing_after_a_row_change_keeps_the_change(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = query_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{QUERY}"));
+    click(cx, "request-tab-params");
+    let base = format!("http://127.0.0.1:{port}/q");
+
+    click(cx, "request-url");
+    click(cx, "request-params-enabled-1");
+    cx.simulate_keystrokes("end & z = 1 enter");
+    cx.run_until_parked();
+
+    let disabled_a = KeyValue {
+        enabled: false,
+        ..KeyValue::new("a", "1")
+    };
+    let params = draft(cx, &shell).map(|request| request.params);
+    assert_eq!(
+        params,
+        Some(vec![
+            disabled_a,
+            off(),
+            KeyValue::new("b", "{{v}}"),
+            KeyValue::new("z", "1"),
+        ])
+    );
+    assert_eq!(shown(cx, &shell), format!("{base}?b={{{{v}}}}&z=1"));
+}
+
+#[gpui::test]
+fn a_key_typed_without_a_value_stays_without_an_equals_sign(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = query_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{QUERY}"));
+
+    let url = format!("http://127.0.0.1:{port}/q?a=1&b");
+    edit_url(cx, &url);
+    assert_eq!(field_text(cx, &shell).as_deref(), Some(url.as_str()));
+    cx.update(|window, cx| shell.update(cx, |shell, cx| shell.commit_url_edit(window, cx)));
+    assert_eq!(shown(cx, &shell), url);
+}
+
 #[gpui::test]
 fn escape_restores_the_url_and_the_rows(cx: &mut TestAppContext) {
     let port = closed_port();

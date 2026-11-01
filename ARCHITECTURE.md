@@ -335,6 +335,9 @@ the draft keeps the base URL and the params as rows, a query typed in the field 
 (merged into the rows the request had when the field opened, so order, descriptions and
 disabled or blank rows survive), and the line shows the base plus the params that are sent.
 A row with an empty key and an empty value is never sent, and params go before a `#fragment`.
+A row with an empty value shows as its bare key (`?b`); the request sends `b=`. While the URL
+field is open, a grid change (a row toggled, edited or deleted) re-seeds it in place, keeping
+the cursor; Escape then returns to that point.
 The response pane and the split appear after the request's first send in the session, or at
 once when its history has a send (the newest one, masked as recorded); before that the request
 uses the whole height. In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
@@ -813,13 +816,39 @@ the queue empties. `reqflux mcp` follows its selected window to the new bridge b
 pid, choosing the target of that pid that was not already running beside it. The cost is that
 reads pause too; an input-only guard needs one upstream in gpui-mcp.
 
+#### Audit view
+
+The rail's `rail-audit` opens the audit view (`audit-view`, `shell/audit.rs`,
+`shell/audit_model.rs`, `shell/audit_view.rs` and `shell/audit_table.rs`, artboard
+`design/bolt-v2/13-audit.html`); while `Panel::Audit` is the rail's view the sidebar keeps the
+collection tree and the view takes the document island, and a request opened or activated takes
+it back. It is read-only. `reqflux_engine::audit::read_log` reads `audit.log` newest first; a
+line that does not parse is skipped and reported by its 1-based number, a blank line is
+ignored and a missing file is empty. The view reads the log when it opens and on Refresh
+(`audit-refresh`). The header shows `audit-title` ("Audit log") and `audit-subtitle`. The
+toolbar has the search field `audit-search` (tool, class, targets, method, URL, reason and
+workspace id, ignoring case), the time range `audit-range` (`audit-range-15m`, `-1h`, `-6h`,
+`-24h` by default, `-7d`; an entry whose time does not parse is always kept), the single
+selects `audit-class` and `audit-outcome` (all, allowed, refused) and, while a filter is set,
+`audit-clear`. Under it, `audit-timeline` draws 48 bars over the range, the refused calls
+stacked on the others. The table has a row per kept entry, `audit-row-<n>` from 1 at the top:
+`-time` (local), `-class` (badge), `-tool`, `-target` (the method and masked URL of an
+execute, else the target ids, named from the open workspace when the entry is its own),
+`-workspace` (the open workspace's name, else the id) and `-outcome` ("Allowed" or
+"Refused"). A click expands it into `audit-detail-<n>`: the time as written, the decision,
+`-reason`, the workspace id, `-targets` and `-request`. Skipped lines show as the warning
+`audit-skipped` ("N lines of the audit log could not be read and are not shown: lines …"),
+never their text; a log that cannot be read shows `audit-error`, an empty one `audit-empty`, and
+filters that keep nothing `audit-no-match`. The footer shows `audit-path` and `audit-count`
+("N events in <range>"). The log has no actor, environment, duration, response or body, so the
+view shows none. Tests set the path; the app takes `audit::default_path`.
+
 - **More tools**: runner (run a collection or folder), import and export.
 - **Resources**: requests, collections and environments addressed by id, so an agent can read
   them without a tool call.
 - **Secrets never leave the engine.** Tools return `{{token}}`, not the token. Execution
   resolves secrets inside the engine, and response output redacts any secret value it finds
   echoed back.
-- **Audit viewer.** The rail's Audit log button will read `audit.log`.
 
 The GUI and `reqflux mcp` coordinate through the files themselves: atomic writes and
 hash-checked saves with conflict detection. There is no second runtime that has to agree with the GUI about a

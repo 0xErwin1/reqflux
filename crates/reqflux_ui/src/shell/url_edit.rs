@@ -9,9 +9,16 @@
 //! restores the URL and the params. The field takes Escape while it has focus through the
 //! input's own key context, so the shell's send-cancel binding keeps working when no field
 //! is focused.
+//!
+//! The open field follows the grid: when a row is toggled, edited, added or deleted while it
+//! is open, its text becomes the URL as shown and the cursor keeps its offset (clamped to the
+//! new text) when the field has focus. The field stays open rather than committing and
+//! closing, because the grid change is already in the draft and closing would drop the
+//! caret the user was typing at. The change re-seeds the field as if it had just opened:
+//! later typing merges into the changed rows, and Escape goes back to that point.
 
-use gpui::{AppContext as _, Context, Entity, Subscription, Window};
-use gpui_component::input::{InputEvent, InputState};
+use gpui::{AppContext as _, Context, Entity, Focusable as _, Subscription, Window};
+use gpui_component::input::{InputEvent, InputState, RopeExt as _};
 use reqflux_core::model::{KeyValue, Request};
 use reqflux_core::query;
 
@@ -28,8 +35,12 @@ pub(crate) struct UrlEdit {
     seed_url: String,
     /// The params when the field opened, restored on Escape.
     seed_params: Vec<KeyValue>,
+    /// The params as the field last left them; params that differ were changed in the grid.
+    synced_params: Vec<KeyValue>,
     /// Syncs the draft on every change of the field's text.
     _change: Subscription,
+    /// Follows the grid: re-seeds the field when the params change elsewhere.
+    _follow: Subscription,
 }
 
 impl Shell {
@@ -54,6 +65,7 @@ impl Shell {
             return;
         };
         let shown = query::compose(&seed_url, &seed_params);
+        let synced_params = seed_params.clone();
         let input = cx.new(|cx| InputState::new(window, cx));
         input.update(cx, |state, cx| {
             state.set_value(shown, window, cx);
@@ -70,14 +82,53 @@ impl Shell {
                 this.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
             }
         });
+        let follow = cx.observe_in(&cx.entity(), window, |this, _, window, cx| {
+            this.follow_grid(window, cx);
+        });
         self.url_edit = Some(UrlEdit {
             request_id,
             input,
             seed_url,
             seed_params,
+            synced_params,
             _change: change,
+            _follow: follow,
         });
         cx.notify();
+    }
+
+    /// When the params of the open field's request no longer are the ones the field left,
+    /// re-seeds the field with the request as shown, keeping the cursor's offset while the
+    /// field has focus.
+    fn follow_grid(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(edit) = self.url_edit.as_ref() else {
+            return;
+        };
+        let Some(request) = self.shown_request(&edit.request_id) else {
+            return;
+        };
+        if request.params == edit.synced_params {
+            return;
+        }
+        let (url, params) = (request.url.clone(), request.params.clone());
+        let shown = query::compose(&url, &params);
+        let input = edit.input.clone();
+        input.update(cx, |state, cx| {
+            let focused = state.focus_handle(cx).is_focused(window);
+            let cursor = state.cursor();
+            state.set_value(shown, window, cx);
+            if focused {
+                let position = state
+                    .text()
+                    .offset_to_position(cursor.min(state.text().len()));
+                state.set_cursor_position(position, window, cx);
+            }
+        });
+        if let Some(edit) = self.url_edit.as_mut() {
+            edit.seed_url = url;
+            edit.seed_params.clone_from(&params);
+            edit.synced_params = params;
+        }
     }
 
     /// The request the view of `id` shows: the draft's when it has one, else the saved
@@ -97,10 +148,14 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         let (base, pairs) = query::split(text);
+        let params = query::merge(seed_params, pairs);
+        if let Some(edit) = self.url_edit.as_mut().filter(|edit| edit.request_id == id) {
+            edit.synced_params.clone_from(&params);
+        }
         self.edit_draft(
             id,
             |request| {
-                request.params = query::merge(seed_params, pairs);
+                request.params = params;
                 request.url = base;
             },
             cx,

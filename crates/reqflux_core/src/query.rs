@@ -3,6 +3,10 @@
 //! A request keeps its URL without the query and its params as rows; front ends show the
 //! URL with the params that are sent appended as written, and a typed query becomes rows
 //! again. Nothing here encodes or decodes: `{{variables}}` and the order survive both ways.
+//!
+//! A row has no flag for "typed with `=`": a row with an empty value is written as its bare
+//! key, so `?b` round-trips as `b` and a typed `?b=` shows as `b` once it is a row. The wire
+//! form the engine sends keeps `key=` (see [`append_query`]).
 
 use crate::model::KeyValue;
 
@@ -44,20 +48,33 @@ pub fn compose(base: &str, params: &[KeyValue]) -> String {
     append(base.to_owned(), &pairs)
 }
 
-/// Appends `pairs` to `base` as written, as `key=value` joined by `&`, after `&` when `base`
-/// already has a query and `?` when it does not, and before a `#fragment`.
+/// Appends `pairs` to `base` as written, as `key=value` joined by `&` (a pair with an empty
+/// value is its bare `key`), with the separator of [`append_query`].
 #[must_use]
 pub fn append(base: String, pairs: &[(String, String)]) -> String {
+    let query: Vec<String> = pairs
+        .iter()
+        .map(|(key, value)| {
+            if value.is_empty() {
+                key.clone()
+            } else {
+                format!("{key}={value}")
+            }
+        })
+        .collect();
+    append_query(base, &query)
+}
+
+/// Appends the already written `pairs` to `base` joined by `&`, after `&` when `base`
+/// already has a query and `?` when it does not, and before a `#fragment`.
+#[must_use]
+pub fn append_query(base: String, pairs: &[String]) -> String {
     if pairs.is_empty() {
         return base;
     }
-    let query: Vec<String> = pairs
-        .iter()
-        .map(|(key, value)| format!("{key}={value}"))
-        .collect();
     let (before, fragment) = without_fragment(&base);
     let separator = if before.contains('?') { '&' } else { '?' };
-    format!("{before}{separator}{}{fragment}", query.join("&"))
+    format!("{before}{separator}{}{fragment}", pairs.join("&"))
 }
 
 /// The params of a request whose URL now carries `query`: every row of `rows` that is sent
