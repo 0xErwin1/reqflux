@@ -14,7 +14,7 @@ use reqflux_engine::config::{self, ConfigError, McpList, Rule, ThemeMode, UserCo
 use reqflux_engine::policy::ToolClass;
 
 use super::{AppSection, Section};
-use crate::shell::Shell;
+use crate::shell::{Shell, toasts};
 use crate::theme::{ConfigReport, palette_mode};
 
 /// The sizes the font size select offers, in pixels: every whole size from
@@ -239,15 +239,23 @@ impl Shell {
         self.edit_app_config(|path| config::remove_list_entry(path, list, entry), cx);
     }
 
-    /// "Open config.toml" and "Open file": opens the file with the OS default handler.
+    /// "Open config.toml" and "Open file": opens the file with the OS default handler; a
+    /// failure shows in an error toast.
     pub(crate) fn open_config_file(&mut self, cx: &mut Context<Self>) {
         let Some(path) = self.config_path.clone() else {
-            self.show_variables_error(ConfigError::NoConfigDirectory.to_string(), cx);
+            toasts::failure(
+                "Cannot open config.toml",
+                ConfigError::NoConfigDirectory.to_string(),
+                cx,
+            );
             return;
         };
         if let Err(error) = crate::open_file::open(&path, cx) {
-            let message = format!("cannot open {}: {error}", path.display());
-            self.show_variables_error(message, cx);
+            let name = path.file_name().map_or_else(
+                || path.display().to_string(),
+                |name| name.to_string_lossy().into_owned(),
+            );
+            toasts::failure(format!("Cannot open {name}"), error.to_string(), cx);
         }
     }
 

@@ -17,6 +17,7 @@ use tempfile::TempDir;
 use crate::shell::Shell;
 use crate::shell::draft_tests::{bounds, click, present, render, state_file};
 use crate::shell::send_tests::closed_port;
+use crate::shell::toasts::tests as toasts;
 use crate::shell::variables_tests::{DEV, variables_workspace};
 use crate::theme::{ConfigReport, PaletteMode};
 
@@ -372,4 +373,35 @@ fn the_workspace_sections_still_work_beside_the_app_section(cx: &mut TestAppCont
     present(cx, "theme");
     click(cx, "settings-close");
     assert!(bounds(cx, "settings-page").is_none());
+}
+
+#[gpui::test]
+fn a_file_the_os_cannot_open_shows_an_error_toast(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    write(&config_path, "theme = \"dark\"\n");
+    let (shell, cx, _opened) = render_app(cx, &dir, &state_path, &config_path);
+    cx.update(|_, cx| {
+        crate::open_file::set_opener(
+            cx,
+            Rc::new(|_: &Path| Err(std::io::Error::other("no program opens .toml files"))),
+        );
+    });
+    open_app(cx, &shell);
+    click(cx, "nav-mcp-policy");
+
+    click(cx, "overrides-open-config");
+    assert_eq!(
+        toasts::pushed(cx),
+        vec![toasts::error(
+            "Cannot open config.toml",
+            "no program opens .toml files"
+        )]
+    );
+    assert_eq!(toasts::shown_toasts(cx), vec!["toast-1".to_owned()]);
+    assert_eq!(
+        toasts::tree_label(cx, "toast-toggle-1").as_deref(),
+        Some("Show details")
+    );
 }

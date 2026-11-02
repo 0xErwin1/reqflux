@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Toasts (bolt::toast)</title>
+<!--
+  Toasts as bolt's ToastHost draws them (crates/bolt/src/toast.rs at the pinned DBFlux rev):
+  the stack sits 16 px (Feedback::TOAST_STACK_INSET) inside the top-right corner of the region
+  between the title bar and the status bar, over the document island, never over the title bar,
+  the rail or the status bar. Newest last. Past four toasts (VISIBLE_TOAST_LIMIT) the older ones
+  fold into one "N more" entry.
+
+  Card: 440 px wide (TOAST_WIDTH), padding 12/14, raised fill #1A181E cut at 12 px (overlay),
+  4 px left stripe in the kind color, 16 px kind icon, 10 px between icon, title and close,
+  title 13 px bold strong, subtitle 12.5 px muted, details 11 px muted, the details toggle
+  11 px in the kind color, 8 px between rows and between cards.
+  Kind colors (BannerColors dark): success #7BE0A0, error #FF6B5E; the "N more" stripe muted.
+
+  Timing: success toasts close after 8 s (paused while hovered); error toasts stay until
+  dismissed. Error details start collapsed ("Show details").
+
+  No toast shows a secret, a header value, a variable value or a URL with its query: the
+  texts are fixed sentences, counts and names, and an error's details are the masked error.
+-->
+<style>
+body{margin:0;background:#050507}
+.x{font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-stretch:125%}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;overflow:visible;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap}
+.kc{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;padding:2px 6px;background:#1A181E;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
+.ib{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:0;background:#1A181E;color:#C6C3CC}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
+.tab{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;color:#8E8996;font-size:13px;white-space:nowrap}
+.tab.on{background:#1A181E;color:#F7F4F7;font-weight:600}
+.chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
+.row{position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:13px;color:#C6C3CC}
+.row .gl{position:absolute;top:0;bottom:0;width:1px;background:#232128}
+.row.sel-row{background:rgba(157,177,255,.14);color:#F7F4F7}
+.row.sel-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.mt{width:38px;flex-shrink:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.02em}
+.get{color:#7BE0A0}.post{color:#FFC23D}
+.ln{display:flex;align-items:center;height:20px}
+.ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:#37333D}
+.ln>.tx{white-space:pre;color:#C6C3CC}
+.k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}
+
+/* bolt toast */
+.stack{display:flex;flex-direction:column;gap:8px}
+.toast{position:relative;display:flex;flex-direction:column;gap:8px;width:440px;box-sizing:border-box;padding:12px 14px;background:#1A181E}
+.toast::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent)}
+.toast .head{display:flex;align-items:center;gap:10px}
+.toast .tt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0}
+.toast .title{font-size:13px;font-weight:700;color:#F7F4F7}
+.toast .sub{font-size:12.5px;color:#8E8996}
+.toast .details{font-size:11px;color:#8E8996}
+.toast .toggle{font-size:11px;color:var(--accent);cursor:pointer;background:none;border:0;padding:0;text-align:left}
+.toast .close{display:flex;align-items:center;justify-content:center;width:20px;height:20px;border:0;background:transparent;color:#8E8996}
+.toast.more .label{flex:1;font-size:13px;font-weight:600;color:#F7F4F7}
+.ok{--accent:#7BE0A0}.err{--accent:#FF6B5E}.more{--accent:#8E8996}
+.cap{font-size:12px;color:#8E8996;margin:0 0 8px}
+</style>
+<style>
+:focus-visible{outline:2px solid #FFB454;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-workspace" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3"/><path d="M12 19v3"/><path d="M2 12h3"/><path d="M19 12h3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <!-- Lucide circle-check, circle-alert and circle-x: the icons ReqFlux installs in ToastIcons -->
+  <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-err" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+</svg>
+
+<main style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <div style="justify-self:start;display:flex;align-items:center;gap:8px;margin-left:55px;font-size:12.5px">
+      <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+      <span style="color:#F7F4F7;font-weight:600">billing</span>
+      <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+    </div>
+    <div class="c6 field" style="width:420px">
+      <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+      <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+      <span class="c4 kc">Ctrl Shift P</span>
+    </div>
+    <button aria-label="Approvals" class="c6" style="justify-self:end;display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:transparent;color:#8E8996">
+      <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+    </button>
+  </header>
+
+  <!-- The region between the title bar and the status bar: the ToastHost mounts here -->
+  <div style="position:relative;display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside style="width:250px;display:flex;flex-direction:column;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px)">
+        <div style="display:flex;align-items:center;height:46px;padding:0 16px">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span>
+        </div>
+        <div class="row" style="color:#F7F4F7">
+          <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+          <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+          <span>Billing API</span>
+        </div>
+        <div class="row" style="padding-left:26px"><span class="gl" style="left:19px"></span>
+          <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+          <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg><span>invoices</span></div>
+        <div class="row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt get">GET</span><span>List invoices</span></div>
+        <div class="row sel-row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt post">POST</span><span>Create invoice</span></div>
+        <div class="row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt get">GET</span><span>Get invoice</span></div>
+      </aside>
+    </div>
+
+    <div class="c14" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px)">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="c6 tab on"><span class="mt post" style="width:auto">POST</span>Create invoice</span>
+        </div>
+        <div style="flex-grow:1"></div>
+        <div style="display:flex;flex-direction:column;border-top:1px solid #37333D">
+          <div class="m" style="padding:6px 0;font-size:12.5px">
+            <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+            <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span>,</span></div>
+            <div class="ln"><span class="no">3</span><span class="tx">  <span class="k">"amount_due"</span>: <span class="nu">12900</span></span></div>
+            <div class="ln"><span class="no">4</span><span class="tx">}</span></div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;height:46px;padding:0 12px;border-top:1px solid #232128">
+            <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-copy"/></svg>Copy</button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ToastHost: absolute, 16 px from the region's top and right -->
+    <div class="stack" role="region" aria-label="Notifications" style="position:absolute;top:16px;right:16px">
+      <div class="toast more c12">
+        <div class="head"><span class="label">2 more</span>
+          <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button></div>
+      </div>
+      <div class="toast ok c12" role="status">
+        <div class="head">
+          <svg class="ico" style="width:16px;height:16px;color:#7BE0A0"><use href="#i-ok"/></svg>
+          <div class="tt"><span class="title">Imported 12 requests into Billing API</span><span class="sub">Stripe billing collection · 3 folders</span></div>
+          <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
+        </div>
+      </div>
+      <div class="toast ok c12" role="status">
+        <div class="head">
+          <svg class="ico" style="width:16px;height:16px;color:#7BE0A0"><use href="#i-ok"/></svg>
+          <div class="tt"><span class="title">Copied</span><span class="sub">Response body</span></div>
+          <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">POST /v1/invoices · 201 · 184 ms</span></span>
+  </footer>
+</main>
+
+<!-- States, each as bolt draws it -->
+<section aria-label="States" style="display:grid;grid-template-columns:repeat(3,440px);gap:24px 32px;width:1440px;box-sizing:border-box;padding:24px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <div>
+    <p class="cap">Success: Copy body. Closes after 8 s.</p>
+    <div class="toast ok c12" role="status"><div class="head">
+      <svg class="ico" style="width:16px;height:16px;color:#7BE0A0"><use href="#i-ok"/></svg>
+      <div class="tt"><span class="title">Copied</span><span class="sub">Response body</span></div>
+      <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button></div></div>
+  </div>
+  <div>
+    <p class="cap">Success: Postman import. Count, workspace, collection and folders.</p>
+    <div class="toast ok c12" role="status"><div class="head">
+      <svg class="ico" style="width:16px;height:16px;color:#7BE0A0"><use href="#i-ok"/></svg>
+      <div class="tt"><span class="title">Imported 12 requests into Billing API</span><span class="sub">Stripe billing collection · 3 folders</span></div>
+      <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button></div></div>
+  </div>
+  <div>
+    <p class="cap">Stack past four toasts: the older ones fold into "N more".</p>
+    <div class="toast more c12"><div class="head"><span class="label">3 more</span>
+      <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button></div></div>
+  </div>
+  <div>
+    <p class="cap">Error, details collapsed. Stays until dismissed.</p>
+    <div class="toast err c12" role="alert">
+      <div class="head">
+        <svg class="ico" style="width:16px;height:16px;color:#FF6B5E"><use href="#i-err"/></svg>
+        <div class="tt"><span class="title">Cannot open config.toml</span></div>
+        <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
+      </div>
+      <button class="toggle" aria-expanded="false">Show details</button>
+    </div>
+  </div>
+  <div>
+    <p class="cap">Error, details expanded: the masked error.</p>
+    <div class="toast err c12" role="alert">
+      <div class="head">
+        <svg class="ico" style="width:16px;height:16px;color:#FF6B5E"><use href="#i-err"/></svg>
+        <div class="tt"><span class="title">Cannot open config.toml</span></div>
+        <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
+      </div>
+      <span class="details">No program is set to open .toml files (xdg-open exited with status 3)</span>
+      <button class="toggle" aria-expanded="true">Hide details</button>
+    </div>
+  </div>
+  <div>
+    <p class="cap">Error: a save that could not write.</p>
+    <div class="toast err c12" role="alert">
+      <div class="head">
+        <svg class="ico" style="width:16px;height:16px;color:#FF6B5E"><use href="#i-err"/></svg>
+        <div class="tt"><span class="title">Cannot save Create invoice</span></div>
+        <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
+      </div>
+      <button class="toggle" aria-expanded="false">Show details</button>
+    </div>
+  </div>
+</section>
+</body></html>

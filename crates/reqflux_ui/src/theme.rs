@@ -159,15 +159,16 @@ fn legacy_mode(state: Option<&AppState>) -> Option<ThemeMode> {
     }
 }
 
-/// Saves `mode` in the config file at `config`, logging a failure: the switch itself already
-/// happened. Without a config path nothing is saved.
-pub(crate) fn save_mode(config: Option<&Path>, mode: PaletteMode) {
+/// Saves `mode` in the config file at `config`; the switch itself already happened, so the
+/// caller only reports a failure. Without a config path nothing is saved.
+pub(crate) fn save_mode(
+    config: Option<&Path>,
+    mode: PaletteMode,
+) -> Result<(), config::ConfigError> {
     let Some(path) = config else {
-        return;
+        return Ok(());
     };
-    if let Err(error) = config::set_theme(path, theme_mode(mode)) {
-        log::warn!("cannot save the theme: {error}");
-    }
+    config::set_theme(path, theme_mode(mode)).map(|_| ())
 }
 
 /// The mode the user selected, which `bolt` keeps only resolved: [`PaletteMode::System`]
@@ -217,6 +218,21 @@ pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
         search: bolt::icon::IconSource::Svg(IconName::Search.path()),
         bell: bolt::icon::IconSource::Svg(IconName::Bell.path()),
     });
+    cx.set_global(toast_icons());
+}
+
+/// The glyphs `bolt`'s toasts draw (design/toasts/01): the Lucide icons gpui-kit-assets
+/// bundles, as ReqFlux's other screens draw them.
+pub(crate) fn toast_icons() -> bolt::toast::ToastIcons {
+    let svg = |name: IconName| bolt::icon::IconSource::Svg(name.path());
+    bolt::toast::ToastIcons {
+        success: svg(IconName::CircleCheck),
+        info: svg(IconName::Info),
+        warning: svg(IconName::TriangleAlert),
+        error: svg(IconName::CircleAlert),
+        loader: svg(IconName::Loader),
+        close: svg(IconName::CircleX),
+    }
 }
 
 /// Installs what `bolt`'s modals read from the product, as DBFlux's theme does: ReqFlux's

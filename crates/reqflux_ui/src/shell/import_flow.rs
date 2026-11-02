@@ -30,6 +30,7 @@ use serde_json::Value;
 
 use super::request::ui;
 use super::rows::{labeled_row, part};
+use super::toasts;
 use super::workspace_picker::Picked;
 use super::{Shell, region, text_region};
 use crate::tokens;
@@ -224,13 +225,16 @@ impl Shell {
         cx.notify();
     }
 
-    /// Imports the reviewed file into the open workspace, reloads it and closes the dialog;
-    /// a failure stays in the dialog.
+    /// Imports the reviewed file into the open workspace, reloads it, closes the dialog and
+    /// confirms it in a toast with the counts and the workspace; a failure stays in the
+    /// dialog and shows in an error toast.
     fn run_import(&mut self, cx: &mut Context<Self>) {
         let OpenedWorkspace::Loaded(engine) = &self.workspace else {
             return;
         };
-        let Some(State::Ready { document, .. }) = self.import.flow.as_ref().map(|flow| &flow.state)
+        let Some(State::Ready {
+            document, preview, ..
+        }) = self.import.flow.as_ref().map(|flow| &flow.state)
         else {
             return;
         };
@@ -243,10 +247,22 @@ impl Shell {
                     summary.folders,
                     summary.requests
                 );
+                let title = format!(
+                    "Imported {} into {}",
+                    toasts::counted(summary.requests, "request"),
+                    engine.workspace().manifest.name
+                );
+                let subtitle = format!(
+                    "{} · {}",
+                    preview.collection,
+                    toasts::counted(summary.folders, "folder")
+                );
                 self.close_import(cx);
                 self.reload_workspace(cx);
+                toasts::success(title, subtitle, cx);
             }
             Err(error) => {
+                toasts::failure("Import failed", error.to_string(), cx);
                 if let Some(flow) = self.import.flow.as_mut() {
                     flow.state = State::Failed(Failure::of(&error));
                 }

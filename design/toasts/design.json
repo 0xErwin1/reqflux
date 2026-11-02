@@ -1,0 +1,14 @@
+{
+  "title": "Toasts",
+  "brief": "Short confirmations and failures as bolt's toasts: where the ToastHost stacks them on the bolt-v2 shell, and the success, error (collapsed and expanded) and folded-stack states.",
+  "feature": "odd/tasks/app-pending.md",
+  "artboards": [
+    {
+      "file": "01-toasts.html",
+      "title": "Toast stack and states",
+      "tradeoff": "DBFlux's toast unchanged; the stack covers the top right of the document island while it shows",
+      "width": 1440,
+      "height": 1240
+    }
+  ]
+}

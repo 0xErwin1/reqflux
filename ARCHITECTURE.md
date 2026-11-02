@@ -1170,6 +1170,7 @@ does not back yet.
 | Collection tree editing | `design/tree-editing/01-context-menu-modal.html` |
 | History | `design/history/01-sidebar-readonly-tab.html` |
 | Environments and variables | `design/variables/01-settings-page.html` |
+| Toasts | `design/toasts/01-toasts.html` |
 
 The other artboards in those folders are directions that were not chosen.
 
@@ -1194,6 +1195,20 @@ In light the accent washes use the accent instead of the tint. ReqFlux's method 
 colors read the active palette. The choice is the `Toggle theme` command (Ctrl+Shift+T, Dark,
 Light, System) and persists as `theme` in the user's `config.toml` (a value from the app
 state's older `settings` key is moved there once); Dark is the default.
+
+**Toasts.** The shell owns `bolt`'s `ToastHost`, publishes it as `ToastGlobal` and mounts it
+(deferred, above dialogs and the palette) over the region between the title bar and the status
+bar, so the stack sits at the top right of the document island. `theme::install` installs
+`ToastIcons` with the Lucide icons. `shell::toasts` pushes two kinds: a success that closes on
+its own ("Copied" after Copy body, "Imported <n> requests into <workspace>" after a Postman
+import) and an error that stays, its error text behind "Show details": Copy body with nothing
+to copy, a failed import, a file the OS handler cannot open, a save that cannot write, and a
+theme that cannot be saved. Every error toast is also logged. Failures with nothing for the
+user to do (background reads and writes of the app state, history, drafts) stay in the log
+only. A toast holds fixed sentences, counts, names and the error text the engine already
+masks, never a value. Tests read the automation tree (`toast-<n>`, `toast-toggle-<n>`) and a
+test-only record of the pushed texts, since `bolt` keeps them private; the test clock never
+moves on its own, so a success toast stays until a test advances it.
 
 ## UI automation
 

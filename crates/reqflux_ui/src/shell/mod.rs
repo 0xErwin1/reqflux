@@ -48,6 +48,7 @@ mod status_bar;
 mod tabs;
 mod theme;
 mod title_bar;
+mod toasts;
 mod tree_drag;
 mod tree_model;
 mod tree_ops;
@@ -67,7 +68,7 @@ use std::rc::Rc;
 use bolt::tokens::IslandMetrics;
 use gpui::{
     App, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Render, Role,
-    Stateful, Styled, Subscription, Window, div, prelude::*,
+    Stateful, Styled, Subscription, Window, deferred, div, prelude::*,
 };
 use reqflux_engine::CurrentValues;
 use reqflux_engine::state::{AppState, RecentWorkspace};
@@ -212,6 +213,9 @@ pub(crate) struct Shell {
     orphan: Option<history::HistoryTab>,
     /// Where `Open in browser` writes an HTML response and how it opens it.
     preview_host: PreviewHost,
+    /// The window's toast stack, `bolt`'s, mounted over the region between the title bar
+    /// and the status bar (see [`toasts`]).
+    toasts: Entity<bolt::toast::ToastHost>,
     /// The shell's subscriptions to the sidebar's events, replaced with the sidebar.
     _sidebar_events: Vec<Subscription>,
 }
@@ -291,6 +295,7 @@ impl Shell {
             settings: SettingsPage::new(cx),
             orphan: None,
             preview_host: PreviewHost::default(),
+            toasts: toasts::host(cx),
             _sidebar_events: sidebar_events,
         };
         shell.restore_active_environment();
@@ -475,6 +480,7 @@ impl Render for Shell {
         let app_settings = self.settings_open(cx)
             && matches!(self.settings_section(), settings_page::Section::App(_));
         let middle = div()
+            .relative()
             .flex_1()
             .min_h_0()
             .flex()
@@ -496,6 +502,14 @@ impl Render for Shell {
                 .child(self.sidebar.clone())
                 .child(document::render(self, window, cx))
         };
+        // Over the dialogs and menus, as DBFlux paints its toast layer; the absolute layer
+        // keeps the empty stack out of the row's flow and gaps.
+        let middle = middle.child(
+            div()
+                .absolute()
+                .inset_0()
+                .child(deferred(self.toasts.clone()).with_priority(TOAST_PRIORITY)),
+        );
         root.size_full()
             .flex()
             .flex_col()
@@ -533,6 +547,9 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
         }),
     ]
 }
+
+/// The paint order of the toast stack: above the palette (3, 4) and the dialogs (3).
+const TOAST_PRIORITY: usize = 5;
 
 /// A region the UI automation tree and the layout tests find by `id`.
 fn region(id: &'static str) -> Stateful<Div> {

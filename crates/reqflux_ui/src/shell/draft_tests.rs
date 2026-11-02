@@ -14,11 +14,11 @@ use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::{demo_workspace, write};
 
 const COLLECTION: &str = "01J00000000000000000000041";
-const PLAIN: &str = "01J00000000000000000000042";
+pub(super) const PLAIN: &str = "01J00000000000000000000042";
 
 /// A workspace whose collection `API` declares `base` pointing at `port` and holds
 /// `GET Plain` at `{{base}}/ok`.
-fn draft_workspace(port: u16) -> TempDir {
+pub(super) fn draft_workspace(port: u16) -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(

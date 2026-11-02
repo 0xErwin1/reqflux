@@ -17,7 +17,7 @@ use reqflux_engine::state::Draft;
 use super::Shell;
 use super::body_edit::body_cell;
 use super::cell_edit::CellField;
-use super::tree_model;
+use super::{toasts, tree_model};
 use crate::workspace::OpenedWorkspace;
 
 /// The unsaved edit of a request: the document as edited, the content hash of the file the
@@ -411,7 +411,6 @@ impl Shell {
         let current = match engine.request_base_hash(id) {
             Ok(current) => current,
             Err(error) => {
-                log::warn!("cannot save {id}: {error}");
                 self.set_save_error(id, error.to_string(), cx);
                 return;
             }
@@ -432,7 +431,6 @@ impl Shell {
             Some(scripts) => match engine.script_base_hashes(id) {
                 Ok(hashes) => Some((&scripts.scripts, hashes)),
                 Err(error) => {
-                    log::warn!("cannot save the scripts of {id}: {error}");
                     self.set_save_error(id, error.to_string(), cx);
                     return;
                 }
@@ -453,7 +451,6 @@ impl Shell {
             }
             Err(SaveError::Conflict { .. }) => self.mark_conflicted(id, cx),
             Err(error) => {
-                log::warn!("cannot save {id}: {error}");
                 self.set_save_error(id, error.to_string(), cx);
             }
         }
@@ -470,8 +467,10 @@ impl Shell {
     }
 
     /// Records why the last save of the request `id`'s draft failed, so the tab row shows
-    /// it the way it shows a conflict.
+    /// it the way it shows a conflict, and says so in an error toast.
     fn set_save_error(&mut self, id: &str, error: String, cx: &mut Context<Self>) {
+        let name = tree_model::find(&self.roots, id).map_or(id, |node| node.name.as_str());
+        toasts::failure(format!("Cannot save {name}"), error.clone(), cx);
         self.save_errors.insert(id.to_owned(), error);
         cx.notify();
     }

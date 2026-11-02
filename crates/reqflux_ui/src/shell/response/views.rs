@@ -20,6 +20,7 @@ use super::sub_tabs::effective_view;
 use crate::shell::Shell;
 use crate::shell::request::{Completed, SendState};
 use crate::shell::send::RequestSend;
+use crate::shell::toasts;
 
 /// The key context of the response, where Ctrl F opens the search.
 pub(crate) const RESPONSE_CONTEXT: &str = "Response";
@@ -224,8 +225,9 @@ impl Shell {
         }
     }
 
-    /// Copy: puts the response body of the request `id`, as received, on the clipboard. A
-    /// body that is not UTF-8 offers no Copy.
+    /// Copy: puts the response body of the request `id`, as received, on the clipboard and
+    /// says so in a toast. A body that is not UTF-8 offers no Copy; without a text body to
+    /// copy, an error toast says why.
     pub(crate) fn copy_response_body(&mut self, id: &str, cx: &mut Context<Self>) {
         let body = match self.sends.get(id).map(|send| &send.state) {
             Some(SendState::Done(Completed::Response(received))) => {
@@ -233,8 +235,16 @@ impl Shell {
             }
             _ => None,
         };
-        if let Some(body) = body {
-            cx.write_to_clipboard(ClipboardItem::new_string(body));
+        match body {
+            Some(body) => {
+                cx.write_to_clipboard(ClipboardItem::new_string(body));
+                toasts::success("Copied", "Response body", cx);
+            }
+            None => toasts::failure(
+                "Cannot copy the response body",
+                "The request has no text response to copy.",
+                cx,
+            ),
         }
     }
 }

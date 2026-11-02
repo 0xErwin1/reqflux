@@ -10,6 +10,7 @@ use gpui::{Entity, TestAppContext, VisualTestContext};
 use tempfile::TempDir;
 
 use super::super::Shell;
+use super::super::toasts::tests as toasts;
 use super::super::workspace_picker::TestPicker;
 use super::super::workspace_switch_tests::{bounds, click, pair, present, render, temp_dir};
 use super::{NOTHING_WRITTEN, TestImportPicker, size_label};
@@ -281,4 +282,62 @@ fn sizes_read_as_the_artboard_writes_them() {
     assert_eq!(size_label(86 * 1024), "86 KB");
     assert_eq!(size_label(86 * 1024 + 1), "87 KB");
     assert_eq!(size_label(3 * 1024 * 1024 / 2), "1.5 MB");
+}
+
+#[gpui::test]
+fn an_import_shows_its_counts_and_the_workspace_in_a_toast(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let (_file_dir, file) = document("basic.postman_collection.json", BASIC);
+    let (shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    open(cx, &shell, Some(file));
+    assert!(toasts::shown_toasts(cx).is_empty());
+
+    click(cx, "import-confirm");
+    assert_eq!(
+        toasts::pushed(cx),
+        vec![toasts::success(
+            "Imported 3 requests into First",
+            "Basic Collection · 1 folder"
+        )]
+    );
+    assert_eq!(toasts::shown_toasts(cx), vec!["toast-1".to_owned()]);
+}
+
+#[gpui::test]
+fn an_import_that_fails_shows_why_in_a_toast(cx: &mut TestAppContext) {
+    let pair = pair("https://first/x");
+    let (_file_dir, file) = document("basic.postman_collection.json", BASIC);
+    let (shell, cx) = render(
+        cx,
+        Some(pair.first.path()),
+        &pair.state_path,
+        TestPicker::default(),
+    );
+    open(cx, &shell, Some(file));
+    // Something writes the collection after the review: the import refuses to overwrite it.
+    let taken = pair.first.path().join(COLLECTION);
+    if let Some(parent) = taken.parent()
+        && let Err(error) = fs::create_dir_all(parent)
+    {
+        panic!("create {}: {error}", parent.display());
+    }
+    if let Err(error) = fs::write(&taken, "") {
+        panic!("write {}: {error}", taken.display());
+    }
+
+    click(cx, "import-confirm");
+    present(cx, "import-error");
+    let toasts = toasts::pushed(cx);
+    assert_eq!(toasts.len(), 1, "{toasts:?}");
+    let Some(toast) = toasts.first() else {
+        panic!("no toast");
+    };
+    assert_eq!(toast.title, "Import failed");
+    assert!(toast.text.contains("already exists"), "{}", toast.text);
+    assert_eq!(toasts::shown_toasts(cx), vec!["toast-1".to_owned()]);
 }
