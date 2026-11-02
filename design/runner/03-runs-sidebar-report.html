@@ -1,0 +1,1225 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Runner: runs sidebar and report</title>
+<!--
+  ReqFlux main window rebuilt on DBFlux's islands artboard (03-isl-editor.html).
+  Values are copied from that artboard; only the accent changes:
+  byzantine #702963 -> cobalt #2B45B8 (hover #3451C8, pressed #1F3389),
+  tint #D48CC8 -> #9DB1FF, washes rgba(tint, .06 / .11 / .14 / .16).
+-->
+<style>
+body{margin:0;background:#09090B}
+.x{font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-stretch:125%}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;overflow:visible;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap}
+.isl-doc [style*=" width:"],.isl-doc [style^="width:"]{flex-shrink:0}
+
+/* shared control shapes, values from the DBFlux artboard */
+.kc{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;padding:2px 6px;background:#1A181E;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
+.ib{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:0;background:#1A181E;color:#C6C3CC}
+.ib.g{background:transparent;color:#8E8996}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
+.sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px;white-space:nowrap}
+.tab{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;color:#8E8996;font-size:13px;white-space:nowrap}
+.tab.on{background:#1A181E;color:#F7F4F7;font-weight:600}
+.seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7}
+.chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
+.dia{width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+
+/* tree */
+.row{position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:13px;color:#C6C3CC}
+.row .gl{position:absolute;top:0;bottom:0;width:1px;background:#232128}
+.row .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.row.sel-row{background:rgba(157,177,255,.14);color:#F7F4F7}
+.row.sel-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.mt{width:38px;flex-shrink:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.02em;text-align:left}
+.get{color:#7BE0A0}.post{color:#FFC23D}.patch{color:#B79CFF}.del{color:#FF6B5E}
+
+/* grid */
+.gh{display:flex;align-items:center;height:32px;background:#09090B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;color:#F7F4F7;font-weight:600}
+.gr{display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr>.rn{padding:0 12px 0 0;text-align:right;color:#37333D}
+.tp{font-weight:400;font-size:10.5px;color:#8E8996;margin-left:6px}
+.var{color:#9DB1FF;background:rgba(157,177,255,.12)}
+.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+
+/* code */
+.ln{display:flex;align-items:center;height:20px}
+.ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:#37333D}
+.ln>.tx{white-space:pre;color:#C6C3CC}
+.k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}.b{color:#FFC23D}
+</style>
+<style>
+:focus-visible{outline:1.5px solid #9DB1FF;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style><style>
+/* menus, modals and buttons, as in design/tree-editing */
+.c10{clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px)}
+.c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.c18{clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)}
+.put{color:#6EA8FF}.oth{color:#6FD3D8}
+.lbl{font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-weight:700;letter-spacing:.08em;font-family:Archivo,system-ui,sans-serif;white-space:nowrap}
+.mi{display:flex;align-items:center;gap:10px;height:30px;padding:0 14px;color:#C6C3CC;font-size:12.5px}
+.mi .ks{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.mi.on{background:rgba(157,177,255,.12);color:#F7F4F7}
+.mi.dg{color:#FF6B5E}
+.sep{height:1px;background:#232128;margin:6px 0}
+.btn.pri{background:#2B45B8;color:#FFF;font-weight:600}
+.btn.dgr{background:#FF6B5E;color:#050507;font-weight:600}
+.btn.ol{background:transparent;color:#C6C3CC;box-shadow:#37333D 0 0 0 1px inset}
+.frame-cap{display:flex;align-items:center;gap:12px;height:40px;padding:0 24px;background:#09090B;color:#8E8996;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;font-size:12px}
+.ok{color:#7BE0A0}.wr{color:#FFC23D}.er{color:#FF6B5E}.inf{color:#6EA8FF}.mu{color:#8E8996}.dim{color:#37333D}
+/* settings form rows, as in bolt-v2/08-collection-settings */
+.nav{display:flex;align-items:center;gap:10px;height:32px;padding:0 16px;font-size:13px;color:#C6C3CC;white-space:nowrap}
+.nav.on{background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset;color:#F7F4F7}
+.nav .ct{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.sh{display:flex;align-items:center;gap:8px;padding:12px 0 6px;border-bottom:1px solid #232128;margin-bottom:6px}
+.fr{display:grid;grid-template-columns:160px 1fr;align-items:start;gap:16px;padding:5px 0}
+.fr>.fl{padding-top:7px;font-size:13px;color:#C6C3CC}
+.hint{font-size:12px;color:#8E8996}
+.cb{display:flex;align-items:center;justify-content:center;width:16px;height:16px;flex-shrink:0;background:#2B45B8;color:#FFF}
+.cb.off{background:#09090B;box-shadow:#37333D 0 0 0 1px inset}
+/* runner */
+.pb{display:block;height:4px;background:#1A181E;overflow:hidden}
+.pb>i{display:block;height:100%;background:#2B45B8}
+.pb.bad>i{background:#FF6B5E}
+.spin{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.gr.cur{background:rgba(157,177,255,.07)}
+.gr.on{background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset}
+.gr.bad{background:rgba(255,107,94,.05)}
+.gr .ui{font-family:Archivo,system-ui,sans-serif}
+.tr{display:flex;align-items:center;gap:8px;height:28px;padding:0 14px;font-size:12.5px;border-bottom:1px solid #18161B}
+.tr .m{font-size:11.5px}
+.run-i{position:relative;display:flex;flex-direction:column;gap:3px;padding:7px 12px 7px 16px;font-size:13px;color:#C6C3CC}
+.run-i .run-l{display:flex;align-items:center;gap:8px}
+.run-i .n{color:#F7F4F7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run-i .t{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.run-i .run-s{display:flex;align-items:center;gap:6px;padding-left:21px;font-size:11.5px;color:#8E8996;white-space:nowrap}
+.run-i.on{background:rgba(157,177,255,.14)}
+.run-i.on::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.sec{display:flex;align-items:center;gap:10px;height:36px;padding:0 16px;border-bottom:1px solid #232128;font-size:13px;color:#F7F4F7;background:#09090B}
+.sec .c{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11.5px;color:#8E8996;display:flex;gap:12px}
+.rr{display:flex;align-items:center;gap:10px;height:32px;padding:0 16px 0 40px;font-size:12.5px;border-bottom:1px solid #18161B}
+.rr .nm{width:220px;color:#F7F4F7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rr .m{font-size:12px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-workspace" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+  <symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-filter" viewBox="0 0 24 24"><path d="M2 5h20"/><path d="M6 12h12"/><path d="M9 19h6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/></symbol>
+  <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol>
+  <symbol id="i-cookie" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-loader" viewBox="0 0 24 24"><path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3l-2 18"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 12h18"/></symbol>
+  <symbol id="i-cols" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
+  <symbol id="i-max" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="m21 3-7 7"/><path d="m3 21 7-7"/><path d="M9 21H3v-6"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 15h18"/><path d="m15 8-3 3-3-3"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-test" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.99-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.62l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/></symbol>
+  <symbol id="i-folder-plus" viewBox="0 0 24 24"><path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-file-plus" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M12 18v-6"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-open" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-check-sq" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-sq" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="1"/></symbol>
+  <symbol id="i-skip" viewBox="0 0 24 24"><path d="M21 4v16"/><path d="M6.029 4.285A2 2 0 0 0 3 6v12a2 2 0 0 0 3.029 1.715l9.997-5.998a2 2 0 0 0 .003-3.432z"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="i-dot" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/></symbol>
+</svg>
+<div class="frame-cap" role="note"><span class="lbl">State</span><span>Start: right-click a collection or folder in the tree, Run… heads the menu; runs get their own rail entry</span></div>
+<main aria-label="ReqFlux, collection context menu with Run" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Runs" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-play"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+
+    <!-- Sidebar island -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New request" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="padding:0 12px 10px">
+          <div class="c6 field">
+            <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+            <span style="flex-grow:1;color:#8E8996;white-space:nowrap;overflow:hidden">Filter requests</span>
+            <span class="c4 kc">/</span>
+          </div>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div class="row" style="color:#F7F4F7;background:rgba(157,177,255,.07);box-shadow:#37333D 0 0 0 1px inset">
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+            <span class="n">Billing API</span>
+            <span class="ct">9</span>
+          </div>
+          <div class="row" style="padding-left:26px;color:#F7F4F7">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">invoices</span>
+            <span class="ct">4</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt get">GET</span><span class="n">List invoices</span>
+          </div>
+          <div class="row sel-row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Create invoice</span>
+            <span class="dia" style="margin-left:auto;background:#9DB1FF" title="Unsaved draft"></span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt get">GET</span><span class="n">Get invoice</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt patch">PATCH</span><span class="n">Void invoice</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">customers</span>
+            <span class="ct">3</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">webhooks</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Register endpoint</span>
+          </div>
+          <div class="row" style="padding-left:40px">
+            <span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span>
+            <span style="width:12px"></span><span class="mt del">DELETE</span><span class="n">Remove endpoint</span>
+          </div>
+          <div class="row" style="color:#F7F4F7">
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+            <span class="n">Auth</span>
+            <span class="ct">2</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Token</span>
+          </div>
+          <div class="row" style="padding-left:26px">
+            <span class="gl" style="left:19px"></span>
+            <span style="width:12px"></span><span class="mt post">POST</span><span class="n">Refresh token</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>11 requests</span><span>·</span><span>2 collections</span>
+        </div>
+      </aside>
+    </div>
+    <!-- Document island -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+
+        <!-- Document tabs -->
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="c6 tab on">
+            <span class="mt post" style="width:auto">POST</span>Create invoice
+            <span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span>
+            <svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg>
+          </span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Token</span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+
+        <!-- Path bar: breadcrumb only -->
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-box"/></svg>
+          <span style="color:#8E8996">Billing API</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg>
+          <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-folder"/></svg>
+          <span style="color:#8E8996">invoices</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg>
+          <span style="color:#C6C3CC">Create invoice</span>
+        </div>
+
+        <!-- Request area: action strip on the left (as in DBFlux's editor), request on the right -->
+        <div style="display:flex;flex-shrink:0;border-top:1px solid #232128">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:2px;width:32px;padding:6px 0 0;flex-shrink:0;border-right:1px solid #232128">
+            <button aria-label="Save (Ctrl S)" title="Save  Ctrl S" class="c6 ib g" style="position:relative;width:24px;height:24px;color:#C6C3CC"><svg class="ico" style="width:13px;height:13px"><use href="#i-save"/></svg><span class="dia" style="position:absolute;top:3px;right:3px;width:5px;height:5px;background:#9DB1FF" title="Unsaved draft"></span></button>
+            <button aria-label="Revert" title="Revert" class="c6 ib g" style="width:24px;height:24px"><svg class="ico" style="width:13px;height:13px"><use href="#i-revert"/></svg></button>
+            <button aria-label="Undo" title="Undo  Ctrl Z" class="c6 ib g" style="width:24px;height:24px"><svg class="ico" style="width:13px;height:13px"><use href="#i-undo"/></svg></button>
+            <button aria-label="Redo" title="Redo  Ctrl Shift Z" class="c6 ib g" style="width:24px;height:24px;color:#37333D"><svg class="ico" style="width:13px;height:13px"><use href="#i-redo"/></svg></button>
+            <span style="width:14px;height:1px;background:#232128;margin:3px 0"></span>
+            <button aria-label="Split request and response side by side" title="Split view" class="c6 ib g" style="width:24px;height:24px"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg></button>
+          </div>
+          <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0">
+        <!-- Request line -->
+        <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;flex-shrink:0">
+          <div class="c6 sel" style="width:96px;box-sizing:border-box">
+            <span class="m post" style="flex-grow:1;font-weight:700;font-size:12.5px">POST</span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+          </div>
+          <div class="c6 field m" style="flex-grow:1;width:auto;font-size:13px;color:#F7F4F7;height:32px">
+            <span style="white-space:nowrap;overflow:hidden"><span class="var">{{base_url}}</span>/v1/invoices<span style="color:#8E8996">?</span>expand<span style="color:#8E8996">=</span>lines</span>
+          </div>
+          <div style="display:flex;gap:1px">
+            <button class="c6" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:0;background:#2B45B8;color:#FFF;font-size:12.5px;font-weight:600;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px)">
+              <svg class="ico" style="width:14px;height:14px"><use href="#i-send"/></svg>Send
+              <span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82);box-shadow:rgba(0,0,0,.35) 0 -1px 0 inset">Ctrl ↵</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Request sub-tabs -->
+        <div style="display:flex;align-items:center;gap:4px;height:42px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128">
+          <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-hash"/></svg>Params<span class="m" style="font-size:10.5px">1</span></span>
+          <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-list"/></svg>Headers<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">4</span></span>
+          <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-braces"/></svg>Body</span>
+          <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-key"/></svg>Auth</span>
+          <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-code"/></svg>Scripts</span>
+          <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Settings</span>
+          <span style="flex-grow:1"></span>
+          <span style="display:flex;align-items:center;gap:6px;font-size:12px;color:#FFC23D;white-space:nowrap">
+            <svg class="ico" style="width:13px;height:13px"><use href="#i-alert"/></svg>1 unresolved variable
+          </span>
+        </div>
+
+        <!-- Headers grid -->
+        <div style="flex-shrink:0">
+          <div class="gh">
+            <span style="width:46px"></span>
+            <span style="width:200px">key<span class="tp">header</span></span>
+            <span style="width:420px">value<span class="tp">resolved in staging</span></span>
+            <span style="flex-grow:1">description</span>
+          </div>
+          <div class="gr">
+            <span class="rn" style="width:46px">1</span>
+            <span style="width:200px;color:#F7F4F7">Content-Type</span>
+            <span style="width:420px;color:#C6C3CC">application/json</span>
+            <span style="flex-grow:1;color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:12.5px">Set from Body</span>
+          </div>
+          <div class="gr">
+            <span class="rn" style="width:46px">2</span>
+            <span style="width:200px;color:#F7F4F7">Authorization</span>
+            <span style="width:420px;color:#C6C3CC;display:flex;align-items:center;gap:8px">Bearer <span class="var">{{access_token}}</span><span style="color:#8E8996;letter-spacing:.1em">••••••••••••</span>
+              <span class="c4" style="display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></span>
+            <span style="flex-grow:1;color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:12.5px">From Auth › Token</span>
+          </div>
+          <div class="gr" style="background:rgba(255,194,61,.05)">
+            <span class="rn" style="width:46px;color:#FFC23D">3</span>
+            <span style="width:200px;color:#F7F4F7">X-Tenant-Id</span>
+            <span style="width:420px"><span class="unres">{{tenant_id}}</span></span>
+            <span style="flex-grow:1;color:#FFC23D;font-family:Archivo,system-ui,sans-serif;font-size:12.5px">Not defined in staging</span>
+          </div>
+          <div class="gr">
+            <span class="rn" style="width:46px">4</span>
+            <span style="width:200px;color:#F7F4F7">Idempotency-Key</span>
+            <span style="width:420px;color:#C6C3CC"><span class="var">{{$guid}}</span></span>
+            <span style="flex-grow:1;color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:12.5px">New value per send</span>
+          </div>
+          <div class="gr" style="border-bottom:0">
+            <span class="rn" style="width:46px">5</span>
+            <span style="width:200px;color:#37333D">Header</span>
+            <span style="width:420px;color:#37333D">Value</span>
+            <span style="flex-grow:1"></span>
+          </div>
+        </div>
+
+          </div>
+        </div>
+
+        <!-- Response -->
+        <div style="flex-grow:1;min-height:0;display:flex;flex-direction:column;border-top:1px solid #37333D">
+          <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 12px;flex-shrink:0">
+            <span class="c6 tab on">
+              <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-send"/></svg>Response
+              <span class="m" style="font-size:11px;font-weight:600;color:#7BE0A0">201 Created</span>
+              <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-x"/></svg>
+            </span>
+            <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-test"/></svg>Tests<span class="m" style="font-size:10.5px">3 passed</span></span>
+            <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-code"/></svg>Console</span>
+            <span style="flex-grow:1"></span>
+            <span class="m" style="display:flex;align-items:center;gap:6px;margin-right:6px;font-size:11.5px;color:#8E8996;white-space:nowrap">
+              <svg class="ico" style="width:13px;height:13px"><use href="#i-clock"/></svg>184 ms · 1.2 KB
+            </span>
+            <button aria-label="Maximize response" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-max"/></svg></button>
+            <button aria-label="Collapse response" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-collapse"/></svg></button>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128">
+            <div class="c6 seg">
+              <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Body</span>
+              <span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>Headers<span class="m" style="font-size:10.5px">11</span></span>
+              <span><svg class="ico" style="width:13px;height:13px"><use href="#i-cookie"/></svg>Cookies<span class="m" style="font-size:10.5px">1</span></span>
+              <span><svg class="ico" style="width:13px;height:13px"><use href="#i-activity"/></svg>Timeline</span>
+            </div>
+            <span class="m" style="font-size:11.5px;color:#8E8996;white-space:nowrap">application/json · utf-8</span>
+            <span style="flex-grow:1"></span>
+            <div class="c6 field" style="width:220px">
+              <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+              <span style="flex-grow:1;color:#8E8996;white-space:nowrap">Search in response</span>
+            </div>
+          </div>
+          <div class="m" style="flex-grow:1;min-height:0;overflow:hidden;padding-top:6px;font-size:12.5px;border-top:1px solid #232128">
+            <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+            <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span>,</span></div>
+            <div class="ln"><span class="no">3</span><span class="tx">  <span class="k">"status"</span>: <span class="s">"draft"</span>,</span></div>
+            <div class="ln"><span class="no">4</span><span class="tx">  <span class="k">"customer"</span>: <span class="s">"cus_9s6XKzkNRiz8i3"</span>,</span></div>
+            <div class="ln"><span class="no">5</span><span class="tx">  <span class="k">"currency"</span>: <span class="s">"eur"</span>,</span></div>
+            <div class="ln"><span class="no">6</span><span class="tx">  <span class="k">"amount_due"</span>: <span class="nu">12900</span>,</span></div>
+            <div class="ln"><span class="no">7</span><span class="tx">  <span class="k">"lines"</span>: [</span></div>
+            <div class="ln"><span class="no">8</span><span class="tx">    { <span class="k">"description"</span>: <span class="s">"Pro plan, October"</span>, <span class="k">"quantity"</span>: <span class="nu">1</span>, <span class="k">"amount"</span>: <span class="nu">12900</span> }</span></div>
+            <div class="ln"><span class="no">9</span><span class="tx">  ],</span></div>
+            <div class="ln"><span class="no">10</span><span class="tx">  <span class="k">"livemode"</span>: <span class="b">false</span>,</span></div>
+            <div class="ln"><span class="no">11</span><span class="tx">  <span class="k">"created"</span>: <span class="nu">1793276295</span></span></div>
+            <div class="ln"><span class="no">12</span><span class="tx">}</span></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:46px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+            <span style="display:flex;align-items:center;gap:14px;white-space:nowrap">
+              <span style="display:flex;align-items:center;gap:6px;color:#C6C3CC"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Pretty</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>12 lines</span>
+              <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>saved to history</span>
+            </span>
+            <span></span>
+            <span style="display:flex;align-items:center;justify-content:flex-end;gap:8px">
+              <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-copy"/></svg>Copy</button>
+              <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-bookmark"/></svg>Save as example</button>
+              <button class="c6 btn"><svg class="ico" style="width:15px;height:15px"><use href="#i-export"/></svg>Export<svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></button>
+              <span class="m" style="margin-left:4px">184 ms</span>
+            </span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">POST /v1/invoices · 201 · 184 ms</span></span>
+  </footer>
+  <!-- Context menu on the collection row: Run… heads the menu (bolt MenuPopup + MenuItem) -->
+  <div class="c12" role="menu" aria-label="Collection Billing API" style="position:absolute;top:146px;left:190px;width:248px;padding:1px;background:#37333D;z-index:10;box-shadow:0 12px 32px rgba(0,0,0,.55)">
+    <div style="background:#1A181E;clip-path:polygon(11.4px 0,100% 0,100% calc(100% - 11.4px),calc(100% - 11.4px) 100%,0 100%,0 11.4px);padding:6px 0">
+      <div class="mi on" role="menuitem" tabindex="0"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-play"/></svg>Run…<span class="ks">Ctrl Shift R</span></div>
+      <div class="sep"></div>
+      <div class="mi" role="menuitem" tabindex="-1"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-file-plus"/></svg>New request<span class="ks">Ctrl N</span></div>
+      <div class="mi" role="menuitem" tabindex="-1"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder-plus"/></svg>New folder<span class="ks">Ctrl Shift N</span></div>
+      <div class="sep"></div>
+      <div class="mi" role="menuitem" tabindex="-1"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-pencil"/></svg>Rename<span class="ks">F2</span></div>
+      <div class="mi" role="menuitem" tabindex="-1"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-copy"/></svg>Duplicate<span class="ks">Ctrl D</span></div>
+      <div class="mi" role="menuitem" tabindex="-1"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-gear"/></svg>Settings</div>
+      <div class="sep"></div>
+      <div class="mi dg" role="menuitem" tabindex="-1"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#FF6B5E"><use href="#i-trash"/></svg>Delete…<span class="ks">Del</span></div>
+    </div>
+  </div>
+</main>
+<div class="frame-cap" role="note"><span class="lbl">State</span><span>Setup: a new run appears in the Runs sidebar; its options are one toolbar row over the folders it will run</span></div>
+<main aria-label="ReqFlux, new run with its setup strip" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Runs" aria-current="page" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-play"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+    <!-- Sidebar island: Runs, newest first (bolt ListRow) -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside aria-label="Runs" style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Runs</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New run" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div style="padding:6px 16px 4px"><span class="lbl">Today</span></div>
+          <div class="run-i on" aria-current="true"><span class="run-l"><svg class="ico" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-sliders"/></svg><span class="n">Billing API</span><span class="t">new</span></span><span class="run-s">not started · 9 requests</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">invoices</span><span class="t">14:20</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 4 passed · 1.3 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico er" style="width:13px;height:13px"><use href="#i-x"/></svg><span class="n">Auth</span><span class="t">11:02</span></span><span class="run-s"><span class="dia" style="background:#6EA8FF"></span>development · 1 of 2 failed</span></div>
+          <div style="padding:10px 16px 4px"><span class="lbl">Yesterday</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">17:45</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.5 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">webhooks</span><span class="t">16:12</span></span><span class="run-s"><span class="dia" style="background:#8E8996"></span>local · 2 passed · 0.4 s</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>4 runs</span><span>·</span><span>kept with history</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island: the run document -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span></span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-sliders"/></svg> Billing API<span style="font-weight:400;color:#8E8996">run</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-play"/></svg><span style="color:#8E8996">Runs</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Billing API</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:11px;color:#8E8996">not started</span>
+        </div>
+        <!-- Setup strip: the run's options as one toolbar row, locked once it starts -->
+        <div role="toolbar" aria-label="Run setup" style="display:flex;align-items:center;gap:14px;height:56px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128">
+          <span class="hint">Environment</span>
+          <div class="c6 sel" style="width:170px;box-sizing:border-box"><span class="dia" style="background:#FFC23D"></span><span style="flex-grow:1">staging</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
+          <span style="width:1px;height:20px;background:#232128"></span>
+          <label style="display:flex;align-items:center;gap:8px;color:#C6C3CC"><span class="cb off c4" role="checkbox" aria-checked="false" tabindex="0"></span>Stop on first failure</label>
+          <span style="width:1px;height:20px;background:#232128"></span>
+          <span class="hint">Delay</span>
+          <!-- bolt gap: numeric stepper (B1) -->
+          <div style="display:flex;gap:1px"><button aria-label="Less delay" class="c6 ib" style="clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px)"><svg class="ico" style="width:13px;height:13px"><use href="#i-minus"/></svg></button><div class="field m" style="width:84px;color:#F7F4F7;justify-content:flex-end">0<span class="mu">ms</span></div><button aria-label="More delay" class="c6 ib" style="clip-path:polygon(0 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%)"><svg class="ico" style="width:13px;height:13px"><use href="#i-plus"/></svg></button></div>
+          <span style="flex-grow:1"></span>
+          <span class="hint">9 requests · 3 folders</span>
+          <button class="c6 btn pri"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-play"/></svg>Start run<span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82)">Ctrl ↵</span></button>
+        </div>
+        <div role="treegrid" aria-label="Run report" style="flex-grow:1;min-height:0;overflow:hidden;border-top:1px solid #232128">
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>invoices<span class="c"><span>4 requests</span></span></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt get">GET</span><span class="nm">List invoices</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt post">POST</span><span class="nm">Create invoice</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt get">GET</span><span class="nm">Get invoice</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt patch">PATCH</span><span class="nm">Void invoice</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>customers<span class="c"><span>3 requests</span></span></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt get">GET</span><span class="nm">List customers</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt post">POST</span><span class="nm">Create customer</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt get">GET</span><span class="nm">Get customer</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>webhooks<span class="c"><span>2 requests</span></span></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt post">POST</span><span class="nm">Register endpoint</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt del">DELETE</span><span class="nm">Remove endpoint</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Not run</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Runs in tree order; pm.setNextRequest(name) jumps, pm.setNextRequest(null) ends the run</span>
+          <span style="flex-grow:1"></span>
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>each send is saved to history</span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">POST /v1/invoices · 201 · 184 ms</span></span>
+  </footer>
+</main>
+<div class="frame-cap" role="note"><span class="lbl">State</span><span>Live: requests are grouped by folder; finished folders fold to their totals, the current request is marked; Stop on the strip</span></div>
+<main aria-label="ReqFlux, run in progress grouped by folder" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Runs" aria-current="page" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-play"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+    <!-- Sidebar island: Runs, newest first (bolt ListRow) -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside aria-label="Runs" style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Runs</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New run" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div style="padding:6px 16px 4px"><span class="lbl">Today</span></div>
+          <div class="run-i on" aria-current="true"><span class="run-l"><svg class="ico spin" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-loader"/></svg><span class="n">Billing API</span><span class="t">4 / 9</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · running</span><span style="padding-left:21px;padding-top:3px"><span class="pb"><i style="width:48%"></i></span></span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">invoices</span><span class="t">14:20</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 4 passed · 1.3 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico er" style="width:13px;height:13px"><use href="#i-x"/></svg><span class="n">Auth</span><span class="t">11:02</span></span><span class="run-s"><span class="dia" style="background:#6EA8FF"></span>development · 1 of 2 failed</span></div>
+          <div style="padding:10px 16px 4px"><span class="lbl">Yesterday</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">17:45</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.5 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">webhooks</span><span class="t">16:12</span></span><span class="run-s"><span class="dia" style="background:#8E8996"></span>local · 2 passed · 0.4 s</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>5 runs</span><span>·</span><span>kept with history</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island: the run document -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span></span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="c6 tab on"><svg class="ico spin" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-loader"/></svg> Billing API<span style="font-weight:400;color:#8E8996">run</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-play"/></svg><span style="color:#8E8996">Runs</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Billing API</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:11px;color:#8E8996">started 14:32:07</span>
+        </div>
+        <!-- Status strip while running: the setup is read-only, progress and Stop on the right -->
+        <div role="toolbar" aria-label="Run status" style="display:flex;align-items:center;gap:14px;height:56px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128">
+          <span class="badge c4" style="color:#9DB1FF;background:rgba(157,177,255,.12)">RUNNING</span>
+          <span class="hint" style="display:flex;align-items:center;gap:8px"><span class="dia" style="background:#FFC23D"></span>staging<span class="dim">·</span>continues after a failure<span class="dim">·</span>no delay</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:12px;color:#F7F4F7;white-space:nowrap">4 <span class="mu">of 9</span></span>
+          <!-- bolt gap: progress bar -->
+          <span role="progressbar" aria-label="Run progress" aria-valuemin="0" aria-valuemax="9" aria-valuenow="4" class="pb" style="width:200px"><i style="width:48%"></i></span>
+          <span class="m ok" style="font-size:12px;white-space:nowrap">10 passed</span>
+          <span class="m mu" style="font-size:12px;white-space:nowrap">0 failed · 0.7 s</span>
+          <button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#FF6B5E"><use href="#i-stop"/></svg>Stop</button>
+        </div>
+        <div role="treegrid" aria-label="Run report" style="flex-grow:1;min-height:0;overflow:hidden;border-top:1px solid #232128">
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>invoices<span class="c"><span class="ok">4 passed</span><span>543 ms</span></span></div>
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>customers<span class="c"><span style="color:#9DB1FF">running 1 of 3</span></span></div>
+          <div class="rr" role="row" aria-current="true" style="background:rgba(157,177,255,.07);box-shadow:#9DB1FF 2px 0 0 inset"><svg class="ico spin" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-loader"/></svg><span class="mt get">GET</span><span class="nm">List customers</span><span class="m" style="width:150px"><span style="color:#9DB1FF">Sending…</span></span><span class="m" style="width:70px;text-align:right"><span style="color:#9DB1FF">68 ms</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt post">POST</span><span class="nm">Create customer</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Queued</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt get">GET</span><span class="nm">Get customer</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Queued</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>webhooks<span class="c"><span>2 queued</span></span></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt post">POST</span><span class="nm">Register endpoint</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Queued</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#37333D"><use href="#i-dot"/></svg><span class="mt del">DELETE</span><span class="nm">Remove endpoint</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Queued</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Finished folders fold to their totals</span>
+          <span style="flex-grow:1"></span>
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>each send saved to history</span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico spin" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-loader"/></svg><span class="m" style="color:#C6C3CC">Run Billing API · 4 of 9</span></span>
+  </footer>
+</main>
+<div class="frame-cap" role="note"><span class="lbl">State</span><span>Summary: every folder folded to its totals with a summary of the run; earlier runs stay in the sidebar to compare</span></div>
+<main aria-label="ReqFlux, run report summary" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Runs" aria-current="page" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-play"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+    <!-- Sidebar island: Runs, newest first (bolt ListRow) -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside aria-label="Runs" style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Runs</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New run" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div style="padding:6px 16px 4px"><span class="lbl">Today</span></div>
+          <div class="run-i on" aria-current="true"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">14:32</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.4 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">invoices</span><span class="t">14:20</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 4 passed · 1.3 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico er" style="width:13px;height:13px"><use href="#i-x"/></svg><span class="n">Auth</span><span class="t">11:02</span></span><span class="run-s"><span class="dia" style="background:#6EA8FF"></span>development · 1 of 2 failed</span></div>
+          <div style="padding:10px 16px 4px"><span class="lbl">Yesterday</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">17:45</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.5 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">webhooks</span><span class="t">16:12</span></span><span class="run-s"><span class="dia" style="background:#8E8996"></span>local · 2 passed · 0.4 s</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>5 runs</span><span>·</span><span>kept with history</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island: the run document -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span></span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg> Billing API<span style="font-weight:400;color:#8E8996">run</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-play"/></svg><span style="color:#8E8996">Runs</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Billing API</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:11px;color:#8E8996">14:32:07 – 14:32:09</span>
+        </div>
+        <!-- Verdict strip -->
+        <div role="toolbar" aria-label="Run result" style="display:flex;align-items:center;gap:14px;height:56px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128">
+          <svg class="ico" style="width:18px;height:18px;color:#7BE0A0"><use href="#i-test"/></svg>
+          <span style="font-size:16px;font-weight:600;color:#F7F4F7;white-space:nowrap">Passed</span>
+          <span class="hint" style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span class="dia" style="background:#FFC23D"></span>staging<span class="dim">·</span>continues after a failure<span class="dim">·</span>no delay</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:12px;color:#C6C3CC;white-space:nowrap">9 of 9 · <span class="ok">21 passed</span> · 0 failed · 1.4 s</span>
+          <button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Edit setup</button>
+          <button class="c6 btn pri"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-revert"/></svg>Run again</button>
+        </div>
+        <div role="treegrid" aria-label="Run report" style="flex-grow:1;min-height:0;overflow:hidden;border-top:1px solid #232128">
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>invoices<span class="c"><span class="ok">4 passed</span><span>543 ms</span></span></div>
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>customers<span class="c"><span class="ok">3 passed</span><span>426 ms</span></span></div>
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>webhooks<span class="c"><span class="ok">2 passed</span><span>307 ms</span></span></div>
+          <!-- Summary (bolt FieldRow) -->
+          <section aria-label="Summary" style="padding:6px 28px 0">
+            <div class="sh"><svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-activity"/></svg><span class="x lbl">Summary</span></div>
+            <div class="fr"><span class="fl">Requests</span><span style="padding-top:7px;color:#F7F4F7">9 of 9 sent, all 2xx</span></div>
+            <div class="fr"><span class="fl">Tests</span><span class="ok" style="padding-top:7px">21 passed<span class="mu">, 0 failed</span></span></div>
+            <div class="fr"><span class="fl">Duration</span><span class="m" style="padding-top:7px;color:#C6C3CC">1.4 s <span class="mu">· 1.28 s in requests · slowest Register endpoint 230 ms</span></span></div>
+            <div class="fr"><span class="fl">Variables set</span><span style="padding-top:5px;display:flex;gap:8px"><span class="m var">invoice_id</span><span class="m var">customer_id</span><span class="m var">webhook_id</span><span class="hint">current values in staging</span></span></div>
+            <div class="fr"><span class="fl">History</span><span class="hint" style="padding-top:7px">9 sends saved, each linked to this run</span></div>
+          </section>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Open a folder to see its requests; open a request to see its response and tests</span>
+          <span style="flex-grow:1"></span>
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>9 sends saved to history</span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">Run Billing API · 9 passed · 1.4 s</span></span>
+  </footer>
+</main>
+<div class="frame-cap" role="note"><span class="lbl">State</span><span>Result: a request opens in place, its tests beside its response; Open in request tab moves it to the request</span></div>
+<main aria-label="ReqFlux, request result inside the report" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Runs" aria-current="page" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-play"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+    <!-- Sidebar island: Runs, newest first (bolt ListRow) -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside aria-label="Runs" style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Runs</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New run" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div style="padding:6px 16px 4px"><span class="lbl">Today</span></div>
+          <div class="run-i on" aria-current="true"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">14:32</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.4 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">invoices</span><span class="t">14:20</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 4 passed · 1.3 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico er" style="width:13px;height:13px"><use href="#i-x"/></svg><span class="n">Auth</span><span class="t">11:02</span></span><span class="run-s"><span class="dia" style="background:#6EA8FF"></span>development · 1 of 2 failed</span></div>
+          <div style="padding:10px 16px 4px"><span class="lbl">Yesterday</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">17:45</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.5 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">webhooks</span><span class="t">16:12</span></span><span class="run-s"><span class="dia" style="background:#8E8996"></span>local · 2 passed · 0.4 s</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>5 runs</span><span>·</span><span>kept with history</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island: the run document -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span></span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg> Billing API<span style="font-weight:400;color:#8E8996">run</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-play"/></svg><span style="color:#8E8996">Runs</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Billing API</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:11px;color:#8E8996">14:32:07 – 14:32:09</span>
+        </div>
+        <!-- Verdict strip -->
+        <div role="toolbar" aria-label="Run result" style="display:flex;align-items:center;gap:14px;height:56px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128">
+          <svg class="ico" style="width:18px;height:18px;color:#7BE0A0"><use href="#i-test"/></svg>
+          <span style="font-size:16px;font-weight:600;color:#F7F4F7;white-space:nowrap">Passed</span>
+          <span class="hint" style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span class="dia" style="background:#FFC23D"></span>staging<span class="dim">·</span>continues after a failure<span class="dim">·</span>no delay</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:12px;color:#C6C3CC;white-space:nowrap">9 of 9 · <span class="ok">21 passed</span> · 0 failed · 1.4 s</span>
+          <button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Edit setup</button>
+          <button class="c6 btn pri"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-revert"/></svg>Run again</button>
+        </div>
+        <div role="treegrid" aria-label="Run report" style="flex-grow:1;min-height:0;overflow:hidden;border-top:1px solid #232128">
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>invoices<span class="c"><span class="ok">4 passed</span><span>543 ms</span></span></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg><span class="mt get">GET</span><span class="nm">List invoices</span><span class="m" style="width:150px"><span class="ok">200 OK</span></span><span class="m" style="width:70px;text-align:right">142 ms</span><span class="m" style="width:70px;text-align:right">3.4 KB</span><span style="flex-grow:1;display:flex;gap:8px"><span class="ok">3 passed</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row" aria-expanded="true" style="background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg><span class="mt post">POST</span><span class="nm">Create invoice</span><span class="m" style="width:150px"><span class="ok">201 Created</span></span><span class="m" style="width:70px;text-align:right">184 ms</span><span class="m" style="width:70px;text-align:right">1.2 KB</span><span style="flex-grow:1;display:flex;gap:8px"><span class="ok">3 passed</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg></div>
+          <!-- Result inline under its row: tests beside the response -->
+          <div role="region" aria-label="Create invoice result" style="display:flex;margin:0 0 0 40px;border-bottom:1px solid #18161B;border-left:2px solid #9DB1FF;background:#09090B">
+            <section aria-label="Tests" style="width:400px;flex-shrink:0;border-right:1px solid #232128;padding-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 16px"><span class="x lbl">Tests</span><span class="m ok" style="font-size:11px">3 passed</span></div>
+              <div class="tr" style="border:0"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span style="color:#F7F4F7">status is 201</span></div>
+              <div class="tr" style="border:0"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span style="color:#F7F4F7">returns a draft invoice</span></div>
+              <div class="tr" style="border:0"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span style="color:#F7F4F7">sets invoice_id for the next request</span></div>
+              <div class="hint" style="padding:6px 16px">Set: <span class="m var">invoice_id</span> = <span class="m" style="color:#C6C3CC">in_1Q8ZtR2eZvKYlo2C</span></div>
+            </section>
+            <section aria-label="Response" style="flex-grow:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:12px;height:36px;padding:0 12px">
+                <div class="c6 seg"><span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Body</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>Headers</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-activity"/></svg>Timeline</span></div>
+                <span style="flex-grow:1"></span>
+                <button class="c6 btn" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-open"/></svg>Open in request tab</button>
+              </div>
+              <div class="m" style="padding:4px 0 8px;font-size:12.5px;border-top:1px solid #232128">
+                <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+                <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span>,</span></div>
+                <div class="ln"><span class="no">3</span><span class="tx">  <span class="k">"status"</span>: <span class="s">"draft"</span>,</span></div>
+                <div class="ln"><span class="no">4</span><span class="tx">  <span class="k">"customer"</span>: <span class="s">"cus_9s6XKzkNRiz8i3"</span>,</span></div>
+                <div class="ln"><span class="no">5</span><span class="tx">  <span class="k">"amount_due"</span>: <span class="nu">12900</span>,</span></div>
+                <div class="ln"><span class="no">6</span><span class="tx">  <span class="k">"livemode"</span>: <span class="b">false</span></span></div>
+                <div class="ln"><span class="no">7</span><span class="tx">}</span></div>
+              </div>
+            </section>
+          </div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg><span class="mt get">GET</span><span class="nm">Get invoice</span><span class="m" style="width:150px"><span class="ok">200 OK</span></span><span class="m" style="width:70px;text-align:right">96 ms</span><span class="m" style="width:70px;text-align:right">1.2 KB</span><span style="flex-grow:1;display:flex;gap:8px"><span class="ok">2 passed</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg><span class="mt patch">PATCH</span><span class="nm">Void invoice</span><span class="m" style="width:150px"><span class="ok">200 OK</span></span><span class="m" style="width:70px;text-align:right">121 ms</span><span class="m" style="width:70px;text-align:right">1.3 KB</span><span style="flex-grow:1;display:flex;gap:8px"><span class="ok">2 passed</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>customers<span class="c"><span class="ok">3 passed</span><span>426 ms</span></span></div>
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>webhooks<span class="c"><span class="ok">2 passed</span><span>307 ms</span></span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Space opens or closes the selected row; Enter opens it in the request tab</span>
+          <span style="flex-grow:1"></span>
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>9 sends saved to history</span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">Run Billing API · 9 passed · 1.4 s</span></span>
+  </footer>
+</main>
+<div class="frame-cap" role="note"><span class="lbl">State</span><span>Failed run: failures are listed first and jump to their row, which opens with the failed assertions; skipped requests are marked</span></div>
+<main aria-label="ReqFlux, failed run report" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <!-- Title bar: centered command search with the global environment selector, approvals bell -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <!-- Context: workspace, then its environment, over the sidebar column -->
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" title="Workspace" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" title="Environment" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl Shift P</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Runs" aria-current="page" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-play"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+    <!-- Sidebar island: Runs, newest first (bolt ListRow) -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside aria-label="Runs" style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Runs</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New run" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="flex-grow:1;overflow:hidden">
+          <div style="padding:6px 16px 4px"><span class="lbl">Today</span></div>
+          <div class="run-i on" aria-current="true"><span class="run-l"><svg class="ico er" style="width:13px;height:13px"><use href="#i-x"/></svg><span class="n">Billing API</span><span class="t">14:32</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · stopped at 6 of 9</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">invoices</span><span class="t">14:20</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 4 passed · 1.3 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico er" style="width:13px;height:13px"><use href="#i-x"/></svg><span class="n">Auth</span><span class="t">11:02</span></span><span class="run-s"><span class="dia" style="background:#6EA8FF"></span>development · 1 of 2 failed</span></div>
+          <div style="padding:10px 16px 4px"><span class="lbl">Yesterday</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">Billing API</span><span class="t">17:45</span></span><span class="run-s"><span class="dia" style="background:#FFC23D"></span>staging · 9 passed · 1.5 s</span></div>
+          <div class="run-i"><span class="run-l"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span class="n">webhooks</span><span class="t">16:12</span></span><span class="run-s"><span class="dia" style="background:#8E8996"></span>local · 2 passed · 0.4 s</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>5 runs</span><span>·</span><span>kept with history</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island: the run document -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span></span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#FF6B5E"><use href="#i-alert"/></svg> Billing API<span style="font-weight:400;color:#8E8996">run</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-play"/></svg><span style="color:#8E8996">Runs</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Billing API</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:11px;color:#8E8996">14:32:07 – 14:32:08</span>
+        </div>
+        <!-- Verdict strip -->
+        <div role="toolbar" aria-label="Run result" style="display:flex;align-items:center;gap:14px;height:56px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128">
+          <svg class="ico" style="width:18px;height:18px;color:#FF6B5E"><use href="#i-alert"/></svg>
+          <span style="font-size:16px;font-weight:600;color:#F7F4F7;white-space:nowrap">Stopped on a failure</span>
+          <span class="hint" style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span class="dia" style="background:#FFC23D"></span>staging<span class="dim">·</span>stop on first failure<span class="dim">·</span>no delay</span>
+          <span style="flex-grow:1"></span>
+          <span class="m" style="font-size:12px;color:#C6C3CC;white-space:nowrap">6 of 9 · <span class="ok">13 passed</span> · <span class="er">2 failed</span> · 3 skipped · 0.9 s</span>
+          <button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Edit setup</button>
+          <button class="c6 btn pri"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-revert"/></svg>Run again</button>
+        </div>
+        <div role="treegrid" aria-label="Run report" style="flex-grow:1;min-height:0;overflow:hidden;border-top:1px solid #232128">
+          <!-- Failures first (bolt BannerBlock, danger): each entry jumps to its row -->
+          <div role="alert" style="display:flex;align-items:flex-start;gap:10px;margin:12px 16px;padding:10px 14px;background:rgba(255,107,94,.05)" class="c6">
+            <svg class="ico er" style="width:15px;height:15px;margin-top:1px"><use href="#i-alert"/></svg>
+            <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1">
+              <span style="color:#F7F4F7;font-weight:600">1 request failed; the run stopped there</span>
+              <span style="display:flex;align-items:center;gap:8px;font-size:12.5px"><span class="mt post" style="width:auto">POST</span><span style="color:#C6C3CC">customers / Create customer</span><span class="m wr" style="font-size:11.5px">422</span><span class="m er" style="font-size:11.5px">2 tests failed</span></span>
+              <span class="hint">Get customer, Register endpoint and Remove endpoint were skipped.</span>
+            </div>
+            <button class="c6 btn" style="height:26px">Go to failure</button>
+          </div>
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>invoices<span class="c"><span class="ok">4 passed</span><span>543 ms</span></span></div>
+          <div class="sec" role="row" aria-expanded="true"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>customers<span class="c"><span class="er">1 failed</span><span class="ok">1 passed</span><span>1 skipped</span></span></div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg><span class="mt get">GET</span><span class="nm">List customers</span><span class="m" style="width:150px"><span class="ok">200 OK</span></span><span class="m" style="width:70px;text-align:right">133 ms</span><span class="m" style="width:70px;text-align:right">5.8 KB</span><span style="flex-grow:1;display:flex;gap:8px"><span class="ok">2 passed</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="rr" role="row" aria-expanded="true" style="background:rgba(255,107,94,.05);box-shadow:#FF6B5E 2px 0 0 inset"><svg class="ico" style="width:14px;height:14px;color:#FF6B5E"><use href="#i-x"/></svg><span class="mt post">POST</span><span class="nm">Create customer</span><span class="m" style="width:150px"><span class="wr">422 Unprocessable</span></span><span class="m" style="width:70px;text-align:right">164 ms</span><span class="m" style="width:70px;text-align:right">0.4 KB</span><span style="flex-grow:1;display:flex;gap:8px"><span class="er">2 failed</span><span class="mu">1 passed</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg></div>
+          <!-- Result inline under its row: tests beside the response -->
+          <div role="region" aria-label="Create customer result" style="display:flex;margin:0 0 0 40px;border-bottom:1px solid #18161B;border-left:2px solid #FF6B5E;background:#09090B">
+            <section aria-label="Tests" style="width:400px;flex-shrink:0;border-right:1px solid #232128;padding-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;height:36px;padding:0 16px"><span class="x lbl">Tests</span><span class="m er" style="font-size:11px">2 failed</span><span class="m mu" style="font-size:11px">1 passed</span></div>
+              <div class="tr" style="border:0;height:auto;padding:5px 14px;align-items:flex-start"><svg class="ico er" style="width:13px;height:13px;margin-top:2px"><use href="#i-x"/></svg><span style="display:flex;flex-direction:column;gap:3px"><span style="color:#F7F4F7">status is 201</span><span class="m er">expected response to have status code 201 but got 422</span></span></div>
+              <div class="tr" style="border:0;height:auto;padding:5px 14px;align-items:flex-start"><svg class="ico er" style="width:13px;height:13px;margin-top:2px"><use href="#i-x"/></svg><span style="display:flex;flex-direction:column;gap:3px"><span style="color:#F7F4F7">returns a customer id</span><span class="m er">expected undefined to be a string</span></span></div>
+              <div class="tr" style="border:0"><svg class="ico ok" style="width:13px;height:13px"><use href="#i-check"/></svg><span style="color:#F7F4F7">responds in under 500 ms</span></div>
+            </section>
+            <section aria-label="Response" style="flex-grow:1;min-width:0">
+              <div style="display:flex;align-items:center;gap:12px;height:36px;padding:0 12px">
+                <div class="c6 seg"><span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Body</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>Headers</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-activity"/></svg>Timeline</span></div>
+                <span style="flex-grow:1"></span>
+                <button class="c6 btn" style="height:26px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-open"/></svg>Open in request tab</button>
+              </div>
+              <div class="m" style="padding:4px 0 8px;font-size:12.5px;border-top:1px solid #232128">
+                <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+                <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"error"</span>: {</span></div>
+                <div class="ln"><span class="no">3</span><span class="tx">    <span class="k">"code"</span>: <span class="s">"email_invalid"</span>,</span></div>
+                <div class="ln"><span class="no">4</span><span class="tx">    <span class="k">"param"</span>: <span class="s">"email"</span>,</span></div>
+                <div class="ln"><span class="no">5</span><span class="tx">    <span class="k">"message"</span>: <span class="s">"Invalid email address: ana@"</span></span></div>
+                <div class="ln"><span class="no">6</span><span class="tx">  }</span></div>
+                <div class="ln"><span class="no">7</span><span class="tx">}</span></div>
+              </div>
+            </section>
+          </div>
+          <div class="rr" role="row"><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-skip"/></svg><span class="mt get">GET</span><span class="nm">Get customer</span><span class="m" style="width:150px"><span class="mu" style="font-family:Archivo,system-ui,sans-serif">Skipped</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span class="m" style="width:70px;text-align:right"><span class="dim">—</span></span><span style="flex-grow:1;display:flex;gap:8px"><span class="dim">—</span></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg></div>
+          <div class="sec" role="row" aria-expanded="false"><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>webhooks<span class="c"><span>2 skipped</span></span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;height:46px;padding:0 16px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-info"/></svg>Skipped requests were not sent</span>
+          <span style="flex-grow:1"></span>
+          <span style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>6 sends saved to history</span>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#FF6B5E"><use href="#i-alert"/></svg><span class="m" style="color:#C6C3CC">Run Billing API · 2 tests failed · stopped at Create customer</span></span>
+  </footer>
+</main>
+<div class="frame-cap" role="note"><span class="lbl">Other starts</span><span>The palette and the collection settings open the same setup as the tree's Run…; Ctrl Shift R on a selected collection or folder does too</span></div>
+<section aria-label="Other ways to start a run" style="display:flex;gap:24px;width:1440px;box-sizing:border-box;padding:24px 8px 32px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+
+  <!-- Command palette, query "run" (bolt CommandPalette) -->
+  <div class="c14" role="dialog" aria-label="Command palette" style="width:640px;flex-shrink:0;background:#100F13;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.6) 0 30px 80px">
+    <div style="display:flex;align-items:center;gap:12px;height:56px;padding:0 18px;border-bottom:1px solid #232128">
+      <svg class="ico" aria-hidden="true" style="width:18px;height:18px;color:#C6C3CC"><use href="#i-search"/></svg>
+      <span role="combobox" aria-expanded="true" aria-label="Command palette query" style="display:flex;align-items:center;gap:4px"><span style="font-size:17px;color:#F7F4F7">run</span><span style="display:inline-block;width:2px;height:20px;background:#9DB1FF"></span></span>
+      <span style="flex-grow:1"></span>
+      <span class="m" style="font-size:11.5px;color:#8E8996;white-space:nowrap">6 items</span>
+      <span class="c4 kc">Esc</span>
+    </div>
+    <div role="listbox" style="padding-bottom:8px">
+      <div role="presentation" style="display:flex;align-items:center;gap:8px;padding:12px 18px 6px"><span class="x lbl">Run a collection</span></div>
+      <div role="option" aria-selected="true" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px;background:rgba(157,177,255,.12);box-shadow:#9DB1FF 2px 0 0 inset">
+        <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-play"/></svg>
+        <span style="color:#F7F4F7;font-size:14px">Run Billing API…</span>
+        <span style="font-size:11.5px;color:#8E8996">9 requests</span>
+        <span style="flex-grow:1"></span><span class="c4 kc">Enter</span>
+      </div>
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px">
+        <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#8E8996"><use href="#i-play"/></svg>
+        <span style="color:#C6C3CC;font-size:14px">Run Auth…</span>
+        <span style="font-size:11.5px;color:#8E8996">2 requests</span>
+      </div>
+      <div role="presentation" style="display:flex;align-items:center;gap:8px;padding:12px 18px 6px"><span class="x lbl">Run a folder</span></div>
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px">
+        <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+        <span style="color:#C6C3CC;font-size:14px">Run invoices…</span>
+        <span style="font-size:11.5px;color:#8E8996">Billing API · 4 requests</span>
+      </div>
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px">
+        <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+        <span style="color:#C6C3CC;font-size:14px">Run customers…</span>
+        <span style="font-size:11.5px;color:#8E8996">Billing API · 3 requests</span>
+      </div>
+      <div role="presentation" style="display:flex;align-items:center;gap:8px;padding:12px 18px 6px"><span class="x lbl">Commands</span></div>
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px">
+        <svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#8E8996"><use href="#i-revert"/></svg>
+        <span style="color:#C6C3CC;font-size:14px">Run again: Billing API</span>
+        <span style="font-size:11.5px;color:#8E8996">last setup · staging</span>
+        <span style="flex-grow:1"></span><span class="m" style="font-size:11.5px;color:#8E8996">Ctrl Shift R</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Collection settings header: Run… next to the title -->
+  <div class="c14" style="display:flex;flex-grow:1;min-width:0;align-self:flex-start;padding:1px;background:rgba(255,255,255,.05)">
+    <section aria-label="Collection settings header" style="flex-grow:1;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px)">
+      <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;font-size:12px">
+        <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-box"/></svg><span style="color:#8E8996">Billing API</span>
+        <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Settings</span>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:12px;padding:18px 28px 22px;border-top:1px solid #232128">
+        <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1;min-width:0">
+          <span style="font-size:20px;font-weight:700;color:#F7F4F7">Billing API</span>
+          <span style="color:#8E8996">Invoices, customers and webhooks. Folders and requests inherit everything below.</span>
+        </div>
+        <button class="c6 btn pri" style="flex-shrink:0"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-play"/></svg>Run…<span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82)">Ctrl Shift R</span></button>
+      </div>
+      <div style="padding:0 28px 20px"><span class="hint" style="display:flex;align-items:center;gap:6px"><svg class="ico" style="width:13px;height:13px"><use href="#i-history"/></svg>Last run 12 min ago · staging · 9 of 9 passed</span></div>
+    </section>
+  </div>
+</section>
+</body></html>

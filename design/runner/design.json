@@ -1,0 +1,28 @@
+{
+  "title": "Collection runner",
+  "brief": "Running a collection or folder from the app: how a run starts (tree context menu Run…, collection settings, command palette), its setup (environment, stop on first failure, delay), the live run (per request method, name, status, time, size, tests; the current one; Stop), the summary, opening a request's result (response and tests) and a failed run. Built on the bolt-v2 shell and DBFlux's results grid and tasks panel.",
+  "feature": "odd/tasks/v1-features.md",
+  "artboards": [
+    {
+      "file": "01-run-document.html",
+      "title": "Run document with results grid",
+      "tradeoff": "Full width for the grid and a tests-beside-response pane, close to DBFlux's results panel; the run takes a document tab, so checking it means leaving the request being edited",
+      "width": 1440,
+      "height": 6080
+    },
+    {
+      "file": "02-modal-docked-panel.html",
+      "title": "Setup modal and docked run panel",
+      "tradeoff": "Keeps the request in view and reuses the response area for results, like DBFlux's tasks panel; the panel is short, so long runs scroll and the setup is gone once the modal closes",
+      "width": 1440,
+      "height": 6080
+    },
+    {
+      "file": "03-runs-sidebar-report.html",
+      "title": "Runs sidebar and folder-grouped report",
+      "tradeoff": "Runs become first-class: earlier runs to compare, folder totals and failures first, results open in place; adds a rail entry and a sidebar, and folding hides per-request detail until opened",
+      "width": 1440,
+      "height": 6080
+    }
+  ]
+}
