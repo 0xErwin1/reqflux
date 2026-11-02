@@ -76,14 +76,17 @@
 pub mod approvals;
 pub mod audit;
 mod auth;
+mod bundle;
 mod code;
 pub mod config;
 mod cookies;
 mod create;
 mod current;
+mod docs;
 mod engine;
 mod error;
 mod examples;
+mod export;
 mod guard;
 mod import;
 mod managed;
@@ -100,16 +103,19 @@ mod tree;
 mod variables;
 
 pub use auth::{Browser, OAuthBrowser, OAuthFetch, OAuthTokenState, SystemBrowser};
+pub use bundle::{Bundle, BundleImport, BundleKind, BundleSecrets, BundleSummary, import_bundle};
 pub use code::code;
 pub use cookies::{CookieError, StoredCookie};
 pub use create::create_workspace;
 pub use current::CurrentValues;
+pub use docs::{ApiDocs, DocsFile};
 pub use engine::{Engine, Executed, Execution, PendingExecution};
 pub use error::{
-    CreateWorkspaceError, ExampleError, ExecuteError, ImportError, OpenError, PersistError,
-    SaveError, TreeError, VariableError,
+    BundleError, CreateWorkspaceError, DocsError, ExampleError, ExecuteError, ExportError,
+    ImportError, OpenError, PersistError, SaveError, TreeError, VariableError,
 };
 pub use examples::SavedExample;
+pub use export::{ENVIRONMENT_PREFIX, PostmanExport, PostmanKind};
 pub use guard::HostGuard;
 pub use import::{ImportPreview, ImportSummary, postman, postman_preview};
 pub use managed::{

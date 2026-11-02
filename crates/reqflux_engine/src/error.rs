@@ -120,6 +120,94 @@ pub enum ImportError {
     },
 }
 
+/// Why a Postman export failed (v1-features S6). No message carries a secret value.
+#[derive(Debug, thiserror::Error)]
+pub enum ExportError {
+    /// Nothing matches the selector.
+    #[error("no collection, folder, request or environment matches {0}")]
+    UnknownTarget(String),
+    /// Secret values were asked for and the secret store could not be read.
+    #[error("secret values could not be read: {0}")]
+    Secret(#[from] SecretError),
+    /// A saved example could not be read.
+    #[error(transparent)]
+    Store(#[from] StoreError),
+}
+
+/// Why a native bundle could not be made or imported (v1-features S6). No message carries
+/// a secret value or the passphrase.
+#[derive(Debug, thiserror::Error)]
+pub enum BundleError {
+    /// Nothing matches the selector.
+    #[error("no collection, folder, request or environment matches {0}")]
+    UnknownTarget(String),
+    /// Secret values were asked for and the secret store could not be read or written.
+    #[error("secret values could not be read or stored: {0}")]
+    Secret(#[from] SecretError),
+    /// A workspace file or a saved example could not be read or written.
+    #[error(transparent)]
+    Store(#[from] StoreError),
+    /// The passphrase is empty.
+    #[error("the passphrase is empty")]
+    EmptyPassphrase,
+    /// The secrets could not be encrypted.
+    #[error("the secrets could not be encrypted: {0}")]
+    Encrypt(String),
+    /// The secrets do not decrypt with the passphrase given, or are damaged.
+    #[error("the secrets do not decrypt with this passphrase")]
+    Decrypt,
+    /// The text is not a ReqFlux bundle, or a document in it does not parse.
+    #[error("not a ReqFlux bundle: {0}")]
+    Invalid(String),
+    /// The bundle was written by a newer ReqFlux.
+    #[error("bundle format {found} is newer than this ReqFlux reads ({supported})")]
+    UnsupportedFormat {
+        /// The bundle's `format_version`.
+        found: u64,
+        /// The newest version this build reads.
+        supported: u64,
+    },
+    /// A folder or request bundle needs a collection or folder to go into, and none or an
+    /// unknown one was given; or a workspace bundle was given one.
+    #[error("{0}")]
+    Parent(String),
+    /// The file exists; an import never overwrites.
+    #[error("{} already exists; an import never overwrites a file", path.display())]
+    Exists {
+        /// The existing file.
+        path: PathBuf,
+    },
+    /// The workspace does not reload after the import.
+    #[error("the workspace does not reload after the import: {0}")]
+    Reload(#[source] OpenError),
+}
+
+/// Why API docs could not be generated or written (v1-features S6).
+#[derive(Debug, thiserror::Error)]
+pub enum DocsError {
+    /// No collection matches the selector.
+    #[error("no collection matches {0}")]
+    UnknownCollection(String),
+    /// A saved example could not be read.
+    #[error(transparent)]
+    Store(#[from] StoreError),
+    /// A file of the docs exists and overwriting was not asked for.
+    #[error("{} already exists", path.display())]
+    Exists {
+        /// The existing file.
+        path: PathBuf,
+    },
+    /// The output directory or a file in it could not be written.
+    #[error("could not write {}: {source}", path.display())]
+    Write {
+        /// The file or directory.
+        path: PathBuf,
+        /// The filesystem failure.
+        #[source]
+        source: std::io::Error,
+    },
+}
+
 /// Why a request document could not be saved back to its file.
 #[derive(Debug, thiserror::Error)]
 pub enum SaveError {

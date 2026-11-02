@@ -3,7 +3,9 @@
 //! the command line, and
 //! `reqflux code` to print a request as curl, HTTPie, Python or fetch code,
 //! `reqflux mcp` to serve the agent tools, `reqflux import` to bring in a Postman
-//! collection, and `reqflux secret` to manage secret values in the OS keyring.
+//! collection, `reqflux secret` to manage secret values in the OS keyring, and
+//! `reqflux export`, `reqflux bundle` and `reqflux docs` to take a workspace out as
+//! Postman JSON, a native bundle or API docs.
 
 mod cli;
 mod code;
@@ -14,6 +16,7 @@ mod run;
 mod run_collection;
 mod secret;
 mod signals;
+mod transfer;
 
 use std::process::ExitCode;
 
@@ -30,5 +33,8 @@ fn main() -> ExitCode {
         Some(Command::Mcp(args)) => mcp::mcp(args),
         Some(Command::Import(args)) => import::import(args),
         Some(Command::Secret(args)) => secret::secret(args),
+        Some(Command::Export(args)) => transfer::export(args),
+        Some(Command::Bundle(args)) => transfer::bundle(args),
+        Some(Command::Docs(args)) => transfer::docs(args),
     }
 }

@@ -11,10 +11,11 @@ use rmcp::{
 };
 
 use super::{
-    CollectionCreateArgs, CookieArgs, EngineState, EntryArgs, EnvironmentArgs,
-    EnvironmentCreateArgs, EnvironmentRenameArgs, ExecuteArgs, FolderCreateArgs, HistoryListArgs,
-    ItemArgs, MoveArgs, PathArgs, RenameArgs, RequestCreateArgs, RunArgs, ScopeArgs, UpdateArgs,
-    VariableDeleteArgs, VariableSetArgs, WorkspaceCreateArgs,
+    BundleExportArgs, BundleImportArgs, CollectionCreateArgs, CookieArgs, DocsArgs, EngineState,
+    EntryArgs, EnvironmentArgs, EnvironmentCreateArgs, EnvironmentRenameArgs, ExecuteArgs,
+    FolderCreateArgs, HistoryListArgs, ItemArgs, MoveArgs, PathArgs, PostmanExportArgs, RenameArgs,
+    RequestCreateArgs, RunArgs, ScopeArgs, UpdateArgs, VariableDeleteArgs, VariableSetArgs,
+    WorkspaceCreateArgs,
 };
 use crate::server::{ReqFluxMcp, into_result};
 use crate::tools::ToolError;
@@ -339,6 +340,54 @@ impl ReqFluxMcp {
     )]
     async fn cookie_clear(&self) -> Result<CallToolResult, ErrorData> {
         self.run_engine(super::cookie_clear).await
+    }
+
+    #[tool(
+        name = "postman_export",
+        description = "Return a collection, folder, request or environment as a Postman v2.1 JSON document; secret variables are empty and listed in empty_secrets, and no file is written"
+    )]
+    async fn postman_export(
+        &self,
+        Parameters(args): Parameters<PostmanExportArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(move |state| super::postman_export(state, args))
+            .await
+    }
+
+    #[tool(
+        name = "bundle_export",
+        description = "Return the workspace, or a collection, folder, request or environment, as a native ReqFlux bundle text; secret values are left out and listed, and no file is written"
+    )]
+    async fn bundle_export(
+        &self,
+        Parameters(args): Parameters<BundleExportArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(move |state| super::bundle_export(state, args))
+            .await
+    }
+
+    #[tool(
+        name = "bundle_import",
+        description = "Import a native bundle text into the open workspace (a folder or request bundle into the collection or folder `into` names), never replacing a file; encrypted secrets are skipped"
+    )]
+    async fn bundle_import(
+        &self,
+        Parameters(args): Parameters<BundleImportArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(move |state| super::bundle_import(state, args))
+            .await
+    }
+
+    #[tool(
+        name = "docs_generate",
+        description = "Return the Markdown (README.md) and HTML (index.html) API docs of a collection; no secret value, no file written"
+    )]
+    async fn docs_generate(
+        &self,
+        Parameters(args): Parameters<DocsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(move |state| super::docs_generate(state, args))
+            .await
     }
 }
 

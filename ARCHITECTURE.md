@@ -782,6 +782,30 @@ Secrets are excluded by default. Including them requires either an age passphras
 encrypts only the secrets section, or an explicit plaintext flag. This is the DBFlux
 portability model, which held up well.
 
+`reqflux_engine::export` writes Postman v2.1 (`Engine::export_postman`): the entity's
+`extensions.postman` is restored, saved examples become `response[]` and the auth, script and
+variable mappings mirror the import, so an import, export and import again yields the same
+workspace. Secret variable values are written empty unless `include_secrets` asks for them in
+clear; then they are read from the keyring and the result carries their names.
+
+`reqflux_engine::bundle` writes the bundle: `reqflux-bundle`, format version 1, the kind
+(workspace, collection, folder, request or environment) and the entity files as the store writes
+them, scripts and saved examples included. With `BundleSecrets::Encrypt` the secret values are
+read from the keyring and encrypted as one age section (scrypt recipient from the passphrase,
+ASCII armor); otherwise they are left out and listed in `secrets_omitted`. The passphrase comes
+from stdin, never from an argument, and an empty one is refused. `import_bundle` checks every
+target file before it writes: one that exists fails the whole import with
+`BundleError::Exists`, and the target's own keyring receives the decrypted secrets.
+
+`reqflux_engine::docs` renders a collection as Markdown and HTML (`Engine::docs`): requests
+grouped by folder, method, URL, params, headers, body and auth type as written, the collection's
+descriptions and its saved examples. A `{{variable}}` stays as written, so no value reaches the
+pages.
+
+The CLI exposes them as `reqflux export`, `reqflux bundle create|import` and `reqflux docs`, and
+the MCP tools are `postman_export`, `bundle_export` and `docs_generate` (reads, they return the
+document) with `bundle_import` (a write into the open workspace; it never replaces a file).
+
 Because the workspace is already a directory of text files, sharing a whole workspace through
 git needs no export at all.
 
@@ -895,9 +919,10 @@ or has a relative path is skipped with a warning that never carries a secret.
 
 The engine tools are policed (`reqflux_engine::policy`); every tool has a class: read
 (`workspace_open`, `workspace_info`, `request_get`, `history_list`, `history_get`,
-`environment_list`, `variables_get`, `cookie_list` with values masked), write (`workspace_create`, `collection_create`,
+`environment_list`, `variables_get`, `cookie_list` with values masked, `postman_export`,
+`bundle_export`, `docs_generate`), write (`workspace_create`, `collection_create`,
 `folder_create`, `request_create`, `item_rename`, `item_duplicate`, `item_move`, `request_update`,
-`environment_create`, `environment_rename`, `variable_set`), execute (`request_execute`, `collection_run`) and
+`environment_create`, `environment_rename`, `variable_set`, `bundle_import`), execute (`request_execute`, `collection_run`) and
 destructive (`item_delete`, `environment_delete`, `variable_delete`, `cookie_delete`,
 `cookie_clear`). Each class is `allow`,
 `ask` or `deny`; `ask` asks the running window (below). The effective rule is the strictest

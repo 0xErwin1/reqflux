@@ -1,5 +1,6 @@
 //! The engine tools: workspace, tree, request, execute, history, environments and variables
-//! (mcp-engine-tools S1-S6), and the cookie jar (v1-features S5).
+//! (mcp-engine-tools S1-S6), the cookie jar (v1-features S5), and the Postman export, the
+//! native bundle and the API docs (v1-features S6).
 //!
 //! Handlers are plain synchronous functions over [`EngineState`] returning the JSON text
 //! result, so they can be tested on temp workspaces without rmcp. They block (the engine
@@ -19,6 +20,7 @@ mod policy;
 mod request;
 pub(crate) mod router;
 mod run;
+mod transfer;
 mod tree;
 
 use std::collections::BTreeMap;
@@ -47,6 +49,10 @@ pub use history::{history_get, history_list};
 pub use policy::{PolicyPaths, TOOL_CLASSES, UI_TOOL_CLASSES, tool_class, ui_tool_class};
 pub use request::{request_get, request_update};
 pub use run::{RunArgs, collection_run};
+pub use transfer::{
+    BundleExportArgs, BundleImportArgs, DocsArgs, PostmanExportArgs, bundle_export, bundle_import,
+    docs_generate, postman_export,
+};
 pub use tree::{
     collection_create, folder_create, item_delete, item_duplicate, item_move, item_rename,
     request_create,

@@ -53,7 +53,11 @@ impl PolicyPaths {
 }
 
 /// The class of every engine tool (S5).
-pub const TOOL_CLASSES: [(&str, ToolClass); 26] = [
+///
+/// The exports (`postman_export`, `bundle_export`, `docs_generate`) are reads: they return
+/// the document and write no file, never outside the workspace, and carry no secret value.
+/// `bundle_import` writes into the open workspace and never replaces a file, so it is a write.
+pub const TOOL_CLASSES: [(&str, ToolClass); 30] = [
     ("workspace_open", ToolClass::Read),
     ("workspace_info", ToolClass::Read),
     ("request_get", ToolClass::Read),
@@ -62,6 +66,9 @@ pub const TOOL_CLASSES: [(&str, ToolClass); 26] = [
     ("environment_list", ToolClass::Read),
     ("variables_get", ToolClass::Read),
     ("cookie_list", ToolClass::Read),
+    ("postman_export", ToolClass::Read),
+    ("bundle_export", ToolClass::Read),
+    ("docs_generate", ToolClass::Read),
     ("workspace_create", ToolClass::Write),
     ("collection_create", ToolClass::Write),
     ("folder_create", ToolClass::Write),
@@ -73,6 +80,7 @@ pub const TOOL_CLASSES: [(&str, ToolClass); 26] = [
     ("environment_create", ToolClass::Write),
     ("environment_rename", ToolClass::Write),
     ("variable_set", ToolClass::Write),
+    ("bundle_import", ToolClass::Write),
     ("request_execute", ToolClass::Execute),
     ("collection_run", ToolClass::Execute),
     ("item_delete", ToolClass::Destructive),

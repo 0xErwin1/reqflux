@@ -1,10 +1,16 @@
 //! Command-line arguments.
 
+mod transfer;
+
 use std::path::PathBuf;
 
 #[cfg(test)]
 use clap::CommandFactory as _;
 use clap::{Args, Parser, Subcommand};
+
+pub(crate) use transfer::{
+    BundleArgs, BundleCommand, BundleCreateArgs, BundleImportArgs, DocsArgs, ExportArgs,
+};
 
 const AFTER_HELP: &str = "\
 Without DIR, ReqFlux opens the last workspace you used that still loads; on the first run it
@@ -48,6 +54,19 @@ pub(crate) enum Command {
     Code(CodeArgs),
     /// Import a Postman collection and its environments into a workspace.
     Import(ImportArgs),
+    /// Export a collection, folder, request or environment as Postman v2.1 JSON.
+    ///
+    /// Uses the workspace in the current directory, or --workspace.
+    Export(ExportArgs),
+    /// Write a workspace, collection, folder, request or environment as one bundle file, or
+    /// import one.
+    ///
+    /// Uses the workspace in the current directory, or --workspace.
+    Bundle(BundleArgs),
+    /// Generate Markdown and HTML API docs from a collection into a directory.
+    ///
+    /// Uses the workspace in the current directory, or --workspace.
+    Docs(DocsArgs),
     /// Set, unset and list secret variable values in the OS keyring.
     ///
     /// Uses the workspace in the current directory, or --workspace (a DIR argument for
@@ -316,6 +335,9 @@ Engine tools, on the open workspace (the files, through the same engine as the w
   history_list, history_get
   environment_list, environment_create, environment_rename, environment_delete
   variables_get, variable_set, variable_delete
+  cookie_list, cookie_delete, cookie_clear
+  postman_export, bundle_export, docs_generate (reads: they return the document and write
+  no file), bundle_import (a write into the open workspace)
 
 Secret values never appear in tool output: secret variables show set or not set; basic
 passwords, bearer tokens, API key values and Authorization, Proxy-Authorization and Cookie
@@ -524,7 +546,7 @@ mod tests {
     #[test]
     fn directory_tools_say_they_use_the_current_directory() {
         let mut command = Cli::command();
-        for name in ["run", "code", "secret", "mcp"] {
+        for name in ["run", "code", "secret", "mcp", "export", "bundle", "docs"] {
             let Some(sub) = command.find_subcommand_mut(name) else {
                 panic!("{name} is missing");
             };

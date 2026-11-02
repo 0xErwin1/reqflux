@@ -1,0 +1,187 @@
+{
+  "info": {
+    "_postman_id": "rt-0001",
+    "name": "Round Trip",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  },
+  "event": [
+    { "listen": "prerequest", "script": { "type": "text/javascript", "exec": ["pm.variables.set('t', Date.now());"] } }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "https://api.example.com", "type": "string" },
+    { "key": "api_secret", "value": "do-not-export", "type": "secret" },
+    { "key": "old", "value": "x", "type": "string", "disabled": true, "description": "unused" }
+  ],
+  "item": [
+    {
+      "name": "Users",
+      "description": "Everything about users.",
+      "auth": {
+        "type": "digest",
+        "digest": [
+          { "key": "username", "value": "ada", "type": "string" },
+          { "key": "password", "value": "{{digest_password}}", "type": "string" },
+          { "key": "algorithm", "value": "MD5", "type": "string" }
+        ]
+      },
+      "event": [
+        { "listen": "test", "script": { "exec": ["pm.test('folder', () => {", "  pm.expect(1).to.equal(1);", "});"] } }
+      ],
+      "item": [
+        {
+          "name": "List users",
+          "id": "item-list",
+          "protocolProfileBehavior": { "disableBodyPruning": true },
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json", "description": "json only" },
+              { "key": "X-Debug", "value": "1", "disabled": true }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users?page=2&size=10",
+              "host": ["{{base_url}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "page", "value": "2" },
+                { "key": "size", "value": "10" },
+                { "key": "debug", "value": "true", "disabled": true }
+              ]
+            },
+            "description": "Lists users, paged."
+          },
+          "response": [
+            {
+              "name": "Page two",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": { "raw": "{{base_url}}/users?page=2", "query": [{ "key": "page", "value": "2" }] }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "cookie": [],
+              "body": "{\"users\": []}"
+            },
+            { "name": "Broken", "code": "not a number" }
+          ]
+        },
+        {
+          "name": "Create user",
+          "event": [
+            { "listen": "prerequest", "script": { "exec": ["console.log('a');", "console.log('b');"] } },
+            { "listen": "test", "script": { "exec": ["pm.test('created', () => pm.response.to.have.status(201));"] } }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "awsv4",
+              "awsv4": [
+                { "key": "accessKey", "value": "{{aws_key}}", "type": "string" },
+                { "key": "secretKey", "value": "{{aws_secret}}", "type": "string" },
+                { "key": "region", "value": "us-east-1", "type": "string" },
+                { "key": "service", "value": "execute-api", "type": "string" }
+              ]
+            },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ada\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{base_url}}/users"
+          },
+          "response": []
+        },
+        {
+          "name": "Nested",
+          "item": [
+            {
+              "name": "Upload avatar",
+              "request": {
+                "method": "PUT",
+                "auth": { "type": "noauth" },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    { "key": "name", "value": "avatar", "type": "text" },
+                    { "key": "file", "src": "/tmp/avatar.png", "type": "file", "description": "the image" },
+                    { "key": "old", "value": "1", "type": "text", "disabled": true }
+                  ]
+                },
+                "url": "{{base_url}}/users/1/avatar"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Login",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "oauth2",
+          "oauth2": [
+            { "key": "grant_type", "value": "password_credentials", "type": "string" },
+            { "key": "accessTokenUrl", "value": "{{base_url}}/oauth/token", "type": "string" },
+            { "key": "clientId", "value": "cli", "type": "string" },
+            { "key": "clientSecret", "value": "{{client_secret}}", "type": "string" },
+            { "key": "addTokenTo", "value": "header", "type": "string" },
+            { "key": "challengeAlgorithm", "value": "S256", "type": "string" },
+            { "key": "useBrowser", "value": false, "type": "boolean" },
+            { "key": "authRequestParams", "value": [{ "key": "audience", "value": "api", "enabled": true }], "type": "any" }
+          ]
+        },
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "user", "value": "ada", "type": "text" },
+            { "key": "remember", "value": "1", "type": "text", "disabled": true, "description": "keep me" }
+          ]
+        },
+        "url": "{{base_url}}/login"
+      }
+    },
+    {
+      "name": "Search",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "apikey",
+          "apikey": [
+            { "key": "key", "value": "X-Api-Key", "type": "string" },
+            { "key": "value", "value": "{{api_secret}}", "type": "string" },
+            { "key": "in", "value": "query", "type": "string" }
+          ]
+        },
+        "body": {
+          "mode": "graphql",
+          "graphql": { "query": "{ users { id } }", "variables": "{\"first\": 2}" }
+        },
+        "url": "{{base_url}}/graphql"
+      }
+    },
+    {
+      "name": "Download",
+      "request": {
+        "method": "PURGE",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            { "key": "username", "value": "ada", "type": "string" },
+            { "key": "password", "value": "{{basic_password}}", "type": "string" }
+          ]
+        },
+        "body": { "mode": "file", "file": { "src": "/tmp/payload.bin" } },
+        "url": "{{base_url}}/cache"
+      }
+    }
+  ]
+}

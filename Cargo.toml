@@ -33,6 +33,9 @@ reqflux_store = { path = "crates/reqflux_store" }
 reqflux_ui = { path = "crates/reqflux_ui" }
 
 anyhow = "1.0.104"
+# Encrypts the secrets section of a native bundle with a passphrase (scrypt recipient,
+# ASCII armor); the format and crate DBFlux's portability model points at.
+age = { version = "0.11.5", default-features = false, features = ["armor"] }
 base64 = "0.23.1"
 # Local dates in the UI; it reads the system time zone safely in a multithreaded process.
 chrono = { version = "0.4" }
