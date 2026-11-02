@@ -1,17 +1,16 @@
-//! The window's layout modes (v1-features S7, design/layouts/01): Stacked, the request
-//! above its response, and Side by side, the request and its response in columns with
+//! The window's layout modes (v1-features S7, design/layouts/01 and 02): Stacked, the
+//! request above its response; Side by side, the request and its response in columns with
 //! `bolt`'s splitter standing vertically between them (`SplitAxis::Horizontal`; see
-//! `split`).
+//! `split`); and Document, the active request's folder as one read-only `.http` document
+//! (see `document_view`; editing and running there are later S7 units).
 //!
 //! The mode is `layout` in the user's config file, read once when the window learns the
 //! file's path and written by the same format-preserving editor that writes `theme`; a
 //! name this build does not know reads as the default. The switchers stand in the tab row
-//! (`bolt`'s segmented control, element id `segmented-layout`, with the segments
-//! `segmented-layout-stacked` and `segmented-layout-side-by-side`) and at the foot of the
-//! action strip (`layout-strip`, element ids `layout-strip-stacked` and
-//! `layout-strip-side-by-side`); the `Layout: Stacked` and `Layout: Side by side`
-//! commands (see `commands`) do the same from the keyboard. Document mode is a later S7
-//! surface and is not offered yet.
+//! (`bolt`'s segmented control, element id `segmented-layout`, with one segment per mode)
+//! and at the foot of the action strip (`layout-strip`, one button per mode); the `Layout:
+//! Stacked`, `Layout: Side by side` and `Layout: Document` commands (see `commands`) do
+//! the same from the keyboard.
 
 use std::path::Path;
 
@@ -24,11 +23,11 @@ use reqflux_engine::config::{self, LayoutMode};
 use super::request::ui;
 use super::{Shell, region, toasts};
 
-/// The modes the switchers offer, in order, with their icon and label. Document mode is
-/// not built yet (v1-features S7) and is left out.
-const MODES: [(LayoutMode, IconName, &str); 2] = [
+/// The modes the switchers offer, in order, with their icon and label.
+const MODES: [(LayoutMode, IconName, &str); 3] = [
     (LayoutMode::Stacked, IconName::Rows2, "Stacked"),
     (LayoutMode::SideBySide, IconName::Columns2, "Side by side"),
+    (LayoutMode::Document, IconName::File, "Document"),
 ];
 
 impl Shell {
@@ -68,6 +67,7 @@ fn key_hint(mode: LayoutMode, cx: &App) -> String {
     let id = match mode {
         LayoutMode::Stacked => super::commands::CommandId::LayoutStacked,
         LayoutMode::SideBySide => super::commands::CommandId::LayoutSideBySide,
+        LayoutMode::Document => super::commands::CommandId::LayoutDocument,
     };
     let key = super::commands::effective_key(cx, id);
     if key.is_empty() {

@@ -91,6 +91,8 @@ pub enum LayoutMode {
     Stacked,
     /// The request and its response side by side.
     SideBySide,
+    /// No tree: the folder's requests as one `.http` document, navigation by palette.
+    Document,
 }
 
 impl LayoutMode {
@@ -100,6 +102,7 @@ impl LayoutMode {
         match self {
             Self::Stacked => "stacked",
             Self::SideBySide => "side-by-side",
+            Self::Document => "document",
         }
     }
 
@@ -109,6 +112,7 @@ impl LayoutMode {
         match name {
             "stacked" => Some(Self::Stacked),
             "side-by-side" => Some(Self::SideBySide),
+            "document" => Some(Self::Document),
             _ => None,
         }
     }

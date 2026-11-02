@@ -163,6 +163,7 @@ commands! {
     ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", View, always;
     LayoutStacked: LayoutStacked, "layout-stacked", "Layout: Stacked", "ctrl-alt-1", View, always;
     LayoutSideBySide: LayoutSideBySide, "layout-side-by-side", "Layout: Side by side", "ctrl-alt-2", View, always;
+    LayoutDocument: LayoutDocument, "layout-document", "Layout: Document", "ctrl-alt-3", View, always;
     OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", Agents, always;
     OpenAudit: OpenAudit, "open-audit", "Open audit log", "ctrl-shift-a", Agents, always;
 }
@@ -365,6 +366,7 @@ impl Shell {
             CommandId::ToggleTheme => self.toggle_theme(window, cx),
             CommandId::LayoutStacked => self.set_layout(LayoutMode::Stacked, cx),
             CommandId::LayoutSideBySide => self.set_layout(LayoutMode::SideBySide, cx),
+            CommandId::LayoutDocument => self.set_layout(LayoutMode::Document, cx),
             CommandId::OpenApprovals => self.open_approvals(window, cx),
             CommandId::OpenAudit => self.open_audit(window, cx),
         }

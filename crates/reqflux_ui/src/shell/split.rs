@@ -20,7 +20,9 @@
 //! A request not sent in this session shows its last recorded send from history; one never
 //! sent shows neither the gutter nor the response: its pane takes the whole height
 //! (request-pane-feedback S12, frame D). The first send brings both in at the stored
-//! position.
+//! position. Document mode (v1-features S7) draws no split at all: the document island
+//! shows the active request's folder as a read-only `.http` document (see `document_view`),
+//! and the response is not shown.
 
 use std::collections::HashSet;
 
@@ -168,11 +170,15 @@ impl Split {
     }
 
     /// The axis the split lays its panes out in: columns side by side while the layout is
-    /// Side by side and the response is shown, else stacked rows.
+    /// Side by side and the response is shown, else stacked rows. Document mode draws no
+    /// split; the document island shows the folder's `.http` text (`document_view`)
+    /// instead.
     fn axis(&self) -> SplitAxis {
         match self.mode {
             LayoutMode::SideBySide if !self.collapsed => SplitAxis::Horizontal,
-            LayoutMode::SideBySide | LayoutMode::Stacked => SplitAxis::Vertical,
+            LayoutMode::SideBySide | LayoutMode::Stacked | LayoutMode::Document => {
+                SplitAxis::Vertical
+            }
         }
     }
 
@@ -357,7 +363,7 @@ pub(super) fn render(
         request_pane.flex_1().min_h_0()
     } else {
         match split.mode {
-            LayoutMode::Stacked => match split.height {
+            LayoutMode::Stacked | LayoutMode::Document => match split.height {
                 Some(height) => request_pane.flex_none().h(split.request_height(height)),
                 None => request_pane
                     .h(split.request)

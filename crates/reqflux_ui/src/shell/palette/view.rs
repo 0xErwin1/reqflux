@@ -66,6 +66,7 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::ToggleTheme => IconName::Eye,
         CommandId::LayoutStacked => IconName::Rows2,
         CommandId::LayoutSideBySide => IconName::Columns2,
+        CommandId::LayoutDocument => IconName::File,
         CommandId::OpenApprovals => IconName::Bot,
         CommandId::OpenAudit => IconName::FingerprintPattern,
     }

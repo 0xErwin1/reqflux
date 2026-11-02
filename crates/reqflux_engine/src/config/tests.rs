@@ -218,15 +218,17 @@ fn set_theme_adds_a_missing_key_before_the_tables() {
 }
 
 #[test]
-fn the_layout_reads_its_two_names_and_defaults_for_anything_else() {
+fn the_layout_reads_its_three_names_and_defaults_for_anything_else() {
     let dir = temp_dir();
     let path = dir.path().join("config.toml");
     write(&path, "layout = \"side-by-side\"\n");
     assert_eq!(loaded(&path).layout, Some(LayoutMode::SideBySide));
     write(&path, "layout = \"stacked\"\n");
     assert_eq!(loaded(&path).layout, Some(LayoutMode::Stacked));
-    // A mode a newer build added, or a typo, reads as the default instead of failing.
     write(&path, "layout = \"document\"\n");
+    assert_eq!(loaded(&path).layout, Some(LayoutMode::Document));
+    // A mode a newer build added, or a typo, reads as the default instead of failing.
+    write(&path, "layout = \"future-mode\"\n");
     assert_eq!(loaded(&path).layout, Some(LayoutMode::Stacked));
     write(&path, "font_size = 15\n");
     assert_eq!(loaded(&path).layout, None);

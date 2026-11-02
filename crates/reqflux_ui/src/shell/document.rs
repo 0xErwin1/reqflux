@@ -2,17 +2,23 @@
 //! there is none.
 //!
 //! The active request shows the action strip at its left and the request beside it, with
-//! its response under it across the draggable split (see `split`). While the history tab is active, the island shows its read-only
+//! its response under it across the draggable split (see `split`). While the layout is
+//! Document (see `layout`), the island draws the active request's folder as a read-only
+//! `.http` document instead (`document_view`), and the response is not shown. While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
 
 use bolt::composites::Island;
 use bolt::tokens::Borders;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
+use reqflux_engine::config::LayoutMode;
 
 use super::documents::locate;
 use super::{
     Shell, action_strip, empty_state, history, layout, path_bar, region, request, split, tabs,
 };
+
+#[path = "document_view.rs"]
+mod document_view;
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
     let colors = bolt::colors(cx);
@@ -20,6 +26,8 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .active_request()
         .and_then(|id| locate(&shell.roots, id));
     let history_tab = shell.orphan.as_ref().filter(|tab| tab.active);
+    let active_id = shell.documents.active();
+    let drafted = active_id.is_some_and(|id| shell.drafts.contains_key(id));
 
     let mut body = region("document-body")
         .flex_1()
@@ -40,14 +48,26 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             Some(tab) => body.child(history::render_tab(shell, tab, cx)),
             None => body,
         },
+        (None, _) if shell.split.mode == LayoutMode::Document => body
+            .child(layout::with_strip_switcher(
+                action_strip::render(active_id, drafted, cx),
+                shell,
+                cx,
+            ))
+            .child(
+                region("document-content")
+                    .flex_1()
+                    .min_w_0()
+                    .flex()
+                    .flex_col()
+                    .child(document_view::render(shell, cx)),
+            ),
         (None, Some(_)) => {
             let content = region("document-content")
                 .flex_1()
                 .min_w_0()
                 .flex()
                 .flex_col();
-            let active_id = shell.documents.active();
-            let drafted = active_id.is_some_and(|id| shell.drafts.contains_key(id));
             let state = active_id.and_then(|id| shell.requests.get(id).map(|state| (id, state)));
             body.child(layout::with_strip_switcher(
                 action_strip::render(active_id, drafted, cx),

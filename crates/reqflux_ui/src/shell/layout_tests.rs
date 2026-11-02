@@ -126,7 +126,7 @@ fn the_config_layout_key_opens_side_by_side(cx: &mut TestAppContext) {
 fn an_unknown_layout_name_starts_stacked(cx: &mut TestAppContext) {
     let dir = split_workspace();
     let (_state_dir, state_path) = state_file();
-    let (_config_dir, config_path) = config_file("layout = \"document\"\n");
+    let (_config_dir, config_path) = config_file("layout = \"future-mode\"\n");
     let (_shell, cx) = render(cx, &dir, &state_path);
     use_config(cx, &_shell, &config_path);
     open_sent(cx);
@@ -136,7 +136,7 @@ fn an_unknown_layout_name_starts_stacked(cx: &mut TestAppContext) {
         "a name this build does not know is stacked"
     );
     assert!(
-        config_text(&config_path).contains("layout = \"document\""),
+        config_text(&config_path).contains("layout = \"future-mode\""),
         "the file is read, never rewritten"
     );
 }
