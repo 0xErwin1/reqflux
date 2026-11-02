@@ -89,6 +89,7 @@ mod examples;
 mod export;
 mod guard;
 mod import;
+pub mod keymap;
 mod managed;
 mod network;
 pub mod policy;

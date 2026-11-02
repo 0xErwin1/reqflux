@@ -24,8 +24,8 @@
   - Binary and graphql bodies are stored in the request document ([body] path / query,
     variables) and are read-only in the window today; editing them is the V7 work.
 
-  bolt gap: bolt's splitter is drawn here as a 6 px vertical gutter with a three-dot grip;
-  bolt's splitter needs a vertical orientation if it only draws horizontally.
+  The 6 px vertical gutter with a three-dot grip is bolt's splitter with
+  SplitAxis::Horizontal (no gap: bolt has it at the pinned rev).
   bolt gap: no bolt key-capture field exists for "press the new keys" while rebinding.
   bolt gap: no bolt file field (read-only path well with a trailing Choose button) for the
   binary body; drawn with bolt's field plus button.
@@ -327,7 +327,7 @@ button{font:inherit;white-space:nowrap}
             </div>
           </div>
 
-          <!-- Vertical splitter (bolt gap: bolt's splitter needs a vertical orientation) -->
+          <!-- Vertical splitter: bolt's splitter, SplitAxis::Horizontal -->
           <div class="vsplit" role="separator" aria-orientation="vertical" aria-label="Split between request and response" title="Drag · Enter collapses the response"><span><i></i><i></i><i></i></span></div>
 
           <!-- Response column -->
@@ -422,7 +422,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 
 <!-- D3: Keymap section -->
-<div class="state"><div class="state-head"><h3>Keymap · settings section</h3><p>App &gt; Keymap. Every command of the registry with its default key and context; Ctrl+click a key to rebind; conflicts refuse with the command they hit. The <span class="m">[keymap]</span> block shows read-only what was overridden.</p></div>
+<div class="state"><div class="state-head"><h3>Keymap · settings section</h3><p>App &gt; Keymap. Every command of the registry with its default key and context; click a key to rebind; conflicts refuse with the command they hit. The <span class="m">[keymap]</span> block shows read-only what was overridden.</p></div>
 <div class="frame" style="display:flex">
   <div class="c14" style="display:flex;padding:1px;background:rgba(255,255,255,.05);width:1342px">
   <nav class="nav" aria-label="Settings sections" style="width:220px;background:#100F13;padding-top:6px;flex-shrink:0">
@@ -435,12 +435,12 @@ button{font:inherit;white-space:nowrap}
   <section style="flex-grow:1;padding:16px 28px 20px;display:flex;flex-direction:column;gap:4px">
     <div style="display:flex;align-items:flex-start;gap:12px">
       <div style="flex-grow:1"><h1 style="margin:0;font-size:20px;font-weight:700;color:#F7F4F7">Keymap</h1>
-      <span class="ds" style="font-size:13px">One registry names every command, its key and its context. Ctrl+click a key to rebind it; Esc cancels a capture.</span></div>
+      <span class="ds" style="font-size:13px">One registry names every command, its key and its context. Click a key to rebind it; Esc cancels a capture.</span></div>
       <button class="c6 btn"><svg class="ico" style="width:13px;height:13px"><use href="#i-revert"/></svg>Reset to defaults</button>
     </div>
     <div class="krow" style="height:30px;color:#F7F4F7;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;border-bottom:1px solid #232128"><span>command</span><span>key</span><span>context</span><span></span></div>
     <div class="krow"><span style="color:#F7F4F7">Send request</span><span><span class="c4 kc" style="box-shadow:#9DB1FF 0 0 0 1px inset;color:#F7F4F7">Ctrl+↵</span></span><span class="ds">shell</span><span class="ds">default</span></div>
-    <div class="krow" style="background:rgba(157,177,255,.07)"><span style="color:#F7F4F7">Save request</span><span style="display:flex;align-items:center;gap:6px"><span class="c4 kc">Ctrl+S</span><span class="badge b-tint">REBOUND</span></span><span class="ds">shell</span><span class="ds">Ctrl+click to rebind</span></div>
+    <div class="krow" style="background:rgba(157,177,255,.07)"><span style="color:#F7F4F7">Save request</span><span style="display:flex;align-items:center;gap:6px"><span class="c4 kc">Ctrl+S</span><span class="badge b-tint">REBOUND</span></span><span class="ds">shell</span><span class="ds">Click a key to rebind</span></div>
     <div class="krow" style="background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset"><span style="color:#F7F4F7">Generate code</span><span class="m" style="color:#9DB1FF;font-size:12.5px">listening… press the new keys, Esc cancels</span><span class="ds">shell</span><span class="ds">capturing</span></div>
     <div class="krow"><span style="color:#C6C3CC">Toggle theme</span><span><span class="c4 kc">Ctrl+Shift+T</span></span><span class="ds">shell</span><span class="ds">default</span></div>
     <div style="padding-top:10px"><div class="ban d" role="alert"><svg class="ico" style="width:15px;height:15px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><div style="flex-grow:1"><b>Ctrl+Shift+M is already bound to Open MCP approvals in shell.</b><div class="ds">Pick another key, or save the binding here and the other command loses it.</div></div><button class="c6 btn sm">Keep mine</button><button class="c6 btn sm">Cancel</button></div></div>

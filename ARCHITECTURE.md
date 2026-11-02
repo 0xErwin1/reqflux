@@ -407,7 +407,8 @@ The mode is `layout` in the user's config.toml (`"stacked"` by default, `"side-b
 at startup and written by the same format-preserving editor as `theme`; a name this build does
 not know reads as the default. The tab-row switcher (`layout-switcher`) and the action-strip
 switcher (`layout-strip`) change it, as do the `Layout: Stacked` and `Layout: Side by side`
-commands (Ctrl+Alt+1, Ctrl+Alt+2). Document mode and the keymap are later S7 work.
+commands (Ctrl+Alt+1, Ctrl+Alt+2). Document mode is the remaining S7 surface; the keymap
+is configurable (see `Configuration and policy` for the `[keymap]` table).
 
  In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
@@ -898,7 +899,15 @@ when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `sys
 `[mcp]` and `[network]` (certificates and proxies are per user and machine, never in a
 workspace file; see below). `reqflux_engine::config` edits `font_size`, the `[mcp]` rules and the
 `hosts`/`environments` lists the same way (`set_font_size`, `set_rule`, `add_list_entry`,
-`remove_list_entry`); removing the last list entry removes the key (no list means any). A missing file is the defaults; a file that does not parse is reported (path, line and
+`remove_list_entry`); removing the last list entry removes the key (no list means any).
+`[keymap]` (`"save-request" = "ctrl-shift-s"`; only bindings that differ from the defaults are
+kept) rebinds the window's commands (the registry in `shell/commands.rs`): the window reads it at
+startup and after every edit, an unknown slug or a chord it cannot bind is a warning in the
+Problems panel, and when two entries claim one chord the first command in registry order wins.
+The App > Keymap section of the settings page shows the registry, captures a new chord on a click
+(Escape cancels, Delete or Clear returns the default, Reset to defaults removes the table) and
+writes the file at once with `set_keymap_binding`, `remove_keymap_binding` and `clear_keymap`.
+A missing file is the defaults; a file that does not parse is reported (path, line and
 column, never the source line) as an error in the window's Problems panel and by `reqflux mcp`,
 and the defaults apply. Unknown keys under `[mcp]` and `[mcp.workspaces."<id>"]`, and a key that is not a
 workspace id, are reported as warnings the same way; they change no rule.
@@ -1372,7 +1381,8 @@ highlight, Enter or a click runs it, Escape or a click outside closes it. One re
 run; the palette, the key bindings and a coverage test (every command has a key, no key is
 shared in a context) all read it. A command that cannot run is listed dimmed and its key does
 nothing. The window gives the shell the first focus, so keys work before any click; a text
-field takes keys first. The keymap is not configurable yet.
+field takes keys first. `[keymap]` in the user's config.toml rebinds any command (see
+`Configuration and policy`), and the palette and the menus show the effective keys.
 
 | Command | Key | Can run when |
 |---|---|---|

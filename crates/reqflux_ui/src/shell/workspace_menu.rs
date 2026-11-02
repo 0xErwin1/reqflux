@@ -26,7 +26,7 @@ use gpui::{
 use gpui_kit_assets::IconName;
 use reqflux_engine::state::RecentWorkspace;
 
-use super::commands::{CommandId, command, key_label};
+use super::commands::{CommandId, command, effective_key, key_label};
 use super::request::ui;
 use super::rows::{labeled_row, part};
 use super::workspace_new::IN_REQFLUX;
@@ -146,17 +146,17 @@ fn menu_action(
 ) -> Stateful<Div> {
     let row = action_row(id, icon_name, label, action, cx);
     match key.and_then(command) {
-        Some(command) => row.child(
-            Kbd::new(
-                command
-                    .key
-                    .split('-')
-                    .map(key_label)
-                    .collect::<Vec<_>>()
-                    .join(" "),
-            )
-            .id(gpui::ElementId::Name(format!("{id}-keycap").into())),
-        ),
+        Some(command) => {
+            let key = effective_key(cx, command.id);
+            if key.is_empty() {
+                row
+            } else {
+                row.child(
+                    Kbd::new(key.split('-').map(key_label).collect::<Vec<_>>().join(" "))
+                        .id(gpui::ElementId::Name(format!("{id}-keycap").into())),
+                )
+            }
+        }
         None => row,
     }
 }

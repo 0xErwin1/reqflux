@@ -40,6 +40,8 @@ pub(crate) enum AppSection {
     McpPolicy,
     /// `[network]` read-only, and the keyring entries of its secrets.
     Network,
+    /// The keys of the command registry, from `[keymap]` (v1-features S7).
+    Keymap,
 }
 
 /// A section of the page.
@@ -95,6 +97,9 @@ pub(crate) struct SettingsPage {
     pub(crate) app: app_settings::AppSettings,
     /// App > Network: what `[network]` holds and the keyring dialog.
     pub(crate) network: network_settings::NetworkState,
+    /// App > Keymap: the capture in progress and the conflict it caught
+    /// (v1-features S7).
+    pub(crate) keymap: super::keymap::KeymapState,
     /// Workspace > Cookies: the filter and the Clear all confirmation.
     pub(crate) cookies: cookie_jar::CookieJarState,
 }
@@ -112,6 +117,7 @@ impl SettingsPage {
             warning: None,
             app: app_settings::AppSettings::default(),
             network: network_settings::NetworkState::new(cx),
+            keymap: super::keymap::KeymapState::default(),
             cookies: cookie_jar::CookieJarState::new(cx),
         }
     }
@@ -127,6 +133,7 @@ impl SettingsPage {
         self.confirm = None;
         self.error = None;
         self.warning = None;
+        self.keymap = super::keymap::KeymapState::default();
         self.cookies.reset();
     }
 }

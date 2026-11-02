@@ -26,6 +26,7 @@ mod environment_menu;
 mod examples;
 mod history;
 mod import_flow;
+pub(crate) mod keymap;
 mod last_request;
 mod layout;
 mod method_edit;
@@ -634,6 +635,8 @@ mod grid_edit_tests;
 mod history_tests;
 #[cfg(test)]
 mod interaction_tests;
+#[cfg(test)]
+mod keymap_tests;
 #[cfg(test)]
 mod last_request_tests;
 #[cfg(test)]

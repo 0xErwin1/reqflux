@@ -140,6 +140,66 @@ pub fn remove_list_entry(path: &Path, list: McpList, entry: &str) -> Result<bool
     })
 }
 
+/// Removes the whole `[keymap]` table: every command is back on its default key. Returns
+/// whether the table was there.
+pub fn clear_keymap(path: &Path) -> Result<bool, ConfigError> {
+    edit(path, |document| {
+        Ok(document.as_table_mut().remove("keymap").is_some())
+    })
+}
+
+/// Sets `[keymap]."<slug>"` to `chord`, creating `[keymap]` at the end of the file when
+/// missing (v1-features S7). Everything else in the file is kept as written; the keymap
+/// table is removed again by [`remove_keymap_binding`] and [`clear_keymap`].
+pub fn set_keymap_binding(path: &Path, slug: &str, chord: &str) -> Result<(), ConfigError> {
+    edit(path, |document| {
+        let keymap = keymap_table(path, document)?;
+        set_value(keymap, slug, Value::from(chord));
+        Ok(())
+    })
+}
+
+/// Removes `[keymap]."<slug>"`; removing the last binding removes the `[keymap]` table,
+/// so the file keeps no empty section. Returns whether the binding was there.
+pub fn remove_keymap_binding(path: &Path, slug: &str) -> Result<bool, ConfigError> {
+    edit(path, |document| {
+        let Some(keymap) = document.get_mut("keymap").and_then(Item::as_table_like_mut) else {
+            return Ok(false);
+        };
+        if keymap.remove(slug).is_none() {
+            return Ok(false);
+        }
+        if keymap.is_empty() {
+            document.as_table_mut().remove("keymap");
+        }
+        Ok(true)
+    })
+}
+
+/// `[keymap]`, created at the end of the file when missing, as [`mcp_table`] does.
+fn keymap_table<'a>(
+    path: &Path,
+    document: &'a mut DocumentMut,
+) -> Result<&'a mut dyn TableLike, ConfigError> {
+    let has_content = !document.as_table().is_empty();
+    let item = document.entry("keymap").or_insert_with(|| {
+        let mut table = toml_edit::Table::new();
+        if has_content {
+            table.decor_mut().set_prefix("\n");
+        }
+        Item::Table(table)
+    });
+    if let Some(table) = item.as_table_mut() {
+        table.set_implicit(false);
+    }
+    item.as_table_like_mut()
+        .ok_or_else(|| ConfigError::WrongType {
+            path: path.to_owned(),
+            key: "keymap".to_owned(),
+            expected: "a table",
+        })
+}
+
 /// Reads the file at `path` (empty when missing), applies `change` and writes the result
 /// when it differs from what was read.
 fn edit<T>(

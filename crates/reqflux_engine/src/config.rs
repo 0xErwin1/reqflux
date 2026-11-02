@@ -5,7 +5,8 @@
 //! [`load`] reads it: a missing file is [`UserConfig::default`], and a file that does not parse
 //! is a [`ConfigError::Parse`] naming the path, line and column, never the source line; the
 //! caller then runs on the defaults and says so. [`set_theme`], [`set_font_size`],
-//! [`set_rule`], [`add_list_entry`] and [`remove_list_entry`] edit it with a
+//! [`set_rule`], [`add_list_entry`], [`remove_list_entry`], [`set_keymap_binding`],
+//! [`remove_keymap_binding`] and [`clear_keymap`] (see [`crate::keymap`]) edit it with a
 //! format-preserving editor, so the user's comments, key order and keys this build does not
 //! know survive.
 //!
@@ -28,7 +29,11 @@ pub use reqflux_core::model::{McpOverride, Rule};
 
 mod edit;
 mod network;
-pub use edit::{McpList, add_list_entry, remove_list_entry, set_font_size, set_rule};
+pub use crate::keymap::KeymapConfig;
+pub use edit::{
+    McpList, add_list_entry, clear_keymap, remove_keymap_binding, remove_list_entry, set_font_size,
+    set_keymap_binding, set_rule,
+};
 pub use network::{
     CertificateConfig, NetworkConfig, ProxyConfig, ProxyMode, WorkspaceNetworkConfig,
 };
@@ -130,6 +135,12 @@ pub struct UserConfig {
     /// not set it (v1-features S7).
     #[serde(default)]
     pub layout: Option<LayoutMode>,
+    /// `[keymap]`, the command keys the user overrode (v1-features S7). Which slugs exist
+    /// and whether a chord can be bound is the window's registry knowledge, so an unknown
+    /// slug, an unbindable chord and a chord two commands claim are warnings there that
+    /// change nothing; see [`crate::keymap`].
+    #[serde(default)]
+    pub keymap: crate::keymap::KeymapConfig,
     /// `[mcp]`, the MCP policy.
     #[serde(default)]
     pub mcp: McpConfig,

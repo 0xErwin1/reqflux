@@ -176,6 +176,15 @@ pub(super) fn nav_entries(
             AppSection::Network,
             cx,
         ),
+        nav_entry(
+            "nav-keymap",
+            IconName::Key,
+            "Keymap",
+            None,
+            active == Some(AppSection::Keymap),
+            AppSection::Keymap,
+            cx,
+        ),
     ]
 }
 
@@ -249,6 +258,11 @@ pub(super) fn content(
             "What agents may do through reqflux mcp. Changes save to config.toml at once; \
              comments and key order stay.",
         ),
+        AppSection::Keymap => (
+            "Keymap",
+            "One registry names every command, its key and its context. Click a key to \
+             rebind it; Esc cancels a capture.",
+        ),
     };
     let colors = bolt::colors(cx);
     let title = div()
@@ -279,8 +293,9 @@ pub(super) fn content(
         .error()
         .map(|error| config_error(shell, error, cx));
     let body = match section {
-        AppSection::General | AppSection::Network => general(shell, window, cx),
-        AppSection::McpPolicy => policy(shell, workspace, window, cx),
+        AppSection::General | AppSection::Network => general(shell, window, cx).into_any_element(),
+        AppSection::McpPolicy => policy(shell, workspace, window, cx).into_any_element(),
+        AppSection::Keymap => super::super::keymap::view::content(shell, cx).into_any_element(),
     };
     div()
         .size_full()

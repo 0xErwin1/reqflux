@@ -6,7 +6,7 @@
 //! command when it can run now; the palette lists it dimmed and inert when it cannot.
 //! Escape always reaches [`Shell::cancel_active`], which closes an open menu first.
 
-use gpui::{App, Context, Div, InteractiveElement, KeyBinding, Window, actions};
+use gpui::{Action as _, App, Context, Div, InteractiveElement, KeyBinding, Window, actions};
 
 use super::Shell;
 use super::send::SHELL_CONTEXT;
@@ -113,6 +113,23 @@ macro_rules! commands {
             cx.bind_keys(bindings);
         }
 
+        /// Binds `key` to the action of `id` in its context; `None` without the id. The
+        /// keymap (see `keymap`) binds effective keys and unbinds taken ones through it.
+        pub(crate) fn binding(id: CommandId, key: &str) -> Option<KeyBinding> {
+            let context = command(id)?.context;
+            Some(match id {
+                $(CommandId::$variant => KeyBinding::new(key, $action, Some(context)),)*
+            })
+        }
+
+        /// The name the keymap knows the action of `id` by, for `Unbind`; `None` without
+        /// the id.
+        pub(crate) fn action_name(id: CommandId) -> Option<&'static str> {
+            Some(match id {
+                $(CommandId::$variant => $action.name(),)*
+            })
+        }
+
         /// Adds the handler of every command action to the shell's root `element`.
         pub(super) fn on_actions(element: Div, cx: &mut Context<Shell>) -> Div {
             element$(.on_action(cx.listener(|this, _: &$action, window, cx| {
@@ -170,6 +187,19 @@ pub(super) fn bind_keys(cx: &mut App) {
 /// The command `id`.
 pub(crate) fn command(id: CommandId) -> Option<&'static Command> {
     COMMANDS.iter().find(|command| command.id == id)
+}
+
+/// The key `id` is reachable by now: the `[keymap]` override the window resolved (see
+/// `keymap`), else the default the registry binds. The palette, the menus, the layout
+/// tooltips and the keymap section show it, and the keymap rebinds through [`binding`].
+pub(crate) fn effective_key(cx: &App, id: CommandId) -> String {
+    let Some(command) = command(id) else {
+        return String::new();
+    };
+    match super::keymap::resolved_key(cx, command.name) {
+        Some(key) => key.unwrap_or_default(),
+        None => command.key.to_owned(),
+    }
 }
 
 /// `key` as the palette prints it: `ctrl-shift-tab` is `Ctrl+Shift+Tab`.

@@ -22,7 +22,7 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
-use super::super::commands::{CommandId, command, key_label};
+use super::super::commands::{CommandId, command, effective_key, key_label};
 use super::super::request::ui;
 use super::super::rows::{labeled_row, part};
 use super::super::{Shell, region, text_region};
@@ -79,8 +79,11 @@ fn keycap(id: String, key: String) -> AnyElement {
 }
 
 /// The keycaps of `key`, one per part as DBFlux's palette draws them: `ctrl-shift-r` is
-/// `Ctrl`, `Shift`, `R`.
+/// `Ctrl`, `Shift`, `R`. A command whose key another command took shows none.
 fn keycaps(id: &str, key: &str) -> Vec<AnyElement> {
+    if key.is_empty() {
+        return Vec::new();
+    }
     key_label(key)
         .split('+')
         .enumerate()
@@ -145,7 +148,7 @@ fn render_row(
         }
         PaletteRow::Command(command_id) => {
             if let Some(command) = command(*command_id) {
-                label = row_label(command.label, &key_label(command.key));
+                label = row_label(command.label, &key_label(&effective_key(cx, *command_id)));
                 lead = Some(
                     Icon::new(ui::icon(command_icon(*command_id)))
                         .size(PaletteMetrics::ROW_ICON)
@@ -163,7 +166,7 @@ fn render_row(
                             .into_any_element(),
                     );
                 }
-                trailing = keycaps(&id, command.key);
+                trailing = keycaps(&id, &effective_key(cx, *command_id));
             }
         }
         PaletteRow::Variable(entry) => {

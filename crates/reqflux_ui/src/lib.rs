@@ -54,6 +54,9 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
     theme::install(startup_theme.mode, cx);
     theme::set_font_size(startup_theme.font_size, cx);
     shell::bind_keys(cx);
+    // The [keymap] table rebinds the commands over these defaults (v1-features S7); its
+    // warnings join the config report for the Problems panel.
+    let keymap_warnings = shell::keymap::apply_startup(config_path.as_deref(), cx);
 
     let bounds = Bounds::centered(None, tokens::MAIN_WINDOW_SIZE, cx);
     let options = WindowOptions {
@@ -90,8 +93,10 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
         ui_automation::install(window, cx);
         theme::follow_appearance(window, cx);
         let shell = cx.new(|cx| {
+            let mut report = startup_theme.config;
+            report.warnings.extend(keymap_warnings);
             let mut shell = Shell::with_state(workspace, state, cx);
-            shell.set_config(config_path, startup_theme.config);
+            shell.set_config(config_path, report);
             shell
         });
         shell.update(cx, |shell, cx| {

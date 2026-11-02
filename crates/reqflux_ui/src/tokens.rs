@@ -226,6 +226,9 @@ pub(crate) const APP_SETTINGS_OVERRIDE_WORKSPACE: Pixels = px(150.0);
 /// Each rule column of the policy overrides table.
 pub(crate) const APP_SETTINGS_OVERRIDE_RULE: Pixels = px(70.0);
 
+/// The key column of a Keymap row (design/layouts/01 D3 `.krow`).
+pub(crate) const KEYMAP_KEY_WIDTH: Pixels = px(240.0);
+
 /// The opacity of the warning wash on a grid row with an unresolved reference.
 const UNRESOLVED_ROW_WASH: f32 = 0.05;
 

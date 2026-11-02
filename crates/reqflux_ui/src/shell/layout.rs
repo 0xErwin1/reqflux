@@ -17,7 +17,7 @@ use std::path::Path;
 
 use bolt::controls::Button;
 use bolt::primitives::{SegmentedControl, SegmentedItem};
-use gpui::{Context, ElementId, IntoElement, Role, Stateful, Styled, prelude::*};
+use gpui::{App, Context, ElementId, IntoElement, Role, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 use reqflux_engine::config::{self, LayoutMode};
 
@@ -64,14 +64,16 @@ impl Shell {
 
 /// The key that switches to `mode`, as the commands registry binds it: ` (Ctrl+Alt+1)`,
 /// or empty while the command is not in the registry.
-fn key_hint(mode: LayoutMode) -> String {
+fn key_hint(mode: LayoutMode, cx: &App) -> String {
     let id = match mode {
         LayoutMode::Stacked => super::commands::CommandId::LayoutStacked,
         LayoutMode::SideBySide => super::commands::CommandId::LayoutSideBySide,
     };
-    match super::commands::command(id) {
-        Some(command) => format!(" ({})", super::commands::key_label(command.key)),
-        None => String::new(),
+    let key = super::commands::effective_key(cx, id);
+    if key.is_empty() {
+        String::new()
+    } else {
+        format!(" ({})", super::commands::key_label(&key))
     }
 }
 
@@ -131,7 +133,7 @@ fn strip_button(
     current: LayoutMode,
     cx: &mut Context<Shell>,
 ) -> Button {
-    let hint = key_hint(mode);
+    let hint = key_hint(mode, cx);
     Button::new(ElementId::Name(id.into()), label)
         .ghost()
         .icon_only()

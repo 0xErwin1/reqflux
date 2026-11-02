@@ -106,6 +106,7 @@ environments = ["dev"]
             theme: Some(ThemeMode::Light),
             font_size: None,
             layout: None,
+            keymap: KeymapConfig::default(),
             mcp: McpConfig {
                 read: Some(Rule::Allow),
                 write: Some(Rule::Ask),

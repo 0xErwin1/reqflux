@@ -92,9 +92,8 @@ impl Shell {
         }
     }
 
-    /// Reload: reads `config.toml` again and applies its theme, font size, `layout` and
-    /// `[network]`,
-    /// and refreshes what the Problems panel says about it.
+    /// Reload: reads `config.toml` again and applies its theme, font size, `layout`,
+    /// `[network]` and `[keymap]`, and refreshes what the Problems panel says about it.
     pub(crate) fn reload_app_config(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.read_app_config(cx);
         if let Some(loaded) = self.settings.app.config() {
@@ -104,16 +103,24 @@ impl Shell {
             crate::theme::set_font_size(size, cx);
         }
         self.config_report = match self.config_path.as_deref() {
-            Some(path) => match config::load_with_warnings(path) {
-                Ok((_, warnings)) => ConfigReport {
-                    error: None,
-                    warnings,
-                },
-                Err(error) => ConfigReport {
-                    error: Some(error.to_string()),
-                    warnings: Vec::new(),
-                },
-            },
+            Some(path) => {
+                // The `[keymap]` table follows the file too; its warnings join the
+                // file's for the Problems panel.
+                let keymap_warnings = super::super::keymap::apply_file(path, cx);
+                match config::load_with_warnings(path) {
+                    Ok((_, mut warnings)) => {
+                        warnings.extend(keymap_warnings);
+                        ConfigReport {
+                            error: None,
+                            warnings,
+                        }
+                    }
+                    Err(error) => ConfigReport {
+                        error: Some(error.to_string()),
+                        warnings: Vec::new(),
+                    },
+                }
+            }
             None => ConfigReport::default(),
         };
         self.apply_config_layout(self.config_path.clone().as_deref());
@@ -153,7 +160,7 @@ impl Shell {
 
     /// Runs `edit` on `config.toml` when the section is editable, then reads the file back;
     /// a failure shows in the page. Returns whether the edit ran and succeeded.
-    fn edit_app_config<T>(
+    pub(crate) fn edit_app_config<T>(
         &mut self,
         edit: impl FnOnce(&Path) -> Result<T, ConfigError>,
         cx: &mut Context<Self>,
