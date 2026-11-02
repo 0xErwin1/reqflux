@@ -89,7 +89,7 @@ v1.
 
 | Feature | Level |
 |---------|-------|
-| Run a collection or folder in order, with `setNextRequest` (the engine runner and the CLI work today; the runner view in the window is still v1) | v1 |
+| Run a collection or folder in order, with `setNextRequest`, from the window, the CLI or MCP | v1 |
 | `reqflux run` on the command line for a request, folder or collection, with a plain or JSON report, `--bail` and an exit code for CI | v1 |
 | Iterations over CSV or JSON data | Later |
 

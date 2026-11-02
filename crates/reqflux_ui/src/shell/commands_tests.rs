@@ -6,11 +6,13 @@ use super::{COMMANDS, PALETTE_KEYS, key_label};
 use crate::shell::send::SHELL_CONTEXT;
 
 /// The palette commands of command-palette S4, by stable id.
-const EXPECTED: [&str; 21] = [
+const EXPECTED: [&str; 23] = [
     "send-request",
     "cancel-send",
     "save-request",
     "revert-request",
+    "generate-code",
+    "run-collection",
     "new-request",
     "new-collection",
     "new-environment",

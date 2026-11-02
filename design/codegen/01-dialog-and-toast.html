@@ -6,7 +6,9 @@
   sidebar, document island, status bar); only the accent differs from DBFlux.
   Generate code is a bolt dialog over a scrim, as the command palette and the import wizard.
   A pasted curl command replaces the draft at once and reports through a bolt toast with Undo.
-  bolt gap: bolt's toast has no action button; Undo needs one (ToastAction, DBFlux-sized btn).
+  Undo is bolt's toast action button (ToastAction). The generated code is the engine's: every
+  {{variable}} stays as written, secret or not; nothing is resolved from the environment.
+  bolt gap: modal_code has no line numbers; ToastAction has no keycap.
 -->
 <style>
 body{margin:0;background:#09090B}
@@ -265,28 +267,27 @@ button{font:inherit;white-space:nowrap}
           <span class="hint">Read only · from the current draft</span>
         </div>
         <div class="c8 box m" aria-label="Generated curl command" style="padding:8px 0;font-size:12.5px">
-          <div class="ln"><span class="no">1</span><span class="tx"><span class="k">curl</span> --request POST \</span></div>
-          <div class="ln"><span class="no">2</span><span class="tx">  --url <span class="s">'https://api.staging.acme.dev/v1/invoices?expand=lines'</span> \</span></div>
-          <div class="ln"><span class="no">3</span><span class="tx">  --header <span class="s">'Content-Type: application/json'</span> \</span></div>
-          <div class="ln"><span class="no">4</span><span class="tx">  --header <span class="s">'Authorization: Bearer <span class="var">{{access_token}}</span>'</span> \</span></div>
-          <div class="ln"><span class="no">5</span><span class="tx">  --header <span class="s">'X-Tenant-Id: <span class="unres">{{tenant_id}}</span>'</span> \</span></div>
-          <div class="ln"><span class="no">6</span><span class="tx">  --header <span class="s">'Idempotency-Key: 0c6f9a52-1d2e-4b7a-9f13-5e8c2a4d7b10'</span> \</span></div>
-          <div class="ln"><span class="no">7</span><span class="tx">  --data <span class="s">'{</span></span></div>
-          <div class="ln"><span class="no">8</span><span class="tx"><span class="s">  "customer": "cus_9s6XKzkNRiz8i3",</span></span></div>
-          <div class="ln"><span class="no">9</span><span class="tx"><span class="s">  "currency": "eur",</span></span></div>
-          <div class="ln"><span class="no">10</span><span class="tx"><span class="s">  "lines": [{ "price": "price_pro_monthly", "quantity": 1 }]</span></span></div>
-          <div class="ln"><span class="no">11</span><span class="tx"><span class="s">}'</span></span></div>
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="k">curl</span> <span class="s">'<span class="var">{{base_url}}</span>/v1/invoices?expand=lines'</span> \</span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  -H <span class="s">'Content-Type: application/json'</span> \</span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  -H <span class="s">'Authorization: Bearer <span class="var">{{access_token}}</span>'</span> \</span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  -H <span class="s">'X-Tenant-Id: <span class="unres">{{tenant_id}}</span>'</span> \</span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">  -H <span class="s">'Idempotency-Key: 0c6f9a52-1d2e-4b7a-9f13-5e8c2a4d7b10'</span> \</span></div>
+          <div class="ln"><span class="no">6</span><span class="tx">  --data-raw <span class="s">'{</span></span></div>
+          <div class="ln"><span class="no">7</span><span class="tx"><span class="s">  "customer": "cus_9s6XKzkNRiz8i3",</span></span></div>
+          <div class="ln"><span class="no">8</span><span class="tx"><span class="s">  "currency": "eur",</span></span></div>
+          <div class="ln"><span class="no">9</span><span class="tx"><span class="s">  "lines": [{ "price": "price_pro_monthly", "quantity": 1 }]</span></span></div>
+          <div class="ln"><span class="no">10</span><span class="tx"><span class="s">}'</span></span></div>
         </div>
         <div class="c8 banner" style="background:rgba(157,177,255,.06);box-shadow:#9DB1FF 3px 0 0 inset">
           <svg class="ico" style="width:14px;height:14px;margin-top:2px;color:#9DB1FF"><use href="#i-lock"/></svg>
-          <span><span style="color:#F7F4F7">Secrets stay as {{variables}}.</span> <span style="color:#8E8996">The value of <span class="m" style="font-size:12px;color:#C6C3CC">access_token</span> is not written into the code; set it in your shell before you run it. Other variables are resolved from staging; <span class="m" style="font-size:12px;color:#FFC23D">tenant_id</span> is not defined there and stays as written.</span></span>
+          <span><span style="color:#F7F4F7">Secrets stay as {{variables}}.</span> <span style="color:#8E8996">Every {{variable}} is written as is: nothing is resolved. The value of <span class="m" style="font-size:12px;color:#C6C3CC">access_token</span> is not in the code; set it before you run it.</span></span>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;height:54px;padding:0 18px;border-top:1px solid #232128">
-        <span class="hint">11 lines</span>
+        <span class="hint">10 lines</span>
         <span style="flex-grow:1"></span>
         <button class="c6 btn">Close</button>
-        <button class="c6 btn pri"><svg class="ico" style="width:14px;height:14px"><use href="#i-copy"/></svg>Copy<span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82)">Ctrl C</span></button>
+        <button class="c6 btn pri"><svg class="ico" style="width:14px;height:14px"><use href="#i-copy"/></svg>Copy<span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82)">↵</span></button>
       </div>
     </div>
   </div>
@@ -333,7 +334,7 @@ button{font:inherit;white-space:nowrap}
 <div class="frame" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:#232128">
   <div class="m" style="background:#09090B;padding:10px 0;font-size:12px">
     <div class="x lbl" style="padding:0 0 8px 16px">HTTPie</div>
-    <div class="ln"><span class="no">1</span><span class="tx"><span class="k">http</span> POST <span class="s">'https://api.staging.acme.dev/v1/invoices'</span> \</span></div>
+    <div class="ln"><span class="no">1</span><span class="tx"><span class="k">http</span> POST <span class="s">'<span class="var">{{base_url}}</span>/v1/invoices'</span> \</span></div>
     <div class="ln"><span class="no">2</span><span class="tx">  expand==lines \</span></div>
     <div class="ln"><span class="no">3</span><span class="tx">  <span class="s">'Authorization:Bearer <span class="var">{{access_token}}</span>'</span> \</span></div>
     <div class="ln"><span class="no">4</span><span class="tx">  <span class="s">'X-Tenant-Id:<span class="unres">{{tenant_id}}</span>'</span> \</span></div>
@@ -346,7 +347,7 @@ button{font:inherit;white-space:nowrap}
     <div class="ln"><span class="no">1</span><span class="tx"><span class="k">import</span> requests</span></div>
     <div class="ln"><span class="no">2</span><span class="tx"></span></div>
     <div class="ln"><span class="no">3</span><span class="tx">response = requests.post(</span></div>
-    <div class="ln"><span class="no">4</span><span class="tx">    <span class="s">"https://api.staging.acme.dev/v1/invoices"</span>,</span></div>
+    <div class="ln"><span class="no">4</span><span class="tx">    <span class="s">"<span class="var">{{base_url}}</span>/v1/invoices"</span>,</span></div>
     <div class="ln"><span class="no">5</span><span class="tx">    params={<span class="s">"expand"</span>: <span class="s">"lines"</span>},</span></div>
     <div class="ln"><span class="no">6</span><span class="tx">    headers={<span class="s">"Authorization"</span>: <span class="s">"Bearer <span class="var">{{access_token}}</span>"</span>, …},</span></div>
     <div class="ln"><span class="no">7</span><span class="tx">    json={<span class="s">"customer"</span>: <span class="s">"cus_9s6XKzkNRiz8i3"</span>, …},</span></div>
@@ -355,7 +356,7 @@ button{font:inherit;white-space:nowrap}
   <div class="m" style="background:#09090B;padding:10px 0;font-size:12px">
     <div class="x lbl" style="padding:0 0 8px 16px">JavaScript fetch</div>
     <div class="ln"><span class="no">1</span><span class="tx"><span class="k">const</span> response = <span class="k">await</span> fetch(</span></div>
-    <div class="ln"><span class="no">2</span><span class="tx">  <span class="s">"https://api.staging.acme.dev/v1/invoices?expand=lines"</span>,</span></div>
+    <div class="ln"><span class="no">2</span><span class="tx">  <span class="s">"<span class="var">{{base_url}}</span>/v1/invoices?expand=lines"</span>,</span></div>
     <div class="ln"><span class="no">3</span><span class="tx">  {</span></div>
     <div class="ln"><span class="no">4</span><span class="tx">    method: <span class="s">"POST"</span>,</span></div>
     <div class="ln"><span class="no">5</span><span class="tx">    headers: { Authorization: <span class="s">"Bearer <span class="var">{{access_token}}</span>"</span>, … },</span></div>
@@ -398,16 +399,12 @@ button{font:inherit;white-space:nowrap}
       <div class="tt"><span class="title">Request replaced from curl</span><span class="sub">Method, URL, 2 headers, JSON body, basic auth · 2 options ignored</span></div>
       <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
     </div>
-    <div class="details m">--compressed: ReqFlux negotiates compression itself<br>--insecure: set TLS verification in Settings</div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <span class="hint" style="flex-grow:1">Basic auth password kept masked in the draft.</span>
-      <!-- bolt gap: toast action button -->
-      <button class="c6 btn"><svg class="ico" style="width:14px;height:14px"><use href="#i-undo"/></svg>Undo<span class="c4 kc">Ctrl Z</span></button>
-    </div>
+    <div class="details m">--proxy is not supported and was ignored<br>--cookie with a file is not supported and was ignored</div>
+    <div style="display:flex;justify-content:flex-end"><button class="c6 btn">Undo</button></div>
   </div>
 </div></div>
 
-<div class="state"><div class="state-head"><h3>Paste curl · clean, undone, not curl</h3><p>No ignored options: success toast. Undo (or Ctrl Z in the URL bar) restores the whole previous draft in one step. A paste that is not a curl command is plain text in the URL bar.</p></div>
+<div class="state"><div class="state-head"><h3>Paste curl · clean, undone, not curl</h3><p>No ignored options: success toast. Undo restores the whole previous draft in one step, or drops the draft the paste made. A paste that is not a curl command is plain text in the URL bar.</p></div>
 <div class="frame" style="display:grid;grid-template-columns:440px 440px 1fr;gap:16px;padding:16px;align-items:start">
   <div class="toast ok c12" role="status">
     <div class="head">
@@ -415,7 +412,7 @@ button{font:inherit;white-space:nowrap}
       <div class="tt"><span class="title">Request replaced from curl</span><span class="sub">Method, URL, 3 headers, form body</span></div>
       <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
     </div>
-    <div style="display:flex;justify-content:flex-end"><button class="c6 btn"><svg class="ico" style="width:14px;height:14px"><use href="#i-undo"/></svg>Undo<span class="c4 kc">Ctrl Z</span></button></div>
+    <div style="display:flex;justify-content:flex-end"><button class="c6 btn">Undo</button></div>
   </div>
   <div class="toast ok c12" role="status">
     <div class="head">

@@ -53,6 +53,8 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::CancelSend | CommandId::CloseWorkspace | CommandId::CloseTab => IconName::Close,
         CommandId::SaveRequest => IconName::Save,
         CommandId::RevertRequest => IconName::RotateCcw,
+        CommandId::GenerateCode => IconName::Code,
+        CommandId::RunCollection => IconName::Play,
         CommandId::NewRequest | CommandId::NewEnvironment => IconName::Plus,
         CommandId::NewCollection | CommandId::ShowCollections => IconName::Box,
         CommandId::SwitchEnvironment | CommandId::ShowEnvironments => IconName::Layers,

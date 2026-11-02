@@ -6,7 +6,7 @@
 //! A toast never carries a secret: titles are fixed sentences with counts and names, and an
 //! error's details are the error text, which the engine already masks.
 
-use bolt::toast::{Toast, ToastGlobal, ToastHost};
+use bolt::toast::{Toast, ToastAction, ToastGlobal, ToastHost};
 use gpui::{App, AppContext as _, Entity};
 
 /// Creates the window's toast stack and makes it the one [`Toast::push`] reaches.
@@ -32,6 +32,32 @@ pub(super) fn failure(title: impl Into<String>, details: impl Into<String>, cx: 
     #[cfg(test)]
     record(Kind::Error, &title, &details, cx);
     Toast::error(title).details(details).push(cx);
+}
+
+/// A change the user can take back with `action`: `title`, with `subtitle` under it. With
+/// `details`, what the change left out, it is a warning that shows them; else a
+/// confirmation. It stays until the action runs or the user dismisses it.
+pub(super) fn undoable(
+    title: impl Into<String>,
+    subtitle: impl Into<String>,
+    details: Option<String>,
+    action: ToastAction,
+    cx: &mut App,
+) {
+    let (title, subtitle) = (title.into(), subtitle.into());
+    #[cfg(test)]
+    {
+        let (kind, text) = match &details {
+            Some(details) => (Kind::Warning, format!("{subtitle}\n{details}")),
+            None => (Kind::Success, subtitle.clone()),
+        };
+        record(kind, &title, &text, cx);
+    }
+    let toast = match details {
+        Some(details) => Toast::warning(title).details(details).not_collapsible(),
+        None => Toast::success(title),
+    };
+    toast.subtitle(subtitle).action(action).push(cx);
 }
 
 /// A save or an import wrote its files but the workspace did not reload. Fixed text: the
@@ -66,6 +92,7 @@ pub(super) struct PushedToast {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Kind {
     Success,
+    Warning,
     Error,
 }
 

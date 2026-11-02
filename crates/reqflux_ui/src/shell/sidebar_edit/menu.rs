@@ -1,4 +1,4 @@
-//! The row menu: on a collection or folder New request, New folder, Rename, Duplicate,
+//! The row menu: on a collection or folder Run…, New request, New folder, Rename, Duplicate,
 //! Move to… and Delete…; on a request Open, Rename, Duplicate, Move to… and Delete; groups
 //! apart by separators, with the key of each item that has one. Move to… turns the menu
 //! into the list of collections and folders the row can move into.
@@ -27,34 +27,40 @@ pub(super) enum MenuPage {
 /// An item of the row menu.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum MenuItem {
+    Run,
     Open,
     NewRequest,
     NewFolder,
     Rename,
     Duplicate,
     MoveTo,
+    GenerateCode,
     Delete,
 }
 
 impl MenuItem {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 9] = [
+        Self::Run,
         Self::Open,
         Self::NewRequest,
         Self::NewFolder,
         Self::Rename,
         Self::Duplicate,
         Self::MoveTo,
+        Self::GenerateCode,
         Self::Delete,
     ];
 
     fn slug(self) -> &'static str {
         match self {
+            Self::Run => "run",
             Self::Open => "open",
             Self::NewRequest => "new-request",
             Self::NewFolder => "new-folder",
             Self::Rename => "rename",
             Self::Duplicate => "duplicate",
             Self::MoveTo => "move-to",
+            Self::GenerateCode => "generate-code",
             Self::Delete => "delete",
         }
     }
@@ -63,12 +69,14 @@ impl MenuItem {
     /// a collection or folder, so there it ends with an ellipsis.
     fn label(self, kind: &NodeKind) -> &'static str {
         match self {
+            Self::Run => "Run…",
             Self::Open => "Open",
             Self::NewRequest => "New request",
             Self::NewFolder => "New folder",
             Self::Rename => "Rename",
             Self::Duplicate => "Duplicate",
             Self::MoveTo => "Move to…",
+            Self::GenerateCode => "Generate code…",
             Self::Delete if matches!(kind, NodeKind::Request { .. }) => "Delete",
             Self::Delete => "Delete…",
         }
@@ -83,7 +91,7 @@ impl MenuItem {
             Self::Rename => Some("F2"),
             Self::Duplicate => Some("Ctrl D"),
             Self::Delete => Some("Del"),
-            Self::NewFolder | Self::MoveTo => None,
+            Self::Run | Self::NewFolder | Self::MoveTo | Self::GenerateCode => None,
         }
     }
 
@@ -91,12 +99,14 @@ impl MenuItem {
     /// item keeps the icon column empty.
     fn icon(self) -> Option<IconName> {
         match self {
+            Self::Run => Some(IconName::Play),
             Self::Open => Some(IconName::ExternalLink),
             Self::NewRequest => Some(IconName::File),
             Self::NewFolder => Some(IconName::FolderPlus),
             Self::Rename => Some(IconName::Pencil),
             Self::Duplicate => Some(IconName::Copy),
             Self::MoveTo => Some(IconName::ArrowRight),
+            Self::GenerateCode => Some(IconName::Code),
             Self::Delete => None,
         }
     }
@@ -104,19 +114,22 @@ impl MenuItem {
     /// The group the item sits in; a separator divides groups.
     fn group(self) -> u8 {
         match self {
-            Self::Open | Self::NewRequest | Self::NewFolder => 0,
-            Self::Rename | Self::Duplicate | Self::MoveTo => 1,
-            Self::Delete => 2,
+            Self::Run => 0,
+            Self::Open | Self::NewRequest | Self::NewFolder => 1,
+            Self::Rename | Self::Duplicate | Self::MoveTo => 2,
+            Self::GenerateCode => 3,
+            Self::Delete => 4,
         }
     }
 
     /// Whether the item is offered on a row of `kind`: Open on requests, New request and New
-    /// folder on collections and folders, Duplicate and Move to… on folders and requests.
+    /// folder on collections and folders, Duplicate and Move to… on folders and requests,
+    /// Generate code… on requests.
     pub(super) fn applies_to(self, kind: &NodeKind) -> bool {
         let request = matches!(kind, NodeKind::Request { .. });
         match self {
-            Self::Open => request,
-            Self::NewRequest | Self::NewFolder => !request,
+            Self::Open | Self::GenerateCode => request,
+            Self::Run | Self::NewRequest | Self::NewFolder => !request,
             Self::Duplicate | Self::MoveTo => !matches!(kind, NodeKind::Collection),
             Self::Rename | Self::Delete => true,
         }

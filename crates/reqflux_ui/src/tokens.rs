@@ -306,6 +306,26 @@ pub(crate) const AUDIT_OUTCOME_COLUMN: Pixels = px(110.0);
 /// The width of the workspace menu's `New workspace` name popover (workspace-menu/01).
 pub(crate) const NEW_WORKSPACE_POPOVER_WIDTH: Pixels = px(340.0);
 
+/// The run document (design/runner/01-run-document): the width of the setup's select fields
+/// and its environment menu, the run order column, and the result's tests column.
+pub(crate) const RUNNER_FIELD_WIDTH: Pixels = px(360.0);
+pub(crate) const RUNNER_ORDER_WIDTH: Pixels = px(340.0);
+pub(crate) const RUNNER_TESTS_WIDTH: Pixels = px(420.0);
+/// The run results grid's columns after the row number, as the header names them; bolt gap:
+/// `GridMetrics` has no run results column widths.
+pub(crate) const RUNNER_COLUMNS: [(&str, Pixels); 7] = [
+    ("method", px(80.0)),
+    ("request", px(240.0)),
+    ("folder", px(140.0)),
+    ("status", px(170.0)),
+    ("time", px(90.0)),
+    ("size", px(90.0)),
+    ("tests", px(180.0)),
+];
+
+/// The width of the Generate code dialog (codegen/01).
+pub(crate) const CODEGEN_DIALOG_WIDTH: Pixels = px(880.0);
+
 /// The width of the Postman import dialog (bolt-v2/11).
 pub(crate) const IMPORT_DIALOG_WIDTH: Pixels = px(1000.0);
 

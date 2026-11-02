@@ -1087,10 +1087,35 @@ and footer) with document tabs as scope tabs. The settings page draws `Island`s,
 nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox`, `Badge`
 for `file` and `KEYRING`, and `Button`. The workspace and environment menus are
 `menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. No
-`// bolt gap:` stand-in remains. `reqflux_ui::theme`
+`// bolt gap:` stand-in remains outside the run document and the Generate code dialog (below).
+`reqflux_ui::theme`
 installs `bolt`'s `ModalSeams` as DBFlux's theme does: ReqFlux's modal actions bound in the
 `Modal` key context (Escape cancels, Enter confirms, the arrows, Page Up, Page Down, Home and
 End scroll), the `Esc` keycap and the close button, so every `bolt` modal answers its keys.
+
+The run document (design/runner/01-run-document) is a document tab of its own, `runner-tab`,
+opened from the tree's `Run…` on a collection or folder, `Run collection…` (Ctrl+Alt+R, for the
+collection or folder selected in the tree) or the collection settings' `Run…`. The setup sets
+the environment for this run only and Stop on first failure; the engine has no delay between
+requests. Run calls `Engine::run_collection` on a thread of its own with a second connection to
+the app state (`AppState::path`), so every send is recorded in history; its events reach the
+window through a channel the document polls. Stop cancels the run's token. The results grid is
+`bolt`'s grid (its header row and the determinate progress bar are `// bolt gap:` stand-ins);
+selecting a finished row shows its tests beside the response history recorded for that send
+(the last send when a jump ran it twice). When the run ends, the current values its scripts
+changed (`RunSummary::current` against the values it started with) are persisted like a single
+send's script writes.
+
+`shell/codegen.rs` draws the Generate code dialog (design/codegen/01-dialog-and-toast) on
+`reqflux_engine::code`: the request line's `</>` button, Ctrl+Shift+C, the palette or the tree's
+`Generate code…` open it, a segmented control picks curl, HTTPie, Python requests or JavaScript
+fetch, and Copy (Enter) puts the code on the clipboard. Every `{{variable}}` stays as written.
+For a draft it swaps the draft into a copy of the workspace, so the auth it inherits matches what
+a send would use. Its line numbers are a `// bolt gap:` stand-in (`modal_code` has none).
+`shell/curl_paste.rs` catches the URL field's Paste action: a curl command goes through
+`reqflux_core::curl::parse` and `Parsed::apply` onto the draft, a toast lists what was imported
+and the options that were ignored, and its Undo action restores the previous draft. Any other
+paste is URL text.
 
 An image or HTML response (by `Content-Type`, then PNG, JPEG, GIF or WebP magic bytes) adds
 `Preview` (`response-view-preview`). An image is decoded off the UI thread and drawn at its
@@ -1196,12 +1221,14 @@ field takes keys first. The keymap is not configurable yet.
 | Open palette | Ctrl+K, Ctrl+P | always |
 | Send request, Cancel send | Ctrl+Enter, Escape | a request is open |
 | Save request, Revert request | Ctrl+S, Ctrl+Shift+R | the active request has a draft |
+| Generate code | Ctrl+Shift+C | a request is open |
+| Run collection… | Ctrl+Alt+R | a collection exists |
 | New request | Ctrl+N | a collection exists (in the selected collection or folder) |
 | New collection, New environment | Ctrl+Shift+N, Ctrl+Shift+E | a workspace is open |
 | Switch environment, Show Environments | Ctrl+E, Ctrl+3 | a workspace is open |
 | Open workspace, New workspace | Ctrl+O, Ctrl+Shift+O | always |
 | Close workspace, Workspace settings | Ctrl+Shift+W, Ctrl+, | a workspace is open |
-| Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request or the history tab is open |
+| Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request, the history tab or the run document is open (Next and Previous skip the run document) |
 | Show Collections, History | Ctrl+1, Ctrl+2 | a workspace is open |
 | Toggle theme | Ctrl+Shift+T | always |
 | Open MCP approvals | Ctrl+Shift+M | always |

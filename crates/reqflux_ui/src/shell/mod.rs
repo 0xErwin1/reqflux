@@ -14,7 +14,9 @@ mod audit_view;
 mod auth_edit;
 mod body_edit;
 mod cell_edit;
+mod codegen;
 mod commands;
+mod curl_paste;
 mod current;
 mod document;
 mod documents;
@@ -35,6 +37,7 @@ mod request;
 mod response;
 mod row_edit;
 mod rows;
+mod runner;
 mod scripts_edit;
 mod send;
 mod setting_edit;
@@ -154,6 +157,10 @@ pub(crate) struct Shell {
     save_errors: HashMap<String, String>,
     /// The URL field of the request under edit, while it has focus.
     url_edit: Option<UrlEdit>,
+    /// The Generate code dialog, while open, and its focus.
+    codegen: codegen::Codegen,
+    /// The draft a curl paste replaced, until Undo or the next paste.
+    curl_undo: Option<curl_paste::CurlUndo>,
     /// The cell field of the Params or Headers grid, the Settings timeout field or an Auth
     /// field, under edit, while it has focus.
     cell_edit: Option<CellEdit>,
@@ -211,6 +218,8 @@ pub(crate) struct Shell {
     settings: SettingsPage,
     /// The history tab: the open history entry, read only (see [`history::HistoryTab`]).
     orphan: Option<history::HistoryTab>,
+    /// The run document, while open (see [`runner::RunTab`]).
+    run: Option<runner::RunTab>,
     /// Where `Open in browser` writes an HTML response and how it opens it.
     preview_host: PreviewHost,
     /// The window's toast stack, `bolt`'s, mounted over the region between the title bar
@@ -268,6 +277,8 @@ impl Shell {
             drafts: HashMap::new(),
             save_errors: HashMap::new(),
             url_edit: None,
+            codegen: codegen::Codegen::new(cx),
+            curl_undo: None,
             cell_edit: None,
             split: split::Split::new(cx.focus_handle()),
             body_edit: None,
@@ -294,6 +305,7 @@ impl Shell {
             audit: audit::AuditView::new(),
             settings: SettingsPage::new(cx),
             orphan: None,
+            run: None,
             preview_host: PreviewHost::default(),
             toasts: toasts::host(cx),
             _sidebar_events: sidebar_events,
@@ -320,6 +332,7 @@ impl Shell {
         self.leave_approvals(cx);
         self.leave_audit(cx);
         self.leave_history_tab();
+        self.leave_run_tab();
         self.documents.open(id);
         self.drop_stale_url_edit(id);
         self.drop_stale_cell_edit(id);
@@ -439,6 +452,7 @@ impl Shell {
         self.leave_approvals(cx);
         self.leave_audit(cx);
         self.leave_history_tab();
+        self.leave_run_tab();
         self.documents.activate(id);
         self.auth_menu_open = false;
         self.body_menu_open = false;
@@ -519,6 +533,7 @@ impl Render for Shell {
             .child(status_bar::render(self, window, cx))
             .children(palette::render(self, window, cx))
             .children(import_flow::render(self, window, cx))
+            .children(codegen::render(self, window, cx))
     }
 }
 
@@ -528,6 +543,12 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
     vec![
         cx.subscribe(sidebar, |this, _, OpenRequest(id), cx| {
             this.open_document(id, cx);
+        }),
+        cx.subscribe(sidebar, |this, _, codegen::GenerateCodeFor(id), cx| {
+            this.request_codegen(id, cx);
+        }),
+        cx.subscribe(sidebar, |this, _, runner::RunRequested(id), cx| {
+            this.open_run(id, cx);
         }),
         cx.subscribe(sidebar, |this, _, OpenHistory(entry), cx| {
             this.open_history_entry(*entry, cx);

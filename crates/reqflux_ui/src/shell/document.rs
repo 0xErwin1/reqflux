@@ -30,6 +30,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             .items_center()
             .justify_center()
             .child(empty_state::render(shell, message, cx)),
+        (None, _) if shell.run_tab_active() => body.child(super::runner::render(shell, window, cx)),
         (None, _) if history_tab.is_some() => match history_tab {
             Some(tab) => body.child(history::render_tab(shell, tab, cx)),
             None => body,

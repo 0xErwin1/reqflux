@@ -134,12 +134,14 @@ fn ctrl_k_opens_the_palette_and_down_enter_opens_a_request(cx: &mut TestAppConte
     };
     assert_eq!(label(1).as_deref(), Some("GET List users API"));
     assert_eq!(label(2).as_deref(), Some("GET Health API"));
-    // `get` is also a subsequence of `Toggle theme`, which ranks below both requests.
-    assert_eq!(label(3).as_deref(), Some("Toggle theme Ctrl+Shift+T"));
+    // `get` is also a subsequence of `Generate code` and `Toggle theme`, which rank below both
+    // requests.
+    assert_eq!(label(3).as_deref(), Some("Generate code Ctrl+Shift+C"));
+    assert_eq!(label(4).as_deref(), Some("Toggle theme Ctrl+Shift+T"));
     assert_eq!(
-        label(4),
+        label(5),
         None,
-        "only the GET requests and that command match"
+        "only the GET requests and those commands match"
     );
 
     press(cx, "down");
@@ -466,7 +468,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
     press(cx, "ctrl-k");
     assert_eq!(
         node_label(&automation, "palette-tab-all").as_deref(),
-        Some("All 28")
+        Some("All 30")
     );
     assert_eq!(
         node_label(&automation, "palette-tab-requests").as_deref(),
@@ -474,7 +476,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
     );
     assert_eq!(
         node_label(&automation, "palette-tab-commands").as_deref(),
-        Some("Commands 21")
+        Some("Commands 23")
     );
     assert_eq!(
         node_label(&automation, "palette-tab-variables").as_deref(),
@@ -491,7 +493,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
     assert_eq!(node_selected(&automation, "palette-tab-all"), Some(false));
     assert_eq!(
         node_label(&automation, "palette-count").as_deref(),
-        Some("21 commands")
+        Some("23 commands")
     );
     present(cx, "palette-group-request");
     present(cx, "palette-group-workspace");
@@ -503,7 +505,7 @@ fn scope_tabs_count_and_a_prefix_or_tab_picks_the_scope(cx: &mut TestAppContext)
         node_label(&automation, "palette-row-1-reason").as_deref(),
         Some("no open request")
     );
-    assert_eq!(row_labels(&automation).len(), 21);
+    assert_eq!(row_labels(&automation).len(), 23);
     assert_eq!(
         node_label(&automation, "palette-group-environment").as_deref(),
         Some("Environments")

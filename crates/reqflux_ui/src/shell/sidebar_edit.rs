@@ -386,6 +386,14 @@ impl Sidebar {
                 self.edit.menu_focus.focus(window, cx);
                 cx.notify();
             }
+            (MenuItem::Run, _) => {
+                self.close_menu(window, cx);
+                cx.emit(crate::shell::runner::RunRequested(id.to_owned()));
+            }
+            (MenuItem::GenerateCode, _) => {
+                self.close_menu(window, cx);
+                cx.emit(crate::shell::codegen::GenerateCodeFor(id.to_owned()));
+            }
             (MenuItem::Delete, _) => self.prompt_delete(id, window, cx),
         }
     }

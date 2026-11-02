@@ -385,7 +385,20 @@ fn content(
         .size_full()
         .flex()
         .flex_col()
-        .child(title)
+        .child(match section {
+            Section::Collection(id) => div()
+                .flex_none()
+                .flex()
+                .items_start()
+                .child(title.flex_1())
+                .child(
+                    div()
+                        .pt(HeaderMetrics::SECTION_PADDING_TOP)
+                        .pr(HeaderMetrics::SECTION_PADDING_X)
+                        .child(super::runner::settings_run_button(id.to_string(), cx)),
+                ),
+            Section::App(_) | Section::Globals | Section::Environments(_) => title,
+        })
         .children(message(shell, cx))
         .child(
             div()

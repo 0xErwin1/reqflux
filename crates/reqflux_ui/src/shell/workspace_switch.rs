@@ -112,6 +112,7 @@ impl Shell {
         self.settings.reset();
         self.body_edit = None;
         self.orphan = None;
+        self.run = None;
         self.current = CurrentValues::default();
         self.active_environment = None;
         self.environment_menu_open = false;

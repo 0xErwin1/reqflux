@@ -126,6 +126,8 @@ commands! {
     CancelSend: CancelRequest, "cancel-send", "Cancel send", "escape", Request, has_request;
     SaveRequest: SaveRequest, "save-request", "Save request", "ctrl-s", Request, has_draft;
     RevertRequest: RevertRequest, "revert-request", "Revert request", "ctrl-shift-r", Request, has_draft;
+    GenerateCode: GenerateCode, "generate-code", "Generate code", "ctrl-shift-c", Request, has_request;
+    RunCollection: RunCollection, "run-collection", "Run collection…", "ctrl-alt-r", Request, has_collection;
     NewRequest: NewRequest, "new-request", "New request", "ctrl-n", Request, has_collection;
     NewCollection: NewCollection, "new-collection", "New collection", "ctrl-shift-n", Request, loaded;
     NewEnvironment: NewEnvironment, "new-environment", "New environment", "ctrl-shift-e", Environment, loaded;
@@ -211,6 +213,9 @@ fn has_request(shell: &Shell) -> Result<(), &'static str> {
     if shell.history_tab_active() {
         return Err("a recorded request is open");
     }
+    if shell.run_tab_active() {
+        return Err("a run is open");
+    }
     shell
         .documents
         .active()
@@ -229,7 +234,7 @@ fn can_send(shell: &Shell) -> Result<(), &'static str> {
 
 /// A request tab or the history tab is open.
 fn has_tab(shell: &Shell) -> Result<(), &'static str> {
-    if shell.orphan.is_some() {
+    if shell.orphan.is_some() || shell.run.is_some() {
         Ok(())
     } else {
         shell
@@ -286,6 +291,8 @@ impl Shell {
                     self.revert(&active, window, cx);
                 }
             }
+            CommandId::GenerateCode => self.open_codegen_active(window, cx),
+            CommandId::RunCollection => self.open_run_for_selection(cx),
             CommandId::NewRequest => self.new_request(window, cx),
             CommandId::NewCollection => {
                 self.show_panel(Panel::Collections, cx);
@@ -307,6 +314,7 @@ impl Shell {
                 self.open_settings(Section::Globals, cx);
                 self.restore_focus(window, cx);
             }
+            CommandId::CloseTab if self.run_tab_active() => self.close_run_tab(cx),
             CommandId::CloseTab if self.history_tab_active() => self.close_history_tab(cx),
             CommandId::CloseTab => {
                 if let Some(active) = active {

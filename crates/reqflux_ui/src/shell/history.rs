@@ -150,7 +150,7 @@ pub(crate) fn find_request<'a>(
 }
 
 /// The outcome a recorded entry shows in the response pane.
-fn completed_of(entry: &HistoryEntry) -> Completed {
+pub(super) fn completed_of(entry: &HistoryEntry) -> Completed {
     match &entry.record.outcome {
         HistoryOutcome::Response(recorded) => {
             Completed::Response(received_of(recorded, &entry.record.sent))
@@ -289,6 +289,7 @@ impl Shell {
         let id = entry.record.request_id.clone();
         let exists = super::documents::locate(&self.roots, &id).is_some();
         self.leave_approvals(cx);
+        self.leave_run_tab();
         self.drop_history_tab();
         let now = now_millis();
         let offset = clock::local_offset(now);
@@ -347,9 +348,9 @@ impl Shell {
         self.orphan.as_ref().is_some_and(|tab| tab.active)
     }
 
-    /// The id of the active request tab; `None` while the history tab is active.
+    /// The id of the active request tab; `None` while the history tab or the run document is active.
     pub(super) fn active_request(&self) -> Option<&str> {
-        if self.history_tab_active() {
+        if self.history_tab_active() || self.run_tab_active() {
             None
         } else {
             self.documents.active()
@@ -367,6 +368,7 @@ impl Shell {
     pub(super) fn activate_history_tab(&mut self, cx: &mut Context<Self>) {
         self.leave_approvals(cx);
         self.leave_audit(cx);
+        self.leave_run_tab();
         if let Some(tab) = self.orphan.as_mut() {
             tab.active = true;
         }

@@ -48,7 +48,7 @@ pub(crate) fn tree_label(cx: &mut VisualTestContext, id: &str) -> Option<String>
 
 /// Clicks the center of `id`, found in the automation tree: `bolt`'s toast controls carry no
 /// debug selector.
-fn click_node(cx: &mut VisualTestContext, id: &str) {
+pub(crate) fn click_node(cx: &mut VisualTestContext, id: &str) {
     let Some(rect) = tree(cx).nodes.get(id).and_then(|node| node.bounds) else {
         panic!("{id} is missing");
     };
@@ -72,6 +72,14 @@ pub(crate) fn pushed(cx: &mut VisualTestContext) -> Vec<PushedToast> {
 pub(crate) fn success(title: &str, text: &str) -> PushedToast {
     PushedToast {
         kind: Kind::Success,
+        title: title.to_owned(),
+        text: text.to_owned(),
+    }
+}
+
+pub(crate) fn warning(title: &str, text: &str) -> PushedToast {
+    PushedToast {
+        kind: Kind::Warning,
         title: title.to_owned(),
         text: text.to_owned(),
     }

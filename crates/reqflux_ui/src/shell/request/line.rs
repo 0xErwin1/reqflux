@@ -1,8 +1,9 @@
-//! The request line: the method chip, which opens the method menu, the URL with its references styled, and
-//! the Send button, which sends the request, or the Cancel button while it is in flight; both
+//! The request line: the method chip, which opens the method menu, the URL with its references styled, the
+//! Generate code button and the Send button, which sends the request, or the Cancel button while it is in flight; both
 //! have the same width, so the line does not move. Clicking the URL swaps it for an editable
 //! field drawn in the same place, padding, font and height, so the text does not move.
-//! Enter in the field commits the URL and sends the request.
+//! Enter in the field commits the URL and sends the request; a curl command pasted into it
+//! replaces the request (see `curl_paste`).
 
 use bolt::controls::{
     Button, GpuiInput, Input, InputEnter, InputEscape, InputState, SelectTrigger,
@@ -13,6 +14,7 @@ use gpui::{
     AnyElement, Context, Div, Entity, FontWeight, ParentElement, Pixels, Role, Stateful, Styled,
     Window, div, prelude::*,
 };
+use gpui_component::input::Paste;
 use gpui_kit_assets::IconName;
 
 use super::model::RequestState;
@@ -44,7 +46,20 @@ pub(super) fn render(
         .pr(Spacing::MD)
         .child(method(id, state, shell, window, cx))
         .child(url(id, state, shell, cx))
+        .child(generate_code(id, cx))
         .child(action)
+}
+
+/// The Generate code button, element id `codegen-open`, which opens the dialog for the
+/// request `id`.
+fn generate_code(id: &str, cx: &mut Context<Shell>) -> Button {
+    let id = id.to_owned();
+    Button::new("codegen-open", "Generate code")
+        .secondary()
+        .icon(ui::icon(IconName::Code))
+        .icon_only()
+        .tooltip("Generate code  Ctrl Shift C")
+        .on_click(cx.listener(move |this, _event, _window, cx| this.request_codegen(&id, cx)))
 }
 
 /// The Cancel button shown while the request is in flight, element id `request-cancel`.
@@ -215,6 +230,12 @@ fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<D
         }))
         .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.discard_url_edit(window, cx);
+        }))
+        // Before the input inserts it: a curl command replaces the request instead.
+        .capture_action(cx.listener(|this, _: &Paste, window, cx| {
+            if this.paste_into_url(window, cx) {
+                cx.stop_propagation();
+            }
         }))
         // The frameless input keeps the URL's text size and the field's padding, so the text
         // stays where the URL shows it.
