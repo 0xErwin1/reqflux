@@ -1245,8 +1245,8 @@ Trust model, and what it costs:
   the bridge withholds masked and `frame_redacted` text from observers.
 - The bridge, `gpui-mcp-protocol` and the patched GPUI crates all come from one DBFlux rev, set
   once in the root `Cargo.toml`, where DBFlux vendors upstream `gpui-mcp` against its patched
-  `gpui-pre`. Bump it for all of them at once. Until the DBFlux branch is published the URL is a
-  local `file://` repository; then it becomes the published repository at the same rev.
+  `gpui-pre`. Bump it for all of them at once. The source is DBFlux's published repository
+  (`https://github.com/0xErwin1/dbflux`), pinned to a rev on its main.
 
 `reqflux mcp` serves these tools itself: `ui_list_targets`, `ui_select_target`, `ui_ping`,
 `ui_tree`, `ui_find`, `ui_element`, `ui_element_bounds`, `ui_wait_for_element`, `ui_click`,

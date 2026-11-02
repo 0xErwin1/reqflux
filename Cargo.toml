@@ -85,14 +85,13 @@ gpui-platform = { package = "gpui-pre-platform", version = "=0.3.9", default-fea
 # UI automation bridge, installed in every window so agents can drive the app
 # through `reqflux mcp`; `reqflux_mcp` speaks `gpui-mcp-protocol` to it. Both are
 # DBFlux's vendored copies of upstream gpui-mcp, built against the same patched
-# gpui-pre. The `file://` URL stands until the DBFlux branch is published; then
-# it becomes the published repository at the same rev.
-gpui-mcp = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd", default-features = false, features = ["gpui-pre"] }
-gpui-mcp-protocol = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd" }
+# gpui-pre, from DBFlux's main at the rev that merged Bolt (#1233).
+gpui-mcp = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af", default-features = false, features = ["gpui-pre"] }
+gpui-mcp-protocol = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af" }
 
 # Bolt, the design system shared with DBFlux, from the same DBFlux rev as the GPUI stack.
 # ReqFlux installs it with its own brand.
-bolt = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd" }
+bolt = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -116,13 +115,12 @@ let_underscore_must_use = "warn"
 # 0.7.3 with its editor patches, and gpui-pre-linux 0.3.9 with a Wayland keymap
 # fix (see vendor/*/VENDOR.md there). Taking them by git keeps the app, bolt,
 # gpui-component and the bridge on one GPUI build without copying them here.
-# The `file://` URL stands until the DBFlux branch is published; then it
-# becomes the published repository at the same rev.
+# The rev is DBFlux's main where Bolt was merged (#1233); move it with DBFlux.
 [patch.crates-io]
-gpui-pre = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd" }
-gpui-base = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd" }
-gpui-component = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd" }
-gpui-pre-linux = { git = "file:///home/iperez/dev/personal/Rust/dbflux-worktree/main", rev = "4d41ff4c5fe54d67fd5aea7e52ae3174f54856bd" }
+gpui-pre = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af" }
+gpui-base = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af" }
+gpui-component = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af" }
+gpui-pre-linux = { git = "https://github.com/0xErwin1/dbflux", rev = "33c835a9b50e2e90bdd0dbfe7f020817079a40af" }
 
 # Line tables keep backtraces usable at a fraction of the link time and
 # memory that full debug info costs with GPUI in the graph.
