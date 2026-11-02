@@ -28,7 +28,7 @@ use crate::sent::{Masker, SentRequest};
 /// model.
 #[derive(Debug)]
 pub struct Engine {
-    runtime: Runtime,
+    pub(crate) runtime: Runtime,
     client: HttpClient,
     pub(crate) root: PathBuf,
     pub(crate) loaded: Loaded,

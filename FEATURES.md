@@ -89,8 +89,8 @@ v1.
 
 | Feature | Level |
 |---------|-------|
-| Run a collection or folder in order, with `setNextRequest` | v1 |
-| `reqflux run` on the command line, with an exit code for CI (single requests work today; running a collection or folder is still v1) | v1 |
+| Run a collection or folder in order, with `setNextRequest` (the engine runner and the CLI work today; the runner view in the window is still v1) | v1 |
+| `reqflux run` on the command line for a request, folder or collection, with a plain or JSON report, `--bail` and an exit code for CI | v1 |
 | Iterations over CSV or JSON data | Later |
 
 ## History
@@ -122,7 +122,7 @@ One MCP server, `reqflux`, for everything.
 | Policy by execution class (read, write, execute, destructive), host and environment allowlists | v1 |
 | In-app approvals and audit log | v1 |
 | App settings: theme, interface font size and MCP policy editing | v1 |
-| Run the collection runner | v1 |
+| Run the collection runner (`collection_run`; the engine runner exists, the tool does not yet) | v1 |
 | Resources addressed by id | Later |
 
 ## User experience

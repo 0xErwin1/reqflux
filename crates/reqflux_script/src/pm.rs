@@ -9,7 +9,7 @@ use rquickjs::function::Func;
 use rquickjs::{Ctx, String as JsString};
 
 use crate::sandbox::State;
-use crate::{ConsoleLevel, ScriptContext, ScriptRequest, SendRequest, VariableScope};
+use crate::{ConsoleLevel, NextRequest, ScriptContext, ScriptRequest, SendRequest, VariableScope};
 
 type CtxResult<T> = rquickjs::Result<T>;
 type SharedState = Arc<Mutex<State>>;
@@ -123,6 +123,22 @@ pub(super) fn install(
                     return Err(abort(&ctx, kind));
                 }
                 lock(&state).record_console(parse_level(&level), message);
+                Ok(())
+            }
+        }),
+    )?;
+    globals.set(
+        "__reqfluxNext",
+        Func::from({
+            let state = Arc::clone(state);
+            // The shim has already refused anything but a string or null.
+            move |ctx: Ctx<'_>, target: Option<String>| -> CtxResult<()> {
+                let charged = target.as_deref().map_or(0, str::len);
+                if let Some(kind) = lock(&state).charge(charged) {
+                    return Err(abort(&ctx, kind));
+                }
+                lock(&state)
+                    .set_next_request(target.map_or(NextRequest::Stop, NextRequest::Request));
                 Ok(())
             }
         }),

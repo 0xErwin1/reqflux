@@ -32,7 +32,8 @@ pub(crate) struct Cli {
 /// The subcommands.
 #[derive(Debug, Subcommand)]
 pub(crate) enum Command {
-    /// Send one request of a workspace and write the response body to stdout.
+    /// Send one request of a workspace and write the response body to stdout, or run every
+    /// request of a collection or folder and print a report.
     ///
     /// Uses the workspace in the current directory, or --workspace.
     Run(RunArgs),
@@ -53,41 +54,68 @@ pub(crate) enum Command {
 /// The application id the window reports, and the default `--app-id`.
 pub(crate) const DEFAULT_APP_ID: &str = "reqflux";
 
-const RUN_AFTER_HELP: &str = "\
-Output:
+const RUN_AFTER_HELP: &str = concat!(
+    "\
+Output of a request:
   stdout  the response body, byte for byte; with --include, the status line and the
           headers first, then a blank line
   stderr  one `warning:` line per workspace load warning, one when secret variables
           could not be read from the OS keyring (they stay unresolved), and one per
           unresolved variable, then `<METHOD> <url> -> <code> <reason> in <ms> ms, <size>`
 
+",
+    "\
+A collection or folder runs every request under it in tree order, with its pre-request
+and test scripts; script variable writes carry to the next requests of the run, and
+pm.setNextRequest(name|id) jumps, pm.setNextRequest(null) stops (at most 1000 sends).
+Nothing is written to the workspace or the app state. Ctrl-C cancels the run.
+  stdout  one line per request as it finishes,
+          `<METHOD> <name> -> <code> <reason> in <ms> ms, <size>, tests <passed>/<total>`
+          or `<METHOD> <name> -> error: <message>`, a `  fail <test>: <message>` line per
+          failing test, then `<n> requests, <n> failed; tests <n> passed, <n> failed;
+          <ms> ms` and why the run ended early; with --json, one JSON report instead
+
+",
+    "\
 Exit codes:
-  0  a response was received, whatever its status
-  1  the request could not be executed: transport error, unsupported auth, environment
-     not allowed for the collection, invalid GraphQL variables
-  2  usage error: bad arguments, unknown request or environment, workspace that fails
-     to load";
+  0  a request: a response was received, whatever its status; a run: every request got
+     a response and every test passed
+  1  the request could not be executed (transport error, unsupported auth, environment
+     not allowed for the collection, invalid GraphQL variables); a run: a request, test
+     or the run failed (cancelled, --bail, a setNextRequest loop or unknown target)
+  2  usage error: bad arguments, unknown request, folder, collection or environment,
+     workspace that fails to load"
+);
 
 /// Arguments of `reqflux run`.
 #[derive(Debug, Args)]
 #[command(after_help = RUN_AFTER_HELP)]
 pub(crate) struct RunArgs {
-    /// The request to send: its id, or its slug path
-    /// `<collection>/<folder>/.../<request>`.
-    pub(crate) request: String,
+    /// What to send or run: the id or slug path of a request
+    /// (`<collection>/<folder>/.../<request>`), a folder (`<collection>/<folder>/...`) or a
+    /// collection (`<collection>`). A request wins over a folder at the same path.
+    #[arg(value_name = "TARGET")]
+    pub(crate) target: String,
     /// The workspace directory. Defaults to the current directory.
     #[arg(long, value_name = "DIR")]
     pub(crate) workspace: Option<PathBuf>,
     /// The slug of the environment to use. Without it, no environment applies.
-    #[arg(long, value_name = "SLUG")]
+    #[arg(long = "environment", visible_alias = "env", value_name = "SLUG")]
     pub(crate) env: Option<String>,
     /// Sets a local variable, which overrides globals, collection and environment
     /// variables. Repeatable. Overrides a secret value from the OS keyring.
     #[arg(long = "var", value_name = "KEY=VALUE")]
     pub(crate) vars: Vec<String>,
-    /// Write the status line and the response headers before the body.
+    /// Write the status line and the response headers before the body. A request only.
     #[arg(short, long)]
     pub(crate) include: bool,
+    /// Stop a collection or folder run at the first request without a response or with a
+    /// failing test.
+    #[arg(long)]
+    pub(crate) bail: bool,
+    /// Print the report of a collection or folder run as one JSON document.
+    #[arg(long)]
+    pub(crate) json: bool,
 }
 
 const IMPORT_AFTER_HELP: &str = "\
@@ -342,7 +370,7 @@ mod tests {
         let Some(Command::Run(args)) = cli.command else {
             panic!("expected reqflux run");
         };
-        assert_eq!(args.request, "x");
+        assert_eq!(args.target, "x");
     }
 
     #[test]

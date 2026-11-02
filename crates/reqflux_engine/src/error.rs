@@ -56,6 +56,9 @@ pub enum ExecuteError {
     /// No request has this id or slug path.
     #[error("no request matches {0}")]
     UnknownRequest(String),
+    /// No collection, folder or request has this id or slug path (a collection run).
+    #[error("no collection, folder or request matches {0}")]
+    UnknownTarget(String),
     /// No workspace environment has this slug.
     #[error("unknown environment {0}")]
     UnknownEnvironment(String),
@@ -185,7 +188,10 @@ impl ExecuteError {
     /// environment) rather than from executing it.
     #[must_use]
     pub fn is_usage(&self) -> bool {
-        matches!(self, Self::UnknownRequest(_) | Self::UnknownEnvironment(_))
+        matches!(
+            self,
+            Self::UnknownRequest(_) | Self::UnknownTarget(_) | Self::UnknownEnvironment(_)
+        )
     }
 }
 

@@ -19,6 +19,13 @@
 //! [`Engine::wait`] runs the effective test script once the response arrives and returns
 //! its results beside the response in [`Executed::scripts`].
 //!
+//! # Running a collection
+//!
+//! [`Engine::run_collection`] runs every request of a collection or folder in tree order
+//! through the same path, carrying script writes between requests and following
+//! `pm.setNextRequest`, with progress events, a cancellation token, a [`RunSummary`] and a
+//! history entry per send.
+//!
 //! # Secrets
 //!
 //! Secret variable values never live in workspace files. The engine reads the valueless
@@ -69,6 +76,7 @@ mod import;
 mod managed;
 pub mod policy;
 mod prepare;
+mod runner;
 mod scripts;
 mod secrets;
 mod select;
@@ -96,11 +104,15 @@ pub use prepare::{
 /// The transport types front ends read, re-exported so they depend on the engine only.
 pub use reqflux_http::{HttpError, PreparedBody, PreparedRequest, Response};
 pub use reqflux_script::{
-    ConsoleEntry, ConsoleLevel, ScriptOutcome, TestResult, VariableScope, VariableWrite,
+    ConsoleEntry, ConsoleLevel, NextRequest, ScriptOutcome, TestResult, VariableScope,
+    VariableWrite,
 };
 /// The file hash a hash-checked save compares against, and the parse error text that never
 /// quotes the source, re-exported so front ends depend on the engine only.
 pub use reqflux_store::{ContentHash, toml_error_location};
+pub use runner::{
+    DEFAULT_MAX_STEPS, RunEnd, RunEvent, RunItem, RunOptions, RunSummary, StepResult,
+};
 pub use secrets::{
     KeyringSecretStore, MemorySecretStore, SECRET_SERVICE, SecretError, SecretKey, SecretScope,
     SecretStore,

@@ -185,7 +185,7 @@ pub(crate) fn run_bounded(script: &str, context: &ScriptContext) -> ScriptOutcom
         Ok(outcome) => outcome,
         Err(error) => {
             let message = error.to_string();
-            let mut outcome = error.outcome;
+            let mut outcome = *error.outcome;
             outcome.console.push(ConsoleEntry {
                 level: ConsoleLevel::Error,
                 message,
@@ -375,9 +375,13 @@ pub(crate) fn run_stage(
     run_off_thread(script, context, transport)
 }
 
-/// Extends `outcome` with `other`, keeping the stage order: pre-request entries first.
+/// Extends `outcome` with `other`, keeping the stage order: pre-request entries first. A
+/// `pm.setNextRequest` of the later stage overrides the earlier one: the last call wins.
 pub(crate) fn merge(outcome: &mut ScriptOutcome, other: ScriptOutcome) {
     outcome.tests.extend(other.tests);
     outcome.console.extend(other.console);
     outcome.writes.extend(other.writes);
+    if other.next_request.is_some() {
+        outcome.next_request = other.next_request;
+    }
 }

@@ -1,5 +1,5 @@
 //! `reqflux run`: send one request and print the response (S11) and the script results
-//! (S9).
+//! (S9), or run a collection or folder (`crate::run_collection`).
 
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -33,7 +33,7 @@ pub(crate) fn run(args: RunArgs) -> ExitCode {
     // Load warnings are printed below in their documented format, not through the logger.
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("error")).init();
     match send(args) {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(code) => code,
         Err(Failure::Usage(message)) => {
             eprintln!("error: {message}");
             ExitCode::from(2)
@@ -45,7 +45,7 @@ pub(crate) fn run(args: RunArgs) -> ExitCode {
     }
 }
 
-fn send(args: RunArgs) -> Result<(), Failure> {
+fn send(args: RunArgs) -> Result<ExitCode, Failure> {
     let vars = args
         .vars
         .iter()
@@ -63,7 +63,26 @@ fn send(args: RunArgs) -> Result<(), Failure> {
         // `reqflux run` never reads or writes current values (variables-editor S5).
         ..ExecuteOptions::default()
     };
-    let execution = engine.execute(&args.request, &options)?;
+    if !engine.has_request(&args.target) {
+        if args.include {
+            return Err(Failure::Usage(
+                "--include applies to a single request".to_owned(),
+            ));
+        }
+        return Ok(crate::run_collection::run(
+            &engine,
+            &args.target,
+            options,
+            args.bail,
+            args.json,
+        )?);
+    }
+    if args.json || args.bail {
+        return Err(Failure::Usage(
+            "--json and --bail apply to a collection or folder run".to_owned(),
+        ));
+    }
+    let execution = engine.execute(&args.target, &options)?;
     if let Some(problem) = &execution.secret_problem {
         eprintln!("warning: {problem}");
     }
@@ -92,7 +111,7 @@ fn send(args: RunArgs) -> Result<(), Failure> {
         response.elapsed.as_millis(),
         size(response.size())
     );
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 /// Prints the script results in their documented shape, pre-request entries first: one
@@ -142,7 +161,7 @@ fn status(response: &Response) -> String {
 }
 
 /// `<n> B`, `<n.n> KB` or `<n.n> MB`, 1024 based.
-fn size(bytes: usize) -> String {
+pub(crate) fn size(bytes: usize) -> String {
     const KB: f64 = 1024.0;
     let value = bytes as f64;
     if value < KB {

@@ -212,6 +212,14 @@ pub(super) const PRELUDE: &str = r#"
     };
   }
 
+  // A collection run reads the last call: a name or id jumps there, null stops the run.
+  function setNextRequest(target) {
+    if (typeof target !== "string" && target !== null) {
+      throw new TypeError("setNextRequest expects a request name, an id or null");
+    }
+    __reqfluxNext(target);
+  }
+
   const pm = {
     variables: makeScope("variables"),
     environment: makeScope("environment"),
@@ -229,6 +237,8 @@ pub(super) const PRELUDE: &str = r#"
       }
     },
     expect: makeExpect,
+    setNextRequest,
+    execution: { setNextRequest },
     sendRequest(arg, callback) {
       if (typeof callback !== "function") {
         throw new Error("pm.sendRequest expects a function as its second argument");
@@ -275,6 +285,7 @@ pub(super) const PRELUDE: &str = r#"
     pm.response = response;
   }
   globalThis.pm = pm;
+  globalThis.postman = { setNextRequest };
   globalThis.console = {
     log(...args) { __reqfluxConsole("log", args.map(stringify).join(" ")); },
     info(...args) { __reqfluxConsole("info", args.map(stringify).join(" ")); },

@@ -450,7 +450,7 @@ fn unknown_request_is_a_usage_error() {
     assert_failure(
         &run(&dir, &["api/nope"]),
         2,
-        "error: no request matches api/nope\n",
+        "error: no collection, folder or request matches api/nope\n",
     );
 }
 
@@ -519,9 +519,10 @@ fn run_help_describes_arguments_and_exit_codes() {
     let output = reqflux(&["run", "--help"]);
     let stdout = text(&output.stdout);
     for expected in [
-        "<REQUEST>",
+        "<TARGET>",
         "--workspace <DIR>",
-        "--env <SLUG>",
+        "--environment <SLUG>",
+        "--env",
         "--var <KEY=VALUE>",
         "-i, --include",
         "Exit codes:",

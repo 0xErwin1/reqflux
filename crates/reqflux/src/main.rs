@@ -1,5 +1,6 @@
 //! The ReqFlux binary: the GUI when started without a subcommand, on the workspace given as
-//! `reqflux [<DIR>]`, `reqflux run` to send one request from the command line, and
+//! `reqflux [<DIR>]`, `reqflux run` to send one request or run a collection or folder from
+//! the command line, and
 //! `reqflux mcp` to serve the agent tools, `reqflux import` to bring in a Postman
 //! collection, and `reqflux secret` to manage secret values in the OS keyring.
 
@@ -8,6 +9,7 @@ mod gui;
 mod import;
 mod mcp;
 mod run;
+mod run_collection;
 mod secret;
 mod signals;
 

@@ -10,7 +10,7 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use reqflux_core::model::Variable;
+use reqflux_core::model::{EnvironmentNode, Variable, Workspace};
 use reqflux_script::{VariableScope, VariableWrite};
 
 use crate::ExecuteOptions;
@@ -18,6 +18,7 @@ use crate::engine::Engine;
 use crate::error::PersistError;
 use crate::prepare::select_environment;
 use crate::secrets::{SecretKey, SecretScope};
+use crate::select::Target;
 use crate::state::AppState;
 
 /// The current values of one workspace, by scope and key. Its `Debug` output names the keys,
@@ -125,26 +126,9 @@ impl Engine {
         let workspace_id = workspace.manifest.id;
         let mut first_error = None;
         for write in writes {
-            let (scope, declared) = match write.scope {
-                VariableScope::Variables => continue,
-                VariableScope::Globals => {
-                    (SecretScope::Global, workspace.manifest.globals.as_slice())
-                }
-                VariableScope::CollectionVariables => (
-                    SecretScope::Collection(target.collection.collection.id),
-                    target.collection.collection.variables.as_slice(),
-                ),
-                VariableScope::Environment => match environment {
-                    Some(environment) => (
-                        SecretScope::Environment(environment.environment.id),
-                        environment.environment.variables.as_slice(),
-                    ),
-                    None => continue,
-                },
+            let Some((scope, secret)) = write_scope(workspace, &target, environment, write) else {
+                continue;
             };
-            let secret = declared
-                .iter()
-                .any(|variable| variable.secret && variable.key == write.key);
             let result = if secret {
                 write.value.as_deref().map_or(Ok(()), |value| {
                     let key = SecretKey {
@@ -177,4 +161,35 @@ impl Engine {
         }
         first_error.map_or(Ok(()), Err)
     }
+}
+
+/// Where a script `write` made during a send of `target` lands as a current value: the
+/// scope, and whether the variable is declared secret there. `None` for a `pm.variables`
+/// write, which is local to the execution, and for an environment write with no
+/// environment selected.
+pub(crate) fn write_scope(
+    workspace: &Workspace,
+    target: &Target<'_>,
+    environment: Option<&EnvironmentNode>,
+    write: &VariableWrite,
+) -> Option<(SecretScope, bool)> {
+    let (scope, declared) = match write.scope {
+        VariableScope::Variables => return None,
+        VariableScope::Globals => (SecretScope::Global, workspace.manifest.globals.as_slice()),
+        VariableScope::CollectionVariables => (
+            SecretScope::Collection(target.collection.collection.id),
+            target.collection.collection.variables.as_slice(),
+        ),
+        VariableScope::Environment => {
+            let environment = environment?;
+            (
+                SecretScope::Environment(environment.environment.id),
+                environment.environment.variables.as_slice(),
+            )
+        }
+    };
+    let secret = declared
+        .iter()
+        .any(|variable| variable.secret && variable.key == write.key);
+    Some((scope, secret))
 }

@@ -10,8 +10,8 @@ use rquickjs::{Context, Ctx, Runtime};
 use crate::pm;
 use crate::shim::PRELUDE;
 use crate::{
-    ConsoleEntry, ScriptContext, ScriptError, ScriptErrorKind, ScriptOutcome, ScriptStage,
-    TestResult, VariableScope, VariableWrite,
+    ConsoleEntry, NextRequest, ScriptContext, ScriptError, ScriptErrorKind, ScriptOutcome,
+    ScriptStage, TestResult, VariableScope, VariableWrite,
 };
 
 /// QuickJS heap cap for one script run.
@@ -40,6 +40,7 @@ pub(super) struct State {
     writes: Vec<VariableWrite>,
     tests: Vec<TestResult>,
     console: Vec<ConsoleEntry>,
+    next_request: Option<NextRequest>,
 }
 
 impl State {
@@ -54,6 +55,7 @@ impl State {
             writes: Vec::new(),
             tests: Vec::new(),
             console: Vec::new(),
+            next_request: None,
         }
     }
 
@@ -132,11 +134,20 @@ impl State {
         self.console.push(ConsoleEntry { level, message });
     }
 
+    /// Records a `setNextRequest` call; the last one wins.
+    pub(super) fn set_next_request(&mut self, next: NextRequest) {
+        if let NextRequest::Request(target) = &next {
+            self.spent(target.len());
+        }
+        self.next_request = Some(next);
+    }
+
     pub(super) fn outcome(&self) -> ScriptOutcome {
         ScriptOutcome {
             tests: self.tests.clone(),
             console: self.console.clone(),
             writes: self.writes.clone(),
+            next_request: self.next_request.clone(),
         }
     }
 }
@@ -213,7 +224,7 @@ fn eval_source(
                 kind,
                 stage: context.stage,
                 message,
-                outcome: current_outcome(state),
+                outcome: Box::new(current_outcome(state)),
             }
         })
 }
@@ -285,6 +296,6 @@ fn internal(stage: ScriptStage, message: String) -> ScriptError {
         kind: ScriptErrorKind::Internal,
         stage,
         message,
-        outcome: ScriptOutcome::default(),
+        outcome: Box::default(),
     }
 }

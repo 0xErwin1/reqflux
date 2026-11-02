@@ -99,6 +99,20 @@ a write to a secret variable goes to the keyring and never to the app state, an 
 secret leaves the keyring alone, and `pm.variables` writes stay local to the execution.
 `reqflux run` does not persist writes.
 
+#### Collection runner
+
+`Engine::run_collection` runs the requests under a collection or folder in tree order, depth
+first, each through the `Engine::execute` path (scripts, the active environment, the host guard).
+Script writes to globals, collection variables and the environment carry to the next requests as
+current values in memory (`RunSummary::current`); `pm.variables` and secret writes do not carry,
+and nothing reaches disk. `pm.setNextRequest(id|name)` jumps (an id first, then the first request
+with that name); `null` stops; an unknown name ends the run as a failure. At most
+`RunOptions::max_steps` sends (default 1000) end a jump loop. A cancellation token stops the run
+and cancels the send in flight; `bail` stops at the first failed step. Events (`Started`,
+`Finished(StepResult)`) and the summary carry only masked URL, error and test text. A caller that
+passes the app state gets one history entry per send; pre-send failures and cancelled sends are
+not recorded.
+
 ## On-disk format
 
 A workspace is a directory, wherever it lives. Workspaces the app keeps are under
@@ -298,7 +312,9 @@ body, time and size, or the error). `reqflux_engine::state` owns the table (`rec
 `history`, `history_entry`, `clear_history`); front ends never write it. A body over 5 MB is
 stored cut, on a character boundary for text, and flagged truncated; a workspace keeps its
 newest 500 entries. A send that fails before it goes out (an unresolvable request, a failing
-pre-request script) is not recorded, and neither `reqflux run` nor MCP record yet.
+pre-request script) is not recorded, and neither `reqflux run` (a request or a collection run) nor MCP
+record yet; the window records a collection run by passing its app state to
+`Engine::run_collection`.
 
 Secrets never reach history in clear. The engine builds the request as sent
 (`Executed::sent`, `SentRequest`) with every value of every secret variable in scope replaced
@@ -480,14 +496,28 @@ measurably demand it, and then by one-way layers.
 
 ## Command line
 
-`reqflux` with no arguments opens the window. `reqflux run` sends one request through
-`reqflux_engine`, the same path the UI and MCP use:
+`reqflux` with no arguments opens the window. `reqflux run` sends one request, or runs a
+collection or folder, through `reqflux_engine`, the same path the UI and MCP use:
 
 ```text
-reqflux run <request> [--workspace <dir>] [--env <slug>] [--var <key>=<value>]... [-i|--include]
+reqflux run <target> [--workspace <dir>] [--environment|--env <slug>] [--var <key>=<value>]... [-i|--include] [--bail] [--json]
 ```
 
-- `<request>` is a request id or its slug path, `<collection>/<folder>/.../<request>`.
+- `<target>` is the id or slug path of a request, a folder (`<collection>/<folder>/...`) or a
+  collection (`<collection>`); a request wins over a folder at the same path. `--include` is for a
+  request only; `--bail` and `--json` are for a run only, and using them otherwise is a usage
+  error (exit 2).
+- A collection or folder runs through `Engine::run_collection`. stdout gets one line per request
+  as it finishes, `<METHOD> <name> -> <code> <reason> in <ms> ms, <size>, tests <passed>/<total>`
+  or `<METHOD> <name> -> error: <message>`, plus `  fail <test>: <message>` per failing test, and
+  ends with `<n> requests, <n> failed; tests <n> passed, <n> failed; <ms> ms` and, when the run
+  ended early, `; <why>`. `--json` prints one document instead (`target`, `passed`, `end`,
+  `next`, the counts, `elapsed_ms` and `results` with each step's method, masked URL, status,
+  time, size, tests and error). Exit 0 when every request got a response, every test passed and
+  the run completed or `pm.setNextRequest(null)` stopped it; 1 otherwise; 2 for usage. Ctrl-C
+  cancels the run and still prints the report. A run writes nothing to the workspace or the app
+  state, so it records no history.
+- For a single request:
 - `--workspace` defaults to the current directory. `--env` selects an environment by slug;
   without it no environment applies. `--var` sets a local variable, the highest scope, and
   repeats.
@@ -579,6 +609,11 @@ allows it and without one otherwise.
   same `reqflux_http` client the request path uses, bounded by the request's own timeout. Because
   a script can wait for the network, every script runs on a dedicated blocking thread with its
   own current-thread runtime, so neither the GPU thread nor the engine's async runtime waits.
+- `pm.setNextRequest`, `pm.execution.setNextRequest` and `postman.setNextRequest` record where a
+  collection run goes next in `ScriptOutcome::next_request`: a string names a request by name or
+  id, `null` stops the run, the last call in a script wins, and any other argument throws like
+  Postman. Pre-request and test scripts both record it; a single send ignores it, and the runner
+  resolves the name or id.
 - Every run is bounded three ways, so a script in a shared collection cannot hang the app or
   exhaust the machine: a 64 MiB QuickJS heap, a 5 s wall clock enforced by the interrupt
   handler, and an 8 MiB cap on what the host itself collects (console lines, test results and

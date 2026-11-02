@@ -4,6 +4,11 @@
 //! the request view, the merged variable scope and, for a test script, the response view. It
 //! never performs HTTP and never touches the engine; variable writes come back as data for
 //! the caller to apply.
+//!
+//! `pm.setNextRequest`, `pm.execution.setNextRequest` and `postman.setNextRequest` record
+//! where a collection run goes next in [`ScriptOutcome::next_request`]: a string names the
+//! request by name or id, `null` stops the run, the last call wins, and any other argument
+//! throws. Both stages record it; a single send ignores it.
 
 mod modules;
 mod pm;
@@ -229,7 +234,17 @@ pub struct VariableWrite {
     pub value: Option<String>,
 }
 
-/// Everything a script produced: test results, console entries and variable writes.
+/// Where a collection run goes after the current request, as `pm.setNextRequest` asked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NextRequest {
+    /// `setNextRequest(null)`: the run stops after the current request.
+    Stop,
+    /// `setNextRequest("...")`: the run jumps to the request with this name or id, as given.
+    Request(String),
+}
+
+/// Everything a script produced: test results, console entries, variable writes and the
+/// next request a collection run should send.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ScriptOutcome {
     /// The `pm.test` results in call order.
@@ -238,6 +253,9 @@ pub struct ScriptOutcome {
     pub console: Vec<ConsoleEntry>,
     /// The variable writes in call order.
     pub writes: Vec<VariableWrite>,
+    /// The last `pm.setNextRequest` / `postman.setNextRequest` call, or `None` when the
+    /// script made none. Only a collection run reads it.
+    pub next_request: Option<NextRequest>,
 }
 
 /// The kind of a script failure.
@@ -271,7 +289,8 @@ pub struct ScriptError {
     /// The failure message.
     pub message: String,
     /// The tests, console entries and writes collected before the failure.
-    pub outcome: ScriptOutcome,
+    /// Boxed so the error stays small on the `Ok` path of every run.
+    pub outcome: Box<ScriptOutcome>,
 }
 
 /// Runs one script in an isolated QuickJS context and collects its effects.
