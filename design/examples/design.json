@@ -1,0 +1,21 @@
+{
+  "title": "Saved examples",
+  "brief": "Saved examples of a request (v1-features S4): save the current response as an example from the response pane, list a request's examples, open one read-only (request as written and response as saved, secrets masked), rename and delete; plus Save response body to file through the native dialog with a toast. Built on the bolt-v2 shell with a states desk.",
+  "feature": "odd/tasks/v1-features.md",
+  "artboards": [
+    {
+      "file": "01-tree-children.html",
+      "title": "Tree children, read-only example tab",
+      "tradeoff": "Examples are visible and openable from the tree like any entity, and an example gets a whole tab; the tree grows a third row kind and gets longer, and comparing an example with the live response means switching tabs",
+      "width": 1440,
+      "height": 3407
+    },
+    {
+      "file": "02-request-tab.html",
+      "title": "An Examples tab in the request",
+      "tradeoff": "The tree stays requests only and examples sit beside the request they document, saved inline without a dialog; they are invisible until the request is open, and the read-only view gets only the request pane's space while the live response collapses",
+      "width": 1440,
+      "height": 2699
+    }
+  ]
+}

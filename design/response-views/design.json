@@ -15,7 +15,7 @@
       "title": "Script tabs, format in the bottom bar",
       "tradeoff": "Closest to bolt-v2/01-main and separates what the server sent from what scripts said; the format switch lives far from the view switch, and a failed test hides behind a tab",
       "width": 1440,
-      "height": 5160
+      "height": 6958
     },
     {
       "file": "03-body-with-inspector.html",
