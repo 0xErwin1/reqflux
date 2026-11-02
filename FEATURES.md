@@ -122,7 +122,7 @@ One MCP server, `reqflux`, for everything.
 | Policy by execution class (read, write, execute, destructive), host and environment allowlists | v1 |
 | In-app approvals and audit log | v1 |
 | App settings: theme, interface font size and MCP policy editing | v1 |
-| Run the collection runner (`collection_run`; the engine runner exists, the tool does not yet) | v1 |
+| Run the collection runner (`collection_run`) | v1 |
 | Resources addressed by id | Later |
 
 ## User experience

@@ -216,21 +216,10 @@
           hasPrebuilt = builtins.elem system prebuiltSystems;
           hasNightly = builtins.elem system nightlySystems;
 
-          # scripts/gpui-mcp.sh builds the UI automation server, whose capture
-          # backend links PipeWire, libgbm and EGL and generates bindings with
-          # bindgen. ReqFlux itself does not need them.
-          automationBuildInputs = lib.optionals pkgs.stdenv.hostPlatform.isLinux (
-            with pkgs;
-            [
-              pipewire
-              libgbm
-              libGL
-            ]
-          );
         in
         {
           devShells.default = pkgs.mkShell {
-            buildInputs = buildInputs ++ automationBuildInputs;
+            inherit buildInputs;
             nativeBuildInputs = nativeBuildInputs ++ [
               rustToolchain
               pkgs.cargo-nextest
