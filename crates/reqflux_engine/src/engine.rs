@@ -13,6 +13,7 @@ use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
+use crate::auth::{Browser, SystemBrowser};
 use crate::current::CurrentValues;
 use crate::error::{ExecuteError, OpenError, SaveError};
 use crate::guard::HostGuard;
@@ -33,6 +34,7 @@ pub struct Engine {
     pub(crate) root: PathBuf,
     pub(crate) loaded: Loaded,
     secrets: Arc<dyn SecretStore>,
+    browser: Arc<dyn Browser>,
 }
 
 /// A request in flight.
@@ -274,7 +276,30 @@ impl Engine {
             root,
             loaded,
             secrets,
+            browser: Arc::new(SystemBrowser),
         })
+    }
+
+    /// Replaces what opens the OAuth 2.0 authorization URL, the system browser by default.
+    /// A test passes one that follows the redirect itself.
+    pub fn set_browser(&mut self, browser: Arc<dyn Browser>) {
+        self.browser = browser;
+    }
+
+    /// Deletes the OAuth 2.0 token kept for the effective auth of the request `selector`, so
+    /// the next send acquires a new one. Deleting a token that is not stored succeeds.
+    ///
+    /// # Errors
+    ///
+    /// No request matches `selector`, or the secret store failed.
+    pub fn forget_oauth_token(&self, selector: &str) -> Result<(), ExecuteError> {
+        let target = crate::select::find(self.workspace(), selector)?;
+        let (owner, _) = crate::prepare::effective(&target.request.request, &target);
+        let key = owner.token_key(
+            self.workspace().manifest.id,
+            target.collection.collection.id,
+        );
+        Ok(self.secrets.delete(&key)?)
     }
 
     /// The store secret variable values are read from and written to.
@@ -565,13 +590,17 @@ impl Engine {
     }
 
     /// [`Engine::send`] with `guard` checking every redirect target before it is followed.
-    fn send_guarded(&self, prepared: Prepared, guard: Option<&HostGuard>) -> Execution {
+    /// AWS SigV4 signs here, so the request history records is the signed one; the send
+    /// task completes an OAuth 2.0 or digest auth.
+    fn send_guarded(&self, mut prepared: Prepared, guard: Option<&HostGuard>) -> Execution {
+        let signed = crate::auth::sign_now(&mut prepared.request, prepared.auth.as_ref());
         let sent = prepared.sent();
         let masker = prepared.masker();
         let Prepared {
             request,
             unresolved,
             secret_problem,
+            auth,
             ..
         } = prepared;
         let PreparedRequest { method, url, .. } = &request;
@@ -581,11 +610,16 @@ impl Engine {
             mask: Some(masker.secret_mask()),
         };
         let cancel = CancellationToken::new();
-        let client = self.client.clone();
+        let context = crate::auth::AuthContext {
+            client: self.client.clone(),
+            secrets: Arc::clone(&self.secrets),
+            browser: Arc::clone(&self.browser),
+        };
         let token = cancel.clone();
-        let handle = self
-            .runtime
-            .spawn(async move { client.send_with(request, token, rules).await });
+        let handle = self.runtime.spawn(async move {
+            signed?;
+            crate::auth::send(context, request, auth, token, rules).await
+        });
         Execution {
             method,
             url,

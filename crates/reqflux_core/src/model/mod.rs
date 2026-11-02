@@ -6,6 +6,7 @@
 //! assembles from them together with slugs and sidecar [`Scripts`].
 
 mod auth;
+mod auth_kinds;
 mod body;
 mod documents;
 mod extensions;
@@ -16,6 +17,10 @@ mod tree;
 mod variable;
 
 pub use auth::{ApiKeyLocation, Auth};
+pub use auth_kinds::{
+    AWS_V4, AuthFieldsError, AwsV4Auth, ClientAuthentication, DIGEST, DigestAlgorithm, DigestAuth,
+    OAUTH2, OAuth2Auth, OAuth2Grant, TokenLocation, TypedAuth, secret_fields,
+};
 pub use body::{Body, FormPart, RawLanguage, Settings};
 pub use documents::{Collection, Environment, Folder, Request, WorkspaceManifest};
 pub use id::Id;

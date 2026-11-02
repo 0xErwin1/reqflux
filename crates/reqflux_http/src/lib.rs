@@ -2,6 +2,7 @@
 //! cancellation. Inputs and outputs carry no ReqFlux model types; `reqflux_engine` builds a
 //! [`PreparedRequest`] and reads a [`Response`].
 
+pub mod auth;
 mod client;
 mod error;
 mod redirect;

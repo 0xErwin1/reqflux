@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use reqflux_core::model::{Auth, CollectionNode, EnvironmentNode, Item, Variable, Workspace};
+use reqflux_core::model::{
+    Auth, CollectionNode, EnvironmentNode, Item, Variable, Workspace, secret_fields,
+};
 
 use crate::secrets::{SecretError, SecretKey, SecretScope, SecretStore};
 use crate::sent::Secrets;
@@ -164,6 +166,17 @@ fn add_auth(auth: &Auth, secrets: &mut Secrets) {
         Auth::Basic { password, .. } => secrets.add(password.as_str()),
         Auth::Bearer { token } => secrets.add(token.as_str()),
         Auth::ApiKey { value, .. } => secrets.add(value.as_str()),
+        // A typed kind names its credential keys, in both spellings: the region or the
+        // algorithm is not a secret, and masking it would hide it in every text.
+        Auth::Other { kind, fields } if !secret_fields(kind).is_empty() => {
+            for key in secret_fields(kind) {
+                if let Some(toml::Value::String(text)) = fields.get(*key) {
+                    secrets.add(text.as_str());
+                }
+            }
+        }
+        // A type the engine does not read, or one whose fields do not read: every value
+        // may be a credential.
         Auth::Other { fields, .. } => {
             for value in fields.values() {
                 if let toml::Value::String(text) = value {

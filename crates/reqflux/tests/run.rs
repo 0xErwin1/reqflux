@@ -483,12 +483,12 @@ fn workspace_that_fails_to_load_is_a_usage_error() {
 
 #[test]
 fn unsupported_auth_fails() {
-    let request = "method = \"GET\"\nurl = \"http://127.0.0.1:1/\"\n\n[auth]\ntype = \"digest\"\nusername = \"u\"\n";
+    let request = "method = \"GET\"\nurl = \"http://127.0.0.1:1/\"\n\n[auth]\ntype = \"hawk\"\nusername = \"u\"\n";
     let dir = workspace("", &[("r", request.to_owned())]);
     assert_failure(
         &run(&dir, &["api/r"]),
         1,
-        "error: auth type digest is not supported yet\n",
+        "error: auth type hawk is not supported yet\n",
     );
 }
 

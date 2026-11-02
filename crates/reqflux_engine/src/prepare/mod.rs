@@ -7,6 +7,7 @@ mod resolver;
 mod stored;
 mod url;
 
+pub(crate) use auth::effective;
 pub(crate) use stored::workspace_secrets;
 
 use std::path::Path;
@@ -19,6 +20,7 @@ use reqflux_core::template::{DynamicSource, Scope, ScopeEntry, ScopeKind, Scopes
 use reqflux_http::{PreparedRequest, RequestOptions};
 use reqflux_script::VariableWrite;
 
+use crate::auth::PendingAuth;
 use crate::current::CurrentValues;
 use crate::error::ExecuteError;
 use crate::guard::HostGuard;
@@ -64,6 +66,8 @@ pub struct Prepared {
     pub secret_problem: Option<String>,
     /// The values history must mask; see [`Prepared::sent`].
     pub(crate) secrets: Secrets,
+    /// The digest, AWS SigV4 or OAuth 2.0 auth the send completes.
+    pub(crate) auth: Option<PendingAuth>,
 }
 
 impl Prepared {
@@ -72,8 +76,11 @@ impl Prepared {
     /// password, bearer token or API key value, wherever they appear in the URL, the
     /// headers and the body.
     #[must_use]
+    /// An OAuth 2.0 token, only known once the send starts, shows as the mask where it
+    /// will go.
     pub fn sent(&self) -> SentRequest {
-        sent::redact(&self.request, &self.masker())
+        let shown = crate::auth::shown(&self.request, self.auth.as_ref());
+        sent::redact(&shown, &self.masker())
     }
 
     /// What masks this request's secrets in any other text, such as the error of a failed
@@ -191,9 +198,17 @@ pub(crate) fn prepare_target(
     let base = resolver.text(&request.url);
     let mut query = resolver.pairs(&request.params);
     let mut headers = resolver.pairs(&request.headers);
-    let auth = auth::effective(request, target);
+    let (owner, auth) = auth::effective(request, target);
+    let token = owner.token_key(workspace.manifest.id, target.collection.collection.id);
     let mut secrets = Secrets::default();
-    auth::apply(auth, &mut resolver, &mut headers, &mut query, &mut secrets)?;
+    let pending = auth::apply(
+        auth,
+        token,
+        &mut resolver,
+        &mut headers,
+        &mut query,
+        &mut secrets,
+    )?;
     let body = body::prepare(&request.body, root, &headers, &mut resolver)?;
     resolver.add_secret_values(&names, &mut secrets);
 
@@ -208,6 +223,7 @@ pub(crate) fn prepare_target(
         unresolved: resolver.into_unresolved(),
         secret_problem: stored.problem.clone(),
         secrets,
+        auth: pending,
     })
 }
 

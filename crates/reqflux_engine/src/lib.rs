@@ -66,6 +66,7 @@
 
 pub mod approvals;
 pub mod audit;
+mod auth;
 mod code;
 pub mod config;
 mod create;
@@ -86,6 +87,7 @@ pub mod state;
 mod tree;
 mod variables;
 
+pub use auth::{Browser, SystemBrowser};
 pub use code::code;
 pub use create::create_workspace;
 pub use current::CurrentValues;

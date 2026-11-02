@@ -273,7 +273,7 @@ The other shapes:
 
 | Table | Variants |
 |-------|----------|
-| `[auth]` | `type = "inherit"` (default, not written), `"none"`, `"basic"` (`username`, `password`), `"bearer"` (`token`), `"apikey"` (`key`, `value`, `location`), or any other type name with its fields kept as they are |
+| `[auth]` | `type = "inherit"` (default, not written), `"none"`, `"basic"` (`username`, `password`), `"bearer"` (`token`), `"apikey"` (`key`, `value`, `location`), `"digest"` (`username`, `password`, `algorithm` `"MD5"`\|`"SHA-256"`), `"awsv4"` (`access_key`, `secret_key`, `session_token`?, `region`, `service`), `"oauth2"` (`grant_type` `client_credentials`\|`password`\|`authorization_code`\|`refresh_token`, `token_url`, `auth_url`?, `client_id`, `client_secret`?, `scope`?, `username`?, `password`?, `refresh_token`?, `client_auth` `body`\|`header`, `token_location` `header`\|`query`, `header_prefix`?, `query_param`?; Postman's key spellings are read too; credentials belong in `{{secret}}` variables), or any other type name with its fields kept as they are |
 | `[body]` | `mode = "none"`, `"raw"` (`language`: `json`, `xml`, `text`, `html`, `javascript`; `text`), `"urlencoded"` (`[[body.fields]]` key and value rows), `"formdata"` (`[[body.parts]]` with `kind = "text"` and `value`, or `kind = "file"` and `path`), `"binary"` (`path`), `"graphql"` (`query`, `variables`) |
 | key and value rows | `key`, `value`, optional `description`, `enabled = false` when disabled |
 
@@ -531,7 +531,7 @@ reqflux run <target> [--workspace <dir>] [--environment|--env <slug>] [--var <ke
 | Exit code | Meaning |
 |-----------|---------|
 | 0 | A response was received, whatever its status. |
-| 1 | The request could not be executed: transport error, unsupported auth, environment not allowed for the collection, invalid GraphQL variables. |
+| 1 | The request could not be executed: transport error, unsupported auth, auth that cannot be completed (`authorization failed: …`), environment not allowed for the collection, invalid GraphQL variables. |
 | 2 | Usage error: bad arguments, unknown request or environment, workspace that fails to load. |
 
 Secret variables have no value in workspace files; a valueless secret resolves from the OS
@@ -588,7 +588,19 @@ the request, checks the environment and resolves variables, auth, body and setti
 `reqflux_http` request without IO (`reqflux_engine::prepare` is the same step as a pure function);
 `Engine::execute` sends it as a task on the engine runtime and returns an `Execution` with its
 `JoinHandle` and a cancellation token. Auth types other than `inherit`, `none`, `basic`,
-`bearer` and `apikey` fail with `auth type <type> is not supported yet`.
+`bearer`, `apikey`, `digest`, `awsv4` and `oauth2` fail with `auth type <type> is not supported
+yet`.
+
+Digest, AWS SigV4 and OAuth 2.0 stay `Auth::Other` in the model and are read through typed views
+(`Auth::typed`); `secret_fields(kind)` names their credential keys, which history and every
+masked view hide. Digest answers a `401` challenge once (RFC 7616: MD5, SHA-256, `-sess`,
+`qop=auth`). SigV4 signs every header plus `host` and `x-amz-date`, and the payload hash, when the
+send starts, so history records the signed request. OAuth 2.0 tokens live only in the OS keyring
+under `<workspace>/collection/<collection>/oauth2/<request|folder|collection>/<id>` and are
+refreshed before a send once expired; the authorization code grant uses PKCE S256, opens the
+system browser (`Engine::set_browser` replaces it) and waits up to 300 s for a loopback redirect
+on `127.0.0.1:<random>/callback` with a matching `state`. An `Authorization` request header still
+wins.
 `Engine::prepare_draft` prepares a draft request document in the place of the stored one,
 keeping the stored request's parents (and with them the scopes and the environment
 allowlist), and `Engine::execute_draft` sends it.

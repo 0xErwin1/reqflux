@@ -118,7 +118,7 @@ fn unresolved_lists_names_no_scope_defines_without_an_environment() {
 fn unresolved_is_empty_when_the_request_cannot_be_prepared() {
     let mut request_doc = get("{{missing}}");
     request_doc.auth = Auth::Other {
-        kind: "oauth2".to_owned(),
+        kind: "hawk".to_owned(),
         fields: toml::Table::new(),
     };
     let inspection = inspect(&single(request_doc));
@@ -126,7 +126,7 @@ fn unresolved_is_empty_when_the_request_cannot_be_prepared() {
     assert_eq!(inspection.url, "{{missing}}");
     assert_eq!(
         inspection.problem.as_deref(),
-        Some("auth type oauth2 is not supported yet")
+        Some("auth type hawk is not supported yet")
     );
 }
 
@@ -195,14 +195,14 @@ fn an_allowed_environment_still_resolves_when_the_auth_is_the_problem() {
         })
     {
         request_doc.auth = Auth::Other {
-            kind: "oauth2".to_owned(),
+            kind: "hawk".to_owned(),
             fields: toml::Table::new(),
         };
     }
     let inspection = inspect_in(&ws, Some("dev"));
     assert_eq!(
         inspection.problem.as_deref(),
-        Some("auth type oauth2 is not supported yet")
+        Some("auth type hawk is not supported yet")
     );
     assert_eq!(
         inspection.spans("{{env_only}}"),

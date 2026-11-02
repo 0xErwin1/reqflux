@@ -4375,6 +4375,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
+dependencies = [
+ "cfg-if",
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5098,7 +5108,7 @@ dependencies = [
  "getrandom 0.4.3",
  "hkdf 0.12.4",
  "hmac 0.12.1",
- "md-5",
+ "md-5 0.10.6",
  "num",
  "num-bigint-dig",
  "pbkdf2",
@@ -6085,7 +6095,9 @@ dependencies = [
  "interprocess",
  "keyring",
  "log",
+ "open",
  "pretty_assertions",
+ "rand 0.10.3",
  "reqflux_core",
  "reqflux_http",
  "reqflux_postman",
@@ -6094,6 +6106,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
  "tokio",
@@ -6108,11 +6121,15 @@ dependencies = [
 name = "reqflux_http"
 version = "0.1.0-dev.0"
 dependencies = [
+ "hmac 0.13.0",
+ "md-5 0.11.0",
  "pretty_assertions",
  "reqwest",
  "rustls-pemfile",
+ "sha2 0.11.1",
  "tempfile",
  "thiserror 2.0.21",
+ "time",
  "tokio",
  "tokio-rustls",
  "tokio-util",

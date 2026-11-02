@@ -68,6 +68,11 @@ pub enum HttpError {
     /// The HTTP client could not be built.
     #[error("could not build HTTP client: {0}")]
     Client(String),
+    /// The auth could not be completed, such as an OAuth 2.0 token request the server
+    /// refused or a digest challenge that cannot be answered. The text never holds a
+    /// credential.
+    #[error("authorization failed: {0}")]
+    Auth(String),
     /// Any other transport failure, such as too many redirects.
     #[error("{0}")]
     Request(String),

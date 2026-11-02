@@ -73,6 +73,13 @@ pub enum ExecuteError {
     /// The effective auth is a type the engine cannot send yet.
     #[error("auth type {0} is not supported yet")]
     UnsupportedAuth(String),
+    /// The fields of a digest, AWS SigV4 or OAuth 2.0 auth do not read: a missing key or a
+    /// value of the wrong type.
+    #[error("the {0} auth fields are not valid")]
+    InvalidAuth(String),
+    /// The secret store failed, such as deleting a kept OAuth 2.0 token.
+    #[error(transparent)]
+    Secret(#[from] SecretError),
     /// The GraphQL variables do not parse as JSON.
     #[error("graphql variables are not valid JSON: {0}")]
     GraphqlVariables(String),

@@ -547,14 +547,30 @@ fn s7_a_disabled_request_header_does_not_win() {
 fn s7_other_auth_types_are_not_supported() {
     let mut node = collection("c", vec![request("r", get("https://h"))]);
     node.collection.auth = Auth::Other {
-        kind: "digest".to_owned(),
+        kind: "hawk".to_owned(),
         fields: toml::Table::new(),
     };
     let ws = workspace(Vec::new(), vec![node]);
     assert_eq!(
         prepare_err(&ws, "c/r", &ExecuteOptions::default()),
-        "auth type digest is not supported yet"
+        "auth type hawk is not supported yet"
     );
+}
+
+#[test]
+fn s7_typed_auth_whose_fields_do_not_read_is_invalid() {
+    for kind in ["digest", "awsv4", "oauth2"] {
+        let mut node = collection("c", vec![request("r", get("https://h"))]);
+        node.collection.auth = Auth::Other {
+            kind: kind.to_owned(),
+            fields: toml::Table::new(),
+        };
+        let ws = workspace(Vec::new(), vec![node]);
+        assert_eq!(
+            prepare_err(&ws, "c/r", &ExecuteOptions::default()),
+            format!("the {kind} auth fields are not valid")
+        );
+    }
 }
 
 // S8: bodies.

@@ -186,6 +186,12 @@ pub(crate) fn default_state_path(
 }
 
 impl AppState {
+    /// The state file path, so a front end can open a second connection for a background run.
+    #[must_use]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
     /// Opens (creating if needed) the state file at `path`, creating its directory, and
     /// runs the schema migration. A locked, missing or corrupt file is reported, never
     /// panicked on.

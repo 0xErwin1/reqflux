@@ -51,6 +51,12 @@ env_logger = "0.11.11"
 # Linux and the BSDs, Keychain on macOS, Credential Manager on Windows.
 keyring = "4.2.0"
 log = "0.4.34"
+# Digest auth (RFC 7616) and AWS SigV4 signing; the RustCrypto line sha2 0.11 is on.
+hmac = "0.13.0"
+md-5 = "0.11.0"
+# Opens the system browser for the OAuth 2.0 authorization code grant; already in the
+# tree through the GPUI stack.
+open = "5.4.5"
 pretty_assertions = "1.4.1"
 rand = "0.10.3"
 rpassword = "7.5.4"
