@@ -1,8 +1,9 @@
 //! The response under the request: the tab row with the `Response`, `Tests` and `Console`
 //! tabs, the status, time and size, then the empty state before the first send, the progress
 //! bar while sending over the previous outcome dimmed, and the outcome: the unresolved line,
-//! then the Body, Headers and Cookies views of a response (the body with its Pretty / Raw /
-//! Preview bottom bar, the search in the views row and Copy) or its filtered Tests and
+//! then the Body, Headers, Cookies and Timeline views of a response (the body with its
+//! Pretty / Raw / Preview bottom bar, the JSONPath filter and the search in the views row
+//! and Copy) or its filtered Tests and
 //! Console panes, or the error banner of a failure. A response reopened from history carries
 //! the `From history` bar with Resend under the tab row. Clicking the content gives the
 //! response the keyboard focus, where Ctrl F opens the search (see [`views`]).
@@ -14,6 +15,8 @@ mod error;
 mod filters;
 mod footer;
 mod history_bar;
+mod jsonpath_field;
+mod jsonpath_model;
 mod model;
 mod preview;
 mod preview_model;
@@ -22,6 +25,8 @@ mod search;
 mod search_field;
 mod sub_tabs;
 mod tab_row;
+mod timeline;
+mod timeline_model;
 mod views;
 
 #[cfg(test)]
@@ -109,16 +114,26 @@ fn completed(id: &str, send: &RequestSend, outcome: &Completed, cx: &mut Context
             let content = match sub_tabs::effective_tab(send.tab, received) {
                 ResponseTab::Body => match sub_tabs::effective_view(send.view, received) {
                     BodyView::Preview => preview::render(id, send, cx),
-                    view => {
+                    _ => {
                         let found = body::Found {
                             hits: views::hits(send, cx).into(),
                             current: send.views.current,
                         };
-                        body::render(received, view, found, &send.views.scroll, cx)
+                        let lines = views::shown_lines(send, received, cx);
+                        let body = body::render(received, lines, found, &send.views.scroll, cx);
+                        div()
+                            .flex_1()
+                            .min_h_0()
+                            .flex()
+                            .flex_col()
+                            .children(jsonpath_field::error(send, received, cx))
+                            .child(body)
+                            .into_any_element()
                     }
                 },
                 ResponseTab::Headers => sub_tabs::headers(received, cx),
                 ResponseTab::Cookies => cookies_view::render(received, &send.masker, cx),
+                ResponseTab::Timeline => timeline::render(received, cx),
                 ResponseTab::Tests => results::tests(id, received, send.views.tests, cx),
                 ResponseTab::Console => results::console(id, received, send.views.console, cx),
             };

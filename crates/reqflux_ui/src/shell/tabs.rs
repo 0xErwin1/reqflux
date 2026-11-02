@@ -6,7 +6,7 @@
 //! `doc-tab-audit`, the same way. An open history entry has the history tab,
 //! `doc-tab-history`, first in the row; while it is active no request tab is. An open run
 //! document has its tab, `runner-tab`, after the request tabs; while it is active no request
-//! tab is.
+//! tab is. An open saved example has its tab, `example-tab`, after them the same way.
 
 use bolt::composites::{document_tab, document_tab_bar, document_tab_title};
 use bolt::primitives::Icon;
@@ -23,7 +23,7 @@ use super::documents::{Location, locate};
 use super::drafts::RequestDraft;
 use super::request::ui;
 use super::rows::part;
-use super::{Shell, history, runner};
+use super::{Shell, examples, history, runner};
 use crate::tokens::{self, DIRTY_DOT, method_hue};
 
 /// The tab row, element id `document-tabs`.
@@ -38,10 +38,15 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
     let audit = shell.audit_open(cx);
     let active = shell
         .active_request()
-        .filter(|_| !approvals && !audit && !shell.run_tab_active())
+        .filter(|_| !approvals && !audit && !shell.run_tab_active() && !shell.example_tab_active())
         .map(str::to_owned);
     let history_tab = shell.orphan.as_ref().map(|tab| history::tab_chip(tab, cx));
     let run_tab = shell.run.as_ref().map(|run| runner::tab_chip(run, cx));
+    let example_tab = shell
+        .examples
+        .tab
+        .as_ref()
+        .map(|tab| examples::tab_chip(tab, cx));
 
     let bar = document_tab_bar(cx)
         .id("document-tabs")
@@ -54,7 +59,8 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
             let save_error = shell.save_errors.get(&id).map(String::as_str);
             tab(id, &location, is_active, drafted, save_error, cx)
         }))
-        .children(run_tab);
+        .children(run_tab)
+        .children(example_tab);
     bar.when(approvals, |row| row.child(approvals_tab(cx)))
         .when(audit, |row| row.child(audit_tab(cx)))
 }
@@ -87,7 +93,7 @@ fn audit_tab(cx: &mut Context<Shell>) -> Stateful<Div> {
 
 /// The close button `id` of a tab, named `label`: DBFlux's tab close icon; a click runs
 /// `close` and does not reach the tab.
-fn close_button(
+pub(super) fn close_button(
     id: String,
     label: String,
     close: impl Fn(&ClickEvent, &mut Window, &mut gpui::App) + 'static,

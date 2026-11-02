@@ -82,6 +82,7 @@ impl Shell {
         self.leave_approvals(cx);
         self.leave_audit(cx);
         self.leave_history_tab();
+        self.leave_example_tab();
         if let Some(run) = self.run.as_mut() {
             run.active = true;
         }
@@ -135,6 +136,7 @@ impl Shell {
                 .and_then(
                     |id| match tree_model::find(&self.roots, id).map(|node| &node.kind) {
                         Some(NodeKind::Request { .. }) => sidebar.parent(id),
+                        Some(NodeKind::Example { request, .. }) => sidebar.parent(request),
                         Some(NodeKind::Collection | NodeKind::Folder) => Some(id.to_owned()),
                         None => None,
                     },

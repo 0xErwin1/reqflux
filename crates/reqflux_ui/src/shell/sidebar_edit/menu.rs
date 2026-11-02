@@ -154,7 +154,7 @@ fn destinations(roots: &[Node], moving: &str, parent: Option<&str>) -> Vec<Desti
     ) {
         for node in nodes
             .iter()
-            .filter(|node| node.is_expandable() && node.id != moving)
+            .filter(|node| node.is_container() && node.id != moving)
         {
             let path = if prefix.is_empty() {
                 node.name.clone()

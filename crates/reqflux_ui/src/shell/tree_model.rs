@@ -1,9 +1,14 @@
 //! The sidebar collection tree without GPUI: the nodes, which of them are expanded, the
 //! selected one, the rows that are visible and the keyboard navigation over them.
+//!
+//! A request's saved examples are its children (v1-features S4, design/examples/01): a
+//! request with examples expands like a folder, collapsed at first, and each example is a
+//! leaf with its status code.
 
 use std::collections::HashSet;
 
 use reqflux_core::model::{CollectionNode, Item, Workspace};
+use reqflux_engine::Engine;
 
 /// What a tree node stands for.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,6 +22,36 @@ pub(crate) enum NodeKind {
         /// The HTTP method, as the tree shows it.
         method: String,
     },
+    /// A saved example of a request; the node id is [`example_node_id`].
+    Example {
+        /// The id of the request the example belongs to.
+        request: String,
+        /// The example id, unique within its request.
+        example: String,
+        /// The status code of the saved response.
+        status: u16,
+        /// The example file beside its request: `<request-slug>.examples/<slug>.example.toml`.
+        file: String,
+    },
+}
+
+/// A saved example as the tree lists it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ExampleLeaf {
+    /// The example id.
+    pub(crate) id: String,
+    /// The display name.
+    pub(crate) name: String,
+    /// The status code of the saved response.
+    pub(crate) status: u16,
+    /// The file slug: the example is `<request-slug>.examples/<slug>.example.toml`.
+    pub(crate) slug: String,
+}
+
+/// The node id of the example `example` of the request `request`: example ids are unique
+/// only within their request.
+pub(crate) fn example_node_id(request: &str, example: &str) -> String {
+    format!("{request}/{example}")
 }
 
 /// One node of the collection tree.
@@ -36,12 +71,26 @@ pub(crate) struct Node {
 }
 
 impl Node {
-    /// Whether the node can be expanded: collections and folders.
+    /// Whether the node can be expanded: collections, folders and requests with examples.
     pub(crate) fn is_expandable(&self) -> bool {
-        !matches!(self.kind, NodeKind::Request { .. })
+        match self.kind {
+            NodeKind::Collection | NodeKind::Folder => true,
+            NodeKind::Request { .. } => !self.children.is_empty(),
+            NodeKind::Example { .. } => false,
+        }
     }
 
-    /// The number of direct children of a collection or folder; `None` for a request.
+    /// Whether the node holds requests and folders: a collection or a folder.
+    pub(crate) fn is_container(&self) -> bool {
+        matches!(self.kind, NodeKind::Collection | NodeKind::Folder)
+    }
+
+    /// Whether the node is a saved example.
+    pub(crate) fn is_example(&self) -> bool {
+        matches!(self.kind, NodeKind::Example { .. })
+    }
+
+    /// The number of direct children of a node that expands; `None` for a leaf.
     pub(crate) fn child_count(&self) -> Option<usize> {
         self.is_expandable().then_some(self.children.len())
     }
@@ -50,8 +99,19 @@ impl Node {
     pub(crate) fn request_count(&self) -> usize {
         match self.kind {
             NodeKind::Request { .. } => 1,
+            NodeKind::Example { .. } => 0,
             NodeKind::Collection | NodeKind::Folder => {
                 self.children.iter().map(Node::request_count).sum()
+            }
+        }
+    }
+
+    /// The number of examples under the node, at any depth, the node included.
+    pub(crate) fn example_count(&self) -> usize {
+        match self.kind {
+            NodeKind::Example { .. } => 1,
+            NodeKind::Collection | NodeKind::Folder | NodeKind::Request { .. } => {
+                self.children.iter().map(Node::example_count).sum()
             }
         }
     }
@@ -60,6 +120,7 @@ impl Node {
     pub(crate) fn request_ids(&self) -> Vec<String> {
         match self.kind {
             NodeKind::Request { .. } => vec![self.id.clone()],
+            NodeKind::Example { .. } => Vec::new(),
             NodeKind::Collection | NodeKind::Folder => {
                 self.children.iter().flat_map(Node::request_ids).collect()
             }
@@ -67,12 +128,15 @@ impl Node {
     }
 
     /// Whether the node is a request whose name, method or URL contains `needle`, which is
-    /// lowercase.
+    /// lowercase, or an example whose name or status code does.
     fn matches(&self, needle: &str) -> bool {
         match &self.kind {
             NodeKind::Request { method } => [self.name.as_str(), method, self.url.as_str()]
                 .iter()
                 .any(|text| text.to_lowercase().contains(needle)),
+            NodeKind::Example { status, .. } => {
+                self.name.to_lowercase().contains(needle) || status.to_string().contains(needle)
+            }
             NodeKind::Collection | NodeKind::Folder => false,
         }
     }
@@ -86,6 +150,7 @@ impl Node {
     fn match_count(&self, needle: &str) -> usize {
         match self.kind {
             NodeKind::Request { .. } => usize::from(self.matches(needle)),
+            NodeKind::Example { .. } => 0,
             NodeKind::Collection | NodeKind::Folder => self
                 .children
                 .iter()
@@ -95,48 +160,115 @@ impl Node {
     }
 
     /// The text the UI automation tree reads for the row: the name, prefixed by the method
-    /// for a request.
+    /// for a request and followed by the status code for an example.
     pub(crate) fn label(&self) -> String {
         match &self.kind {
             NodeKind::Request { method } => format!("{method} {}", self.name),
+            NodeKind::Example { status, .. } => format!("{} {status}", self.name),
             NodeKind::Collection | NodeKind::Folder => self.name.clone(),
         }
     }
 }
 
-/// The tree nodes of every collection of `workspace`, in store order.
-pub(crate) fn nodes(workspace: &Workspace) -> Vec<Node> {
-    workspace.collections.iter().map(collection_node).collect()
+/// The tree nodes of the workspace `engine` holds, each request with its saved examples as
+/// children. An example directory that cannot be read is logged and lists nothing.
+pub(crate) fn engine_nodes(engine: &Engine) -> Vec<Node> {
+    nodes_with(
+        engine.workspace(),
+        &|request| match engine.examples(request) {
+            Ok(examples) => examples
+                .into_iter()
+                .map(|saved| ExampleLeaf {
+                    id: saved.example.id.to_string(),
+                    name: saved.example.name,
+                    status: saved.example.response.status,
+                    slug: saved.slug,
+                })
+                .collect(),
+            Err(error) => {
+                log::warn!("cannot list the examples of request {request}: {error}");
+                Vec::new()
+            }
+        },
+    )
 }
 
-fn collection_node(collection: &CollectionNode) -> Node {
+/// The tree nodes of every collection of `workspace`, in store order, each request with
+/// the examples `examples` lists for its id as children.
+pub(crate) fn nodes_with(
+    workspace: &Workspace,
+    examples: &dyn Fn(&str) -> Vec<ExampleLeaf>,
+) -> Vec<Node> {
+    workspace
+        .collections
+        .iter()
+        .map(|collection| collection_node(collection, examples))
+        .collect()
+}
+
+fn collection_node(
+    collection: &CollectionNode,
+    examples: &dyn Fn(&str) -> Vec<ExampleLeaf>,
+) -> Node {
     Node {
         id: collection.collection.id.to_string(),
         name: collection.collection.name.clone(),
         kind: NodeKind::Collection,
         url: String::new(),
-        children: collection.items.iter().map(item_node).collect(),
+        children: collection
+            .items
+            .iter()
+            .map(|item| item_node(item, examples))
+            .collect(),
     }
 }
 
-fn item_node(item: &Item) -> Node {
+fn item_node(item: &Item, examples: &dyn Fn(&str) -> Vec<ExampleLeaf>) -> Node {
     match item {
         Item::Folder(folder) => Node {
             id: folder.folder.id.to_string(),
             name: folder.folder.name.clone(),
             kind: NodeKind::Folder,
             url: String::new(),
-            children: folder.items.iter().map(item_node).collect(),
+            children: folder
+                .items
+                .iter()
+                .map(|item| item_node(item, examples))
+                .collect(),
         },
-        Item::Request(request) => Node {
-            id: request.request.id.to_string(),
-            name: request.request.name.clone(),
-            kind: NodeKind::Request {
-                method: request.request.method.as_str().to_owned(),
-            },
-            url: request.request.url.clone(),
-            children: Vec::new(),
+        Item::Request(request) => {
+            let id = request.request.id.to_string();
+            let children = examples(&id)
+                .into_iter()
+                .map(|leaf| example_node(&id, &request.slug, leaf))
+                .collect();
+            Node {
+                id,
+                name: request.request.name.clone(),
+                kind: NodeKind::Request {
+                    method: request.request.method.as_str().to_owned(),
+                },
+                url: request.request.url.clone(),
+                children,
+            }
+        }
+    }
+}
+
+/// The leaf of the example `leaf` of the request `request`, whose file slug is
+/// `request_slug`.
+pub(crate) fn example_node(request: &str, request_slug: &str, leaf: ExampleLeaf) -> Node {
+    Node {
+        id: example_node_id(request, &leaf.id),
+        name: leaf.name,
+        kind: NodeKind::Example {
+            request: request.to_owned(),
+            example: leaf.id,
+            status: leaf.status,
+            file: format!("{request_slug}.examples/{}.example.toml", leaf.slug),
         },
+        url: String::new(),
+        children: Vec::new(),
     }
 }
 
@@ -223,7 +355,8 @@ impl TreeState {
     }
 
     /// Sets the filter text. While it is set, the tree shows only the requests whose name,
-    /// method or URL contains it, case-insensitive, under their folders and collections,
+    /// method or URL contains it, case-insensitive, with all their examples, and the examples
+    /// whose name or status code contains it, under their requests, folders and collections,
     /// expanded. Empty or blank shows the whole tree with the expansion it had.
     pub(crate) fn set_filter(&mut self, query: &str) {
         self.filter = query.trim().to_lowercase();
@@ -232,6 +365,22 @@ impl TreeState {
     /// Whether a filter is set.
     pub(crate) fn is_filtered(&self) -> bool {
         !self.filter.is_empty()
+    }
+
+    /// The examples the tree holds; while a filter is set, those it shows.
+    pub(crate) fn shown_examples(&self) -> usize {
+        if !self.is_filtered() {
+            return self.roots.iter().map(Node::example_count).sum();
+        }
+        self.visible_rows()
+            .iter()
+            .filter(|row| row.node.is_example())
+            .count()
+    }
+
+    /// Whether a filter is set and the tree shows no row.
+    pub(crate) fn shows_nothing(&self) -> bool {
+        self.is_filtered() && self.visible_rows().is_empty()
     }
 
     /// The requests and collections the tree shows.
@@ -259,13 +408,13 @@ impl TreeState {
 
     /// Whether `id` is a request anywhere in the tree, shown or not.
     pub(crate) fn is_request(&self, id: &str) -> bool {
-        fn find(nodes: &[Node], id: &str) -> bool {
-            nodes.iter().any(|node| match node.kind {
-                NodeKind::Request { .. } => node.id == id,
-                NodeKind::Collection | NodeKind::Folder => find(&node.children, id),
-            })
-        }
-        find(&self.roots, id)
+        self.node(id)
+            .is_some_and(|node| matches!(node.kind, NodeKind::Request { .. }))
+    }
+
+    /// Whether `id` is an example anywhere in the tree, shown or not.
+    pub(crate) fn is_example(&self, id: &str) -> bool {
+        self.node(id).is_some_and(Node::is_example)
     }
 
     /// Selects the node `id`.
@@ -307,19 +456,22 @@ impl TreeState {
     pub(crate) fn visible_rows(&self) -> Vec<VisibleRow<'_>> {
         let mut rows = Vec::new();
         for root in &self.roots {
-            self.push_rows(root, 0, None, &mut rows);
+            self.push_rows(root, 0, None, false, &mut rows);
         }
         rows
     }
 
+    /// Pushes the rows of `node` and what shows under it. `shown`: the filter already
+    /// showed the parent, a request that matched, so its examples all show.
     fn push_rows<'a>(
         &'a self,
         node: &'a Node,
         depth: usize,
         parent: Option<usize>,
+        shown: bool,
         rows: &mut Vec<VisibleRow<'a>>,
     ) {
-        if self.is_filtered() && !node.holds_match(&self.filter) {
+        if self.is_filtered() && !shown && !node.holds_match(&self.filter) {
             return;
         }
         let expanded =
@@ -332,8 +484,10 @@ impl TreeState {
             parent,
         });
         if expanded {
+            let request_matched =
+                matches!(node.kind, NodeKind::Request { .. }) && node.matches(&self.filter);
             for child in &node.children {
-                self.push_rows(child, depth + 1, Some(index), rows);
+                self.push_rows(child, depth + 1, Some(index), request_matched, rows);
             }
         }
     }
@@ -452,3 +606,7 @@ mod tests;
 #[cfg(test)]
 #[path = "sidebar_filter_tests.rs"]
 mod filter_tests;
+
+#[cfg(test)]
+#[path = "examples_tree_tests.rs"]
+mod example_tests;

@@ -10,7 +10,7 @@ use gpui::{
     uniform_list,
 };
 
-use super::model::{BodyView, Token, tokens as line_tokens};
+use super::model::{Token, tokens as line_tokens};
 use super::search::{Hit, Mark, mark};
 use crate::shell::request::{Received, size_text};
 use crate::shell::rows::{labeled_row, part};
@@ -24,19 +24,20 @@ pub(super) struct Found {
     pub(super) current: usize,
 }
 
-/// The body of `received` as `view`: `response-body` with rows `response-body-line-<n>`, or
+/// The body of `received` as `lines` show it, with whether they are colored as JSON:
+/// `response-body` with rows `response-body-line-<n>`, or, without lines,
 /// `response-body-binary`. Each match of `found` is a piece `response-body-hit-<m>`, from 1,
 /// the current one filled in the warning color and the others washed in it; `scroll`
 /// scrolls the lines.
 pub(super) fn render(
     received: &Received,
-    view: BodyView,
+    lines: Option<(Arc<[String]>, bool)>,
     found: Found,
     scroll: &UniformListScrollHandle,
     cx: &App,
 ) -> AnyElement {
     let colors = bolt::colors(cx);
-    let Some((lines, json)) = received.text.lines(view) else {
+    let Some((lines, json)) = lines else {
         let text = format!("Binary body, {}", size_text(received.size()));
         return text_region("response-body-binary")
             .aria_label(text.clone())

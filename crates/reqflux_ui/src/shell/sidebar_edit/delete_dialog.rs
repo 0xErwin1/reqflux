@@ -26,6 +26,7 @@ fn noun(kind: &NodeKind) -> &'static str {
         NodeKind::Collection => "collection",
         NodeKind::Folder => "folder",
         NodeKind::Request { .. } => "request",
+        NodeKind::Example { .. } => "example",
     }
 }
 
@@ -241,7 +242,7 @@ impl Sidebar {
     fn delete_row(&self, request: &Node, cx: &Context<Self>) -> AnyElement {
         let method = match &request.kind {
             NodeKind::Request { method } => method.clone(),
-            NodeKind::Collection | NodeKind::Folder => String::new(),
+            NodeKind::Collection | NodeKind::Folder | NodeKind::Example { .. } => String::new(),
         };
         let unsaved = self.edit.unsaved.contains(&request.id);
         let tint = bolt::brand::brand(cx).accent_tint;

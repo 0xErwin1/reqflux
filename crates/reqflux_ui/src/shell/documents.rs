@@ -126,6 +126,54 @@ pub(crate) fn locate(roots: &[Node], id: &str) -> Option<Location> {
     })
 }
 
+/// Where a saved example sits: its request, the request's location, and the example.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ExampleLocation {
+    /// The id of the request the example belongs to.
+    pub(crate) request: String,
+    /// The example id, unique within its request.
+    pub(crate) example: String,
+    /// The example name.
+    pub(crate) name: String,
+    /// The example file beside its request: `<request-slug>.examples/<slug>.example.toml`.
+    pub(crate) file: String,
+    /// Where the request sits.
+    pub(crate) location: Location,
+}
+
+impl ExampleLocation {
+    /// The breadcrumb of the request: `Billing API › invoices › List invoices`.
+    pub(crate) fn breadcrumb(&self) -> String {
+        std::iter::once(self.location.collection.as_str())
+            .chain(self.location.folders.iter().map(String::as_str))
+            .chain(std::iter::once(self.location.name.as_str()))
+            .collect::<Vec<_>>()
+            .join(" › ")
+    }
+}
+
+/// The location of the example tree node `id` among `roots`; `None` when no example has that
+/// node id.
+pub(crate) fn locate_example(roots: &[Node], id: &str) -> Option<ExampleLocation> {
+    let node = super::tree_model::find(roots, id)?;
+    let NodeKind::Example {
+        request,
+        example,
+        file,
+        ..
+    } = &node.kind
+    else {
+        return None;
+    };
+    Some(ExampleLocation {
+        request: request.clone(),
+        example: example.clone(),
+        name: node.name.clone(),
+        file: file.clone(),
+        location: locate(roots, request)?,
+    })
+}
+
 /// The name and method of the request `id` under `nodes`, pushing onto `folders` the names
 /// of the folders on the way down to it; `folders` is left as it was when it is not found.
 fn find_request(nodes: &[Node], id: &str, folders: &mut Vec<String>) -> Option<(String, String)> {
@@ -133,6 +181,7 @@ fn find_request(nodes: &[Node], id: &str, folders: &mut Vec<String>) -> Option<(
         NodeKind::Request { method } => {
             (node.id == id).then(|| (node.name.clone(), method.clone()))
         }
+        NodeKind::Example { .. } => None,
         NodeKind::Folder | NodeKind::Collection => {
             folders.push(node.name.clone());
             let found = find_request(&node.children, id, folders);

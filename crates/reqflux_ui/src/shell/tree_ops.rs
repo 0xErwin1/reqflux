@@ -77,7 +77,7 @@ impl Shell {
             return Err(BUSY.to_owned());
         };
         let created = operation(engine)?;
-        Ok((created, tree_model::nodes(engine.workspace())))
+        Ok((created, tree_model::engine_nodes(engine)))
     }
 
     /// Closes the tab of the deleted request `id` and drops its draft, in memory and in

@@ -17,7 +17,7 @@ use common::{id, id_text, snapshot, temp_dir, write};
 use pretty_assertions::assert_eq;
 use reqflux_engine::{
     Browser, Engine, ExecuteError, ExecuteOptions, Executed, HttpError, MASK, MemorySecretStore,
-    SecretKey, SecretScope, SecretStore,
+    OAuthFetch, OAuthTokenState, SecretKey, SecretScope, SecretStore,
 };
 use serde_json::json;
 use sha2::{Digest as _, Sha256};
@@ -591,4 +591,348 @@ fn a_401_with_a_new_token_is_returned_and_the_next_send_fetches_another() {
 
     assert_eq!(execute(&engine).response.status, 401);
     assert_eq!(received(&rt, &server, "/token").len(), 2);
+}
+
+fn token_state(engine: &Engine) -> OAuthTokenState {
+    match engine.oauth_token_state("api/r", None) {
+        Ok(state) => state,
+        Err(error) => panic!("token state: {error}"),
+    }
+}
+
+fn fetch(engine: &Engine) -> OAuthFetch {
+    match engine.fetch_oauth_token("api/r", None, &ExecuteOptions::default()) {
+        Ok(fetch) => fetch,
+        Err(error) => panic!("fetch: {error}"),
+    }
+}
+
+fn finish(rt: &Runtime, fetch: OAuthFetch) -> Result<OAuthTokenState, HttpError> {
+    match rt.block_on(fetch.handle) {
+        Ok(outcome) => outcome,
+        Err(error) => panic!("fetch task: {error}"),
+    }
+}
+
+#[test]
+fn the_token_state_reads_none_valid_and_expired_without_the_token() {
+    let rt = runtime();
+    let server = start(&rt, Vec::new());
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::clone(&store),
+    );
+
+    assert_eq!(token_state(&engine), OAuthTokenState::None);
+
+    let valid = json!({ "access_token": "t", "expires_at": 99_999_999_999u64 });
+    if let Err(error) = store.set(&token_key(), &valid.to_string()) {
+        panic!("{error}");
+    }
+    assert_eq!(
+        token_state(&engine),
+        OAuthTokenState::Valid {
+            expires_at: Some(99_999_999_999)
+        }
+    );
+
+    let unbounded = json!({ "access_token": "t" });
+    if let Err(error) = store.set(&token_key(), &unbounded.to_string()) {
+        panic!("{error}");
+    }
+    assert_eq!(
+        token_state(&engine),
+        OAuthTokenState::Valid { expires_at: None }
+    );
+
+    let expired = json!({ "access_token": "t", "refresh_token": "r", "expires_at": 1000 });
+    if let Err(error) = store.set(&token_key(), &expired.to_string()) {
+        panic!("{error}");
+    }
+    assert_eq!(
+        token_state(&engine),
+        OAuthTokenState::Expired {
+            expires_at: Some(1000),
+            refreshable: true
+        }
+    );
+
+    // A token a 401 dropped keeps only its refresh token, with no known expiry.
+    let dropped = json!({ "access_token": "", "refresh_token": "r", "expires_at": 0 });
+    if let Err(error) = store.set(&token_key(), &dropped.to_string()) {
+        panic!("{error}");
+    }
+    assert_eq!(
+        token_state(&engine),
+        OAuthTokenState::Expired {
+            expires_at: None,
+            refreshable: true
+        }
+    );
+}
+
+#[test]
+fn the_token_state_follows_a_draft_auth() {
+    let rt = runtime();
+    let server = start(&rt, Vec::new());
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::clone(&store),
+    );
+    let valid = json!({ "access_token": "t" });
+    if let Err(error) = store.set(&token_key(), &valid.to_string()) {
+        panic!("{error}");
+    }
+    let Some(collection) = engine.workspace().collections.first() else {
+        panic!("no collection");
+    };
+    let mut draft = match collection.items.first() {
+        Some(reqflux_core::model::Item::Request(request)) => request.request.clone(),
+        _ => panic!("no request"),
+    };
+    draft.auth = reqflux_core::model::Auth::None;
+
+    let state = match engine.oauth_token_state("api/r", Some(&draft)) {
+        Ok(state) => state,
+        Err(error) => panic!("{error}"),
+    };
+
+    assert_eq!(state, OAuthTokenState::None, "the draft has no OAuth 2.0");
+}
+
+#[test]
+fn get_new_token_runs_the_grant_without_a_send_even_with_a_valid_token() {
+    let rt = runtime();
+    let server = start(
+        &rt,
+        vec![
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .and(body_string_contains("grant_type=client_credentials"))
+                .respond_with(token(json!({ "access_token": "new", "expires_in": 3600 }))),
+        ],
+    );
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let valid = json!({ "access_token": "old", "expires_at": 99_999_999_999u64 });
+    if let Err(error) = store.set(&token_key(), &valid.to_string()) {
+        panic!("{error}");
+    }
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::clone(&store),
+    );
+
+    let fetch = fetch(&engine);
+    assert_eq!(
+        fetch.browser.redirect_uri(),
+        None,
+        "no browser for this grant"
+    );
+    let state = finish(&rt, fetch);
+
+    assert!(
+        matches!(
+            state,
+            Ok(OAuthTokenState::Valid {
+                expires_at: Some(_)
+            })
+        ),
+        "{state:?}"
+    );
+    assert_eq!(stored(&store)["access_token"], "new");
+    assert!(
+        received(&rt, &server, "/api").is_empty(),
+        "nothing was sent"
+    );
+}
+
+#[test]
+fn get_new_token_tries_a_kept_refresh_token_first() {
+    let rt = runtime();
+    let server = start(
+        &rt,
+        vec![
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .and(body_string_contains("grant_type=refresh_token"))
+                .and(body_string_contains("refresh_token=kept"))
+                .respond_with(token(json!({ "access_token": "refreshed" }))),
+        ],
+    );
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let kept = json!({ "access_token": "old", "refresh_token": "kept", "expires_at": 1 });
+    if let Err(error) = store.set(&token_key(), &kept.to_string()) {
+        panic!("{error}");
+    }
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::clone(&store),
+    );
+
+    let state = finish(&rt, fetch(&engine));
+
+    assert_eq!(
+        state.ok(),
+        Some(OAuthTokenState::Valid { expires_at: None })
+    );
+    assert_eq!(stored(&store)["access_token"], "refreshed");
+    assert_eq!(stored(&store)["refresh_token"], "kept");
+    assert_eq!(received(&rt, &server, "/token").len(), 1);
+}
+
+#[test]
+fn a_failed_get_new_token_keeps_the_previous_token() {
+    let rt = runtime();
+    let server = start(
+        &rt,
+        vec![
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .respond_with(
+                    ResponseTemplate::new(400).set_body_json(json!({ "error": "invalid_client" })),
+                ),
+        ],
+    );
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let previous = json!({ "access_token": "previous", "expires_at": 99_999_999_999u64 });
+    if let Err(error) = store.set(&token_key(), &previous.to_string()) {
+        panic!("{error}");
+    }
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\nclient_secret = \"literal-client-secret\"\n",
+        Arc::clone(&store),
+    );
+
+    let error = match finish(&rt, fetch(&engine)) {
+        Ok(state) => panic!("fetched: {state:?}"),
+        Err(error) => error.to_string(),
+    };
+
+    assert_eq!(
+        error,
+        "authorization failed: the token endpoint answered 400 (invalid_client)"
+    );
+    assert_eq!(stored(&store)["access_token"], "previous");
+}
+
+#[test]
+fn get_new_token_needs_an_oauth2_auth() {
+    let rt = runtime();
+    let server = start(&rt, Vec::new());
+    let dir = temp_dir();
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::new(MemorySecretStore::new()),
+    );
+    let Some(collection) = engine.workspace().collections.first() else {
+        panic!("no collection");
+    };
+    let mut draft = match collection.items.first() {
+        Some(reqflux_core::model::Item::Request(request)) => request.request.clone(),
+        _ => panic!("no request"),
+    };
+    draft.auth = reqflux_core::model::Auth::None;
+
+    let error = match engine.fetch_oauth_token("api/r", Some(&draft), &ExecuteOptions::default()) {
+        Ok(_) => panic!("a fetch started"),
+        Err(error) => error.to_string(),
+    };
+
+    assert_eq!(
+        error,
+        "authorization failed: the request's auth is not OAuth 2.0"
+    );
+}
+
+/// Records the authorization URL and never comes back, as a user who has not signed in yet.
+#[derive(Debug, Default)]
+struct WaitingBrowser {
+    opened: Mutex<Vec<String>>,
+}
+
+impl Browser for WaitingBrowser {
+    fn open(&self, url: &str) -> Result<(), String> {
+        self.opened
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(url.to_owned());
+        Ok(())
+    }
+}
+
+#[test]
+fn the_pkce_wait_shows_the_loopback_reopens_the_browser_and_cancels() {
+    let rt = runtime();
+    let server = start(&rt, Vec::new());
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let mut engine = engine(
+        dir.path(),
+        &server,
+        &format!(
+            "grant_type = \"authorization_code\"\nauth_url = \"{}/authorize\"\nclient_id = \"app\"\n",
+            server.uri()
+        ),
+        Arc::clone(&store),
+    );
+    let browser = Arc::new(WaitingBrowser::default());
+    engine.set_browser(browser.clone());
+
+    let fetch = fetch(&engine);
+    let mut redirect = None;
+    for _ in 0..200 {
+        redirect = fetch.browser.redirect_uri();
+        if redirect.is_some() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    let Some(redirect) = redirect else {
+        panic!("the browser was not opened");
+    };
+    assert!(redirect.starts_with("http://127.0.0.1:"), "{redirect}");
+    assert!(redirect.ends_with("/callback"), "{redirect}");
+
+    if let Err(error) = fetch.browser.reopen() {
+        panic!("{error}");
+    }
+    let opened = browser
+        .opened
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    assert_eq!(opened.len(), 2, "opened again");
+    assert_eq!(opened.first(), opened.get(1), "the same authorization URL");
+
+    fetch.cancel.cancel();
+    let outcome = finish(&rt, fetch);
+    assert!(matches!(outcome, Err(HttpError::Cancelled)), "{outcome:?}");
+    assert!(store.accounts().is_empty(), "no token was stored");
+    let port = redirect
+        .trim_start_matches("http://127.0.0.1:")
+        .trim_end_matches("/callback")
+        .to_owned();
+    assert!(
+        TcpStream::connect(format!("127.0.0.1:{port}")).is_err(),
+        "the loopback listener closed"
+    );
 }

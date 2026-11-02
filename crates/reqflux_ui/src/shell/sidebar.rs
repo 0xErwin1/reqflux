@@ -10,8 +10,12 @@
 //! duplicate (Ctrl+D) and delete (Delete) the selected row, and focus the filter (`/`).
 //!
 //! Clicking a request row, or Enter on a selected one, emits [`OpenRequest`]; the shell
-//! subscribes to it and opens the request in a document tab. The sidebar knows nothing of
-//! the documents. Tree edits go the same way: see [`super::sidebar_edit`].
+//! subscribes to it and opens the request in a document tab. An example row emits
+//! [`OpenExample`] the same way. The sidebar knows nothing of the documents. Tree edits go
+//! the same way: see [`super::sidebar_edit`]; example edits through [`ExampleCommand`].
+//!
+//! An example row is neither dragged nor a drop target, and Alt+Up or Alt+Down does not move
+//! it: examples are ordered by name.
 
 use bolt::composites::Island;
 use bolt::controls::Button;
@@ -24,13 +28,14 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
+use super::examples::{ExampleCommand, OpenExample};
 use super::request::ui;
 use super::rows::{NameDecorator, RowSlots};
 use super::sidebar_edit::{DeletePrompted, TreeCommand, TreeEdit};
 use super::sidebar_history::{HistoryRow, OpenHistory, Panel};
 use super::tree_drag::{self, DragPreview, DraggedRow, DropPlace, Step};
 use super::tree_model::{self, Node, NodeKind, TreeState};
-use super::{region, rows, text_region};
+use super::{region, rows, text_region, toasts};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
 use filter::TreeFilter;
@@ -106,6 +111,16 @@ pub(crate) fn footer_text(requests: usize, collections: usize) -> String {
     )
 }
 
+/// The footer text with the examples the tree shows: `<requests> · <collections> · <n>
+/// examples`, the examples left out when there are none.
+pub(crate) fn footer_with_examples(requests: usize, collections: usize, examples: usize) -> String {
+    let counts = footer_text(requests, collections);
+    match examples {
+        0 => counts,
+        examples => format!("{counts} · {}", toasts::counted(examples, "example")),
+    }
+}
+
 /// Emitted when the user opens the request with this id from the tree.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct OpenRequest(pub(crate) String);
@@ -132,7 +147,7 @@ impl Sidebar {
     pub(crate) fn new(workspace: &OpenedWorkspace, cx: &mut Context<Self>) -> Self {
         let tree = match workspace {
             OpenedWorkspace::Loaded(engine) => {
-                Some(TreeState::new(tree_model::nodes(engine.workspace())))
+                Some(TreeState::new(tree_model::engine_nodes(engine)))
             }
             OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => None,
         };
@@ -152,7 +167,7 @@ impl Sidebar {
     pub(crate) fn footer_label(&self) -> String {
         self.tree.as_ref().map_or_else(String::new, |tree| {
             let (requests, collections) = tree.shown_counts();
-            footer_text(requests, collections)
+            footer_with_examples(requests, collections, tree.shown_examples())
         })
     }
 
@@ -205,14 +220,14 @@ impl Sidebar {
                 tree.toggle(id);
             }
         });
-        if !toggle {
-            self.open_if_request(id, cx);
+        if !toggle && !self.open_if_request(id, cx) {
+            self.open_if_example(id, cx);
         }
         self.focus.focus(window, cx);
     }
 
-    /// Enter: opens the selected request, or expands or collapses the selected collection or
-    /// folder.
+    /// Enter: opens the selected request or example, or expands or collapses the selected
+    /// collection or folder.
     fn activate_selected(&mut self, cx: &mut Context<Self>) {
         let selected = self
             .tree
@@ -220,16 +235,17 @@ impl Sidebar {
             .and_then(TreeState::selected)
             .map(str::to_owned);
         match selected {
-            Some(id) if self.open_if_request(&id, cx) => {}
+            Some(id) if self.open_if_request(&id, cx) || self.open_if_example(&id, cx) => {}
             Some(_) | None => self.update_tree(cx, TreeState::toggle_selected),
         }
     }
 
     /// Alt+Up or Alt+Down: moves the selected row one place among its siblings. Nothing
-    /// happens at either end or on a collection.
+    /// happens at either end, on a collection or on an example.
     fn step_selected(&mut self, step: Step, window: &mut Window, cx: &mut Context<Self>) {
         let command = self.tree.as_ref().and_then(|tree| {
             tree.selected()
+                .filter(|id| !tree.is_example(id))
                 .and_then(|id| tree_drag::step_command(tree.roots(), id, step))
         });
         if let Some(command) = command {
@@ -246,6 +262,15 @@ impl Sidebar {
         cx: &mut Context<Self>,
     ) {
         self.edit.dragging = None;
+        let onto_example = match place {
+            DropPlace::Before(target) | DropPlace::Inside(target) => self
+                .tree
+                .as_ref()
+                .is_some_and(|tree| tree.is_example(target)),
+        };
+        if onto_example {
+            return;
+        }
         let command = self
             .tree
             .as_ref()
@@ -290,7 +315,20 @@ impl Sidebar {
         }
         is_request
     }
+
+    /// Emits [`OpenExample`] when `id` is an example; returns whether it did.
+    pub(super) fn open_if_example(&mut self, id: &str, cx: &mut Context<Self>) -> bool {
+        let is_example = self.tree.as_ref().is_some_and(|tree| tree.is_example(id));
+        if is_example {
+            cx.emit(OpenExample(id.to_owned()));
+        }
+        is_example
+    }
 }
+
+impl EventEmitter<OpenExample> for Sidebar {}
+
+impl EventEmitter<ExampleCommand> for Sidebar {}
 
 impl EventEmitter<OpenRequest> for Sidebar {}
 
@@ -346,7 +384,7 @@ fn footer(tree: &TreeState, moving: Option<&str>, cx: &App) -> impl IntoElement 
         Some(name) => moving_text(name),
         None => {
             let (requests, collections) = tree.shown_counts();
-            footer_text(requests, collections)
+            footer_with_examples(requests, collections, tree.shown_examples())
         }
     };
     text_region("sidebar-footer")
@@ -394,11 +432,12 @@ impl Render for Sidebar {
                     let on_toggle = cx.listener(move |this, _event, window, cx| {
                         this.click_row(&chevron_id, true, window, cx);
                     });
-                    let draggable = !matches!(row.node.kind, NodeKind::Collection);
+                    let example = row.node.is_example();
+                    let draggable = !matches!(row.node.kind, NodeKind::Collection) && !example;
                     let slots = RowSlots {
                         name: self.rename_field(&id, cx),
                         trailing: self.row_actions(row.node, selected, window, cx),
-                        name_drop: row.node.is_expandable().then(|| self.name_drop(&id, cx)),
+                        name_drop: row.node.is_container().then(|| self.name_drop(&id, cx)),
                     };
                     let dragged = DraggedRow {
                         id: id.clone(),
@@ -423,14 +462,24 @@ impl Render for Sidebar {
                                 cx.new(|_| DragPreview(dragged.name.clone()))
                             })
                         })
-                        .drag_over::<DraggedRow>(move |style, _, _, _| {
-                            style
-                                .border_t(TreeMetrics::SELECTION_BAR)
-                                .border_color(line)
+                        .when(!example, |element| {
+                            element
+                                .drag_over::<DraggedRow>(move |style, _, _, _| {
+                                    style
+                                        .border_t(TreeMetrics::SELECTION_BAR)
+                                        .border_color(line)
+                                })
+                                .on_drop(cx.listener(
+                                    move |this, dragged: &DraggedRow, window, cx| {
+                                        this.drop_row(
+                                            &dragged.id,
+                                            DropPlace::Before(&target),
+                                            window,
+                                            cx,
+                                        );
+                                    },
+                                ))
                         })
-                        .on_drop(cx.listener(move |this, dragged: &DraggedRow, window, cx| {
-                            this.drop_row(&dragged.id, DropPlace::Before(&target), window, cx);
-                        }))
                         .on_click(cx.listener(move |this, _event, window, cx| {
                             this.click_row(&id, false, window, cx);
                         }))
@@ -449,6 +498,7 @@ impl Render for Sidebar {
                 .child(filter)
                 .children(self.error_label(cx))
                 .children(self.delete_prompt(window, cx))
+                .children(self.example_delete_prompt(window, cx))
                 .child(
                     region("collection-tree")
                         .track_focus(&self.focus)

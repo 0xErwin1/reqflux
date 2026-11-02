@@ -2,8 +2,13 @@
 //! segmented control between the parent's auth and the request's own; Type is a select that
 //! opens the type menu; every field sits in a field well. Masked values show only `••••••••`
 //! with the SECRET badge, on screen and in the automation label. Username, Key and the
-//! secrets open a field; Add to is a segmented control. Every edit lands in the request's
-//! draft. Other auth types stay read-only.
+//! secrets open a field; Add to is a segmented control. Digest, AWS SigV4 and OAuth 2.0
+//! fields open a field too, Algorithm and Grant type are selects, and OAuth 2.0 adds the
+//! Token row ([`token_view`]). While Get new token runs the form is locked. Every edit lands
+//! in the request's draft. Other auth types stay read-only.
+
+mod token_model;
+mod token_view;
 
 use bolt::composites::field_row as bolt_field_row;
 use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
@@ -14,37 +19,19 @@ use gpui::{
     div, prelude::*,
 };
 use gpui_kit_assets::IconName;
-use reqflux_core::model::{ApiKeyLocation, Auth};
+use reqflux_core::model::{ApiKeyLocation, Auth, TypedAuth};
 use reqflux_engine::Inspection;
 
 use super::body::controls::{select, well};
 use super::grid::secret;
 use super::grid_model::MASK;
-use super::pane_model::{AuthField, auth_fields, auth_type};
+use super::pane_model::{AuthField, AuthMenu, FieldEdit, auth_fields, auth_type};
 use super::segmented::control;
 use super::{auth_menu, code, spans, ui};
 use crate::shell::Shell;
 use crate::shell::documents::locate;
 use crate::shell::rows::{labeled_row, part};
 use crate::tokens;
-
-/// What a click on a field row does.
-#[derive(Clone, Copy)]
-enum Edit {
-    /// Opens the plain field (Username, Key), or the secret field (Password, Token, Value).
-    Text { secret: bool },
-    /// Nothing: Add to, which its segments edit, or a field of an unsupported type.
-    None,
-}
-
-fn edit_of(auth: &Auth, label: &str) -> Edit {
-    match (auth, label) {
-        (Auth::Other { .. }, _) => Edit::None,
-        (_, "Username" | "Key") => Edit::Text { secret: false },
-        (_, "Password" | "Token" | "Value") => Edit::Text { secret: true },
-        _ => Edit::None,
-    }
-}
 
 /// A form row: `bolt`'s field row of `label` over `content` and the hints under it.
 fn form_row(row: Stateful<Div>, label: &str, content: Vec<AnyElement>, cx: &App) -> Stateful<Div> {
@@ -138,29 +125,36 @@ fn source_row(request_id: &str, auth: &Auth, shell: &Shell, cx: &mut Context<She
     .into_any_element()
 }
 
+/// Whether the menu `menu` is the open one.
+fn menu_open(shell: &Shell, menu: AuthMenu) -> bool {
+    shell.auth_menu_open && shell.auth_pane.menu == menu
+}
+
 /// The Type row: the select `request-auth-type` and, when open, the type menu under it.
 fn type_row(
     request_id: &str,
     auth: &Auth,
+    locked: bool,
     shell: &Shell,
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
+    let trigger = select(
+        "request-auth-type".to_owned(),
+        Some(IconName::Key),
+        auth_type(auth).to_owned(),
+    );
+    let trigger = if locked {
+        trigger.disabled(true)
+    } else {
+        trigger.on_click(cx.listener(|this, _event, window, cx| {
+            this.toggle_auth_menu(window, cx);
+        }))
+    };
     let control = div()
         .relative()
-        .child(
-            div().w(tokens::AUTH_MENU_WIDTH).child(
-                select(
-                    "request-auth-type".to_owned(),
-                    Some(IconName::Key),
-                    auth_type(auth).to_owned(),
-                )
-                .on_click(cx.listener(|this, _event, window, cx| {
-                    this.toggle_auth_menu(window, cx);
-                })),
-            ),
-        )
-        .when(shell.auth_menu_open, |anchor| {
+        .child(div().w(tokens::AUTH_MENU_WIDTH).child(trigger))
+        .when(menu_open(shell, AuthMenu::Type), |anchor| {
             anchor.child(auth_menu::render(request_id, auth, shell, window, cx))
         })
         .into_any_element();
@@ -248,31 +242,121 @@ fn location_control(request_id: &str, auth: &Auth, cx: &mut Context<Shell>) -> A
     .into_any_element()
 }
 
+/// The select row of `field`, `request-auth-field-<label>`, with the select
+/// `request-auth-<algorithm|grant>` and, when open, its menu under it.
+fn select_row(
+    request_id: &str,
+    auth: &Auth,
+    field: &AuthField,
+    locked: bool,
+    shell: &Shell,
+    window: &Window,
+    cx: &mut Context<Shell>,
+) -> AnyElement {
+    let (menu, name) = match field.edit {
+        FieldEdit::Select(AuthMenu::Algorithm) => (AuthMenu::Algorithm, "algorithm"),
+        _ => (AuthMenu::Grant, "grant"),
+    };
+    let trigger = select(format!("request-auth-{name}"), None, field.value.clone());
+    let trigger = if locked {
+        trigger.disabled(true)
+    } else {
+        trigger.on_click(cx.listener(move |this, _event, window, cx| {
+            this.toggle_auth_select(menu, window, cx);
+        }))
+    };
+    let open = match (menu_open(shell, menu), auth.typed()) {
+        (true, Some(Ok(TypedAuth::Digest(digest)))) => Some(auth_menu::algorithm(
+            request_id,
+            digest.algorithm,
+            shell,
+            window,
+            cx,
+        )),
+        (true, Some(Ok(TypedAuth::OAuth2(oauth)))) => Some(auth_menu::grant(
+            request_id,
+            oauth.grant_type,
+            shell,
+            window,
+            cx,
+        )),
+        _ => None,
+    };
+    let control = div()
+        .relative()
+        .child(div().w(tokens::AUTH_MENU_WIDTH).child(trigger))
+        .children(open)
+        .into_any_element();
+    let mut content = vec![control];
+    content.extend(
+        field
+            .hint
+            .map(|text| hint(&format!("{}-hint", field.element_id()), text.to_owned(), cx)),
+    );
+    form_row(
+        labeled_row(
+            field.element_id(),
+            format!("{}: {}", field.label, field.value),
+        ),
+        &field.label,
+        content,
+        cx,
+    )
+    .into_any_element()
+}
+
+/// Whether the open field is the one `edit` opens for the request `request_id`.
+fn editing(shell: &Shell, request_id: &str, auth: &Auth, edit: FieldEdit) -> bool {
+    match (auth, edit) {
+        (Auth::Other { .. }, FieldEdit::Text(key) | FieldEdit::Secret(key)) => {
+            shell.typed_edit_of(request_id, key)
+        }
+        (_, FieldEdit::Text(_)) => shell.auth_edit_of(request_id, false),
+        (_, FieldEdit::Secret(_)) => shell.auth_edit_of(request_id, true),
+        _ => false,
+    }
+}
+
 /// The row of `field`, `request-auth-field-<label>`, with its value in the well
 /// `request-auth-well-<label>`.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one row of the pane, drawn from its parts"
+)]
 fn field_row(
     request_id: &str,
     inspection: &Inspection,
     auth: &Auth,
     field: &AuthField,
+    locked: bool,
     shell: &Shell,
+    window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let id = field.element_id();
     let well_id = id.replace("request-auth-field-", "request-auth-well-");
-    if field.label == "Add to" {
-        let control = location_control(request_id, auth, cx);
-        return form_row(
-            labeled_row(id, format!("{}: {}", field.label, field.value)),
-            &field.label,
-            vec![control],
-            cx,
-        )
-        .into_any_element();
+    let hints: Vec<AnyElement> = field
+        .hint
+        .map(|text| hint(&format!("{id}-hint"), text.to_owned(), cx))
+        .into_iter()
+        .collect();
+    match field.edit {
+        FieldEdit::Location => {
+            let control = location_control(request_id, auth, cx);
+            return form_row(
+                labeled_row(id, format!("{}: {}", field.label, field.value)),
+                &field.label,
+                vec![control],
+                cx,
+            )
+            .into_any_element();
+        }
+        FieldEdit::Select(_) => {
+            return select_row(request_id, auth, field, locked, shell, window, cx);
+        }
+        FieldEdit::Text(_) | FieldEdit::Secret(_) | FieldEdit::None => {}
     }
-    let edit = edit_of(auth, &field.label);
-    if let Edit::Text { secret } = edit
-        && shell.auth_edit_of(request_id, secret)
+    if editing(shell, request_id, auth, field.edit)
         && let Some(input) = shell.cell_edit.as_ref().map(|edit| edit.input.clone())
     {
         let input = input_field(&input, cx);
@@ -280,12 +364,24 @@ fn field_row(
         return form_row(
             labeled_row(id, format!("{}: ", field.label)),
             &field.label,
-            vec![control],
+            std::iter::once(control).chain(hints).collect(),
             cx,
         )
         .into_any_element();
     }
-    let (shown, value) = if field.masked {
+    let placeholder = field.placeholder.filter(|_| field.value.is_empty());
+    let (shown, value) = if let Some(placeholder) = placeholder {
+        let value = part(format!("{well_id}-text"))
+            .flex_1()
+            .h_full()
+            .flex()
+            .items_center()
+            .justify_between()
+            .gap(Spacing::SM)
+            .child(ui::role(div(), TextVariant::Caption, cx).child(placeholder))
+            .children(field.masked.then(secret));
+        (placeholder.to_owned(), value)
+    } else if field.masked {
         let value = part(format!("{well_id}-text"))
             .flex_1()
             .h_full()
@@ -311,21 +407,33 @@ fn field_row(
     let row = form_row(
         labeled_row(id, format!("{}: {shown}", field.label)),
         &field.label,
-        vec![control],
+        std::iter::once(control).chain(hints).collect(),
         cx,
     );
-    match edit {
-        Edit::Text { secret } => {
-            let request = request_id.to_owned();
-            row.cursor_text()
-                .on_click(cx.listener(move |this, _event, window, cx| {
-                    this.start_auth_edit(&request, secret, window, cx);
-                }))
-                .into_any_element()
-        }
-        Edit::None => row.into_any_element(),
+    let (key, secret) = match field.edit {
+        FieldEdit::Text(key) => (key, false),
+        FieldEdit::Secret(key) => (key, true),
+        _ => return row.into_any_element(),
+    };
+    if locked {
+        return row.opacity(LOCKED_OPACITY).into_any_element();
     }
+    let request = request_id.to_owned();
+    let typed = matches!(auth, Auth::Other { .. });
+    row.cursor_text()
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            if typed {
+                this.start_typed_auth_edit(&request, key, secret, window, cx);
+            } else {
+                this.start_auth_edit(&request, secret, window, cx);
+            }
+        }))
+        .into_any_element()
 }
+
+/// The opacity of a field row while Get new token locks the form.
+// bolt gap: no disabled or locked state for a form field row.
+const LOCKED_OPACITY: f32 = 0.5;
 
 /// The pane of `auth` of the request `request_id`, the draft's when the request has one,
 /// else the saved file's.
@@ -338,12 +446,20 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> Vec<AnyElement> {
     let line = bolt::colors(cx).line;
+    let typed = auth.typed();
+    let locked = matches!(&typed, Some(Ok(TypedAuth::OAuth2(_))))
+        && shell.token_fetching(request_id).is_some();
     let mut rows = vec![source_row(request_id, auth, shell, cx)];
     if !matches!(auth, Auth::Inherit) {
-        rows.push(type_row(request_id, auth, shell, window, cx));
+        rows.push(type_row(request_id, auth, locked, shell, window, cx));
     }
     for field in auth_fields(auth, |text| inspection.references_secret(text)) {
-        rows.push(field_row(request_id, inspection, auth, &field, shell, cx));
+        rows.push(field_row(
+            request_id, inspection, auth, &field, locked, shell, window, cx,
+        ));
+    }
+    if let Some(Ok(TypedAuth::OAuth2(oauth))) = &typed {
+        rows.push(token_view::render(request_id, oauth, shell, cx));
     }
     let form = part("request-auth-form".to_owned())
         .flex()
@@ -355,12 +471,18 @@ pub(super) fn render(
         .border_color(line)
         .children(rows)
         .into_any_element();
-    let note = matches!(auth, Auth::Other { .. }).then(|| {
-        code::empty(
+    let note = match (auth, &typed) {
+        (Auth::Other { .. }, None) => Some(code::empty(
             "request-auth-unsupported".to_owned(),
             IconName::Lock,
             "Not supported yet",
-        )
-    });
+        )),
+        (_, Some(Err(_))) => Some(code::empty(
+            "request-auth-invalid".to_owned(),
+            IconName::Lock,
+            "These fields are not valid for this auth type",
+        )),
+        _ => None,
+    };
     std::iter::once(form).chain(note).collect()
 }

@@ -1,6 +1,7 @@
 //! The bottom bar of the response body, element id `response-footer`: the `Pretty` / `Raw` /
-//! `Preview` switch and the line count of a text body, and at the end Copy
-//! (`response-copy`), which puts a text body on the clipboard.
+//! `Preview` switch, the line count of a text body and, while the JSONPath filter shows
+//! matches, `filtered view of a <size> body` (`response-footer-filtered`), and at the end
+//! Copy (`response-copy`), which puts what shows on the clipboard.
 
 use bolt::controls::Button;
 use bolt::primitives::{Icon, SegmentedItem, TextVariant};
@@ -8,10 +9,12 @@ use bolt::tokens::{Borders, Fields, ResultMetrics};
 use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 
+use super::jsonpath_model::{Filtered, filtered_caption};
 use super::model::{BodyText, BodyView};
 use super::sub_tabs::effective_view;
+use super::views::shown_lines;
 use crate::shell::request::segmented::control;
-use crate::shell::request::{Received, ui};
+use crate::shell::request::{Received, size_text, ui};
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region, text_region};
 
@@ -56,8 +59,32 @@ pub(super) fn render(
     });
     let lines = match selected {
         BodyView::Preview => None,
-        view => received.text.lines(view).map(|(lines, _)| lines.len()),
+        _ => shown_lines(send, received, cx).map(|(lines, _)| lines.len()),
     };
+    let filtered = (selected != BodyView::Preview
+        && matches!(
+            send.views.filtered(received, cx).as_deref(),
+            Some(Filtered::Matches { .. })
+        ))
+    .then(|| {
+        let caption = filtered_caption(&size_text(received.size()));
+        ui::role(
+            text_region("response-footer-filtered"),
+            TextVariant::Caption,
+            cx,
+        )
+        .aria_label(caption.clone())
+        .flex()
+        .items_center()
+        .gap(ResultMetrics::FOOTER_ITEM_GAP)
+        .whitespace_nowrap()
+        .child(
+            Icon::new(ui::icon(IconName::Funnel))
+                .size(Fields::CHEVRON)
+                .color(colors.muted),
+        )
+        .child(caption)
+    });
     let copy = (*received.text != BodyText::Binary).then(|| {
         let request = id.to_owned();
         Button::new("response-copy", "Copy")
@@ -107,6 +134,8 @@ pub(super) fn render(
             )
             .child(label)
         }))
+        .children(filtered)
         .child(gpui::div().flex_1())
         .children(copy)
+        .children(crate::shell::examples::response_buttons(id, cx))
 }

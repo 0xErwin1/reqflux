@@ -420,10 +420,18 @@ exists:
   urlencoded and form-data grids edit like Params and Headers (a file part's value is its
   path). GraphQL and binary bodies stay read-only.
 - **Auth.** The type row (`request-auth-type`) opens a menu
-  (`auth-type-<inherit|none|basic|bearer|apikey>`); a new type starts with empty fields.
-  Username and Key open seeded; Password, Token and the API key value open empty with a
-  `Secret value` placeholder, a typed commit replaces the stored value and an empty commit
-  keeps it, so a secret is never shown in a field. Add to toggles header and query. Auth
+  (`auth-type-<inherit|none|basic|bearer|apikey|digest|awsv4|oauth2>`); a new type starts with
+  empty fields. Username, Key and the plain fields of digest, AWS SigV4 and OAuth 2.0 (region,
+  service, client id, URLs, scopes) open seeded; Password, Token, the API key value and the
+  `secret_fields` of those types open empty with a `Secret value` placeholder, a typed commit
+  replaces the stored value and an empty commit keeps it, so a secret is never shown in a
+  field. Typed fields are written back through the `From<…> for Auth` constructors, with
+  canonical keys. Add to toggles header and query. Algorithm (`request-auth-algorithm`) and
+  Grant type (`request-auth-grant`) are selects. An OAuth 2.0 auth adds the Token row: the kept
+  token's state from `Engine::oauth_token_state` (never the token), Get new token
+  (`Engine::fetch_oauth_token`, refresh token first, no send) and Clear
+  (`Engine::forget_oauth_token_of`). While Get new token runs the form is locked; the
+  authorization code grant shows its loopback redirect with Open browser again and Cancel. Auth
   types ReqFlux does not support stay read-only and masked.
 - **Settings.** The timeout opens a field (`request-setting-timeout-input`) that takes a
   whole number of milliseconds, or empty for the default; other text leaves the draft
@@ -641,7 +649,10 @@ refreshed before a send once expired; the authorization code grant uses PKCE S25
 system browser (`Engine::set_browser` replaces it) and waits up to 300 s for a loopback redirect
 on `127.0.0.1:<random>/callback` with a matching `state`. A `401` to an OAuth token drops it (a
 kept refresh token stays, marked expired); a token that came from the keyring is retried once
-with a new one. An `Authorization` request header still wins.
+with a new one. An `Authorization` request header still wins. `Engine::oauth_token_state`
+reads whether a token is kept and when it expires, without the token; `Engine::fetch_oauth_token`
+obtains a new one without a send and returns an `OAuthFetch` whose `cancel` stops it, loopback
+listener included.
 `Engine::prepare_draft` prepares a draft request document in the place of the stored one,
 keeping the stored request's parents (and with them the scopes and the environment
 allowlist), and `Engine::execute_draft` sends it.
@@ -789,7 +800,8 @@ send, `collection_run` for the whole run, and a tool that panicked does not pois
 Tokio runtime, is dropped on its own thread, never inside the async server.
 
 Secrets never leave the engine. A secret variable shows `{"set": true|false}`, never a value.
-Basic passwords, bearer tokens, API key values, every field of an unsupported auth type and
+Basic passwords, bearer tokens, API key values, every field of an unsupported auth type, the
+`secret_fields` of digest, AWS SigV4 and OAuth 2.0, and
 the values of `Authorization`, `Proxy-Authorization` and `Cookie` headers show as `••••••••`
 in `request_get` and history documents; a `request_update` that sends the mask back for such a
 field or header keeps the stored value, and never restores it into another auth type. An
@@ -1093,11 +1105,18 @@ Cancel; Cancel or Escape cancels it through its token, sending again cancels and
 and closing the tab cancels it and drops its response. The response sits under the request:
 the Response tab with the status chip colored by class and the time and size, Tests and
 Console tabs beside it when the scripts produced results, the Body / Headers / Cookies views as
-a segmented control, a bottom bar under the body with the Pretty / Raw / Preview switch and the
+a segmented control plus Timeline (`Received.timings` per hop on one time axis, TLS inside
+connect, a dash for a phase the engine did not time), a JSONPath filter beside the body search
+(`reqflux_engine::jsonpath::filter`: the matches replace the shown lines and search, Copy and the
+line count follow; an error shows the engine message in a danger banner over the unfiltered
+body), a bottom bar under the body with the Pretty / Raw / Preview switch and the
 line count (Pretty re-indents JSON keeping key order), the body split into lines once
 off the UI thread and drawn with `uniform_list` so only visible lines render, an error banner
 with Retry, and the unresolved variables the send used. Each open request keeps its last
-response in memory, and every send is recorded in history (see "History").
+response in memory, and every send is recorded in history (see "History"). A request's saved
+examples are its children in the tree (a leaf with the status code), opened read-only in the
+example tab; Save as example and Export → Save response body to file… sit in the response
+footer and write through `Engine::save_example` and `Engine::save_response_body`.
 
 `bolt`'s splitter, a 6 px gutter with a three-dot grip (`request-response-split`), divides the request
 (`request-area`) from the response (`response-area`). Dragging it sets the request's height;

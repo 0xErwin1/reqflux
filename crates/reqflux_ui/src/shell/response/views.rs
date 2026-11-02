@@ -1,10 +1,16 @@
 //! What the response view keeps per request beyond its tab and body view (app-pending S7):
-//! the body search, the Tests and Console filters, the body's scroll and the response's
-//! keyboard focus; and the shell's handlers for them, Ctrl F and Copy body.
+//! the body search, the JSONPath filter, the Tests and Console filters, the body's scroll
+//! and the response's keyboard focus; and the shell's handlers for them, Ctrl F and Copy
+//! body.
 //!
 //! The response takes the keyboard focus when its content is clicked; Ctrl F then opens
 //! the search on the body. Enter and Shift+Enter in the search field step to the next and
-//! previous match, Escape closes the search.
+//! previous match, Escape closes the search. The JSONPath filter replaces the body lines
+//! with its matches while its expression is valid; search and Copy work on what shows.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
 
 use gpui::{
     App, AppContext, ClipboardItem, Context, Entity, FocusHandle, KeyBinding, ScrollStrategy,
@@ -14,11 +20,12 @@ use gpui::{
 use bolt::controls::{InputEvent, InputState};
 
 use super::filters::{ConsoleFilter, TestsFilter};
-use super::model::ResponseTab;
+use super::jsonpath_model::{Filtered, JSONPATH_PLACEHOLDER};
+use super::model::{BodyText, BodyView, ResponseTab};
 use super::search::{self, Hit};
 use super::sub_tabs::effective_view;
 use crate::shell::Shell;
-use crate::shell::request::{Completed, SendState};
+use crate::shell::request::{Completed, Received, SendState};
 use crate::shell::send::RequestSend;
 use crate::shell::toasts;
 
@@ -50,6 +57,10 @@ pub(crate) fn bind_keys(cx: &mut App) {
 pub(crate) struct ViewState {
     /// The search field while the search is open.
     pub(crate) search: Option<SearchField>,
+    /// The JSONPath field while the filter is open.
+    pub(crate) jsonpath: Option<SearchField>,
+    /// The last filter applied, so a render does not run it again.
+    filtered: RefCell<Option<FilterCache>>,
     /// The current match, from 0.
     pub(crate) current: usize,
     pub(crate) tests: TestsFilter,
@@ -66,14 +77,63 @@ pub(crate) struct SearchField {
     _change: Subscription,
 }
 
+/// A filter result and what it was computed from: the body, by identity, and the
+/// expression.
+struct FilterCache {
+    body: Arc<BodyText>,
+    expression: String,
+    filtered: Option<Rc<Filtered>>,
+}
+
 impl ViewState {
     /// The search text, empty while the search is closed.
     pub(crate) fn query(&self, cx: &App) -> String {
-        self.search
-            .as_ref()
-            .map(|search| search.input.read(cx).value().to_string())
-            .unwrap_or_default()
+        field_text(self.search.as_ref(), cx)
     }
+
+    /// What the JSONPath filter makes of the body of `received`; `None` while the filter
+    /// is closed or its expression is blank.
+    pub(crate) fn filtered(&self, received: &Received, cx: &App) -> Option<Rc<Filtered>> {
+        let expression = field_text(self.jsonpath.as_ref(), cx);
+        let mut cache = self.filtered.borrow_mut();
+        if let Some(cached) = cache.as_ref()
+            && Arc::ptr_eq(&cached.body, &received.text)
+            && cached.expression == expression
+        {
+            return cached.filtered.clone();
+        }
+        let filtered = Filtered::new(&received.body, &expression).map(Rc::new);
+        *cache = Some(FilterCache {
+            body: Arc::clone(&received.text),
+            expression,
+            filtered: filtered.clone(),
+        });
+        filtered
+    }
+}
+
+/// The text of `field`, empty while it is closed.
+fn field_text(field: Option<&SearchField>, cx: &App) -> String {
+    field
+        .map(|field| field.input.read(cx).value().to_string())
+        .unwrap_or_default()
+}
+
+/// The body lines `send` shows of `received` and whether they are colored as JSON: the
+/// JSONPath matches while the filter has some, else the body as its view shows it; `None`
+/// for a binary body.
+pub(crate) fn shown_lines(
+    send: &RequestSend,
+    received: &Received,
+    cx: &App,
+) -> Option<(Arc<[String]>, bool)> {
+    let view = effective_view(send.view, received);
+    if view != BodyView::Preview
+        && let Some(Filtered::Matches { lines, .. }) = send.views.filtered(received, cx).as_deref()
+    {
+        return Some((Arc::clone(lines), view == BodyView::Pretty));
+    }
+    received.text.lines(view)
 }
 
 /// The matches of the search of `send` in the body lines it shows.
@@ -83,12 +143,32 @@ pub(crate) fn hits(send: &RequestSend, cx: &App) -> Vec<Hit> {
         return Vec::new();
     }
     match &send.state {
-        SendState::Done(Completed::Response(received)) => received
-            .text
-            .lines(effective_view(send.view, received))
+        SendState::Done(Completed::Response(received)) => shown_lines(send, received, cx)
             .map(|(lines, _)| search::find(&lines, &query))
             .unwrap_or_default(),
         _ => Vec::new(),
+    }
+}
+
+/// A text field with `placeholder` whose every change runs `on_change` for the request
+/// `id`.
+fn new_field(
+    id: &str,
+    placeholder: &'static str,
+    on_change: fn(&mut Shell, &str, &mut Context<Shell>),
+    window: &mut Window,
+    cx: &mut Context<Shell>,
+) -> SearchField {
+    let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder));
+    let request = id.to_owned();
+    let change = cx.subscribe(&input, move |this, _, event: &InputEvent, cx| {
+        if matches!(event, InputEvent::Change) {
+            on_change(this, &request, cx);
+        }
+    });
+    SearchField {
+        input,
+        _change: change,
     }
 }
 
@@ -128,18 +208,15 @@ impl Shell {
         let input = match &send.views.search {
             Some(search) => search.input.clone(),
             None => {
-                let input =
-                    cx.new(|cx| InputState::new(window, cx).placeholder(SEARCH_PLACEHOLDER));
-                let request = id.to_owned();
-                let change = cx.subscribe(&input, move |this, _, event: &InputEvent, cx| {
-                    if matches!(event, InputEvent::Change) {
-                        this.step_response_search_to(&request, 0, cx);
-                    }
-                });
-                send.views.search = Some(SearchField {
-                    input: input.clone(),
-                    _change: change,
-                });
+                let field = new_field(
+                    id,
+                    SEARCH_PLACEHOLDER,
+                    |this, id, cx| this.step_response_search_to(id, 0, cx),
+                    window,
+                    cx,
+                );
+                let input = field.input.clone();
+                send.views.search = Some(field);
                 input
             }
         };
@@ -162,6 +239,60 @@ impl Shell {
             return;
         };
         send.views.search = None;
+        send.views.current = 0;
+        match &send.views.focus {
+            Some(focus) => focus.focus(window, cx),
+            None => self.restore_focus(window, cx),
+        }
+        cx.notify();
+    }
+
+    /// A click on the JSONPath field: opens the filter with the keyboard focus, its text
+    /// selected.
+    pub(crate) fn open_response_jsonpath(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(send) = self.sends.get_mut(id) else {
+            return;
+        };
+        let input = match &send.views.jsonpath {
+            Some(field) => field.input.clone(),
+            None => {
+                // A new expression changes the lines, so the search starts over.
+                let field = new_field(
+                    id,
+                    JSONPATH_PLACEHOLDER,
+                    |this, id, cx| this.step_response_search_to(id, 0, cx),
+                    window,
+                    cx,
+                );
+                let input = field.input.clone();
+                send.views.jsonpath = Some(field);
+                input
+            }
+        };
+        input.update(cx, |state, cx| {
+            state.focus(window, cx);
+            state.select_all(window, cx);
+        });
+        cx.notify();
+    }
+
+    /// Escape in the JSONPath field: closes the filter, the body shows whole again, and the
+    /// response keeps the keyboard focus.
+    pub(crate) fn close_response_jsonpath(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(send) = self.sends.get_mut(id) else {
+            return;
+        };
+        send.views.jsonpath = None;
         send.views.current = 0;
         match &send.views.focus {
             Some(focus) => focus.focus(window, cx),
@@ -226,15 +357,20 @@ impl Shell {
     }
 
     /// Copy: puts the response body of the request `id`, as received, on the clipboard and
-    /// says so in a toast. A body that is not UTF-8 offers no Copy; without a text body to
-    /// copy, an error toast says why.
+    /// says so in a toast; while the JSONPath filter shows matches, the matches instead. A
+    /// body that is not UTF-8 offers no Copy; without a text body to copy, an error toast
+    /// says why.
     pub(crate) fn copy_response_body(&mut self, id: &str, cx: &mut Context<Self>) {
-        let body = match self.sends.get(id).map(|send| &send.state) {
-            Some(SendState::Done(Completed::Response(received))) => {
-                std::str::from_utf8(&received.body).ok().map(str::to_owned)
+        let body = self.sends.get(id).and_then(|send| match &send.state {
+            SendState::Done(Completed::Response(received)) => {
+                let filtered = (effective_view(send.view, received) != BodyView::Preview)
+                    .then(|| send.views.filtered(received, cx))
+                    .flatten()
+                    .and_then(|filtered| filtered.text());
+                filtered.or_else(|| std::str::from_utf8(&received.body).ok().map(str::to_owned))
             }
             _ => None,
-        };
+        });
         match body {
             Some(body) => {
                 cx.write_to_clipboard(ClipboardItem::new_string(body));

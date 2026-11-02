@@ -116,7 +116,9 @@ fn the_type_menu_switches_the_type_in_the_draft(cx: &mut TestAppContext) {
     open_auth(cx);
 
     click(cx, "request-auth-type");
-    for kind in ["none", "basic", "bearer", "apikey"] {
+    for kind in [
+        "none", "basic", "bearer", "apikey", "digest", "awsv4", "oauth2",
+    ] {
         assert!(bounds(cx, &format!("auth-type-{kind}")).is_some(), "{kind}");
     }
     assert!(
@@ -296,7 +298,7 @@ fn a_secret_field_opens_empty_and_an_empty_commit_keeps_it(cx: &mut TestAppConte
 
 #[gpui::test]
 fn an_unsupported_type_stays_read_only(cx: &mut TestAppContext) {
-    let dir = auth_workspace("type = \"oauth2\"\nclient_secret = \"hidden\"\n");
+    let dir = auth_workspace("type = \"hawk\"\nclient_secret = \"hidden\"\n");
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
     open_auth(cx);

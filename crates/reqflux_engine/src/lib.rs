@@ -88,7 +88,7 @@ pub mod state;
 mod tree;
 mod variables;
 
-pub use auth::{Browser, SystemBrowser};
+pub use auth::{Browser, OAuthBrowser, OAuthFetch, OAuthTokenState, SystemBrowser};
 pub use code::code;
 pub use create::create_workspace;
 pub use current::CurrentValues;

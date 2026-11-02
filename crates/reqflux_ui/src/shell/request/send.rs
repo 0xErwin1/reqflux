@@ -26,6 +26,8 @@ pub(crate) struct Received {
     pub(crate) headers: Vec<(String, String)>,
     pub(crate) body: Vec<u8>,
     pub(crate) elapsed: Duration,
+    /// The timing breakdown, one entry per hop; empty when none was recorded.
+    pub(crate) timings: reqflux_engine::Timings,
     /// Variable names that did not resolve, in first-occurrence order.
     pub(crate) unresolved: Vec<String>,
     /// What the effective scripts produced: test results, console entries and variable
@@ -61,6 +63,7 @@ impl Received {
             headers: response.headers,
             body: response.body,
             elapsed: response.elapsed,
+            timings: response.timings,
             unresolved,
             scripts,
             text,
@@ -211,6 +214,7 @@ mod tests {
             headers: vec![("content-type".to_owned(), "application/json".to_owned())],
             body: b"{}".to_vec(),
             elapsed: Duration::from_millis(5),
+            timings: Default::default(),
             unresolved: Vec::new(),
             scripts: ScriptOutcome::default(),
             text: Arc::new(BodyText::new(b"{}", None)),

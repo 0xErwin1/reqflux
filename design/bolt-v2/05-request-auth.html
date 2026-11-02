@@ -525,7 +525,7 @@ button{font:inherit;white-space:nowrap}
       <span class="lb">Algorithm</span>
       <div style="display:flex;flex-direction:column;gap:6px">
         <div class="c6 sel m" style="width:240px;box-sizing:border-box"><span style="flex-grow:1">SHA-256</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
-        <span class="hint">MD5, MD5-sess, SHA-256, SHA-256-sess, SHA-512-256. Realm, nonce and qop come from the server's challenge on the first send.</span>
+        <span class="hint">Used when the challenge names none. Realm, nonce and qop come from the server's challenge on the first send.</span>
       </div>
     </div>
   </div>
@@ -617,7 +617,7 @@ button{font:inherit;white-space:nowrap}
   </div>
 </div></div>
 
-<div class="state"><div class="state-head"><h3>OAuth 2.0 · token states</h3><p>The Token row alone. No token: Get new token is the primary action. Expired: same, with the expiry time.</p></div>
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · token states</h3><p>The Token row alone. No token: Get new token is the primary action. Expired: same, with the expiry time. Getting: Get new token runs without a browser; the form is locked until it ends or you cancel. Failed: the engine's reason, never a credential.</p></div>
 <div class="frame">
   <div style="padding:2px 16px 8px">
     <div class="frow"><span class="lb">Token · none</span>
@@ -639,8 +639,14 @@ button{font:inherit;white-space:nowrap}
     <div class="frow"><span class="lb">Token · failed</span>
       <div class="c8 banner" style="background:rgba(255,107,94,.08);box-shadow:#FF6B5E 3px 0 0 inset">
         <svg class="ico" style="width:14px;height:14px;margin-top:2px;color:#FF6B5E"><use href="#i-alert"/></svg>
-        <span style="flex-grow:1"><span style="color:#F7F4F7">The token endpoint refused the request.</span> <span style="color:#8E8996">400 invalid_client from {{auth_url}}/oauth/token; the previous token was kept.</span></span>
+        <span style="flex-grow:1"><span style="color:#F7F4F7">No new token.</span> <span style="color:#8E8996">authorization failed: the token endpoint answered 400 (invalid_client). A token kept before is still kept.</span></span>
         <button class="c6 btn" style="margin:-4px 0">Try again</button>
+      </div></div>
+    <div class="frow"><span class="lb">Token · getting</span>
+      <div class="c8 banner" role="status" style="background:rgba(157,177,255,.06);box-shadow:#9DB1FF 3px 0 0 inset">
+        <svg class="ico" style="width:14px;height:14px;margin-top:2px;color:#9DB1FF"><use href="#i-loader"/></svg>
+        <span style="flex-grow:1"><span style="color:#F7F4F7">Getting a new token.</span> <span style="color:#8E8996">Asking accounts.acme.dev.</span></span>
+        <button class="c6 btn" style="margin:-4px 0">Cancel</button>
       </div></div>
   </div>
 </div></div>

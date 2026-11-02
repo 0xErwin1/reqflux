@@ -7,7 +7,8 @@ use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::thread;
 
-use super::draft_tests::state_file;
+use super::draft_tests::{render as render_history, state_file};
+use super::history_tests::{PING as HISTORY_PING, history_workspace, open_top_row};
 use super::preview_tests::serve_reply;
 use super::send_tests::{
     JSON, PING, Server, click, closed_port, render, render_files, response, serve, settle,
@@ -599,4 +600,134 @@ fn the_response_tab_returns_from_a_script_tab_to_the_body(cx: &mut TestAppContex
     present(cx, "response-body");
     present(cx, "response-view-pretty");
     assert!(absent(cx, "response-tests"));
+}
+
+#[gpui::test]
+fn the_timeline_shows_the_phases_of_a_send_to_an_ip_address(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    click(cx, "response-tab-timeline");
+    assert!(absent(cx, "response-body"));
+    assert!(absent(cx, "response-footer"));
+    assert_eq!(
+        label(cx, "response-timeline-summary"),
+        "1 hop · new connection"
+    );
+    assert_eq!(
+        label(cx, "response-timeline-note"),
+        "TLS is included in connect"
+    );
+    assert_eq!(
+        label(cx, "response-timeline-1-dns"),
+        "DNS lookup: — IP address"
+    );
+    for phase in ["connect", "first-byte", "download"] {
+        let text = label(cx, &format!("response-timeline-1-{phase}"));
+        assert!(text.ends_with(" ms"), "{phase}: {text}");
+        present(cx, &format!("response-timeline-1-{phase}-bar"));
+    }
+    assert!(absent(cx, "response-timeline-1-dns-bar"));
+    assert!(
+        absent(cx, "response-timeline-hop-1"),
+        "one hop has no group"
+    );
+    let total = label(cx, "response-timeline-total");
+    assert!(
+        total.starts_with("Total: ") && total.ends_with(" ms"),
+        "{total}"
+    );
+    assert!(absent(cx, "response-timeline-none"));
+}
+
+#[gpui::test]
+fn a_history_entry_shows_its_recorded_timeline(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render_history(cx, &dir, &state_path);
+    click_selector(cx, &format!("tree-row-{HISTORY_PING}"));
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, HISTORY_PING).as_deref(), Some("200 OK"));
+
+    open_top_row(cx);
+    click(cx, "response-tab-timeline");
+    assert_eq!(
+        label(cx, "response-timeline-1-dns"),
+        "DNS lookup: — IP address"
+    );
+    present(cx, "response-timeline-1-first-byte-bar");
+}
+
+/// Opens the JSONPath field and types `expression` into it.
+fn filter_body(cx: &mut VisualTestContext, expression: &str) {
+    click(cx, "response-jsonpath");
+    type_text(cx, expression);
+}
+
+#[gpui::test]
+fn a_jsonpath_filter_shows_the_matches_and_their_count(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    assert!(absent(cx, "response-jsonpath-count"));
+    filter_body(cx, "$.tags[*]");
+    assert_eq!(label(cx, "response-jsonpath-count"), "1 match");
+    assert_eq!(label(cx, "response-body-line-1"), "[");
+    assert_eq!(label(cx, "response-body-line-2"), "  \"a\"");
+    assert_eq!(label(cx, "response-body-line-3"), "]");
+    assert!(absent(cx, "response-body-line-4"));
+    assert!(absent(cx, "response-jsonpath-error"));
+    assert_eq!(
+        label(cx, "response-footer-filtered"),
+        "filtered view of a 21 B body"
+    );
+    assert_eq!(label(cx, "response-footer-lines"), "3 lines");
+
+    click(cx, "response-copy");
+    let copied = cx.update(|_, cx| cx.read_from_clipboard().and_then(|item| item.text()));
+    assert_eq!(
+        copied.as_deref(),
+        Some("[\n  \"a\"\n]"),
+        "Copy copies what shows"
+    );
+
+    press(cx, "escape");
+    assert!(absent(cx, "response-jsonpath-count"));
+    assert!(absent(cx, "response-footer-filtered"));
+    present(cx, "response-body-line-6");
+}
+
+#[gpui::test]
+fn a_jsonpath_filter_without_matches_shows_an_empty_array(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    filter_body(cx, "$.missing");
+    assert_eq!(label(cx, "response-jsonpath-count"), "0 matches");
+    assert_eq!(label(cx, "response-body-line-1"), "[]");
+    assert!(absent(cx, "response-body-line-2"));
+    assert!(absent(cx, "response-jsonpath-error"));
+}
+
+#[gpui::test]
+fn an_invalid_jsonpath_shows_the_banner_over_the_unfiltered_body(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    filter_body(cx, "$[");
+    assert_eq!(label(cx, "response-jsonpath-count"), "error");
+    let banner = label(cx, "response-jsonpath-error");
+    assert!(
+        banner.starts_with("invalid JSONPath expression: "),
+        "{banner}"
+    );
+    assert!(
+        present(cx, "response-jsonpath-error").origin.y < present(cx, "response-body").origin.y
+    );
+    present(cx, "response-body-line-6");
+    assert!(absent(cx, "response-footer-filtered"));
+}
+
+#[gpui::test]
+fn body_search_still_counts_the_body_beside_the_jsonpath_field(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    present(cx, "response-jsonpath");
+    click(cx, "response-search");
+    type_text(cx, "A");
+    assert_eq!(label(cx, "response-search-count"), "1 / 2");
+    present(cx, "response-body-hit-2");
+    press(cx, "enter");
+    assert_eq!(label(cx, "response-search-count"), "2 / 2");
 }

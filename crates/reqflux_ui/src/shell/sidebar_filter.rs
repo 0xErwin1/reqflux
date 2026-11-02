@@ -1,5 +1,6 @@
 //! The sidebar filter field, `tree-filter`: `bolt`'s field with the search icon and the `/`
-//! keycap. Typing narrows the tree (see [`TreeState::set_filter`]), `/` in the tree focuses
+//! keycap. Typing narrows the tree to the requests and saved examples that match (see
+//! [`TreeState::set_filter`]), `/` in the tree focuses
 //! the field, Escape in it clears it, and a filter that matches nothing shows the caption
 //! `tree-no-match`. As drawn in design/bolt-v2/01-main.html, States.
 
@@ -127,10 +128,10 @@ impl Sidebar {
     }
 }
 
-/// The caption `tree-no-match` that takes the rows' place when the filter matches nothing.
+/// The caption `tree-no-match` that takes the rows' place when the filter matches nothing,
+/// neither a request nor an example.
 pub(super) fn no_match(tree: &TreeState, cx: &App) -> Option<impl IntoElement + use<>> {
-    let (requests, _) = tree.shown_counts();
-    (tree.is_filtered() && requests == 0).then(|| {
+    tree.shows_nothing().then(|| {
         ui::role(text_region("tree-no-match"), TextVariant::Caption, cx)
             .aria_label(NO_MATCH)
             .pl(HeaderMetrics::PANEL_PADDING_LEFT)

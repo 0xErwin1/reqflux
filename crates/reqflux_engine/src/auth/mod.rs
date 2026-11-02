@@ -8,6 +8,7 @@
 
 mod loopback;
 mod oauth;
+mod token;
 
 use std::fmt;
 use std::sync::Arc;
@@ -23,6 +24,7 @@ use crate::secrets::{SecretKey, SecretStore};
 use crate::sent::MASK;
 
 pub use loopback::{Browser, SystemBrowser};
+pub use token::{OAuthBrowser, OAuthFetch, OAuthTokenState};
 
 /// The resolved auth a send completes. Its `Debug` output names the type only.
 #[derive(Clone, PartialEq, Eq)]

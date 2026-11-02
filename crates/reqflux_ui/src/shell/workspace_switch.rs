@@ -69,7 +69,7 @@ impl Shell {
         self.workspace = opened;
         let (roots, workspace_id) = match &self.workspace {
             OpenedWorkspace::Loaded(engine) => (
-                tree_model::nodes(engine.workspace()),
+                tree_model::engine_nodes(engine),
                 Some(engine.workspace().manifest.id.to_string()),
             ),
             OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => (Vec::new(), None),
@@ -113,6 +113,7 @@ impl Shell {
         self.body_edit = None;
         self.orphan = None;
         self.run = None;
+        self.examples.tab = None;
         self.current = CurrentValues::default();
         self.active_environment = None;
         self.environment_menu_open = false;

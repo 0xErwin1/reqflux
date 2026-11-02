@@ -126,7 +126,7 @@ impl RunModel {
         let kind = match node.kind {
             NodeKind::Collection => TargetKind::Collection,
             NodeKind::Folder => TargetKind::Folder,
-            NodeKind::Request { .. } => return None,
+            NodeKind::Request { .. } | NodeKind::Example { .. } => return None,
         };
         let plan = items
             .iter()

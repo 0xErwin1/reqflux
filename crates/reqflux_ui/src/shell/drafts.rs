@@ -515,7 +515,7 @@ impl Shell {
         let reloaded = match engine.reload() {
             Ok(()) => {
                 self.workspace_id = Some(engine.workspace().manifest.id.to_string());
-                let roots = tree_model::nodes(engine.workspace());
+                let roots = tree_model::engine_nodes(engine);
                 self.sidebar
                     .update(cx, |sidebar, cx| sidebar.set_roots(roots, cx));
                 true

@@ -1,5 +1,6 @@
-//! The response views row, `Body`, `Headers <n>` and `Cookies <n>` with the content type
-//! and the body search field, and the Headers grid.
+//! The response views row, `Body`, `Headers <n>`, `Cookies <n>` and `Timeline` with the
+//! content type, the JSONPath field of the body and the body search field, and the Headers
+//! grid.
 
 use bolt::primitives::SegmentedItem;
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
@@ -9,6 +10,7 @@ use gpui::{
 use gpui_kit_assets::IconName;
 
 use super::cookies::cookie_count;
+use super::jsonpath_field;
 use super::model::{BodyView, ResponseTab};
 use super::search_field;
 use crate::shell::request::Received;
@@ -39,9 +41,10 @@ pub(super) fn effective_view(view: BodyView, received: &Received) -> BodyView {
     }
 }
 
-/// The views row of the response `received` of the request `id`: the `Body`, `Headers <n>`
-/// and `Cookies <n>` segments, element id `response-views`, then the content type and, at
-/// the end, the search field.
+/// The views row of the response `received` of the request `id`: the `Body`, `Headers <n>`,
+/// `Cookies <n>` and `Timeline` segments, element id `response-views`, then the content
+/// type and, at the end, the JSONPath field (on the Pretty and Raw body only) and the
+/// search field.
 pub(super) fn render(
     id: &str,
     send: &RequestSend,
@@ -67,6 +70,13 @@ pub(super) fn render(
             "Cookies",
             IconName::Cookie,
             Some(cookie_count),
+        ),
+        (
+            ResponseTab::Timeline,
+            "timeline",
+            "Timeline",
+            IconName::Activity,
+            None,
         ),
     ];
     let active = views
@@ -119,6 +129,10 @@ pub(super) fn render(
                 .child(content_type.to_owned())
         }))
         .child(div().flex_1())
+        .children(
+            (tab == ResponseTab::Body && effective_view(send.view, received) != BodyView::Preview)
+                .then(|| jsonpath_field::render(id, send, received, cx)),
+        )
         .child(search_field::render(id, send, cx))
 }
 

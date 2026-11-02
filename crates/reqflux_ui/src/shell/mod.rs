@@ -23,6 +23,7 @@ mod documents;
 mod drafts;
 mod empty_state;
 mod environment_menu;
+mod examples;
 mod history;
 mod import_flow;
 mod last_request;
@@ -196,6 +197,9 @@ pub(crate) struct Shell {
     auth_menu_open: bool,
     /// Focused while the auth type menu is open, so Escape reaches it.
     auth_menu_focus: FocusHandle,
+    /// Which Auth pane menu `auth_menu_open` shows, and the OAuth 2.0 token states and
+    /// Get new token fetches of the open requests.
+    auth_pane: auth_edit::AuthPane,
     /// Whether the Body pane mode menu of the active request is open.
     body_menu_open: bool,
     /// Focused while the body mode menu is open, so Escape reaches it.
@@ -220,6 +224,8 @@ pub(crate) struct Shell {
     orphan: Option<history::HistoryTab>,
     /// The run document, while open (see [`runner::RunTab`]).
     run: Option<runner::RunTab>,
+    /// The open example tab and the Save as example dialog (see [`examples`]).
+    examples: examples::Examples,
     /// Where `Open in browser` writes an HTML response and how it opens it.
     preview_host: PreviewHost,
     /// The window's toast stack, `bolt`'s, mounted over the region between the title bar
@@ -247,7 +253,7 @@ impl Shell {
     ) -> Self {
         let sidebar = cx.new(|cx| Sidebar::new(&workspace, cx));
         let roots = match &workspace {
-            OpenedWorkspace::Loaded(engine) => tree_model::nodes(engine.workspace()),
+            OpenedWorkspace::Loaded(engine) => tree_model::engine_nodes(engine),
             OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => Vec::new(),
         };
         let workspace_id = match &workspace {
@@ -295,6 +301,7 @@ impl Shell {
             environment_menu_focus: cx.focus_handle(),
             auth_menu_open: false,
             auth_menu_focus: cx.focus_handle(),
+            auth_pane: auth_edit::AuthPane::default(),
             body_menu_open: false,
             body_menu_focus: cx.focus_handle(),
             method_menu_open: false,
@@ -306,6 +313,7 @@ impl Shell {
             settings: SettingsPage::new(cx),
             orphan: None,
             run: None,
+            examples: examples::Examples::new(cx),
             preview_host: PreviewHost::default(),
             toasts: toasts::host(cx),
             _sidebar_events: sidebar_events,
@@ -333,6 +341,7 @@ impl Shell {
         self.leave_audit(cx);
         self.leave_history_tab();
         self.leave_run_tab();
+        self.leave_example_tab();
         self.documents.open(id);
         self.drop_stale_url_edit(id);
         self.drop_stale_cell_edit(id);
@@ -453,6 +462,7 @@ impl Shell {
         self.leave_audit(cx);
         self.leave_history_tab();
         self.leave_run_tab();
+        self.leave_example_tab();
         self.documents.activate(id);
         self.auth_menu_open = false;
         self.body_menu_open = false;
@@ -534,6 +544,7 @@ impl Render for Shell {
             .children(palette::render(self, window, cx))
             .children(import_flow::render(self, window, cx))
             .children(codegen::render(self, window, cx))
+            .children(examples::render_overlays(self, window, cx))
     }
 }
 
@@ -550,6 +561,15 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
         cx.subscribe(sidebar, |this, _, runner::RunRequested(id), cx| {
             this.open_run(id, cx);
         }),
+        cx.subscribe(sidebar, |this, _, examples::OpenExample(id), cx| {
+            this.open_example(id, cx);
+        }),
+        cx.subscribe(
+            sidebar,
+            |this, _, command: &examples::ExampleCommand, cx| {
+                this.run_example_command(command, cx);
+            },
+        ),
         cx.subscribe(sidebar, |this, _, OpenHistory(entry), cx| {
             this.open_history_entry(*entry, cx);
         }),

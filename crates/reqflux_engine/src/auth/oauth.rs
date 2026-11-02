@@ -48,13 +48,13 @@ impl std::fmt::Debug for OAuthToken {
 }
 
 impl OAuthToken {
-    fn expired(&self, now: u64) -> bool {
+    pub(super) fn expired(&self, now: u64) -> bool {
         self.expires_at
             .is_some_and(|expires_at| now.saturating_add(EXPIRY_MARGIN) >= expires_at)
     }
 }
 
-fn unix_now() -> u64 {
+pub(super) fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |elapsed| elapsed.as_secs())
@@ -78,20 +78,32 @@ pub(super) async fn access_token(
     options: RequestOptions,
 ) -> Result<(String, Origin), HttpError> {
     let stored = read(context, key);
-    if let Some(stored) = &stored {
-        if !stored.expired(unix_now()) {
-            return Ok((stored.access_token.clone(), Origin::Stored));
-        }
-        if let Some(refresh) = stored.refresh_token.as_deref() {
-            match refresh_grant(context, config, refresh, options).await {
-                Ok(mut token) => {
-                    if token.refresh_token.is_none() {
-                        token.refresh_token = Some(refresh.to_owned());
-                    }
-                    return Ok((store(context, key, token), Origin::New));
+    if let Some(stored) = &stored
+        && !stored.expired(unix_now())
+    {
+        return Ok((stored.access_token.clone(), Origin::Stored));
+    }
+    let token = acquire(context, config, stored, options).await?;
+    Ok((store(context, key, token), Origin::New))
+}
+
+/// A new token, not yet stored: refreshed with the refresh token `stored` keeps, else
+/// obtained with the configured grant.
+pub(super) async fn acquire(
+    context: &AuthContext,
+    config: &OAuth2Auth,
+    stored: Option<OAuthToken>,
+    options: RequestOptions,
+) -> Result<OAuthToken, HttpError> {
+    if let Some(refresh) = stored.and_then(|stored| stored.refresh_token) {
+        match refresh_grant(context, config, &refresh, options).await {
+            Ok(mut token) => {
+                if token.refresh_token.is_none() {
+                    token.refresh_token = Some(refresh);
                 }
-                Err(error) => log::info!("the OAuth 2.0 token was not refreshed: {error}"),
+                return Ok(token);
             }
+            Err(error) => log::info!("the OAuth 2.0 token was not refreshed: {error}"),
         }
     }
     let token = match config.grant_type {
@@ -133,7 +145,7 @@ pub(super) async fn access_token(
             token_request(context, config, form, options).await?
         }
     };
-    Ok((store(context, key, token), Origin::New))
+    Ok(token)
 }
 
 /// Drops the access token the server refused with a 401, so the next send obtains a new
@@ -175,7 +187,7 @@ async fn refresh_grant(
     token_request(context, config, form, options).await
 }
 
-fn read(context: &AuthContext, key: &SecretKey) -> Option<OAuthToken> {
+pub(super) fn read(context: &AuthContext, key: &SecretKey) -> Option<OAuthToken> {
     match context.secrets.get(key) {
         Ok(Some(text)) => serde_json::from_str(&text).ok(),
         Ok(None) => None,
@@ -188,7 +200,7 @@ fn read(context: &AuthContext, key: &SecretKey) -> Option<OAuthToken> {
 
 /// Stores `token` and returns its access token. A store that cannot keep it is logged; the
 /// token is still sent.
-fn store(context: &AuthContext, key: &SecretKey, token: OAuthToken) -> String {
+pub(super) fn store(context: &AuthContext, key: &SecretKey, token: OAuthToken) -> String {
     match serde_json::to_string(&token) {
         Ok(text) => {
             if let Err(error) = context.secrets.set(key, &text) {

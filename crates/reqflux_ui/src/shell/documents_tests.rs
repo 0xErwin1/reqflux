@@ -1,7 +1,7 @@
 //! The open documents model (S1) and the request location the path bar shows (S2).
 
-use super::{Documents, Location, RowTab, locate, step};
-use crate::shell::tree_model::{Node, NodeKind};
+use super::{Documents, ExampleLocation, Location, RowTab, locate, locate_example, step};
+use crate::shell::tree_model::{ExampleLeaf, Node, NodeKind, example_node};
 
 fn opened(ids: &[&str]) -> Documents {
     let mut documents = Documents::default();
@@ -185,6 +185,60 @@ fn step_includes_the_history_tab_first_in_the_row() {
     assert_eq!(step(&open, Some("b"), Some(true), true), tab("a"));
     assert_eq!(step(&open, Some("b"), Some(true), false), tab("b"));
     assert_eq!(step(&[], None, Some(true), true), Some(RowTab::History));
+}
+
+#[test]
+fn locate_example_names_its_request_and_breadcrumb() {
+    let mut create = request("create", "Create invoice", "POST");
+    create.children.push(example_node(
+        "create",
+        "create-invoice",
+        ExampleLeaf {
+            id: "e1".to_owned(),
+            name: "Created".to_owned(),
+            status: 201,
+            slug: "created".to_owned(),
+        },
+    ));
+    let roots = vec![node(
+        "billing",
+        "Billing API",
+        NodeKind::Collection,
+        vec![node("invoices", "invoices", NodeKind::Folder, vec![create])],
+    )];
+
+    let found = locate_example(&roots, "create/e1");
+    let expected = ExampleLocation {
+        request: "create".to_owned(),
+        example: "e1".to_owned(),
+        name: "Created".to_owned(),
+        file: "create-invoice.examples/created.example.toml".to_owned(),
+        location: Location {
+            collection: "Billing API".to_owned(),
+            folders: vec!["invoices".to_owned()],
+            name: "Create invoice".to_owned(),
+            method: "POST".to_owned(),
+        },
+    };
+    assert_eq!(found, Some(expected));
+    assert_eq!(
+        locate_example(&roots, "create/e1").map(|found| found.breadcrumb()),
+        Some("Billing API › invoices › Create invoice".to_owned())
+    );
+    assert_eq!(
+        locate_example(&roots, "create"),
+        None,
+        "a request is no example"
+    );
+    assert_eq!(
+        locate(&roots, "create/e1"),
+        None,
+        "an example is no request"
+    );
+    assert!(
+        locate(&roots, "create").is_some(),
+        "its request still locates"
+    );
 }
 
 #[test]

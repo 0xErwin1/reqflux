@@ -351,7 +351,7 @@ impl Shell {
 
     /// The id of the active request tab; `None` while the history tab or the run document is active.
     pub(super) fn active_request(&self) -> Option<&str> {
-        if self.history_tab_active() || self.run_tab_active() {
+        if self.history_tab_active() || self.run_tab_active() || self.example_tab_active() {
             None
         } else {
             self.documents.active()
@@ -370,6 +370,7 @@ impl Shell {
         self.leave_approvals(cx);
         self.leave_audit(cx);
         self.leave_run_tab();
+        self.leave_example_tab();
         if let Some(tab) = self.orphan.as_mut() {
             tab.active = true;
         }

@@ -7,7 +7,9 @@
 //! hash-checked against it, so an edit made after the agent's read is a conflict whatever
 //! other tools reloaded in between.
 
-use reqflux_core::model::{Auth, Id, Item, KeyValue, Request, RequestNode, Workspace};
+use reqflux_core::model::{
+    Auth, Id, Item, KeyValue, Request, RequestNode, Workspace, secret_fields,
+};
 use reqflux_engine::{ContentHash, MASK, is_credential_header, toml_error_location};
 use serde_json::json;
 
@@ -209,15 +211,30 @@ pub(super) fn masked(auth: &Auth) -> Auth {
             value: mask(value),
             location: *location,
         },
-        // The engine does not know which fields of other types hold credentials, so every
-        // value is masked, as in the window.
-        Auth::Other { kind, fields } => Auth::Other {
-            kind: kind.clone(),
-            fields: fields
-                .keys()
-                .map(|key| (key.clone(), toml::Value::String(MASK.to_owned())))
-                .collect(),
-        },
+        // Digest, AWS SigV4 and OAuth 2.0 name their credential fields, which are masked;
+        // other types do not, so every value is masked, as in the window.
+        Auth::Other { kind, fields } => {
+            let secrets = secret_fields(kind);
+            Auth::Other {
+                kind: kind.clone(),
+                fields: fields
+                    .iter()
+                    .map(|(key, value)| {
+                        let value = match value {
+                            _ if secrets.is_empty() => toml::Value::String(MASK.to_owned()),
+                            toml::Value::String(text) if secrets.contains(&key.as_str()) => {
+                                toml::Value::String(mask(text))
+                            }
+                            _ if secrets.contains(&key.as_str()) => {
+                                toml::Value::String(MASK.to_owned())
+                            }
+                            other => other.clone(),
+                        };
+                        (key.clone(), value)
+                    })
+                    .collect(),
+            }
+        }
     }
 }
 

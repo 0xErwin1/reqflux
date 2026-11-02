@@ -263,6 +263,54 @@ fn the_mask_never_restores_into_another_auth_type() {
     }
 }
 
+#[test]
+fn request_get_masks_only_the_secret_fields_of_typed_auth() {
+    for (tail, secrets, shown) in [
+        (
+            "[auth]\ntype = \"digest\"\nusername = \"bot\"\npassword = \"dig-SECRET-pw\"\nalgorithm = \"SHA-256\"\n",
+            vec!["dig-SECRET-pw"],
+            vec!["bot", "SHA-256"],
+        ),
+        (
+            "[auth]\ntype = \"awsv4\"\naccess_key = \"AKIDEXAMPLE\"\nsecret_key = \"aws-SECRET-key\"\nsession_token = \"aws-SECRET-session\"\nregion = \"eu-west-1\"\nservice = \"execute-api\"\n",
+            vec!["aws-SECRET-key", "aws-SECRET-session"],
+            vec!["AKIDEXAMPLE", "eu-west-1", "execute-api"],
+        ),
+        (
+            "[auth]\ntype = \"oauth2\"\ntoken_url = \"https://id/token\"\nclient_id = \"billing\"\nclient_secret = \"oa-SECRET-client\"\n",
+            vec!["oa-SECRET-client"],
+            vec!["billing", "https://id/token"],
+        ),
+    ] {
+        let dir = TempDir::new().unwrap();
+        let (mut state, _root, id, _file) = with_request(&dir, tail);
+
+        let got = get(&mut state, &id).to_string();
+
+        for secret in secrets {
+            assert!(!got.contains(secret), "{got}");
+        }
+        for value in shown {
+            assert!(got.contains(value), "{value} is shown: {got}");
+        }
+        assert!(got.contains(MASK), "{got}");
+    }
+}
+
+#[test]
+fn request_get_masks_every_field_of_an_auth_type_without_secret_fields() {
+    let dir = TempDir::new().unwrap();
+    let (mut state, _root, id, _file) = with_request(
+        &dir,
+        "[auth]\ntype = \"hawk\"\nauthId = \"hawk-id-x\"\nauthKey = \"hawk-SECRET-key\"\n",
+    );
+
+    let got = get(&mut state, &id).to_string();
+
+    assert!(!got.contains("hawk-SECRET-key"), "{got}");
+    assert!(!got.contains("hawk-id-x"), "{got}");
+}
+
 // Credential headers in documents.
 
 #[test]

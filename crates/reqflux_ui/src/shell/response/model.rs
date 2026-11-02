@@ -10,6 +10,7 @@ pub(crate) enum ResponseTab {
     Body,
     Headers,
     Cookies,
+    Timeline,
     Tests,
     Console,
 }

@@ -3,21 +3,54 @@
 //! Password, Token and API key Value rows open a field in the shell's cell field slot, so it
 //! commits, discards and gives the focus back exactly as a grid cell does. A secret field
 //! opens empty with a `Secret value` placeholder and an empty commit keeps the stored value.
-//! Add to picks header or query. Other auth types stay read-only.
+//! Add to picks header or query. Digest, AWS SigV4 and OAuth 2.0 edit through their typed
+//! views ([`typed`]), and an OAuth 2.0 auth shows its token's state ([`token`]). Other auth
+//! types stay read-only.
+
+mod token;
+mod typed;
+#[cfg(test)]
+mod typed_tests;
 
 use gpui::{AppContext as _, Context, Window};
 use gpui_component::input::InputState;
-use reqflux_core::model::{ApiKeyLocation, Auth};
+use reqflux_core::model::{ApiKeyLocation, Auth, AwsV4Auth, DigestAuth, OAuth2Auth};
 
 use super::Shell;
 use super::cell_edit::{CellEdit, CellField};
+
+pub(crate) use token::TokenFetching;
+pub(crate) use typed::TYPED_PREFIX;
 
 /// The table name an Auth field records in its [`CellEdit`], which no grid uses.
 pub(crate) const AUTH_TABLE: &str = "auth";
 
 /// The auth types the type menu offers, by their on-disk `type`, in menu order. Inheriting
 /// is the Source control's, not a type.
-pub(crate) const AUTH_KINDS: [&str; 4] = ["none", "basic", "bearer", "apikey"];
+pub(crate) const AUTH_KINDS: [&str; 7] = [
+    "none", "basic", "bearer", "apikey", "digest", "awsv4", "oauth2",
+];
+
+/// A menu of the Auth pane, which `Shell::auth_menu_open` shows under its select.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum AuthMenu {
+    /// The auth type.
+    #[default]
+    Type,
+    /// The digest algorithm.
+    Algorithm,
+    /// The OAuth 2.0 grant type.
+    Grant,
+}
+
+/// The Auth pane state the shell keeps beyond the draft: which menu is open, and the OAuth
+/// 2.0 token of each request.
+#[derive(Default)]
+pub(crate) struct AuthPane {
+    /// Which menu `Shell::auth_menu_open` shows.
+    pub(crate) menu: AuthMenu,
+    tokens: token::Tokens,
+}
 
 /// A new auth of the on-disk type `kind`, with empty fields and the key in a header.
 pub(crate) fn empty_auth(kind: &str) -> Option<Auth> {
@@ -36,6 +69,9 @@ pub(crate) fn empty_auth(kind: &str) -> Option<Auth> {
             value: String::new(),
             location: ApiKeyLocation::Header,
         },
+        "digest" => DigestAuth::default().into(),
+        "awsv4" => AwsV4Auth::default().into(),
+        "oauth2" => OAuth2Auth::default().into(),
         _ => return None,
     })
 }
@@ -54,7 +90,7 @@ fn auth_text(auth: &mut Auth, secret: bool) -> Option<&mut String> {
 
 impl Shell {
     /// The auth the Auth pane of the request `id` shows: the draft's, else the file's.
-    fn displayed_auth(&self, id: &str) -> Option<Auth> {
+    pub(super) fn displayed_auth(&self, id: &str) -> Option<Auth> {
         let state = self.requests.get(id)?;
         Some(
             self.displayed_request(id, &state.inspection.request.request)
@@ -92,6 +128,20 @@ impl Shell {
             return;
         };
         let seed = if secret { String::new() } else { text.clone() };
+        self.open_auth_field(id, AUTH_TABLE, seed, secret, window, cx);
+    }
+
+    /// Opens the focused field of the Auth pane of the request `id`, recorded under
+    /// `table`, seeded with `seed`; a `secret` one shows a placeholder.
+    fn open_auth_field(
+        &mut self,
+        id: &str,
+        table: &str,
+        seed: String,
+        secret: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let input = cx.new(|cx| {
             let mut state = InputState::new(window, cx);
             if secret {
@@ -105,7 +155,7 @@ impl Shell {
         });
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),
-            table: AUTH_TABLE.to_owned(),
+            table: table.to_owned(),
             n: 0,
             field: if secret {
                 CellField::Value
@@ -154,9 +204,20 @@ impl Shell {
 
     /// Opens the auth type menu and focuses it, or closes it when open.
     pub(super) fn toggle_auth_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.auth_menu_open {
+        self.toggle_auth_select(AuthMenu::Type, window, cx);
+    }
+
+    /// Opens the Auth pane menu `menu` and focuses it, or closes it when it is open.
+    pub(super) fn toggle_auth_select(
+        &mut self,
+        menu: AuthMenu,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.auth_menu_open && self.auth_pane.menu == menu {
             self.close_auth_menu(window, cx);
         } else {
+            self.auth_pane.menu = menu;
             self.auth_menu_open = true;
             self.auth_menu_focus.focus(window, cx);
             cx.notify();

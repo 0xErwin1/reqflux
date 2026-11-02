@@ -151,6 +151,9 @@ pub(crate) const PATH_SEPARATOR: Pixels = px(10.0);
 /// The height of the request line: method, URL and Send.
 pub(crate) const REQUEST_LINE: Pixels = px(48.0);
 
+/// The width of the request-as-written side of the example tab (design/examples/01).
+pub(crate) const EXAMPLE_REQUEST_COLUMN: Pixels = px(430.0);
+
 /// The width of the method chip on the request line.
 pub(crate) const METHOD_CHIP_WIDTH: Pixels = px(96.0);
 
@@ -242,6 +245,14 @@ pub(crate) const RESPONSE_PROGRESS_PERIOD: Duration = Duration::from_millis(1400
 
 /// The opacity of the previous response while a new send is in flight.
 pub(crate) const RESPONSE_DIMMED: f32 = 0.62;
+
+/// The height of a phase track in the response Timeline (response-views/02).
+// bolt gap: timeline strip (B1).
+pub(crate) const TIMELINE_STRIP_HEIGHT: Pixels = px(10.0);
+
+/// The narrowest phase bar in the response Timeline, so a phase under a millisecond shows.
+// bolt gap: timeline strip (B1).
+pub(crate) const TIMELINE_STRIP_MIN_BAR: Pixels = px(2.0);
 
 /// The width of the Problems panel (status-bar/02); the rest of it is DBFlux's notifications
 /// popover (`bolt::tokens::NotificationMetrics`).

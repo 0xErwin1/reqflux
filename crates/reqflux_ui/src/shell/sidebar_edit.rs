@@ -1,6 +1,8 @@
 //! Editing the tree from the sidebar (design/tree-editing/01-context-menu-modal): the row
 //! menu of [`menu`], the inline rename field and its hint, the delete dialog of
-//! [`delete_dialog`] and the error of the last failed operation.
+//! [`delete_dialog`] and the error of the last failed operation. An example row has its own
+//! menu and delete dialog (see [`super::examples`]); its rename uses the same field and emits
+//! an [`ExampleCommand`].
 //!
 //! The sidebar never touches the workspace: it emits a [`TreeCommand`], and the shell, which
 //! owns the engine, runs it and reports back through [`Sidebar::tree_changed`] or
@@ -17,6 +19,7 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
+use super::examples::ExampleCommand;
 use super::request::ui;
 use super::sidebar::Sidebar;
 use super::tree_model::Node;
@@ -92,17 +95,19 @@ pub(crate) struct TreeEdit {
     /// The id of the row whose menu is open.
     menu: Option<String>,
     /// Where the open menu sits, in window coordinates: the pointer when it opened.
-    menu_at: Point<Pixels>,
+    pub(in crate::shell) menu_at: Point<Pixels>,
     /// Whether the open menu shows the actions or the Move to… destinations.
     page: MenuPage,
     /// Focused while the menu is open.
-    menu_focus: FocusHandle,
+    pub(in crate::shell) menu_focus: FocusHandle,
     rename: Option<Rename>,
     pending_rename: Option<PendingRename>,
     /// Set while a duplicate runs: the copy it reports opens into rename.
     rename_copy: bool,
     /// The id of the entity whose delete waits for a confirmation.
     confirm: Option<String>,
+    /// The node id of the example whose delete waits for a confirmation.
+    pub(in crate::shell) confirm_example: Option<String>,
     /// The requests with an unsaved draft, as the shell reported them for the delete dialog.
     unsaved: HashSet<String>,
     /// The id and name of the row being dragged.
@@ -122,6 +127,7 @@ impl TreeEdit {
             pending_rename: None,
             rename_copy: false,
             confirm: None,
+            confirm_example: None,
             unsaved: HashSet::new(),
             dragging: None,
             error: None,
@@ -230,7 +236,7 @@ impl Sidebar {
             self.close_menu(window, cx);
             true
         } else {
-            self.edit.confirm.take().is_some()
+            self.edit.confirm.take().is_some() || self.edit.confirm_example.take().is_some()
         };
         if had_error || closed {
             cx.notify();
@@ -255,14 +261,14 @@ impl Sidebar {
         cx.notify();
     }
 
-    fn close_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(in crate::shell) fn close_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.edit.menu = None;
         self.focus.focus(window, cx);
         cx.notify();
     }
 
     /// Opens the rename field over the name of `id`, seeded with the name, all selected.
-    fn start_rename(
+    pub(in crate::shell) fn start_rename(
         &mut self,
         id: &str,
         created: bool,
@@ -297,6 +303,14 @@ impl Sidebar {
         let name = rename.input.read(cx).value().to_string();
         self.focus.focus(window, cx);
         if name == rename.original {
+            cx.notify();
+            return;
+        }
+        if self.node(&rename.id).is_some_and(Node::is_example) {
+            cx.emit(ExampleCommand::Rename {
+                id: rename.id,
+                name,
+            });
             cx.notify();
             return;
         }
@@ -348,6 +362,14 @@ impl Sidebar {
         let Some(id) = self.selected().map(str::to_owned) else {
             return;
         };
+        if self.node(&id).is_some_and(Node::is_example) {
+            match item {
+                MenuItem::Rename => self.start_rename(&id, false, window, cx),
+                MenuItem::Delete => self.prompt_example_delete(&id, window, cx),
+                _ => {}
+            }
+            return;
+        }
         if self
             .node(&id)
             .is_some_and(|node| item.applies_to(&node.kind))
@@ -361,7 +383,7 @@ impl Sidebar {
         self.edit.menu = None;
         // New items go into a collection or folder; on a request, into the request's parent.
         let container = match self.node(id) {
-            Some(node) if node.is_expandable() => Some(id.to_owned()),
+            Some(node) if node.is_container() => Some(id.to_owned()),
             Some(_) | None => self.parent(id),
         };
         match (pick, container) {
@@ -517,7 +539,11 @@ impl Sidebar {
             .into_any_element();
         let mut actions = vec![button];
         if self.edit.menu.as_deref() == Some(node.id.as_str()) {
-            actions.push(self.menu(node, window, cx));
+            actions.push(if node.is_example() {
+                self.example_menu(node, window, cx)
+            } else {
+                self.menu(node, window, cx)
+            });
         }
         actions
     }

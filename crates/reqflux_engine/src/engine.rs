@@ -30,11 +30,11 @@ use crate::sent::{Masker, SentRequest};
 #[derive(Debug)]
 pub struct Engine {
     pub(crate) runtime: Runtime,
-    client: HttpClient,
+    pub(crate) client: HttpClient,
     pub(crate) root: PathBuf,
     pub(crate) loaded: Loaded,
-    secrets: Arc<dyn SecretStore>,
-    browser: Arc<dyn Browser>,
+    pub(crate) secrets: Arc<dyn SecretStore>,
+    pub(crate) browser: Arc<dyn Browser>,
 }
 
 /// A request in flight.
@@ -293,13 +293,7 @@ impl Engine {
     ///
     /// No request matches `selector`, or the secret store failed.
     pub fn forget_oauth_token(&self, selector: &str) -> Result<(), ExecuteError> {
-        let target = crate::select::find(self.workspace(), selector)?;
-        let (owner, _) = crate::prepare::effective(&target.request.request, &target);
-        let key = owner.token_key(
-            self.workspace().manifest.id,
-            target.collection.collection.id,
-        );
-        Ok(self.secrets.delete(&key)?)
+        self.forget_oauth_token_of(selector, None)
     }
 
     /// The store secret variable values are read from and written to.
@@ -371,7 +365,7 @@ impl Engine {
 
     /// Prepares `request` in the place of `target` with the valueless secrets read from the
     /// secret store.
-    fn prepare_stored(
+    pub(crate) fn prepare_stored(
         &self,
         target: &crate::select::Target<'_>,
         request: &Request,

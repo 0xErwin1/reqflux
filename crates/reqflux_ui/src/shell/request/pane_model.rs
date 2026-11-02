@@ -1,8 +1,13 @@
 //! The Body, Auth, Scripts and Settings panes without GPUI: the body mode, the auth type and
 //! its fields with their masking, the settings text and the lines of a code block.
 
-use reqflux_core::model::{ApiKeyLocation, Auth, Body, RawLanguage, Settings};
+use reqflux_core::model::{
+    ApiKeyLocation, Auth, AwsV4Auth, Body, DigestAlgorithm, DigestAuth, OAuth2Auth, OAuth2Grant,
+    RawLanguage, Settings, TypedAuth, secret_fields,
+};
 use reqflux_engine::DEFAULT_TIMEOUT_MS;
+
+pub(crate) use crate::shell::auth_edit::AuthMenu;
 
 /// The body mode the pane header shows.
 pub(crate) fn body_mode(body: &Body) -> String {
@@ -34,8 +39,30 @@ pub(crate) fn auth_type(auth: &Auth) -> &str {
         Auth::Basic { .. } => "Basic",
         Auth::Bearer { .. } => "Bearer token",
         Auth::ApiKey { .. } => "API key",
-        Auth::Other { kind, .. } => kind,
+        Auth::Other { kind, .. } => match kind.as_str() {
+            "digest" => "Digest",
+            "awsv4" => "AWS Signature v4",
+            "oauth2" => "OAuth 2.0",
+            _ => kind,
+        },
     }
+}
+
+/// What a click on an auth field row does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FieldEdit {
+    /// Opens a field seeded with the text: Username and Key of basic and API key, or the
+    /// typed field with this on-disk key.
+    Text(&'static str),
+    /// Opens an empty secret field: Password, Token and Value, or the typed field with this
+    /// on-disk key.
+    Secret(&'static str),
+    /// Opens the menu.
+    Select(AuthMenu),
+    /// Add to, which its segments edit.
+    Location,
+    /// Nothing: a field of an auth type ReqFlux does not edit.
+    None,
 }
 
 /// An auth field row. A `masked` value is never shown.
@@ -44,6 +71,11 @@ pub(crate) struct AuthField {
     pub(crate) label: String,
     pub(crate) value: String,
     pub(crate) masked: bool,
+    pub(crate) edit: FieldEdit,
+    /// What an empty value shows.
+    pub(crate) placeholder: Option<&'static str>,
+    /// The muted line under the control.
+    pub(crate) hint: Option<&'static str>,
 }
 
 impl AuthField {
@@ -56,48 +88,224 @@ impl AuthField {
     }
 }
 
-/// The fields of `auth`. Passwords, tokens, API key values and every field of other types are
-/// always masked; other values when they reference a secret, as `references_secret` (the
-/// engine's) decides.
+/// The fields of `auth`. Passwords, tokens, API key values, the `secret_fields` of digest,
+/// AWS SigV4 and OAuth 2.0, and every field of other types are always masked; other values
+/// when they reference a secret, as `references_secret` (the engine's) decides.
 pub(crate) fn auth_fields(auth: &Auth, references_secret: impl Fn(&str) -> bool) -> Vec<AuthField> {
-    let field = |label: &str, value: &str, always: bool| AuthField {
+    let field = |label: &str, value: &str, edit: FieldEdit| AuthField {
         label: label.to_owned(),
         value: value.to_owned(),
-        masked: always || references_secret(value),
+        masked: matches!(edit, FieldEdit::Secret(_)) || references_secret(value),
+        edit,
+        placeholder: None,
+        hint: None,
     };
     match auth {
         Auth::Inherit | Auth::None => Vec::new(),
         Auth::Basic { username, password } => vec![
-            field("Username", username, false),
-            field("Password", password, true),
+            field("Username", username, FieldEdit::Text("username")),
+            field("Password", password, FieldEdit::Secret("password")),
         ],
-        Auth::Bearer { token } => vec![field("Token", token, true)],
+        Auth::Bearer { token } => vec![field("Token", token, FieldEdit::Secret("token"))],
         Auth::ApiKey {
             key,
             value,
             location,
         } => vec![
-            field("Key", key, false),
-            field("Value", value, true),
+            field("Key", key, FieldEdit::Text("key")),
+            field("Value", value, FieldEdit::Secret("value")),
             field(
                 "Add to",
                 match location {
                     ApiKeyLocation::Header => "header",
                     ApiKeyLocation::Query => "query",
                 },
-                false,
+                FieldEdit::Location,
             ),
         ],
-        // The engine does not know which fields of other types hold credentials (an OAuth 2
-        // client secret, a token), so every value is masked.
-        Auth::Other { fields, .. } => fields
-            .iter()
-            .map(|(key, value)| match value.as_str() {
-                Some(text) => field(key, text, true),
-                None => field(key, &value.to_string(), true),
-            })
-            .collect(),
+        Auth::Other { kind, fields } => match auth.typed() {
+            Some(Ok(typed)) => typed_fields(&typed)
+                .into_iter()
+                .map(|row| {
+                    let mut shown = field(row.label, &row.value, row.edit);
+                    shown.placeholder = row.placeholder;
+                    shown.hint = row.hint;
+                    shown
+                })
+                .collect(),
+            // Fields that do not read stay read-only. A type that names its credential fields
+            // masks those; for any other type every value is masked, since which ones hold
+            // a credential is not known.
+            _ => {
+                let secrets = secret_fields(kind);
+                fields
+                    .iter()
+                    .map(|(key, value)| {
+                        let text = value
+                            .as_str()
+                            .map_or_else(|| value.to_string(), str::to_owned);
+                        let mut shown = field(key, &text, FieldEdit::None);
+                        shown.masked |= secrets.is_empty() || secrets.contains(&key.as_str());
+                        shown
+                    })
+                    .collect()
+            }
+        },
     }
+}
+
+/// A typed auth row before masking.
+struct TypedRow {
+    label: &'static str,
+    value: String,
+    edit: FieldEdit,
+    placeholder: Option<&'static str>,
+    hint: Option<&'static str>,
+}
+
+fn text_row(label: &'static str, key: &'static str, value: &str) -> TypedRow {
+    TypedRow {
+        label,
+        value: value.to_owned(),
+        edit: FieldEdit::Text(key),
+        placeholder: None,
+        hint: None,
+    }
+}
+
+fn secret_row(label: &'static str, key: &'static str, value: &str) -> TypedRow {
+    TypedRow {
+        edit: FieldEdit::Secret(key),
+        ..text_row(label, key, value)
+    }
+}
+
+fn select_row(label: &'static str, menu: AuthMenu, value: &str) -> TypedRow {
+    TypedRow {
+        edit: FieldEdit::Select(menu),
+        ..text_row(label, "", value)
+    }
+}
+
+impl TypedRow {
+    fn optional(self) -> Self {
+        Self {
+            placeholder: Some("Optional"),
+            ..self
+        }
+    }
+
+    fn hint(self, hint: &'static str) -> Self {
+        Self {
+            hint: Some(hint),
+            ..self
+        }
+    }
+}
+
+/// The name the Algorithm select shows for `algorithm`, as written on disk.
+pub(crate) fn algorithm_name(algorithm: DigestAlgorithm) -> &'static str {
+    match algorithm {
+        DigestAlgorithm::Md5 => "MD5",
+        DigestAlgorithm::Sha256 => "SHA-256",
+    }
+}
+
+/// The name the Grant type select shows for `grant`.
+pub(crate) fn grant_name(grant: OAuth2Grant) -> &'static str {
+    match grant {
+        OAuth2Grant::ClientCredentials => "Client credentials",
+        OAuth2Grant::AuthorizationCode => "Authorization code with PKCE",
+        OAuth2Grant::Password => "Password",
+        OAuth2Grant::RefreshToken => "Refresh token",
+    }
+}
+
+/// The digest algorithms the Algorithm menu offers, in menu order, with their ids.
+pub(crate) const ALGORITHMS: [(DigestAlgorithm, &str); 2] = [
+    (DigestAlgorithm::Md5, "md5"),
+    (DigestAlgorithm::Sha256, "sha-256"),
+];
+
+/// The OAuth 2.0 grants the Grant type menu offers, in menu order, with their ids.
+pub(crate) const GRANTS: [(OAuth2Grant, &str); 4] = [
+    (OAuth2Grant::ClientCredentials, "client-credentials"),
+    (OAuth2Grant::AuthorizationCode, "authorization-code"),
+    (OAuth2Grant::Password, "password"),
+    (OAuth2Grant::RefreshToken, "refresh-token"),
+];
+
+fn typed_fields(typed: &TypedAuth) -> Vec<TypedRow> {
+    match typed {
+        TypedAuth::Digest(DigestAuth {
+            username,
+            password,
+            algorithm,
+        }) => vec![
+            text_row("Username", "username", username),
+            secret_row("Password", "password", password),
+            select_row("Algorithm", AuthMenu::Algorithm, algorithm_name(*algorithm)).hint(
+                "Used when the challenge names none. Realm, nonce and qop come from the \
+                 server's challenge on the first send.",
+            ),
+        ],
+        TypedAuth::AwsV4(AwsV4Auth {
+            access_key,
+            secret_key,
+            session_token,
+            region,
+            service,
+        }) => vec![
+            text_row("Access key", "access_key", access_key),
+            secret_row("Secret key", "secret_key", secret_key),
+            secret_row("Session token", "session_token", session_token)
+                .optional()
+                .hint("Only for temporary credentials (STS, SSO)."),
+            text_row("Region", "region", region),
+            text_row("Service", "service", service).hint(
+                "Send adds Authorization, X-Amz-Date and X-Amz-Content-Sha256, plus \
+                 X-Amz-Security-Token with a session token.",
+            ),
+        ],
+        TypedAuth::OAuth2(oauth) => oauth_fields(oauth),
+    }
+}
+
+fn oauth_fields(oauth: &OAuth2Auth) -> Vec<TypedRow> {
+    let mut rows = vec![select_row(
+        "Grant type",
+        AuthMenu::Grant,
+        grant_name(oauth.grant_type),
+    )];
+    if oauth.grant_type == OAuth2Grant::AuthorizationCode {
+        rows.push(text_row("Auth URL", "auth_url", &oauth.auth_url));
+    }
+    rows.push(text_row("Token URL", "token_url", &oauth.token_url));
+    rows.push(text_row("Client ID", "client_id", &oauth.client_id));
+    let client_secret = secret_row("Client secret", "client_secret", &oauth.client_secret);
+    rows.push(if oauth.grant_type == OAuth2Grant::AuthorizationCode {
+        client_secret
+            .optional()
+            .hint("Leave empty for a public client; PKCE (S256) is always used.")
+    } else {
+        client_secret
+    });
+    rows.push(text_row("Scopes", "scope", &oauth.scope).hint("Separated by spaces."));
+    match oauth.grant_type {
+        OAuth2Grant::Password => {
+            rows.push(text_row("Username", "username", &oauth.username));
+            rows.push(secret_row("Password", "password", &oauth.password));
+        }
+        OAuth2Grant::RefreshToken => {
+            rows.push(secret_row(
+                "Refresh token",
+                "refresh_token",
+                &oauth.refresh_token,
+            ));
+        }
+        OAuth2Grant::ClientCredentials | OAuth2Grant::AuthorizationCode => {}
+    }
+    rows
 }
 
 /// The automation id and the text of each settings row, top to bottom.
@@ -141,6 +349,8 @@ pub(crate) fn numbered_lines(text: &str) -> Vec<(usize, &str)> {
 
 #[cfg(test)]
 mod tests {
+    use reqflux_core::model::{AwsV4Auth, DigestAlgorithm, DigestAuth, OAuth2Auth, OAuth2Grant};
+
     use super::*;
 
     fn secret(text: &str) -> bool {
@@ -205,13 +415,208 @@ mod tests {
         );
     }
 
+    fn rows(auth: &Auth) -> Vec<(String, String, bool, FieldEdit)> {
+        auth_fields(auth, secret)
+            .into_iter()
+            .map(|field| (field.label, field.value, field.masked, field.edit))
+            .collect()
+    }
+
+    fn row(
+        label: &str,
+        value: &str,
+        masked: bool,
+        edit: FieldEdit,
+    ) -> (String, String, bool, FieldEdit) {
+        (label.to_owned(), value.to_owned(), masked, edit)
+    }
+
+    #[test]
+    fn digest_masks_the_password_and_selects_the_algorithm() {
+        let auth: Auth = DigestAuth {
+            username: "bot".to_owned(),
+            password: "literal".to_owned(),
+            algorithm: DigestAlgorithm::Sha256,
+        }
+        .into();
+        assert_eq!(auth_type(&auth), "Digest");
+        assert_eq!(
+            rows(&auth),
+            [
+                row("Username", "bot", false, FieldEdit::Text("username")),
+                row("Password", "literal", true, FieldEdit::Secret("password")),
+                row(
+                    "Algorithm",
+                    "SHA-256",
+                    false,
+                    FieldEdit::Select(AuthMenu::Algorithm)
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn aws_masks_both_secrets_and_shows_region_and_service() {
+        let auth: Auth = AwsV4Auth {
+            access_key: "AKID".to_owned(),
+            secret_key: "literal".to_owned(),
+            session_token: String::new(),
+            region: "eu-west-1".to_owned(),
+            service: "execute-api".to_owned(),
+        }
+        .into();
+        assert_eq!(auth_type(&auth), "AWS Signature v4");
+        assert_eq!(
+            rows(&auth),
+            [
+                row("Access key", "AKID", false, FieldEdit::Text("access_key")),
+                row(
+                    "Secret key",
+                    "literal",
+                    true,
+                    FieldEdit::Secret("secret_key")
+                ),
+                row(
+                    "Session token",
+                    "",
+                    true,
+                    FieldEdit::Secret("session_token")
+                ),
+                row("Region", "eu-west-1", false, FieldEdit::Text("region")),
+                row("Service", "execute-api", false, FieldEdit::Text("service")),
+            ]
+        );
+        let fields = auth_fields(&auth, secret);
+        let optional: Vec<_> = fields.iter().map(|field| field.placeholder).collect();
+        assert_eq!(optional, [None, None, Some("Optional"), None, None]);
+    }
+
+    #[test]
+    fn oauth2_rows_follow_the_grant() {
+        let mut oauth = OAuth2Auth {
+            token_url: "https://id/token".to_owned(),
+            client_id: "billing".to_owned(),
+            client_secret: "literal".to_owned(),
+            scope: "read".to_owned(),
+            ..OAuth2Auth::default()
+        };
+        let labels = |oauth: &OAuth2Auth| -> Vec<String> {
+            auth_fields(&oauth.clone().into(), secret)
+                .into_iter()
+                .map(|field| field.label)
+                .collect()
+        };
+        assert_eq!(auth_type(&oauth.clone().into()), "OAuth 2.0");
+        assert_eq!(
+            rows(&oauth.clone().into()),
+            [
+                row(
+                    "Grant type",
+                    "Client credentials",
+                    false,
+                    FieldEdit::Select(AuthMenu::Grant)
+                ),
+                row(
+                    "Token URL",
+                    "https://id/token",
+                    false,
+                    FieldEdit::Text("token_url")
+                ),
+                row("Client ID", "billing", false, FieldEdit::Text("client_id")),
+                row(
+                    "Client secret",
+                    "literal",
+                    true,
+                    FieldEdit::Secret("client_secret")
+                ),
+                row("Scopes", "read", false, FieldEdit::Text("scope")),
+            ]
+        );
+        oauth.grant_type = OAuth2Grant::AuthorizationCode;
+        assert_eq!(
+            labels(&oauth),
+            [
+                "Grant type",
+                "Auth URL",
+                "Token URL",
+                "Client ID",
+                "Client secret",
+                "Scopes"
+            ]
+        );
+        oauth.grant_type = OAuth2Grant::Password;
+        assert_eq!(
+            labels(&oauth),
+            [
+                "Grant type",
+                "Token URL",
+                "Client ID",
+                "Client secret",
+                "Scopes",
+                "Username",
+                "Password"
+            ]
+        );
+        oauth.grant_type = OAuth2Grant::RefreshToken;
+        assert_eq!(
+            labels(&oauth),
+            [
+                "Grant type",
+                "Token URL",
+                "Client ID",
+                "Client secret",
+                "Scopes",
+                "Refresh token"
+            ]
+        );
+        let ids: Vec<_> = auth_fields(&oauth.into(), secret)
+            .iter()
+            .map(AuthField::element_id)
+            .collect();
+        assert_eq!(
+            ids.last().map(String::as_str),
+            Some("request-auth-field-refresh-token")
+        );
+    }
+
+    #[test]
+    fn a_typed_field_referencing_a_secret_is_masked() {
+        let auth: Auth = AwsV4Auth {
+            access_key: "{{token}}".to_owned(),
+            ..AwsV4Auth::default()
+        }
+        .into();
+        assert_eq!(
+            auth_fields(&auth, secret).first().map(|field| field.masked),
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn invalid_typed_fields_mask_only_their_secret_fields_read_only() {
+        let mut fields = toml::Table::new();
+        fields.insert("region".to_owned(), "eu-west-1".into());
+        fields.insert("secret_key".to_owned(), "literal".into());
+        let auth = Auth::Other {
+            kind: "awsv4".to_owned(),
+            fields,
+        };
+        assert_eq!(
+            rows(&auth),
+            [
+                row("region", "eu-west-1", false, FieldEdit::None),
+                row("secret_key", "literal", true, FieldEdit::None),
+            ]
+        );
+    }
+
     #[test]
     fn every_field_of_another_auth_type_is_masked() {
         let mut fields = toml::Table::new();
         fields.insert("client_secret".to_owned(), "plain".into());
         fields.insert("expires_in".to_owned(), 3600.into());
         let other = Auth::Other {
-            kind: "oauth2".to_owned(),
+            kind: "hawk".to_owned(),
             fields,
         };
         let masked: Vec<_> = auth_fields(&other, |_| false)

@@ -1,6 +1,8 @@
 //! Sidebar tree rows, drawn as DBFlux draws its tree: `bolt`'s list row with the selection
 //! bar, a guide line per indent level, then the chevron and the collection or folder icon
-//! with the child count on the right, or the method label of a request; then the name.
+//! with the child count on the right, or the method label of a request; then the name. A
+//! request with saved examples has a chevron and its example count; an example is a leaf with
+//! the bookmark icon, its name and its status code on the right.
 
 use bolt::composites::ListRow;
 use bolt::primitives::{Icon, TextVariant};
@@ -11,7 +13,8 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
-use super::request::ui;
+use super::request::{StatusClass, ui};
+use super::sidebar_history::class_color;
 use super::tree_model::{NodeKind, VisibleRow};
 use crate::tokens::{self, method_hue};
 
@@ -96,7 +99,9 @@ pub(super) fn tree_row(
         (_, true) => colors.strong,
         (NodeKind::Collection, false) => colors.strong,
         (NodeKind::Folder, false) if row.expanded => colors.strong,
-        (NodeKind::Folder | NodeKind::Request { .. }, false) => colors.foreground,
+        (NodeKind::Folder | NodeKind::Request { .. } | NodeKind::Example { .. }, false) => {
+            colors.foreground
+        }
     };
     let name = match slots.name {
         Some(field) => field,
@@ -114,9 +119,68 @@ pub(super) fn tree_row(
             .into_any_element(),
     };
 
+    let muted = colors.muted;
+    let chevron_id = format!("tree-chevron-{}", node.id);
+    let chevron = move |expanded: bool| {
+        let icon = if expanded {
+            IconName::ChevronDown
+        } else {
+            IconName::ChevronRight
+        };
+        part(chevron_id)
+            .on_click(move |event, window, cx| {
+                cx.stop_propagation();
+                on_toggle(event, window, cx);
+            })
+            .flex_none()
+            .cursor_pointer()
+            .child(
+                Icon::new(ui::icon(icon))
+                    .size(TreeMetrics::CHEVRON)
+                    .color(muted),
+            )
+    };
+    let count = || {
+        part(format!("tree-count-{}", node.id))
+            .flex_none()
+            .font_family(bolt::fonts::editor_family(cx))
+            .text_size(TreeMetrics::META_FONT)
+            .text_color(colors.muted)
+            .children(node.child_count().map(|count| count.to_string()))
+    };
+
     let element = match &node.kind {
+        // bolt gap: the navigation-tree row has no leaf kind for a request's child (an example)
+        // with a trailing status; drawn with the request row's metrics.
+        NodeKind::Example { status, .. } => {
+            let icon_color = if selected { tint } else { colors.muted };
+            element
+                .child(
+                    part(format!("tree-icon-{}", node.id)).flex_none().child(
+                        Icon::new(ui::icon(IconName::Bookmark))
+                            .size(TreeMetrics::ICON)
+                            .color(icon_color),
+                    ),
+                )
+                .child(name)
+                .child(
+                    part(format!("tree-status-{}", node.id))
+                        .flex_none()
+                        .font_family(bolt::fonts::editor_family(cx))
+                        .text_size(TreeMetrics::META_FONT)
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(class_color(StatusClass::of(*status), &colors))
+                        .child(status.to_string()),
+                )
+        }
         NodeKind::Request { method } => element
-            .child(div().w(TreeMetrics::CHEVRON).flex_none())
+            .map(|element| {
+                if node.is_expandable() {
+                    element.child(chevron(row.expanded))
+                } else {
+                    element.child(div().w(TreeMetrics::CHEVRON).flex_none())
+                }
+            })
             .child(
                 part(format!("tree-method-{}", node.id))
                     .w(tokens::TREE_METHOD_COLUMN)
@@ -128,32 +192,21 @@ pub(super) fn tree_row(
                     .text_color(method_hue(method, cx))
                     .child(method.clone()),
             )
-            .child(name),
+            .child(name)
+            .when(node.is_expandable(), |element| element.child(count())),
         NodeKind::Collection | NodeKind::Folder => {
-            let (icon_name, icon_color) = match node.kind {
-                NodeKind::Collection => (IconName::Box, tint),
-                NodeKind::Folder | NodeKind::Request { .. } => (IconName::Folder, colors.muted),
-            };
-            let chevron = if row.expanded {
-                IconName::ChevronDown
+            let icon_name = if matches!(node.kind, NodeKind::Collection) {
+                IconName::Box
             } else {
-                IconName::ChevronRight
+                IconName::Folder
+            };
+            let icon_color = if matches!(node.kind, NodeKind::Collection) {
+                tint
+            } else {
+                colors.muted
             };
             element
-                .child(
-                    part(format!("tree-chevron-{}", node.id))
-                        .on_click(move |event, window, cx| {
-                            cx.stop_propagation();
-                            on_toggle(event, window, cx);
-                        })
-                        .flex_none()
-                        .cursor_pointer()
-                        .child(
-                            Icon::new(ui::icon(chevron))
-                                .size(TreeMetrics::CHEVRON)
-                                .color(colors.muted),
-                        ),
-                )
+                .child(chevron(row.expanded))
                 .child(
                     part(format!("tree-icon-{}", node.id)).flex_none().child(
                         Icon::new(ui::icon(icon_name))
@@ -162,14 +215,7 @@ pub(super) fn tree_row(
                     ),
                 )
                 .child(name)
-                .child(
-                    part(format!("tree-count-{}", node.id))
-                        .flex_none()
-                        .font_family(bolt::fonts::editor_family(cx))
-                        .text_size(TreeMetrics::META_FONT)
-                        .text_color(colors.muted)
-                        .children(node.child_count().map(|count| count.to_string())),
-                )
+                .child(count())
         }
     };
     element.children(slots.trailing)

@@ -11,7 +11,7 @@ use gpui::{AppContext as _, Context, Entity, Window};
 use gpui_component::input::InputState;
 
 use super::Shell;
-use super::auth_edit::AUTH_TABLE;
+use super::auth_edit::{AUTH_TABLE, TYPED_PREFIX};
 use super::drafts::grid_cell;
 use super::method_edit::METHOD_TABLE;
 use super::setting_edit::SETTINGS_TABLE;
@@ -147,6 +147,11 @@ impl Shell {
         }
         if table == AUTH_TABLE {
             self.set_draft_auth_text(&request_id, secret, value, cx);
+            self.close_cell_edit(window, cx);
+            return;
+        }
+        if let Some(key) = table.strip_prefix(TYPED_PREFIX) {
+            self.set_draft_typed_text(&request_id, key, secret, value, cx);
             self.close_cell_edit(window, cx);
             return;
         }
