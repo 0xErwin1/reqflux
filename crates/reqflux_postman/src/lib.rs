@@ -6,6 +6,7 @@
 mod collection;
 mod environment;
 mod error;
+mod examples;
 mod slug;
 
 pub use collection::{Imported, auth, collection, events, key_values, variables};

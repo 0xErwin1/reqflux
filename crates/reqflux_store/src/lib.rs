@@ -30,9 +30,10 @@ pub use save::{
     save_scripts,
 };
 pub use tree_ops::{
-    Placed, StoredExample, create_collection, create_environment, create_example, create_folder,
-    create_request, delete, delete_environment, delete_example, duplicate, examples, move_item,
-    rename, rename_environment, rename_example, reorder,
+    Placed, StoredExample, create_collection, create_environment, create_example,
+    create_example_at, create_folder, create_request, delete, delete_environment, delete_example,
+    duplicate, example_files_at, examples, move_item, rename, rename_environment, rename_example,
+    reorder,
 };
 pub use variables::{ScopeFile, VariableChange, VariableWrite, plan_variables, scope_variables};
 

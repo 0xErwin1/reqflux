@@ -5,6 +5,7 @@
 //! The load skips the examples directory, so these functions read it on demand. A request
 //! rename, duplicate, move or delete already carries the directory with the request.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -16,7 +17,8 @@ use super::naming::{SlugFor, named};
 use crate::error::StoreError;
 use crate::hash::ContentHash;
 use crate::layout::{
-    EXAMPLE_BODY_SUFFIX, EXAMPLE_SUFFIX, examples_dir_in, validate_request_slug, validate_slug,
+    EXAMPLE_BODY_SUFFIX, EXAMPLE_SUFFIX, Parent, examples_dir_in, validate_parent,
+    validate_request_slug, validate_slug,
 };
 use crate::load::Loaded;
 use crate::save::{check, io_error, save_document, write_atomic};
@@ -86,11 +88,61 @@ pub fn create_example(
     root: &Path,
     loaded: &Loaded,
     request: Id,
-    mut example: Example,
+    example: Example,
     body_file: Option<&[u8]>,
 ) -> Result<String, StoreError> {
     let dir = examples_dir(root, loaded, request)?;
-    let (name, slug) = free_name(&dir, &example.name, None)?;
+    create_in(&dir, example, body_file)
+}
+
+/// [`create_example`] for the request `<request>.req.toml` under `parent`, without a loaded
+/// workspace: for a writer that has just saved the request, such as an import.
+///
+/// # Errors
+///
+/// A parent or request slug that is not valid, [`StoreError::EmptyName`], or a write
+/// failure.
+pub fn create_example_at(
+    root: &Path,
+    parent: &Parent,
+    request: &str,
+    example: Example,
+    body_file: Option<&[u8]>,
+) -> Result<String, StoreError> {
+    create_in(&examples_dir_at(root, parent, request)?, example, body_file)
+}
+
+/// The example files that [`create_example_at`] would write for examples named `names`,
+/// created in that order, under the request `<request>.req.toml` of `parent`: each name
+/// takes the first free slug as [`create_example`] does, counting the ones before it.
+/// Writes nothing; a body file is not listed, since it depends on the body.
+///
+/// # Errors
+///
+/// As [`create_example_at`], before anything is written.
+pub fn example_files_at(
+    root: &Path,
+    parent: &Parent,
+    request: &str,
+    names: &[&str],
+) -> Result<Vec<PathBuf>, StoreError> {
+    let dir = examples_dir_at(root, parent, request)?;
+    let mut planned = BTreeSet::new();
+    let mut files = Vec::with_capacity(names.len());
+    for name in names {
+        let (_, slug) = free_name_among(&dir, name, None, &planned)?;
+        files.push(example_file(&dir, &slug));
+        planned.insert(slug);
+    }
+    Ok(files)
+}
+
+fn create_in(
+    dir: &Path,
+    mut example: Example,
+    body_file: Option<&[u8]>,
+) -> Result<String, StoreError> {
+    let (name, slug) = free_name(dir, &example.name, None)?;
     example.name = name;
     if let Some(bytes) = body_file {
         let file = body_file_name(&slug);
@@ -98,7 +150,7 @@ pub fn create_example(
         write_atomic(&dir.join(&file), bytes)?;
         example.response.body = ExampleBody::File(file);
     }
-    save_document(&example_file(&dir, &slug), &example, None)?;
+    save_document(&example_file(dir, &slug), &example, None)?;
     Ok(slug)
 }
 
@@ -190,6 +242,13 @@ fn examples_dir(root: &Path, loaded: &Loaded, request: Id) -> Result<PathBuf, St
     }
 }
 
+/// The examples directory of the request `request` under `parent`, both validated.
+fn examples_dir_at(root: &Path, parent: &Parent, request: &str) -> Result<PathBuf, StoreError> {
+    validate_parent(parent)?;
+    validate_request_slug(request)?;
+    Ok(examples_dir_in(&parent.dir(root), request))
+}
+
 fn find_example(
     root: &Path,
     loaded: &Loaded,
@@ -230,6 +289,16 @@ fn read_example(dir: &Path, slug: &str) -> Result<StoredExample, StoreError> {
 /// `name`, then `name 2`, `name 3`, ...: the first whose slug is free in `dir`, with that
 /// slug. `own` is the slug of the example being renamed, which its own name may keep.
 fn free_name(dir: &Path, name: &str, own: Option<&str>) -> Result<(String, String), StoreError> {
+    free_name_among(dir, name, own, &BTreeSet::new())
+}
+
+/// [`free_name`] where the slugs in `planned` count as taken too.
+fn free_name_among(
+    dir: &Path,
+    name: &str,
+    own: Option<&str>,
+    planned: &BTreeSet<String>,
+) -> Result<(String, String), StoreError> {
     let (base, _) = named(name, SlugFor::Container)?;
     let mut n: u64 = 1;
     loop {
@@ -239,7 +308,7 @@ fn free_name(dir: &Path, name: &str, own: Option<&str>) -> Result<(String, Strin
             format!("{base} {n}")
         };
         let (candidate, slug) = named(&candidate, SlugFor::Container)?;
-        if own == Some(slug.as_str()) || !taken(dir, &slug)? {
+        if own == Some(slug.as_str()) || (!planned.contains(&slug) && !taken(dir, &slug)?) {
             return Ok((candidate, slug));
         }
         n += 1;

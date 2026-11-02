@@ -314,7 +314,12 @@ goes through the send's masker (headers, reason, a UTF-8 body; `Set-Cookie` valu
 body that is not UTF-8 is written as received to `<example-slug>.body` beside it. Renaming,
 moving, duplicating or deleting the request carries its `.examples/` directory; ids are unique
 within one request. `Engine::{examples, save_example, rename_example, delete_example}` own them,
-and `Engine::save_response_body` writes a response body to a chosen path.
+and `Engine::save_response_body` writes a response body to a chosen path. A Postman import writes each item's
+`response[]` entries as examples after the request: the request is `originalRequest` when present,
+else the item's request, kept as written; response headers are masked as `save_example` masks
+them. An entry without a numeric status or with a request that does not map stays in the
+request's `extensions.postman`; `response` leaves it only when every entry mapped. The import
+summary and preview count the examples, and the preview lists their files.
 
 ```text
 id = "…"

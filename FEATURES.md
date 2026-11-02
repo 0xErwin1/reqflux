@@ -48,7 +48,7 @@ v1.
 | Dynamic variables (`$guid`, `$timestamp`, `$random*`) | MVP |
 | Body: `binary`, `graphql` | v1 |
 | Auth: `digest`, `oauth2` (with token acquisition flows), `awsv4` | v1 |
-| Saved examples (request and response pairs) | v1 |
+| Saved examples (request and response pairs), including Postman `response[]` on import | v1 |
 | Generate code (curl and other languages) | v1 |
 | Paste a curl command into the URL bar to import it | v1 |
 | Auth: `oauth1`, `hawk`, `ntlm`, `jwt`, `edgegrid`, `asap` | Later |

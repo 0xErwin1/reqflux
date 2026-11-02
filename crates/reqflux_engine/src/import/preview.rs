@@ -1,11 +1,12 @@
 //! What a Postman import would write, without writing it (app-pending S6).
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use reqflux_core::model::{Item, Scripts};
+use reqflux_core::model::{Example, Id, Item, Scripts};
 use reqflux_store::{
     Parent, ScriptOwner, checked_collection_file, checked_environment_file, checked_folder_file,
-    checked_request_file, manifest_file,
+    checked_request_file, example_files_at, manifest_file,
 };
 use serde_json::Value;
 
@@ -23,6 +24,8 @@ pub struct ImportPreview {
     pub requests: usize,
     /// Script files, the pre-request and test sidecars that are not empty.
     pub scripts: usize,
+    /// Saved examples, from the requests' Postman `response` entries.
+    pub examples: usize,
     /// Environments.
     pub environments: usize,
     /// Every file the import writes, relative to the workspace root, in write order.
@@ -49,6 +52,7 @@ pub fn postman_preview(
         folders: 0,
         requests: 0,
         scripts: 0,
+        examples: 0,
         environments: plan.environments.len(),
         files: Vec::new(),
     };
@@ -71,6 +75,7 @@ pub fn postman_preview(
         root,
         &Parent::collection(&node.slug),
         &node.items,
+        &plan.examples,
         &mut files,
         &mut preview,
     )?;
@@ -91,11 +96,12 @@ pub fn postman_preview(
 }
 
 /// The files of `items` under `parent`, in the order the import writes them, counting the
-/// folders, requests and scripts into `preview`.
+/// folders, requests, scripts and examples into `preview`.
 fn walk(
     root: &Path,
     parent: &Parent,
     items: &[Item],
+    examples: &BTreeMap<Id, Vec<Example>>,
     files: &mut Vec<PathBuf>,
     preview: &mut ImportPreview,
 ) -> Result<(), ImportError> {
@@ -117,6 +123,7 @@ fn walk(
                     root,
                     &parent.child(&folder.slug),
                     &folder.items,
+                    examples,
                     files,
                     preview,
                 )?;
@@ -135,6 +142,16 @@ fn walk(
                     &mut preview.scripts,
                 );
                 preview.requests += 1;
+                let names: Vec<&str> = examples
+                    .get(&request.request.id)
+                    .into_iter()
+                    .flatten()
+                    .map(|example| example.name.as_str())
+                    .collect();
+                let example_files =
+                    target_path(example_files_at(root, parent, &request.slug, &names), root)?;
+                preview.examples += example_files.len();
+                files.extend(example_files);
             }
         }
     }

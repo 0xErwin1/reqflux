@@ -1,11 +1,11 @@
 //! Collection v2.1 mapping: items to the tree (S2), requests (S3), auth (S4), scripts
 //! (S5) and fresh ids with the Postman fields kept as text (S1, S7).
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use reqflux_core::model::{
-    ApiKeyLocation, Auth, Body, Collection, CollectionNode, Folder, FolderNode, FormPart, Id, Item,
-    KeyValue, Method, RawLanguage, Request, RequestNode, Scripts, Settings, Variable,
+    ApiKeyLocation, Auth, Body, Collection, CollectionNode, Example, Folder, FolderNode, FormPart,
+    Id, Item, KeyValue, Method, RawLanguage, Request, RequestNode, Scripts, Settings, Variable,
 };
 use serde_json::{Map, Value};
 
@@ -20,6 +20,18 @@ pub struct Imported {
     pub collection: CollectionNode,
     /// Every slug the import generated: the collection's and its folders' and requests'.
     pub slugs: BTreeSet<String>,
+    /// The saved examples mapped from each request's `response` entries, by request id, in
+    /// document order (v1-features S4). A request without any is absent.
+    pub examples: BTreeMap<Id, Vec<Example>>,
+}
+
+/// What the walk over the items collects besides the tree.
+#[derive(Default)]
+struct Collected {
+    /// Every slug generated so far.
+    slugs: BTreeSet<String>,
+    /// The examples by request id.
+    examples: BTreeMap<Id, Vec<Example>>,
 }
 
 /// Maps a Postman collection v2.1 document to the ReqFlux model (S1).
@@ -34,9 +46,9 @@ pub fn collection(value: &Value) -> Result<Imported, PostmanError> {
         .and_then(|info| info.get("name"))
         .and_then(Value::as_str)
         .ok_or(PostmanError::MissingName)?;
-    let mut all = BTreeSet::new();
+    let mut all = Collected::default();
     let items = items(object.get("item"), "", &mut all)?;
-    let node_slug = unique(&slug(name), &mut all);
+    let node_slug = unique(&slug(name), &mut all.slugs);
     let node = CollectionNode {
         slug: node_slug,
         collection: Collection {
@@ -57,7 +69,8 @@ pub fn collection(value: &Value) -> Result<Imported, PostmanError> {
     };
     Ok(Imported {
         collection: node,
-        slugs: all,
+        slugs: all.slugs,
+        examples: all.examples,
     })
 }
 
@@ -72,7 +85,7 @@ fn postman_id(info: Option<&Map<String, Value>>) -> Vec<(&'static str, Value)> {
 fn items(
     value: Option<&Value>,
     parent: &str,
-    all: &mut BTreeSet<String>,
+    all: &mut Collected,
 ) -> Result<Vec<Item>, PostmanError> {
     let Some(array) = value.and_then(Value::as_array) else {
         return Ok(Vec::new());
@@ -100,7 +113,7 @@ fn item_node(
     value: &Value,
     path: &str,
     siblings: &mut BTreeSet<String>,
-    all: &mut BTreeSet<String>,
+    all: &mut Collected,
 ) -> Result<Item, PostmanError> {
     let object = value.as_object().ok_or(PostmanError::UnknownItem {
         path: path.to_owned(),
@@ -120,12 +133,12 @@ fn folder_node(
     object: &Map<String, Value>,
     path: &str,
     siblings: &mut BTreeSet<String>,
-    all: &mut BTreeSet<String>,
+    all: &mut Collected,
 ) -> Result<FolderNode, PostmanError> {
     let name = item_name(object, path)?;
     let items = items(object.get("item"), path, all)?;
     Ok(FolderNode {
-        slug: take_slug(name, siblings, all),
+        slug: take_slug(name, siblings, &mut all.slugs),
         folder: Folder {
             id: Id::new(),
             name: name.to_owned(),
@@ -138,11 +151,13 @@ fn folder_node(
     })
 }
 
+/// Maps a request item; its `response` entries that map become examples in `all`, and
+/// leave the Postman text only when every one maps (v1-features S4).
 fn request_node(
     object: &Map<String, Value>,
     path: &str,
     siblings: &mut BTreeSet<String>,
-    all: &mut BTreeSet<String>,
+    all: &mut Collected,
 ) -> Result<RequestNode, PostmanError> {
     let name = item_name(object, path)?;
     let request =
@@ -155,10 +170,12 @@ fn request_node(
     let request_path = format!("{path}.request");
     let method = method(request, &request_path)?;
     let (url, params) = url_and_params(request, &request_path)?;
-    Ok(RequestNode {
-        slug: take_slug(name, siblings, all),
+    let id = Id::new();
+    let (examples, unmapped) = crate::examples::responses(object.get("response"), request);
+    let node = RequestNode {
+        slug: take_slug(name, siblings, &mut all.slugs),
         request: Request {
-            id: Id::new(),
+            id,
             name: name.to_owned(),
             method,
             url,
@@ -174,6 +191,13 @@ fn request_node(
                         "name", "request", "method", "url", "header", "body", "auth", "event",
                     ],
                 );
+                if !examples.is_empty() {
+                    if unmapped.is_empty() {
+                        rest.remove("response");
+                    } else {
+                        rest.insert("response".to_owned(), Value::Array(unmapped));
+                    }
+                }
                 merge_rest(
                     &mut rest,
                     request,
@@ -183,7 +207,11 @@ fn request_node(
             },
         },
         scripts: events(object.get("event")),
-    })
+    };
+    if !examples.is_empty() {
+        all.examples.insert(id, examples);
+    }
+    Ok(node)
 }
 
 fn item_name<'a>(object: &'a Map<String, Value>, path: &str) -> Result<&'a str, PostmanError> {
@@ -195,7 +223,7 @@ fn item_name<'a>(object: &'a Map<String, Value>, path: &str) -> Result<&'a str, 
         })
 }
 
-fn method(request: &Map<String, Value>, path: &str) -> Result<Method, PostmanError> {
+pub(crate) fn method(request: &Map<String, Value>, path: &str) -> Result<Method, PostmanError> {
     let verb =
         request
             .get("method")
@@ -211,7 +239,7 @@ fn method(request: &Map<String, Value>, path: &str) -> Result<Method, PostmanErr
 
 /// The URL without its query string, and `url.query` as params (S3). The URL comes from
 /// `url.raw` when present, else is assembled from `url.host` and `url.path`.
-fn url_and_params(
+pub(crate) fn url_and_params(
     request: &Map<String, Value>,
     path: &str,
 ) -> Result<(String, Vec<KeyValue>), PostmanError> {
@@ -292,7 +320,7 @@ pub fn key_values(value: Option<&Value>) -> Vec<KeyValue> {
 }
 
 /// Maps the body of a request (S3). A mode without its payload fails (S8).
-fn body(request: &Map<String, Value>, path: &str) -> Result<Body, PostmanError> {
+pub(crate) fn body(request: &Map<String, Value>, path: &str) -> Result<Body, PostmanError> {
     let Some(object) = request.get("body").and_then(Value::as_object) else {
         return Ok(Body::None);
     };

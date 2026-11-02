@@ -5,20 +5,27 @@
 //! would write already exists: an import never overwrites a collection, folder, request
 //! or environment that is already there. [`postman_preview`] runs the same mapping and
 //! checks and lists what [`postman`] would write, writing nothing (app-pending S6).
+//!
+//! A request's Postman `response` entries become saved examples written after the request
+//! (v1-features S4), their response headers masked as `Engine::save_example` masks them.
 
 mod preview;
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use reqflux_core::model::{CollectionNode, EnvironmentNode, Id, Item, WorkspaceManifest};
+use reqflux_core::model::{
+    CollectionNode, EnvironmentNode, Example, ExampleBody, Id, Item, KeyValue, WorkspaceManifest,
+};
 use reqflux_store::{
     Parent, ScriptHashes, ScriptOwner, checked_collection_file, checked_environment_file,
-    checked_folder_file, checked_request_file, manifest_file, save_collection, save_environment,
-    save_folder, save_manifest, save_request, save_scripts,
+    checked_folder_file, checked_request_file, create_example_at, manifest_file, save_collection,
+    save_environment, save_folder, save_manifest, save_request, save_scripts,
 };
 use serde_json::Value;
 
 use crate::error::ImportError;
+use crate::sent::Masker;
 
 pub use preview::{ImportPreview, postman_preview};
 
@@ -33,6 +40,8 @@ pub struct ImportSummary {
     pub folders: usize,
     /// Requests written, at any depth.
     pub requests: usize,
+    /// Saved examples written, from the requests' Postman `response` entries.
+    pub examples: usize,
     /// Environments written.
     pub environments: usize,
     /// Non-fatal problems found while importing. Store saves are atomic and fail hard,
@@ -63,6 +72,7 @@ pub fn postman(
 ) -> Result<ImportSummary, ImportError> {
     let Plan {
         node,
+        examples,
         environments: environment_nodes,
         create_manifest,
     } = plan(root, collection, environments)?;
@@ -85,6 +95,7 @@ pub fn postman(
         collection: node.slug.clone(),
         folders: 0,
         requests: 0,
+        examples: 0,
         environments: environment_nodes.len(),
         warnings: Vec::new(),
     };
@@ -101,6 +112,7 @@ pub fn postman(
         root,
         &Parent::collection(&node.slug),
         &node.items,
+        &examples,
         &mut summary,
     )?;
     for environment in &environment_nodes {
@@ -115,6 +127,8 @@ pub fn postman(
 /// [`postman_preview`] lists.
 struct Plan {
     node: CollectionNode,
+    /// The saved examples of each request, by request id.
+    examples: BTreeMap<Id, Vec<Example>>,
     environments: Vec<EnvironmentNode>,
     /// Whether `root` has no manifest yet, so the import creates one.
     create_manifest: bool,
@@ -133,6 +147,7 @@ fn plan(root: &Path, collection: &Value, environments: &[Value]) -> Result<Plan,
         environment_nodes.push(reqflux_postman::environment_in(value, &mut taken)?);
     }
     let node = imported.collection;
+    let examples = imported.examples;
     let manifest_path = manifest_file(root);
     let create_manifest = !manifest_path.exists();
 
@@ -162,6 +177,7 @@ fn plan(root: &Path, collection: &Value, environments: &[Value]) -> Result<Plan,
     }
     Ok(Plan {
         node,
+        examples,
         environments: environment_nodes,
         create_manifest,
     })
@@ -171,6 +187,7 @@ fn write_items(
     root: &Path,
     parent: &Parent,
     items: &[Item],
+    examples: &BTreeMap<Id, Vec<Example>>,
     summary: &mut ImportSummary,
 ) -> Result<(), ImportError> {
     for item in items {
@@ -186,7 +203,13 @@ fn write_items(
                     ScriptHashes::default(),
                 )
                 .map_err(|error| store_error(&file, error))?;
-                write_items(root, &parent.child(&folder.slug), &folder.items, summary)?;
+                write_items(
+                    root,
+                    &parent.child(&folder.slug),
+                    &folder.items,
+                    examples,
+                    summary,
+                )?;
                 summary.folders += 1;
             }
             Item::Request(request) => {
@@ -201,10 +224,41 @@ fn write_items(
                 )
                 .map_err(|error| store_error(&file, error))?;
                 summary.requests += 1;
+                for example in examples.get(&request.request.id).into_iter().flatten() {
+                    create_example_at(root, parent, &request.slug, masked(example), None)
+                        .map_err(|error| store_error(&file, error))?;
+                    summary.examples += 1;
+                }
             }
         }
     }
     Ok(())
+}
+
+/// `example` with its response masked as `Engine::save_example` masks a response: a
+/// credential header's value whole, a `Set-Cookie` cookie value. An import has no secret
+/// values to mask by text, so the rest is kept.
+fn masked(example: &Example) -> Example {
+    let masker = Masker::default();
+    let mut example = example.clone();
+    let response = &mut example.response;
+    response.reason = response.reason.as_deref().map(|reason| masker.mask(reason));
+    response.headers = response
+        .headers
+        .iter()
+        .map(|header| {
+            let (key, value) = masker.header_for_agent(&header.key, &header.value);
+            KeyValue {
+                key,
+                value,
+                ..header.clone()
+            }
+        })
+        .collect();
+    if let ExampleBody::Text(text) = &response.body {
+        response.body = ExampleBody::Text(masker.mask(text));
+    }
+    example
 }
 
 /// Collects every file the import would write for `items` under `parent`: the entity
@@ -243,10 +297,10 @@ fn collect_targets(
 
 /// Unwraps a checked layout path, mapping a slug that fails validation to an import
 /// error. Nothing has been written; the error names the workspace root and the slug.
-fn target_path(
-    path: Result<PathBuf, reqflux_store::StoreError>,
+fn target_path<T>(
+    path: Result<T, reqflux_store::StoreError>,
     root: &Path,
-) -> Result<PathBuf, ImportError> {
+) -> Result<T, ImportError> {
     path.map_err(|error| ImportError::Store {
         path: root.to_owned(),
         message: error.to_string(),

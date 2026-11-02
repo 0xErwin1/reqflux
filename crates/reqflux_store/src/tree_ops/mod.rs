@@ -53,7 +53,10 @@ use locate::{Container, Entity, find, find_container};
 use naming::{SlugFor, ensure_free, named, numbered};
 
 pub use environments::{create_environment, delete_environment, rename_environment};
-pub use examples::{StoredExample, create_example, delete_example, examples, rename_example};
+pub use examples::{
+    StoredExample, create_example, create_example_at, delete_example, example_files_at, examples,
+    rename_example,
+};
 pub use restructure::{delete, duplicate, move_item, reorder};
 
 /// Where an operation put an entity.
