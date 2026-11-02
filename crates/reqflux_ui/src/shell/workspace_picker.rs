@@ -5,10 +5,28 @@ use std::future::Future;
 use std::path::PathBuf;
 use std::pin::Pin;
 
-use gpui::{App, PathPromptOptions};
+use gpui::{App, AsyncWindowContext, PathPromptOptions};
 
-/// The directory a dialog answered with, or `None` when it was dismissed or failed.
-pub(crate) type Picked = Pin<Box<dyn Future<Output = Option<PathBuf>>>>;
+use super::toasts;
+
+/// The path a dialog answered with, `Ok(None)` when it was dismissed, or the OS dialog's
+/// error text when it failed.
+pub(crate) type Picked = Pin<Box<dyn Future<Output = Result<Option<PathBuf>, String>>>>;
+
+/// The path a dialog answered with: a failed dialog shows an error toast titled `title`
+/// with the OS error, and it and a dismissed one give `None`.
+pub(super) fn picked_path(
+    answer: Result<Option<PathBuf>, String>,
+    title: &str,
+    cx: &mut AsyncWindowContext,
+) -> Option<PathBuf> {
+    answer.unwrap_or_else(|error| {
+        if let Err(closed) = cx.update(|_, cx| toasts::failure(title.to_owned(), error, cx)) {
+            log::debug!("the dialog failed after the window closed: {closed}");
+        }
+        None
+    })
+}
 
 /// Asks the user for a workspace directory.
 pub(crate) trait WorkspacePicker {
@@ -31,12 +49,9 @@ impl WorkspacePicker for OsPicker {
         });
         Box::pin(async move {
             match answer.await {
-                Ok(Ok(paths)) => paths.and_then(|paths| paths.into_iter().next()),
-                Ok(Err(error)) => {
-                    log::warn!("the folder dialog failed: {error}");
-                    None
-                }
-                Err(_) => None,
+                Ok(Ok(paths)) => Ok(paths.and_then(|paths| paths.into_iter().next())),
+                Ok(Err(error)) => Err(error.to_string()),
+                Err(_) => Ok(None),
             }
         })
     }
@@ -46,34 +61,33 @@ impl WorkspacePicker for OsPicker {
         let answer = cx.prompt_for_new_path(&start, Some("workspace"));
         Box::pin(async move {
             match answer.await {
-                Ok(Ok(path)) => path,
-                Ok(Err(error)) => {
-                    log::warn!("the new workspace dialog failed: {error}");
-                    None
-                }
-                Err(_) => None,
+                Ok(Ok(path)) => Ok(path),
+                Ok(Err(error)) => Err(error.to_string()),
+                Err(_) => Ok(None),
             }
         })
     }
 }
 
-/// Answers every dialog with a preset path, `None` meaning dismissed.
+/// Answers every dialog with a preset path, `None` meaning dismissed, or with `failure`, an
+/// OS dialog error, when it is set.
 #[cfg(test)]
 #[derive(Default)]
 pub(crate) struct TestPicker {
     pub(crate) folder: Option<PathBuf>,
     pub(crate) new: Option<PathBuf>,
+    pub(crate) failure: Option<String>,
 }
 
 #[cfg(test)]
 impl WorkspacePicker for TestPicker {
     fn pick_folder(&self, _cx: &App) -> Picked {
-        let folder = self.folder.clone();
-        Box::pin(async move { folder })
+        let answer = self.failure.clone().map_or(Ok(self.folder.clone()), Err);
+        Box::pin(async move { answer })
     }
 
     fn pick_new(&self, _cx: &App) -> Picked {
-        let new = self.new.clone();
-        Box::pin(async move { new })
+        let answer = self.failure.clone().map_or(Ok(self.new.clone()), Err);
+        Box::pin(async move { answer })
     }
 }

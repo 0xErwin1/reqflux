@@ -349,7 +349,7 @@ impl Shell {
     /// inspected is dropped.
     pub(super) fn set_environment(&mut self, slug: Option<String>, cx: &mut Context<Self>) {
         self.active_environment = slug;
-        self.save_active_environment();
+        self.save_active_environment(cx);
         self.inspect_open_requests(cx);
     }
 
@@ -583,6 +583,8 @@ mod document_tests;
 mod draft_tests;
 #[cfg(test)]
 mod environment_tests;
+#[cfg(test)]
+mod failure_toasts_tests;
 #[cfg(test)]
 mod grid_edit_tests;
 #[cfg(test)]

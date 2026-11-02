@@ -57,7 +57,10 @@ fn labels(automation: &gpui_mcp::Automation) -> Vec<String> {
 /// Opens the dialog from the workspace menu, the file dialog answering `file`.
 fn open(cx: &mut VisualTestContext, shell: &Entity<Shell>, file: Option<PathBuf>) {
     shell.update(cx, |shell, _| {
-        shell.import.picker = Rc::new(TestImportPicker { file });
+        shell.import.picker = Rc::new(TestImportPicker {
+            file,
+            ..TestImportPicker::default()
+        });
     });
     click(cx, "workspace-selector");
     click(cx, "workspace-import");
@@ -270,7 +273,10 @@ fn a_dismissed_file_dialog_leaves_the_dialog_waiting_for_a_file(cx: &mut TestApp
 
     let (_file_dir, file) = document("basic.json", BASIC);
     shell.update(cx, |shell, _| {
-        shell.import.picker = Rc::new(TestImportPicker { file: Some(file) });
+        shell.import.picker = Rc::new(TestImportPicker {
+            file: Some(file),
+            ..TestImportPicker::default()
+        });
     });
     click(cx, "import-browse");
     present(cx, "import-count-requests");

@@ -447,7 +447,9 @@ impl Shell {
                 self.drafts.remove(id);
                 self.save_errors.remove(id);
                 self.delete_stored_draft(id);
-                self.reload_workspace(cx);
+                if !self.reload_workspace(cx) {
+                    toasts::reload_failed("Saved", cx);
+                }
             }
             Err(SaveError::Conflict { .. }) => self.mark_conflicted(id, cx),
             Err(error) => {
@@ -492,10 +494,11 @@ impl Shell {
 
     /// Loads the workspace from disk into the same loaded state, keeping the active
     /// environment, the open requests and their sub-tabs. A failure keeps the loaded
-    /// workspace as it was.
-    pub(super) fn reload_workspace(&mut self, cx: &mut Context<Self>) {
+    /// workspace as it was and returns `false`; the error is logged only, since a workspace
+    /// file's parse error can quote its contents.
+    pub(super) fn reload_workspace(&mut self, cx: &mut Context<Self>) -> bool {
         let OpenedWorkspace::Loaded(engine) = &mut self.workspace else {
-            return;
+            return true;
         };
         let Some(engine) = Arc::get_mut(engine) else {
             // A send's prepare task still holds the other `Arc` clone while it runs
@@ -505,20 +508,25 @@ impl Shell {
             // in flight, and that send would end as a cancellation.
             log::warn!("cannot reload the workspace while a send is preparing");
             self.inspect_open_requests(cx);
-            return;
+            return true;
         };
         // Re-read into the same engine: replacing it would drop the runtime that owns a send
         // in flight, and that send would end as a cancellation.
-        match engine.reload() {
+        let reloaded = match engine.reload() {
             Ok(()) => {
                 self.workspace_id = Some(engine.workspace().manifest.id.to_string());
                 let roots = tree_model::nodes(engine.workspace());
                 self.sidebar
                     .update(cx, |sidebar, cx| sidebar.set_roots(roots, cx));
+                true
             }
-            Err(error) => log::warn!("cannot reload the workspace: {error}"),
-        }
+            Err(error) => {
+                log::warn!("cannot reload the workspace: {error}");
+                false
+            }
+        };
         self.inspect_open_requests(cx);
+        reloaded
     }
 }
 

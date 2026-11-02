@@ -207,6 +207,34 @@ impl AppState {
         })
     }
 
+    /// Opens the existing state file at `path` read-only: reads work, and every write fails
+    /// as a [`StateError::Query`]. The file must already be at this build's schema version;
+    /// nothing is created or migrated. Front ends use it to check how they report a write
+    /// the app state refuses.
+    pub fn open_read_only(path: &Path) -> Result<Self, StateError> {
+        let open_error = |source| StateError::Open {
+            path: path.to_owned(),
+            source,
+        };
+        let conn = Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(open_error)?;
+        conn.execute_batch("PRAGMA busy_timeout = 250;")
+            .map_err(open_error)?;
+        let version: i64 = conn
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .map_err(open_error)?;
+        if version != SCHEMA_VERSION {
+            return Err(StateError::UnsupportedVersion {
+                path: path.to_owned(),
+                version,
+            });
+        }
+        Ok(Self {
+            path: path.to_owned(),
+            conn,
+        })
+    }
+
     /// Opens the state file at the standard per-user path:
     /// `$XDG_STATE_HOME/reqflux/state.sqlite3`, or `$HOME/.local/state/reqflux/state.sqlite3`
     /// when the variable is unset.
@@ -662,6 +690,39 @@ value = \"application/json; charset=utf-8\"
             error.to_string().contains(path.to_string_lossy().as_ref()),
             "the error should name the state file: {error}"
         );
+    }
+
+    #[test]
+    fn a_read_only_state_reads_and_refuses_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = state_path(&dir);
+        AppState::open(&path)
+            .unwrap()
+            .set_setting("theme", "dark")
+            .unwrap();
+
+        let mut store = AppState::open_read_only(&path).unwrap();
+
+        assert_eq!(store.setting("theme").unwrap().as_deref(), Some("dark"));
+        let error = store.set_setting("theme", "light").unwrap_err();
+        assert!(matches!(error, StateError::Query { .. }), "{error}");
+        assert_eq!(
+            AppState::open(&path)
+                .unwrap()
+                .setting("theme")
+                .unwrap()
+                .as_deref(),
+            Some("dark")
+        );
+    }
+
+    #[test]
+    fn a_read_only_open_creates_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = state_path(&dir);
+
+        assert!(AppState::open_read_only(&path).is_err());
+        assert!(!path.exists());
     }
 
     #[test]

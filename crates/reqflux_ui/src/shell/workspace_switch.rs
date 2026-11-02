@@ -11,7 +11,8 @@ use reqflux_engine::CurrentValues;
 use super::documents::Documents;
 use super::history::now_millis;
 use super::sidebar::Sidebar;
-use super::{Shell, subscribe_sidebar, tree_model};
+use super::workspace_picker::picked_path;
+use super::{Shell, subscribe_sidebar, toasts, tree_model};
 use crate::workspace::OpenedWorkspace;
 
 /// The message shown when the workspace at `path` did not open.
@@ -141,20 +142,22 @@ impl Shell {
             self.failed_recent = None;
         }
         if let Err(error) = state.remove_recent_workspace(&recent.path) {
-            log::warn!(
-                "cannot remove {} from the recent workspaces: {error}",
-                recent.path.display()
+            toasts::failure(
+                format!("Cannot remove {} from the recent workspaces", recent.name),
+                error.to_string(),
+                cx,
             );
         }
         self.refresh_recents();
         cx.notify();
     }
 
-    /// Asks for a folder and opens it as the workspace.
+    /// Asks for a folder and opens it as the workspace; a dialog that fails shows an error
+    /// toast.
     pub(super) fn pick_folder(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let picked = self.picker.pick_folder(cx);
         cx.spawn_in(window, async move |this, cx| {
-            let Some(path) = picked.await else {
+            let Some(path) = picked_path(picked.await, "Cannot open the folder dialog", cx) else {
                 return;
             };
             if let Err(error) = this.update_in(cx, |shell, window, cx| {
@@ -166,11 +169,13 @@ impl Shell {
         .detach();
     }
 
-    /// Asks for a new directory, creates a workspace there named after it and opens it.
+    /// Asks for a new directory, creates a workspace there named after it and opens it; a
+    /// dialog that fails shows an error toast.
     pub(super) fn pick_new(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let picked = self.picker.pick_new(cx);
         cx.spawn_in(window, async move |this, cx| {
-            let Some(path) = picked.await else {
+            let title = "Cannot open the new workspace dialog";
+            let Some(path) = picked_path(picked.await, title, cx) else {
                 return;
             };
             if let Err(error) = this.update_in(cx, |shell, window, cx| {

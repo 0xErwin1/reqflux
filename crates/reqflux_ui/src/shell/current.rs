@@ -5,7 +5,7 @@
 use gpui::Context;
 use reqflux_engine::{ExecuteOptions, VariableWrite};
 
-use super::Shell;
+use super::{Shell, toasts};
 use crate::workspace::OpenedWorkspace;
 
 impl Shell {
@@ -26,8 +26,8 @@ impl Shell {
 
     /// Persists the script writes of a completed send of the request `id` with `options` as
     /// current values, then inspects the open requests again so they show the new values.
-    /// A failure is logged without values and never reaches the send; without the app state
-    /// nothing is persisted.
+    /// A failure shows in an error toast without values and never reaches the send; without
+    /// the app state nothing is persisted.
     pub(super) fn persist_script_writes(
         &mut self,
         id: &str,
@@ -45,7 +45,12 @@ impl Shell {
         if let Err(error) =
             engine.persist_script_writes(state, &mut self.current, id, options, writes)
         {
-            log::warn!("cannot persist the script writes of the send of {id}: {error}");
+            log::warn!("cannot persist the script writes of the send of {id}");
+            toasts::failure(
+                "Cannot remember the values the scripts set",
+                error.to_string(),
+                cx,
+            );
         }
         self.inspect_open_requests(cx);
     }

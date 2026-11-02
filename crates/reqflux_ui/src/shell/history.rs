@@ -440,7 +440,8 @@ impl Shell {
 
     /// Resend: opens the request of the history tab and sends the recorded document again in
     /// its tab through the engine's draft path, without touching its draft or file. Does
-    /// nothing when the request no longer exists.
+    /// nothing when the request no longer exists; a recorded document that does not parse
+    /// shows a fixed error toast, since the parse error would quote it.
     pub(super) fn resend_history(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(tab) = self.orphan.as_ref().filter(|tab| tab.source_exists) else {
             return;
@@ -459,7 +460,14 @@ impl Shell {
                 self.open_document(&id, cx);
                 self.send_document(&id, Some(request), window, cx);
             }
-            Err(error) => log::warn!("the recorded document of {id} did not parse: {error}"),
+            Err(_) => {
+                log::warn!("the recorded document of {id} did not parse");
+                super::toasts::failure(
+                    "Cannot resend this entry",
+                    "The recorded request could not be read.",
+                    cx,
+                );
+            }
         }
     }
 }

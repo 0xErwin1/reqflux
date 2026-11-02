@@ -34,6 +34,16 @@ pub(super) fn failure(title: impl Into<String>, details: impl Into<String>, cx: 
     Toast::error(title).details(details).push(cx);
 }
 
+/// A save or an import wrote its files but the workspace did not reload. Fixed text: the
+/// reload error can quote a workspace file, so it reaches only the log.
+pub(super) fn reload_failed(done: &str, cx: &mut App) {
+    failure(
+        format!("{done}, but the workspace could not be reloaded"),
+        "Reopen the workspace to see what is wrong with its files.",
+        cx,
+    );
+}
+
 /// What a test reads back of the toasts pushed: `bolt` keeps a toast's texts private and the
 /// automation tree reports only its controls, so the push records them here.
 #[cfg(test)]

@@ -31,7 +31,7 @@ use serde_json::Value;
 use super::request::ui;
 use super::rows::{labeled_row, part};
 use super::toasts;
-use super::workspace_picker::Picked;
+use super::workspace_picker::{Picked, picked_path};
 use super::{Shell, region, text_region};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
@@ -67,29 +67,28 @@ impl ImportPicker for OsImportPicker {
         });
         Box::pin(async move {
             match answer.await {
-                Ok(Ok(paths)) => paths.and_then(|paths| paths.into_iter().next()),
-                Ok(Err(error)) => {
-                    log::warn!("the file dialog failed: {error}");
-                    None
-                }
-                Err(_) => None,
+                Ok(Ok(paths)) => Ok(paths.and_then(|paths| paths.into_iter().next())),
+                Ok(Err(error)) => Err(error.to_string()),
+                Err(_) => Ok(None),
             }
         })
     }
 }
 
-/// Answers the file dialog with a preset path, `None` meaning dismissed.
+/// Answers the file dialog with a preset path, `None` meaning dismissed, or with `failure`,
+/// an OS dialog error, when it is set.
 #[cfg(test)]
 #[derive(Default)]
 pub(crate) struct TestImportPicker {
     pub(crate) file: Option<PathBuf>,
+    pub(crate) failure: Option<String>,
 }
 
 #[cfg(test)]
 impl ImportPicker for TestImportPicker {
     fn pick_file(&self, _cx: &App) -> Picked {
-        let file = self.file.clone();
-        Box::pin(async move { file })
+        let answer = self.failure.clone().map_or(Ok(self.file.clone()), Err);
+        Box::pin(async move { answer })
     }
 }
 
@@ -198,11 +197,11 @@ impl Shell {
         cx.notify();
     }
 
-    /// Asks for the collection file and reviews it.
+    /// Asks for the collection file and reviews it; a dialog that fails shows an error toast.
     fn browse_import(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let picked = self.import.picker.pick_file(cx);
         cx.spawn_in(window, async move |this, cx| {
-            let Some(path) = picked.await else {
+            let Some(path) = picked_path(picked.await, "Cannot open the file dialog", cx) else {
                 return;
             };
             if let Err(error) = this.update(cx, |shell, cx| shell.set_import_file(path, cx)) {
@@ -258,8 +257,11 @@ impl Shell {
                     toasts::counted(summary.folders, "folder")
                 );
                 self.close_import(cx);
-                self.reload_workspace(cx);
+                let reloaded = self.reload_workspace(cx);
                 toasts::success(title, subtitle, cx);
+                if !reloaded {
+                    toasts::reload_failed("Imported", cx);
+                }
             }
             Err(error) => {
                 toasts::failure("Import failed", error.to_string(), cx);

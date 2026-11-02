@@ -293,7 +293,7 @@ fn open_folder_opens_and_records_the_picked_directory(cx: &mut TestAppContext) {
     let pair = pair("https://first/x");
     let picker = TestPicker {
         folder: Some(pair.second.path().to_path_buf()),
-        new: None,
+        ..TestPicker::default()
     };
     let (shell, cx) = render(cx, Some(pair.first.path()), &pair.state_path, picker);
     // Forget `Second`, so the record comes from Open folder.
@@ -316,8 +316,8 @@ fn new_workspace_creates_one_named_after_the_directory(cx: &mut TestAppContext) 
     let parent = temp_dir();
     let target = parent.path().join("payments-api");
     let picker = TestPicker {
-        folder: None,
         new: Some(target.clone()),
+        ..TestPicker::default()
     };
     let (shell, cx) = render(cx, Some(pair.first.path()), &pair.state_path, picker);
     click(cx, "workspace-selector");

@@ -371,7 +371,7 @@ impl Shell {
             Ok(_) => {
                 if was_active {
                     self.active_environment = None;
-                    self.save_active_environment();
+                    self.save_active_environment(cx);
                 }
                 self.environments_changed(cx);
             }

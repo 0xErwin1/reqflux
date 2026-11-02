@@ -3,7 +3,9 @@
 //! the environment id, so a rename keeps it; an empty value is No environment. An id that no
 //! longer exists falls back to No environment.
 
-use super::Shell;
+use gpui::App;
+
+use super::{Shell, toasts};
 use crate::workspace::OpenedWorkspace;
 
 /// The app state setting that holds the active environment of `workspace_id`.
@@ -12,8 +14,9 @@ fn setting_key(workspace_id: &str) -> String {
 }
 
 impl Shell {
-    /// Stores the active environment of the loaded workspace in the app state.
-    pub(super) fn save_active_environment(&mut self) {
+    /// Stores the active environment of the loaded workspace in the app state; a write the
+    /// state refuses shows in an error toast and the environment stays active.
+    pub(super) fn save_active_environment(&mut self, cx: &mut App) {
         let OpenedWorkspace::Loaded(engine) = &self.workspace else {
             return;
         };
@@ -32,7 +35,11 @@ impl Shell {
         if let Err(error) =
             state.set_setting(&setting_key(workspace_id), id.as_deref().unwrap_or(""))
         {
-            log::warn!("cannot save the active environment: {error}");
+            toasts::failure(
+                "Cannot remember the active environment",
+                error.to_string(),
+                cx,
+            );
         }
     }
 

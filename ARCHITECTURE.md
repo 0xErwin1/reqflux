@@ -1202,13 +1202,23 @@ bar, so the stack sits at the top right of the document island. `theme::install`
 `ToastIcons` with the Lucide icons. `shell::toasts` pushes two kinds: a success that closes on
 its own ("Copied" after Copy body, "Imported <n> requests into <workspace>" after a Postman
 import) and an error that stays, its error text behind "Show details": Copy body with nothing
-to copy, a failed import, a file the OS handler cannot open, a save that cannot write, and a
-theme that cannot be saved. Every error toast is also logged. Failures with nothing for the
-user to do (background reads and writes of the app state, history, drafts) stay in the log
-only. A toast holds fixed sentences, counts, names and the error text the engine already
-masks, never a value. Tests read the automation tree (`toast-<n>`, `toast-toggle-<n>`) and a
-test-only record of the pushed texts, since `bolt` keeps them private; the test clock never
-moves on its own, so a success toast stays until a test advances it.
+to copy, a failed import, a file the OS handler cannot open, a save that cannot write, a
+theme that cannot be saved, and the app state refusing a write the user caused ("Cannot
+remove <workspace> from the recent workspaces", "Cannot remember the active environment",
+"Cannot remember the values the scripts set"). An OS dialog (open folder, new workspace in
+folder, import file) answers `Picked`, a `Result`: its error shows as "Cannot open the folder
+dialog", "Cannot open the new workspace dialog" or "Cannot open the file dialog" with the OS
+error text, and a dismissed dialog shows nothing. Two failures carry fixed text because their
+error would quote a file: Resend of a recorded request that does not parse ("Cannot resend
+this entry") and a reload that fails after a save or an import ("Saved, but the workspace
+could not be reloaded", "Imported, but …"); their error reaches only the log. Every error toast is also logged.
+Failures with nothing for the user to do (background reads and writes of the app state,
+history, drafts, the split layout) stay in the log only. A toast holds fixed sentences,
+counts, names and the error text the engine already masks, never a value. Tests read the
+automation tree (`toast-<n>`, `toast-toggle-<n>`) and a test-only record of the pushed texts,
+since `bolt` keeps them private; the test clock never moves on its own, so a success toast
+stays until a test advances it. To make the app state refuse writes, a test swaps the shell's
+state for `AppState::open_read_only` on the same file.
 
 ## UI automation
 

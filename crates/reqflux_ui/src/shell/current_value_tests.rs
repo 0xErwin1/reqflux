@@ -10,14 +10,14 @@ use super::send_tests::{Server, serve, settle};
 use crate::workspace_tests::{demo_workspace, write};
 
 const COLLECTION: &str = "01J00000000000000000000091";
-const LOGIN: &str = "01J00000000000000000000092";
+pub(super) const LOGIN: &str = "01J00000000000000000000092";
 const USE: &str = "01J00000000000000000000093";
 const DEV: &str = "01J00000000000000000000094";
 
 /// A workspace with the environment `dev` declaring `token = "shared"`, and the collection
 /// `API` holding `GET Login`, whose pre-request script sets the environment's `token`, and
 /// `GET Use` at `/use/{{token}}`, both on `port`.
-fn workspace(port: u16) -> TempDir {
+pub(super) fn workspace(port: u16) -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -56,7 +56,7 @@ fn workspace(port: u16) -> TempDir {
     dir
 }
 
-fn select_dev(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+pub(super) fn select_dev(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
     cx.update(|_, cx| {
         shell.update(cx, |shell, cx| {
             shell.set_environment(Some("dev".to_owned()), cx);

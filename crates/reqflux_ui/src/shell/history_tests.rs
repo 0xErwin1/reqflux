@@ -20,7 +20,7 @@ use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::{demo_workspace, write};
 
 const COLLECTION: &str = "01J00000000000000000000081";
-const PING: &str = "01J00000000000000000000082";
+pub(super) const PING: &str = "01J00000000000000000000082";
 const OTHER: &str = "01J00000000000000000000083";
 const KEYED: &str = "01J00000000000000000000084";
 const ECHO: &str = "01J00000000000000000000085";
@@ -30,7 +30,7 @@ const API_KEY: &str = "k-echoed-SECRET";
 
 /// A workspace whose collection `API` holds `GET Ping` at `/ping` with a bearer token and
 /// `POST Other` at `/other`, both on `port`.
-fn history_workspace(port: u16) -> TempDir {
+pub(super) fn history_workspace(port: u16) -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -116,7 +116,7 @@ fn active_request(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<S
 }
 
 /// Opens the History panel and the history tab of its top row.
-fn open_top_row(cx: &mut VisualTestContext) {
+pub(super) fn open_top_row(cx: &mut VisualTestContext) {
     click(cx, "rail-history");
     click(cx, "history-row-1");
 }
