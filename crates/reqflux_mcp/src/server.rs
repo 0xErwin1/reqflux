@@ -362,7 +362,7 @@ mod tests {
         "ui_scroll",
     ];
 
-    const ENGINE_TOOL_NAMES: [&str; 22] = [
+    const ENGINE_TOOL_NAMES: [&str; 23] = [
         "workspace_open",
         "workspace_create",
         "workspace_info",
@@ -376,6 +376,7 @@ mod tests {
         "request_get",
         "request_update",
         "request_execute",
+        "collection_run",
         "history_list",
         "history_get",
         "environment_list",

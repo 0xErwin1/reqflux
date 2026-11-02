@@ -6,8 +6,9 @@
 //! owns its own Tokio runtime and its sends block on it), so the server runs them on the
 //! blocking pool. The engine state is separate from the `ui_*` bridge session.
 //!
-//! One lock guards the state, and `request_execute` holds it for the whole send, so other
-//! engine tools wait until the response (or the request timeout) arrives. A tool that
+//! One lock guards the state, and `request_execute` holds it for the whole send
+//! (`collection_run` for the whole run), so other engine tools wait until the response (or
+//! the request timeout) arrives. A tool that
 //! panicked does not disable the others: the lock is recovered.
 
 mod environments;
@@ -16,6 +17,7 @@ mod history;
 mod policy;
 mod request;
 pub(crate) mod router;
+mod run;
 mod tree;
 
 use std::collections::BTreeMap;
@@ -42,6 +44,7 @@ pub use execute::request_execute;
 pub use history::{history_get, history_list};
 pub use policy::{PolicyPaths, TOOL_CLASSES, UI_TOOL_CLASSES, tool_class, ui_tool_class};
 pub use request::{request_get, request_update};
+pub use run::{RunArgs, collection_run};
 pub use tree::{
     collection_create, folder_create, item_delete, item_duplicate, item_move, item_rename,
     request_create,

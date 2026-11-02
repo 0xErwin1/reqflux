@@ -53,7 +53,7 @@ impl PolicyPaths {
 }
 
 /// The class of every engine tool (S5).
-pub const TOOL_CLASSES: [(&str, ToolClass); 22] = [
+pub const TOOL_CLASSES: [(&str, ToolClass); 23] = [
     ("workspace_open", ToolClass::Read),
     ("workspace_info", ToolClass::Read),
     ("request_get", ToolClass::Read),
@@ -73,6 +73,7 @@ pub const TOOL_CLASSES: [(&str, ToolClass); 22] = [
     ("environment_rename", ToolClass::Write),
     ("variable_set", ToolClass::Write),
     ("request_execute", ToolClass::Execute),
+    ("collection_run", ToolClass::Execute),
     ("item_delete", ToolClass::Destructive),
     ("environment_delete", ToolClass::Destructive),
     ("variable_delete", ToolClass::Destructive),
@@ -256,8 +257,8 @@ impl EngineState {
 
     /// Checks the class of `tool` against the open workspace as it is on disk before it
     /// touches anything else, and audits the decision of a
-    /// write or destructive tool (S6, S7). Every engine tool but `request_execute` calls this
-    /// first; `request_execute` audits once it knows the URL.
+    /// write or destructive tool (S6, S7). Every engine tool but `request_execute` and
+    /// `collection_run` calls this first; those two audit once they know what they send.
     ///
     /// # Errors
     ///
@@ -332,6 +333,19 @@ impl EngineState {
         sent: Option<(&str, &str)>,
         environment: Option<&str>,
     ) -> Result<&'static str, String> {
+        self.approve_as(call, refusal, sent, environment, None)
+    }
+
+    /// [`Self::approve`], showing the window `targets` in place of the names of the call's
+    /// targets when given.
+    pub(super) fn approve_as(
+        &mut self,
+        call: &Call,
+        refusal: &Refusal,
+        sent: Option<(&str, &str)>,
+        environment: Option<&str>,
+        targets: Option<Vec<String>>,
+    ) -> Result<&'static str, String> {
         let workspace = self.engine.as_ref().map(Engine::workspace);
         let in_workspace = workspace.filter(|_| call.workspace_id.is_some());
         let policy = ask_rule(
@@ -346,11 +360,12 @@ impl EngineState {
                 id: id.clone(),
                 name: workspace.map_or_else(String::new, |w| w.manifest.name.clone()),
             }),
-            targets: call
-                .targets
-                .iter()
-                .map(|id| workspace.map_or_else(|| id.clone(), |w| target_name(w, id)))
-                .collect(),
+            targets: targets.unwrap_or_else(|| {
+                call.targets
+                    .iter()
+                    .map(|id| workspace.map_or_else(|| id.clone(), |w| target_name(w, id)))
+                    .collect()
+            }),
             method: sent.map(|(method, _)| method.to_owned()),
             url: sent.map(|(_, url)| url.to_owned()),
             item_ids: call.targets.clone(),
@@ -409,6 +424,7 @@ mod tests {
         names.dedup();
         assert_eq!(names.len(), TOOL_CLASSES.len());
         assert_eq!(tool_class("request_execute"), Some(ToolClass::Execute));
+        assert_eq!(tool_class("collection_run"), Some(ToolClass::Execute));
         assert_eq!(tool_class("ui_click"), None);
     }
 

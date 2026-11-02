@@ -13,7 +13,7 @@ use rmcp::{
 use super::{
     CollectionCreateArgs, EngineState, EntryArgs, EnvironmentArgs, EnvironmentCreateArgs,
     EnvironmentRenameArgs, ExecuteArgs, FolderCreateArgs, HistoryListArgs, ItemArgs, MoveArgs,
-    PathArgs, RenameArgs, RequestCreateArgs, ScopeArgs, UpdateArgs, VariableDeleteArgs,
+    PathArgs, RenameArgs, RequestCreateArgs, RunArgs, ScopeArgs, UpdateArgs, VariableDeleteArgs,
     VariableSetArgs, WorkspaceCreateArgs,
 };
 use crate::server::{ReqFluxMcp, into_result};
@@ -194,6 +194,18 @@ impl ReqFluxMcp {
         Parameters(args): Parameters<ExecuteArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         self.run_engine(move |state| super::request_execute(state, args))
+            .await
+    }
+
+    #[tool(
+        name = "collection_run",
+        description = "Run every request of a collection, folder or request (by id or slug path) in tree order with its scripts, optionally stopping at the first failure (bail); returns per request the method, name, URL, status, time, tests and error, the totals and how the run ended, secrets masked; records every send in history"
+    )]
+    async fn collection_run(
+        &self,
+        Parameters(args): Parameters<RunArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(move |state| super::collection_run(state, args))
             .await
     }
 

@@ -700,12 +700,16 @@ workspace first, so it sees what the window or `git` wrote. The tools: `workspac
 `request_update` requires it and saves hash-checked against it, so an edit made after the
 agent's read is a conflict whatever other tools reloaded in between);
 `request_execute` (status, headers, body text cut at 256 KiB, time, size, unresolved variables
-and test results; it records no history and keeps no script writes); `history_list` and
+and test results; it records no history and keeps no script writes); `collection_run` (target
+by id or slug path, `environment`, `bail`: runs the collection, folder or request through
+`Engine::run_collection` and returns per step the method, name, masked URL, status, time, tests
+and error, the totals, `passed` and how the run ended; every send is recorded in the window's
+history, a request that was not sent is not); `history_list` and
 `history_get` (the window's history of this workspace, read-only); `environment_list`,
 `environment_create`, `environment_rename`, `environment_delete`; `variables_get`,
 `variable_set` and `variable_delete` by scope `global`, `collection:<id>` or `environment:<id>`.
 The handlers run on the blocking pool under one lock; `request_execute` holds it for the whole
-send, and a tool that panicked does not poison it for the session. The engine, which owns a
+send, `collection_run` for the whole run, and a tool that panicked does not poison it for the session. The engine, which owns a
 Tokio runtime, is dropped on its own thread, never inside the async server.
 
 Secrets never leave the engine. A secret variable shows `{"set": true|false}`, never a value.
@@ -760,7 +764,7 @@ The engine tools are policed (`reqflux_engine::policy`); every tool has a class:
 (`workspace_open`, `workspace_info`, `request_get`, `history_list`, `history_get`,
 `environment_list`, `variables_get`), write (`workspace_create`, `collection_create`,
 `folder_create`, `request_create`, `item_rename`, `item_duplicate`, `item_move`, `request_update`,
-`environment_create`, `environment_rename`, `variable_set`), execute (`request_execute`) and
+`environment_create`, `environment_rename`, `variable_set`), execute (`request_execute`, `collection_run`) and
 destructive (`item_delete`, `environment_delete`, `variable_delete`). Each class is `allow`,
 `ask` or `deny`; `ask` asks the running window (below). The effective rule is the strictest
 of the user's `[mcp]`, the matching `[mcp.workspaces."<id>"]` (the id in any case) and the open
@@ -776,14 +780,19 @@ redirect target before it is followed (`reqflux_http::RedirectCheck`). A refused
 reaches the script as a transport error; a refusal in a pre-request script or on the main
 request's redirects refuses the call. Entries are exact hosts, `*.example.com` for subdomains
 only (not the apex) and `host:port` for one port, case-insensitive. A refusal names the tool, the
-class or the host, the rule and the file and table to change it in.
+class or the host, the rule and the file and table to change it in. `collection_run` checks
+every request of the run, its script sends and redirects through the same guard; a refused
+request is not sent and fails its step, and the run goes on unless `bail` is set.
 
 Every write, execute and destructive call, allowed or refused, appends one JSON line to
 `$XDG_STATE_HOME/reqflux/audit.log` (`reqflux_engine::audit`; owner-only, appended and synced per
 line): time, tool, class, decision, reason, workspace id, the ids it targets and, for an
 execution, the method and the masked URL. Argument values (documents, variable values, bodies)
 are never written, and a call whose audit line cannot be written is refused. Read tools are not
-audited.
+audited. `collection_run` writes one line for the run (the target id, no URL) before anything is
+sent, then one per request with its method and masked URL, refused with the refusal when the
+guard refused it, one of its script sends or a redirect; a request line that cannot be written
+stops the rest of the run.
 
 The `ui_*` tools are policed too: `ui_tree`, `ui_find`, `ui_element`, `ui_element_bounds` and
 `ui_wait_for_element` are read; `ui_click`, `ui_type`, `ui_key`, `ui_focus` and `ui_scroll` are
@@ -827,6 +836,7 @@ call: `approval-title` (the tool), `approval-status` ("Pending") and `approval-c
 fields `approval-client` (Requested by), `approval-environment`, `approval-class` (Policy
 class), `approval-tool`, `approval-policy` and `approval-request` (the target as
 `collection › folder › name` from the open workspace, else the names the request carries).
+For `collection_run` the target reads `<name> · N requests`, with the target id in `item_ids`.
 For `request_execute`, "What it will send" (`approval-sends`): `approval-method`,
 `approval-url-template` with its variables highlighted, `approval-url` (resolved, masked),
 `approval-resolved-in`, the headers `approval-header-<n>` (a credential header masked whole)
