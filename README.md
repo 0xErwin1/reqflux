@@ -46,6 +46,8 @@ cargo run -- run billing-api/invoices/list-invoices --workspace ~/billing --env 
 cargo run -- run billing-api --workspace ~/billing --environment staging --bail
                      # runs a collection or folder, one report line per request;
                      # --json for a machine report, exit 1 on a failed request or test
+cargo run -- code billing-api/invoices/list-invoices --workspace ~/billing --lang python
+                     # prints the request as curl, httpie, python or fetch code
 scripts/lint.py      # fmt, clippy, file-size and layering checks
 cargo nextest run    # tests
 ```

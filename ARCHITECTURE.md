@@ -456,7 +456,7 @@ reqflux_core ──┬── reqflux_store ───┐
 | `reqflux_engine` | The execution pipeline, collection runner, history and app state (SQLite), keyring secrets. The single API surface for all front ends. | Depend on GPUI or rmcp. |
 | `reqflux_mcp` | The MCP server: tools, resources, agent policy, audit. | Duplicate engine logic. |
 | `reqflux_ui` | Everything GPUI: theme, components, sidebar, documents, keymap. | Contain domain rules that the engine or core should own. |
-| `reqflux` | The binary: GUI startup and the `mcp`, `run` and `import` subcommands. | Contain logic beyond wiring. |
+| `reqflux` | The binary: GUI startup and the `mcp`, `run`, `code` and `import` subcommands. | Contain logic beyond wiring. |
 
 `reqflux_ui` starts as one crate with modules. DBFlux split its UI into six crates and then had
 to forward every feature flag through all of them; ReqFlux splits only when compile times
@@ -540,6 +540,20 @@ keyring, and `--var` still wins over it. When the keyring cannot be read, stderr
 warnings, those secrets stay unresolved and the request is still sent. A `--var` value is
 visible in the process list and the shell history; prefer `reqflux secret set`, or reading it
 from the environment, such as `--var token="$API_TOKEN"`.
+
+`reqflux code` prints the code that sends a request:
+
+```text
+reqflux code <request> [--lang curl|httpie|python|fetch] [--workspace <dir>]
+```
+
+- `<request>` is an id or slug path; `--lang` defaults to `curl`. stdout gets the code, stderr
+  one `warning:` line per workspace load warning. Exit 0, or 2 for usage (unknown request or
+  language, workspace that fails to load).
+- The code is the request as written, through `Engine::code`: the auth it inherits from its
+  folders or collection, every `{{variable}}` left as `{{name}}` (secret values are never
+  read), disabled rows left out, and the `Content-Type` the engine would add for a raw or
+  GraphQL body written when no header sets one.
 
 `reqflux secret` manages the keyring values through `reqflux_engine::SecretStore`:
 
@@ -682,6 +696,15 @@ portability model, which held up well.
 
 Because the workspace is already a directory of text files, sharing a whole workspace through
 git needs no export at all.
+
+A pasted curl command becomes a request through `reqflux_core::curl::parse`: bash and Windows
+`cmd` quoting (Chrome's and Firefox's "Copy as cURL", Postman's export), method, URL and query,
+headers, `-d`/`--data-*`/`--json` as raw, urlencoded or binary, `-F` as form-data with files,
+`-u` basic, `--oauth2-bearer`, `-k`, `-L` and `-m`. Unknown options and options with no place in
+a request are returned as warnings, never dropped silently; output-only options (`-s`, `-v`,
+`--compressed`) are accepted. Without `-L` the workspace default for redirects applies, so a
+browser copy does not turn them off. `reqflux_core::codegen` writes a request back as curl,
+HTTPie, Python requests or JavaScript fetch.
 
 ## MCP
 

@@ -1,6 +1,6 @@
 //! Request selection by id or slug path (S10).
 
-use reqflux_core::model::{CollectionNode, FolderNode, Item, RequestNode, Workspace};
+use reqflux_core::model::{Auth, CollectionNode, FolderNode, Item, RequestNode, Workspace};
 use reqflux_store::Parent;
 
 use crate::error::ExecuteError;
@@ -90,7 +90,17 @@ fn by_path<'a>(workspace: &'a Workspace, path: &str) -> Option<Target<'a>> {
     })
 }
 
-impl Target<'_> {
+impl<'a> Target<'a> {
+    /// The auth of the request, or of the nearest folder, then the collection, that does not
+    /// inherit; the same walk the engine's preparation makes. [`Auth::None`] when all inherit.
+    pub(crate) fn effective_auth(&self) -> &'a Auth {
+        std::iter::once(&self.request.request.auth)
+            .chain(self.folders.iter().rev().map(|folder| &folder.folder.auth))
+            .chain(std::iter::once(&self.collection.collection.auth))
+            .find(|auth| !auth.is_inherit())
+            .unwrap_or(&Auth::None)
+    }
+
     /// The store parent of the request: its collection and folder slugs, outermost first.
     pub(crate) fn parent(&self) -> Parent {
         Parent {

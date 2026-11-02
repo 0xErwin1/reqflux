@@ -66,6 +66,7 @@
 
 pub mod approvals;
 pub mod audit;
+mod code;
 pub mod config;
 mod create;
 mod current;
@@ -85,6 +86,7 @@ pub mod state;
 mod tree;
 mod variables;
 
+pub use code::code;
 pub use create::create_workspace;
 pub use current::CurrentValues;
 pub use engine::{Engine, Executed, Execution, PendingExecution};

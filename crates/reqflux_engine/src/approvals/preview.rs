@@ -7,9 +7,7 @@
 //! the headers (a credential header whole) and the body. A secret variable's value is never
 //! read into it at all; it shows as [`MASK`].
 
-use reqflux_core::model::{
-    Auth, CollectionNode, EnvironmentNode, Item, KeyValue, Variable, Workspace,
-};
+use reqflux_core::model::{CollectionNode, EnvironmentNode, Item, KeyValue, Variable, Workspace};
 use reqflux_core::template::{DynamicVariable, Segment, segments};
 
 use crate::engine::Engine;
@@ -216,7 +214,7 @@ fn used_variables(
     texts.extend(rows(&request.params));
     texts.extend(rows(&request.headers));
     texts.extend(serde_json::to_string(&request.body).ok());
-    texts.extend(serde_json::to_string(effective_auth(target)).ok());
+    texts.extend(serde_json::to_string(target.effective_auth()).ok());
     let mut names: Vec<String> = Vec::new();
     for text in &texts {
         for segment in segments(text) {
@@ -231,22 +229,6 @@ fn used_variables(
         .into_iter()
         .map(|name| used_variable(workspace, target.collection, environment, masker, name))
         .collect()
-}
-
-/// The auth of the request, or of the nearest folder, then the collection, that does not
-/// inherit; the same walk the engine's preparation makes.
-fn effective_auth<'a>(target: &Target<'a>) -> &'a Auth {
-    std::iter::once(&target.request.request.auth)
-        .chain(
-            target
-                .folders
-                .iter()
-                .rev()
-                .map(|folder| &folder.folder.auth),
-        )
-        .chain(std::iter::once(&target.collection.collection.auth))
-        .find(|auth| !auth.is_inherit())
-        .unwrap_or(&Auth::None)
 }
 
 /// `name` with its value and source: the first enabled definition in the environment, the

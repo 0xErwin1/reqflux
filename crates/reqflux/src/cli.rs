@@ -42,6 +42,10 @@ pub(crate) enum Command {
     /// The engine tools start on the workspace in the current directory, or --workspace, else
     /// the most recent workspace that loads.
     Mcp(McpArgs),
+    /// Print the code that sends a request: curl, HTTPie, Python requests or JavaScript fetch.
+    ///
+    /// Uses the workspace in the current directory, or --workspace.
+    Code(CodeArgs),
     /// Import a Postman collection and its environments into a workspace.
     Import(ImportArgs),
     /// Set, unset and list secret variable values in the OS keyring.
@@ -116,6 +120,35 @@ pub(crate) struct RunArgs {
     /// Print the report of a collection or folder run as one JSON document.
     #[arg(long)]
     pub(crate) json: bool,
+}
+
+const CODE_AFTER_HELP: &str = "\
+The code is the request as written, with the auth it inherits from its folders or
+collection: {{variables}} stay as {{name}}, so secret values are never read nor printed.
+Disabled params, headers and fields are left out.
+
+Output:
+  stdout  the code
+  stderr  one `warning:` line per workspace load warning
+
+Exit codes:
+  0  the code was printed
+  2  usage error: bad arguments, an unknown language or request, workspace that fails to
+     load";
+
+/// Arguments of `reqflux code`.
+#[derive(Debug, Args)]
+#[command(after_help = CODE_AFTER_HELP)]
+pub(crate) struct CodeArgs {
+    /// The id or slug path of a request (`<collection>/<folder>/.../<request>`).
+    #[arg(value_name = "REQUEST")]
+    pub(crate) request: String,
+    /// The language: curl, httpie, python or fetch.
+    #[arg(long, value_name = "LANG", default_value = "curl")]
+    pub(crate) lang: reqflux_core::codegen::Language,
+    /// The workspace directory. Defaults to the current directory.
+    #[arg(long, value_name = "DIR")]
+    pub(crate) workspace: Option<PathBuf>,
 }
 
 const IMPORT_AFTER_HELP: &str = "\
@@ -276,7 +309,7 @@ Engine tools, on the open workspace (the files, through the same engine as the w
   workspace_open, workspace_create, workspace_info
   collection_create, folder_create, request_create
   item_rename, item_duplicate, item_move, item_delete
-  request_get, request_update, request_execute
+  request_get, request_update, request_execute, collection_run
   history_list, history_get
   environment_list, environment_create, environment_rename, environment_delete
   variables_get, variable_set, variable_delete
@@ -302,7 +335,7 @@ Enable them in ~/.config/reqflux/config.toml ($XDG_CONFIG_HOME/reqflux/config.to
   write = \"allow\"                    # allow, ask or deny
   execute = \"allow\"
   destructive = \"deny\"
-  hosts = [\"api.example.com\", \"*.example.com\", \"localhost:8080\"]   # request_execute only
+  hosts = [\"api.example.com\", \"*.example.com\", \"localhost:8080\"]   # request_execute, collection_run
   environments = [\"dev\"]             # absent: any; no environment is always allowed
 [mcp.workspaces.\"<workspace id>\"] in that file and [mcp] in a workspace's reqflux.toml can
 only restrict: the strictest rule wins and every hosts or environments list must allow. The
@@ -488,7 +521,7 @@ mod tests {
     #[test]
     fn directory_tools_say_they_use_the_current_directory() {
         let mut command = Cli::command();
-        for name in ["run", "secret", "mcp"] {
+        for name in ["run", "code", "secret", "mcp"] {
             let Some(sub) = command.find_subcommand_mut(name) else {
                 panic!("{name} is missing");
             };
