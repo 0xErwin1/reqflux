@@ -236,8 +236,9 @@ fn write_items(
 }
 
 /// `example` with its response masked as `Engine::save_example` masks a response: a
-/// credential header's value whole, a `Set-Cookie` cookie value. An import has no secret
-/// values to mask by text, so the rest is kept.
+/// credential header's value whole, a `Set-Cookie` cookie value, and the `value` of every
+/// entry of the Postman `cookie` array kept in `extensions.postman`. An import has no
+/// secret values to mask by text, so the rest is kept.
 fn masked(example: &Example) -> Example {
     let masker = Masker::default();
     let mut example = example.clone();
@@ -258,7 +259,30 @@ fn masked(example: &Example) -> Example {
     if let ExampleBody::Text(text) = &response.body {
         response.body = ExampleBody::Text(masker.mask(text));
     }
+    if let Some(kept) = example
+        .extensions
+        .get("postman")
+        .and_then(toml::Value::as_str)
+        .and_then(masked_cookies)
+    {
+        example
+            .extensions
+            .insert("postman".to_owned(), toml::Value::String(kept));
+    }
     example
+}
+
+/// The Postman text `kept` with the `value` of every `cookie` entry masked, or `None` when
+/// it has no `cookie` array and so stays as it is.
+fn masked_cookies(kept: &str) -> Option<String> {
+    let mut rest: Value = serde_json::from_str(kept).ok()?;
+    let cookies = rest.get_mut("cookie")?.as_array_mut()?;
+    for cookie in cookies {
+        if let Some(value) = cookie.get_mut("value") {
+            *value = Value::String(crate::sent::MASK.to_owned());
+        }
+    }
+    serde_json::to_string(&rest).ok()
 }
 
 /// Collects every file the import would write for `items` under `parent`: the entity

@@ -317,7 +317,8 @@ within one request. `Engine::{examples, save_example, rename_example, delete_exa
 and `Engine::save_response_body` writes a response body to a chosen path. A Postman import writes each item's
 `response[]` entries as examples after the request: the request is `originalRequest` when present,
 else the item's request, kept as written; response headers are masked as `save_example` masks
-them. An entry without a numeric status or with a request that does not map stays in the
+them, and so is the `value` of each entry in the Postman `cookie` array kept in
+`extensions.postman`. An entry without a numeric status or with a request that does not map stays in the
 request's `extensions.postman`; `response` leaves it only when every entry mapped. The import
 summary and preview count the examples, and the preview lists their files.
 

@@ -245,6 +245,37 @@ fn a_re_import_with_examples_fails_and_changes_nothing() {
 }
 
 #[test]
+fn a_postman_cookie_value_never_reaches_the_example_file() {
+    let mut document = collection();
+    if let Some(response) = document["item"][0]["response"][0].as_object_mut() {
+        response.insert(
+            "cookie".to_owned(),
+            serde_json::json!([
+                { "name": "session", "value": "cookie-secret-1", "domain": "example.com" },
+                { "name": "csrf", "value": "cookie-secret-2" }
+            ]),
+        );
+    }
+    let dir = temp();
+    if let Err(error) = postman(dir.path(), &document, &[]) {
+        panic!("import: {error}");
+    }
+    let file = dir
+        .path()
+        .join("collections/shop/get-user.examples/ok.example.toml");
+    let text = match fs::read_to_string(&file) {
+        Ok(text) => text,
+        Err(error) => panic!("read {}: {error}", file.display()),
+    };
+    assert!(!text.contains("cookie-secret"), "{text}");
+    assert!(
+        text.contains("example.com"),
+        "the rest of the cookie stays: {text}"
+    );
+    assert!(text.contains(MASK), "{text}");
+}
+
+#[test]
 fn an_import_without_responses_writes_no_examples() {
     let mut document = collection();
     if let Some(item) = document["item"][0].as_object_mut() {
