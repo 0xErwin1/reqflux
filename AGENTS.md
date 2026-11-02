@@ -34,9 +34,8 @@ on-disk format and the crate boundaries.
 ## Driving the app
 
 Every window runs the `gpui-mcp` bridge. Agents drive it through the `ui_*` tools of
-`reqflux mcp`; until that exists, register `scripts/gpui-mcp.sh --app-id reqflux` (after
-`scripts/gpui-mcp.sh install`) to inspect the element tree, click and type. Verify UI changes in the
-running app, not only in tests. See "UI automation" in ARCHITECTURE.md.
+`reqflux mcp` to inspect the element tree, click and type. Verify UI changes in the running app,
+not only in tests. See "UI automation" in ARCHITECTURE.md.
 
 Nothing is vendored. Prefer published crates; a git dependency needs a pinned `rev`.
 

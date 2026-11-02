@@ -1429,7 +1429,7 @@ Trust model, and what it costs:
 `ui_tree`, `ui_find`, `ui_element`, `ui_element_bounds`, `ui_wait_for_element`, `ui_click`,
 `ui_type`, `ui_key`, `ui_focus` and `ui_scroll`. ReqFlux reimplements discovery, descriptor
 validation and the framing instead of depending on upstream's server, whose client is private,
-so `scripts/gpui-mcp.sh` is no longer needed to drive the app.
+so no separate automation server is needed to drive the app.
 
 The protocol crate gives the types; the transport, the size caps (1 MiB per request, 24 MiB
 per response) and the 10 s I/O timeout are ReqFlux's. A request carries the descriptor's token
