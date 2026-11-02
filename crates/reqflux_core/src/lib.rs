@@ -4,7 +4,11 @@
 
 pub mod codegen;
 pub mod curl;
+pub mod http_document;
 pub mod jsonpath;
 pub mod model;
 pub mod query;
 pub mod template;
+
+#[cfg(test)]
+mod http_document_tests;

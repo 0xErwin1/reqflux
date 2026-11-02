@@ -410,6 +410,15 @@ switcher (`layout-strip`) change it, as do the `Layout: Stacked` and `Layout: Si
 commands (Ctrl+Alt+1, Ctrl+Alt+2). Document mode is the remaining S7 surface; the keymap
 is configurable (see `Configuration and policy` for the `[keymap]` table).
 
+A `.http` document, the text that mode reads, is plain text: sections separated by
+`### <name>` lines, each with a `<METHOD> <url>` line (a lone URL line means GET), `Key: value`
+headers, a blank line, then a verbatim body; `#` and `//` lines are comments. A `###` line opens
+a section at column zero before the body, or after a blank line inside it, so an indented `###`
+or one directly after body text is body. `reqflux_core::http_document::parse` never fails
+(broken sections come back as warnings) and `write` re-emits canonical text, so `parse(write(x))
+== x` and a canonical document round-trips byte for byte; `DocumentRequest::to_request` turns a
+section into a model `Request`.
+
  In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
 and clicking a row's key or value cell (`request-<table>-<key|value>-<n>`) swaps the cell
