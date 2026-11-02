@@ -331,6 +331,23 @@ fn unknown_and_unsupported_flags_are_warnings() {
 }
 
 #[test]
+fn warnings_never_echo_an_option_value_or_a_malformed_header() {
+    let parsed = parse(
+        "curl --oauth2-token=lit3ral-t0ken -H 'Authorization Bearer lit3ral-h3ader' https://x.io",
+    );
+    assert_eq!(
+        parsed.warnings,
+        [
+            "unknown option --oauth2-token was ignored",
+            "-H Authorization … is not a header and was ignored",
+        ]
+    );
+    for warning in &parsed.warnings {
+        assert!(!warning.contains("lit3ral"), "{warning}");
+    }
+}
+
+#[test]
 fn errors_name_the_problem() {
     assert_eq!(curl::parse("   "), Err(CurlError::Empty));
     assert_eq!(

@@ -109,6 +109,18 @@ pub enum StoreError {
         /// The id given as parent.
         id: Id,
     },
+    /// The id names a collection or folder where a request is needed.
+    #[error("{id} is not a request")]
+    NotARequest {
+        /// The id given as request.
+        id: Id,
+    },
+    /// The request has no saved example with the id.
+    #[error("the request has no saved example with the id {id}")]
+    UnknownExample {
+        /// The id looked up.
+        id: Id,
+    },
     /// No environment of the loaded workspace has the id.
     #[error("no environment has the id {id}")]
     UnknownEnvironment {

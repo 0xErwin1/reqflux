@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use crate::timing::Timings;
+
 /// A received response with its body fully read and decompressed.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Response {
@@ -19,6 +21,8 @@ pub struct Response {
     pub final_url: String,
     /// Time from sending the request to reading the whole body.
     pub elapsed: Duration,
+    /// The phases of every request of the send, redirects first.
+    pub timings: Timings,
 }
 
 impl Response {

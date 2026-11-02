@@ -19,7 +19,8 @@ use reqflux_engine::state::{
     AppState, Draft, HISTORY_MAX_BODY_BYTES, HISTORY_MAX_ENTRIES, HistoryLimits, HistoryOutcome,
     HistoryRecord, RecordedResponse, StateError,
 };
-use reqflux_engine::{MASK, SentBody, SentRequest};
+use reqflux_engine::{HopTimings, MASK, SentBody, SentRequest, Timings};
+use std::time::Duration;
 
 fn state_path(dir: &tempfile::TempDir) -> PathBuf {
     dir.path().join("state.sqlite3")
@@ -50,7 +51,29 @@ fn record(n: u32) -> HistoryRecord {
             truncated: false,
             elapsed_ms: 12,
             size: 6,
+            timings: Some(timings()),
         }),
+    }
+}
+
+fn timings() -> Timings {
+    Timings {
+        hops: vec![
+            HopTimings {
+                dns: Some(Duration::from_micros(1_500)),
+                connect: Some(Duration::from_micros(2_250)),
+                tls: None,
+                first_byte: Duration::from_micros(10_000),
+                download: Duration::ZERO,
+            },
+            HopTimings {
+                dns: None,
+                connect: None,
+                tls: None,
+                first_byte: Duration::from_micros(4_000),
+                download: Duration::from_micros(750),
+            },
+        ],
     }
 }
 
@@ -93,7 +116,7 @@ fn a_v1_file_upgrades_to_the_latest_and_keeps_its_drafts() {
 
     let mut state = open(&path);
 
-    assert_eq!(user_version(&path), 5);
+    assert_eq!(user_version(&path), 6);
     let draft = state.draft("ws", "req").unwrap().unwrap();
     assert_eq!(draft.payload, "a = 1");
     assert_eq!(draft.base_hash.as_deref(), Some("hash-1"));
@@ -108,7 +131,30 @@ fn a_fresh_file_is_created_at_v3() {
     let dir = tempfile::tempdir().unwrap();
     let path = state_path(&dir);
     open(&path);
-    assert_eq!(user_version(&path), 5);
+    assert_eq!(user_version(&path), 6);
+}
+
+#[test]
+fn a_v5_entry_without_timings_stays_readable_after_the_upgrade() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = state_path(&dir);
+    let id = open(&path).record_history("ws", record(1)).unwrap();
+    {
+        // Turn the file back into what a v5 build wrote: no timings column.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch("ALTER TABLE history DROP COLUMN timings; PRAGMA user_version = 5;")
+            .unwrap();
+    }
+
+    let state = open(&path);
+
+    assert_eq!(user_version(&path), 6);
+    let entry = state.history_entry(id).unwrap().unwrap();
+    let mut expected = record(1);
+    if let HistoryOutcome::Response(response) = &mut expected.outcome {
+        response.timings = None;
+    }
+    assert_eq!(entry.record, expected);
 }
 
 #[test]
@@ -117,10 +163,10 @@ fn a_file_newer_than_the_build_is_refused() {
     let path = state_path(&dir);
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch("PRAGMA user_version = 6;").unwrap();
+        conn.execute_batch("PRAGMA user_version = 7;").unwrap();
     }
     match AppState::open(&path) {
-        Err(StateError::UnsupportedVersion { version, .. }) => assert_eq!(version, 6),
+        Err(StateError::UnsupportedVersion { version, .. }) => assert_eq!(version, 7),
         other => panic!("expected UnsupportedVersion, got {other:?}"),
     }
 }
@@ -381,6 +427,7 @@ fn echo_response(headers: Vec<(String, String)>, body: &[u8]) -> reqflux_engine:
         body: body.to_vec(),
         final_url: "http://h/".to_owned(),
         elapsed: std::time::Duration::from_millis(5),
+        timings: timings(),
     }
 }
 
@@ -428,6 +475,7 @@ fn a_recorded_response_masks_secrets_in_headers_reason_and_text_body() {
     assert_eq!(recorded.reason, Some(format!("bad {MASK}")));
     // The size is the response's as received.
     assert_eq!(recorded.size, 18);
+    assert_eq!(recorded.timings, Some(timings()), "the timings are kept");
     assert!(!format!("{recorded:?}").contains("s3cret"));
 }
 

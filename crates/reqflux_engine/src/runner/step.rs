@@ -35,6 +35,7 @@ impl Engine {
             reason: None,
             elapsed_ms: 0,
             size: 0,
+            timings: None,
             tests: Vec::new(),
             error: None,
         };
@@ -84,6 +85,7 @@ impl Engine {
                 result.reason = response.reason.as_deref().map(|reason| masker.mask(reason));
                 result.elapsed_ms = u64::try_from(response.elapsed.as_millis()).unwrap_or(u64::MAX);
                 result.size = u64::try_from(response.size()).unwrap_or(u64::MAX);
+                result.timings = Some(response.timings.clone());
                 let recorded = HistoryOutcome::Response(RecordedResponse::from_response_masked(
                     &response, &masker,
                 ));

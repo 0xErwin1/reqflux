@@ -173,6 +173,7 @@ fn received_of(recorded: &RecordedResponse, sent: &SentRequest) -> Received {
         body: recorded.body.clone(),
         final_url: sent.url.clone(),
         elapsed: Duration::from_millis(recorded.elapsed_ms),
+        timings: recorded.timings.clone().unwrap_or_default(),
     };
     Received::new(response, Vec::new(), ScriptOutcome::default())
 }

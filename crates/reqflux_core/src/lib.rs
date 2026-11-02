@@ -4,6 +4,7 @@
 
 pub mod codegen;
 pub mod curl;
+pub mod jsonpath;
 pub mod model;
 pub mod query;
 pub mod template;

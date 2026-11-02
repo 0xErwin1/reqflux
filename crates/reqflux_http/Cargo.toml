@@ -18,8 +18,11 @@ reqwest.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 time.workspace = true
-tokio.workspace = true
+# `net` for the timed DNS resolver.
+tokio = { workspace = true, features = ["net"] }
 tokio-util.workspace = true
+tower-layer.workspace = true
+tower-service.workspace = true
 url.workspace = true
 
 [dev-dependencies]

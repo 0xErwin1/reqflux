@@ -177,6 +177,26 @@ pub enum VariableError {
     Reload(#[source] OpenError),
 }
 
+/// Why a saved example operation, or saving a response body, failed (v1-features S4).
+#[derive(Debug, thiserror::Error)]
+pub enum ExampleError {
+    /// No request matches the selector.
+    #[error(transparent)]
+    Request(#[from] ExecuteError),
+    /// The store refused the operation.
+    #[error(transparent)]
+    Store(#[from] StoreError),
+    /// The response body could not be written to the chosen file.
+    #[error("could not write the response body to {}: {source}", path.display())]
+    Write {
+        /// The file chosen.
+        path: PathBuf,
+        /// The filesystem failure.
+        #[source]
+        source: std::io::Error,
+    },
+}
+
 /// Why a tree operation (create, rename, duplicate, delete, move, reorder) failed.
 #[derive(Debug, thiserror::Error)]
 pub enum TreeError {

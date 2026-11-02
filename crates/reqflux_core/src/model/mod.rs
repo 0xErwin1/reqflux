@@ -9,6 +9,7 @@ mod auth;
 mod auth_kinds;
 mod body;
 mod documents;
+mod example;
 mod extensions;
 mod id;
 mod mcp;
@@ -23,6 +24,7 @@ pub use auth_kinds::{
 };
 pub use body::{Body, FormPart, RawLanguage, Settings};
 pub use documents::{Collection, Environment, Folder, Request, WorkspaceManifest};
+pub use example::{Example, ExampleBody, ExampleRequest, ExampleResponse};
 pub use id::Id;
 pub use mcp::{McpOverride, Rule};
 pub use method::{Method, MethodError};

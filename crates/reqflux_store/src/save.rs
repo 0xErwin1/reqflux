@@ -201,7 +201,7 @@ pub(crate) fn check(path: &Path, expected: Option<ContentHash>) -> Result<(), St
     }
 }
 
-fn write_atomic(path: &Path, bytes: &[u8]) -> Result<ContentHash, StoreError> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> Result<ContentHash, StoreError> {
     let dir = path.parent().unwrap_or_else(|| Path::new("."));
     fs::create_dir_all(dir).map_err(|source| io_error(dir, source))?;
     let mut file = NamedTempFile::new_in(dir).map_err(|source| io_error(dir, source))?;

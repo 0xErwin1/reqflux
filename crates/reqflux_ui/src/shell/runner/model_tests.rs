@@ -100,6 +100,7 @@ fn result(step: usize, id: &str, status: Option<u16>, tests: Vec<TestResult>) ->
         reason: status.map(|_| "OK".to_owned()),
         elapsed_ms: 142,
         size: 3482,
+        timings: None,
         tests,
         error: status.is_none().then(|| "connection refused".to_owned()),
     }

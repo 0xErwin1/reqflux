@@ -8,8 +8,10 @@ mod error;
 mod redirect;
 mod request;
 mod response;
+mod timing;
 
 pub use client::{HttpClient, RedirectCheck, RedirectRules, SecretMask};
 pub use error::HttpError;
 pub use request::{MultipartPart, MultipartValue, PreparedBody, PreparedRequest, RequestOptions};
 pub use response::Response;
+pub use timing::{HopTimings, Timings};

@@ -14,6 +14,9 @@ workspace = true
 [dependencies]
 rand.workspace = true
 serde.workspace = true
+# A filtered body keeps the server's key order.
+serde_json = { workspace = true, features = ["preserve_order"] }
+serde_json_path.workspace = true
 thiserror.workspace = true
 time.workspace = true
 toml.workspace = true

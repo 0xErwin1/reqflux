@@ -26,7 +26,8 @@
 //! is the drafts table; version 2 adds the `history` table and keeps every draft; version 3
 //! adds the `current_values` table (see [`AppState::current_values`]) and keeps the drafts
 //! and the history; version 4 adds the `recent_workspaces` table and keeps everything
-//! before it; version 5 adds the `settings` table and keeps everything before it. A fresh
+//! before it; version 5 adds the `settings` table and keeps everything before it; version 6
+//! adds the `timings` column to `history`, empty for the entries before it. A fresh
 //! file is created at the latest version, an older one is upgraded in one transaction, and
 //! a newer one is refused with [`StateError::UnsupportedVersion`].
 //!
@@ -53,7 +54,7 @@ pub use history::{
 pub use recent::{RECENT_WORKSPACES_MAX, RecentWorkspace};
 
 /// The schema version this build writes. Raising it is a forward-only migration.
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 
 /// The drafts table of schema version 1.
 const SCHEMA_V1: &str = "
@@ -403,6 +404,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             current::SCHEMA_V3,
             recent::SCHEMA_V4,
             settings::SCHEMA_V5,
+            history::SCHEMA_V6,
         ]
         .as_slice(),
         1 => [
@@ -410,11 +412,19 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             current::SCHEMA_V3,
             recent::SCHEMA_V4,
             settings::SCHEMA_V5,
+            history::SCHEMA_V6,
         ]
         .as_slice(),
-        2 => [current::SCHEMA_V3, recent::SCHEMA_V4, settings::SCHEMA_V5].as_slice(),
-        3 => [recent::SCHEMA_V4, settings::SCHEMA_V5].as_slice(),
-        4 => [settings::SCHEMA_V5].as_slice(),
+        2 => [
+            current::SCHEMA_V3,
+            recent::SCHEMA_V4,
+            settings::SCHEMA_V5,
+            history::SCHEMA_V6,
+        ]
+        .as_slice(),
+        3 => [recent::SCHEMA_V4, settings::SCHEMA_V5, history::SCHEMA_V6].as_slice(),
+        4 => [settings::SCHEMA_V5, history::SCHEMA_V6].as_slice(),
+        5 => [history::SCHEMA_V6].as_slice(),
         version if version == SCHEMA_VERSION => return Ok(()),
         version => {
             return Err(StateError::UnsupportedVersion {

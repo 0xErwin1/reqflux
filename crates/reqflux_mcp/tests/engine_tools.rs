@@ -647,6 +647,7 @@ fn record(app: &mut AppState, workspace_id: &str, name: &str) -> i64 {
                 truncated: false,
                 elapsed_ms: 5,
                 size: 5,
+                timings: None,
             }),
         },
     )

@@ -303,6 +303,7 @@ fn response(headers: Vec<(String, String)>, body: &str) -> HistoryOutcome {
         truncated: false,
         elapsed_ms: 5,
         size: body.len() as u64,
+        timings: None,
     })
 }
 

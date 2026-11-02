@@ -1,5 +1,8 @@
 //! The send history table of the app state (history S1, S2, S4, S5).
 
+use std::time::Duration;
+
+use reqflux_http::{HopTimings, Timings};
 use rusqlite::{OptionalExtension, Row, params};
 
 use super::{AppState, StateError, query_error};
@@ -34,6 +37,63 @@ CREATE TABLE IF NOT EXISTS history (
 );
 CREATE INDEX IF NOT EXISTS history_workspace ON history (workspace_id, id);
 ";
+
+/// The column schema version 6 adds: the timing breakdown of a response, a JSON array with
+/// one object per hop (`dns_us`, `connect_us`, `tls_us` when measured, `first_byte_us`,
+/// `download_us`, in microseconds). `NULL` for a failed send and for an entry recorded
+/// before version 6, which reads as no timings.
+pub(super) const SCHEMA_V6: &str = "
+ALTER TABLE history ADD COLUMN timings TEXT;
+";
+
+/// One hop of the `timings` column.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct StoredHop {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    dns_us: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    connect_us: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tls_us: Option<u64>,
+    first_byte_us: u64,
+    download_us: u64,
+}
+
+fn micros(duration: Duration) -> u64 {
+    u64::try_from(duration.as_micros()).unwrap_or(u64::MAX)
+}
+
+fn encode_timings(timings: &Timings) -> Result<String, String> {
+    let hops: Vec<StoredHop> = timings
+        .hops
+        .iter()
+        .map(|hop| StoredHop {
+            dns_us: hop.dns.map(micros),
+            connect_us: hop.connect.map(micros),
+            tls_us: hop.tls.map(micros),
+            first_byte_us: micros(hop.first_byte),
+            download_us: micros(hop.download),
+        })
+        .collect();
+    serde_json::to_string(&hops).map_err(|error| error.to_string())
+}
+
+fn decode_timings(text: &str) -> Result<Timings, String> {
+    let hops: Vec<StoredHop> =
+        serde_json::from_str(text).map_err(|error| format!("unreadable timings: {error}"))?;
+    Ok(Timings {
+        hops: hops
+            .into_iter()
+            .map(|hop| HopTimings {
+                dns: hop.dns_us.map(Duration::from_micros),
+                connect: hop.connect_us.map(Duration::from_micros),
+                tls: hop.tls_us.map(Duration::from_micros),
+                first_byte: Duration::from_micros(hop.first_byte_us),
+                download: Duration::from_micros(hop.download_us),
+            })
+            .collect(),
+    })
+}
 
 /// How many entries a workspace keeps; recording prunes the older ones.
 pub const HISTORY_MAX_ENTRIES: usize = 500;
@@ -110,6 +170,9 @@ pub struct RecordedResponse {
     pub elapsed_ms: u64,
     /// The size of the whole body in bytes, before any cut.
     pub size: u64,
+    /// The phases of every request of the send; `None` for an entry recorded before
+    /// timings were kept.
+    pub timings: Option<Timings>,
 }
 
 impl RecordedResponse {
@@ -124,6 +187,7 @@ impl RecordedResponse {
             truncated: false,
             elapsed_ms: u64::try_from(response.elapsed.as_millis()).unwrap_or(u64::MAX),
             size: u64::try_from(response.size()).unwrap_or(u64::MAX),
+            timings: Some(response.timings.clone()),
         }
     }
 
@@ -162,7 +226,7 @@ pub struct HistoryEntry {
 
 const COLUMNS: &str = "id, workspace_id, sent_at, request_id, request_name, request_path, \
      document, method, url, request_headers, request_body_kind, request_body, status, reason, \
-     response_headers, response_body, truncated, size, elapsed_ms, error";
+     response_headers, response_body, truncated, size, elapsed_ms, error, timings";
 
 impl AppState {
     /// Records `record` for `workspace_id` with the default [`HistoryLimits`] and returns
@@ -217,6 +281,11 @@ impl AppState {
             .map(|response| encode_headers(&response.headers))
             .transpose()
             .map_err(corrupt)?;
+        let timings = response
+            .and_then(|response| response.timings.as_ref())
+            .map(encode_timings)
+            .transpose()
+            .map_err(corrupt)?;
         let keep = i64::try_from(limits.max_entries).unwrap_or(i64::MAX);
 
         let path = self.path.clone();
@@ -226,9 +295,9 @@ impl AppState {
                 "INSERT INTO history (workspace_id, sent_at, request_id, request_name,
                      request_path, document, method, url, request_headers, request_body_kind,
                      request_body, status, reason, response_headers, response_body, truncated,
-                     size, elapsed_ms, error)
+                     size, elapsed_ms, error, timings)
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                     ?17, ?18, ?19)",
+                     ?17, ?18, ?19, ?20)",
                 params![
                     workspace_id,
                     record.sent_at,
@@ -249,6 +318,7 @@ impl AppState {
                     response.map(|response| to_sql_int(response.size)),
                     to_sql_int(elapsed_ms),
                     error,
+                    timings,
                 ],
             )
             .map_err(query_error(&path))?;
@@ -388,6 +458,7 @@ struct RawEntry {
     size: Option<i64>,
     elapsed_ms: i64,
     error: Option<String>,
+    timings: Option<String>,
 }
 
 fn entry_from_row(row: &Row<'_>) -> Result<RawEntry, rusqlite::Error> {
@@ -412,6 +483,7 @@ fn entry_from_row(row: &Row<'_>) -> Result<RawEntry, rusqlite::Error> {
         size: row.get(17)?,
         elapsed_ms: row.get(18)?,
         error: row.get(19)?,
+        timings: row.get(20)?,
     })
 }
 
@@ -434,6 +506,7 @@ impl RawEntry {
                 truncated: self.truncated,
                 elapsed_ms,
                 size: self.size.map(from_sql_int).unwrap_or_default(),
+                timings: self.timings.as_deref().map(decode_timings).transpose()?,
             }),
             (None, None) => return Err("an entry has neither a status nor an error".to_owned()),
         };
@@ -516,6 +589,7 @@ mod tests {
                 truncated: false,
                 elapsed_ms: 1,
                 size: 0,
+                timings: None,
             }),
         }
     }

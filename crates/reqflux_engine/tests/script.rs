@@ -127,6 +127,7 @@ fn finish(
 /// one-second resolution differs whenever the two sends straddle a second boundary.
 fn without_timing(executed: &mut reqflux_engine::Executed) {
     executed.response.elapsed = Duration::ZERO;
+    executed.response.timings = reqflux_engine::Timings::default();
     executed.response.headers.retain(|(name, _)| name != "date");
 }
 

@@ -281,6 +281,22 @@ fn json_prints_a_machine_report() {
     let mut report = json(&output);
     for result in report["results"].as_array_mut().into_iter().flatten() {
         result["elapsed_ms"] = Value::from(0);
+        let timings = result
+            .as_object_mut()
+            .and_then(|result| result.remove("timings"))
+            .unwrap_or_else(|| panic!("a result without timings: {result}"));
+        let hops = timings.as_array().cloned().unwrap_or_default();
+        assert_eq!(hops.len(), 1, "{timings}");
+        let hop = &hops[0];
+        // The server is an IP address: no lookup. TLS is reported inside connect.
+        assert_eq!(hop["dns_ms"], Value::Null, "{hop}");
+        assert_eq!(hop["tls_ms"], Value::Null, "{hop}");
+        assert!(
+            hop["connect_ms"].is_number() || hop["connect_ms"].is_null(),
+            "{hop}"
+        );
+        assert!(hop["first_byte_ms"].is_number(), "{hop}");
+        assert!(hop["download_ms"].is_number(), "{hop}");
     }
     report["elapsed_ms"] = Value::from(0);
     let base = server.uri();

@@ -26,8 +26,13 @@ pub(crate) const ENV_SUFFIX: &str = ".env.toml";
 pub(crate) const REQUEST_SUFFIX: &str = ".req.toml";
 pub(crate) const PRE_SUFFIX: &str = ".pre.js";
 pub(crate) const TEST_SUFFIX: &str = ".test.js";
-/// Directories reserved for saved response examples (a later feature); skipped silently.
+/// The directory of a request's saved examples, `<request-slug>.examples`; the load skips
+/// it silently.
 pub(crate) const EXAMPLES_SUFFIX: &str = ".examples";
+/// A saved example inside it, `<example-slug>.example.toml`.
+pub(crate) const EXAMPLE_SUFFIX: &str = ".example.toml";
+/// The body file of a saved example whose body is not text, `<example-slug>.body`.
+pub(crate) const EXAMPLE_BODY_SUFFIX: &str = ".body";
 
 /// The container of a folder or request: a collection and the folders below it.
 #[derive(Debug, Clone, PartialEq, Eq)]

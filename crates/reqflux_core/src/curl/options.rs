@@ -224,9 +224,12 @@ pub(super) fn read(args: &[String]) -> Result<Parsed, CurlError> {
             options_done = true;
         } else if let Some(long) = arg.strip_prefix("--") {
             let Some(opt) = classify(long) else {
+                // Only the name: an `--option=value` value can be a credential, and the
+                // warnings are shown to the user.
+                let name = long.split_once('=').map_or(long, |(name, _)| name);
                 builder
                     .warnings
-                    .push(format!("unknown option {arg} was ignored"));
+                    .push(format!("unknown option --{name} was ignored"));
                 continue;
             };
             let value = if takes_value(opt) {
@@ -365,8 +368,10 @@ impl Builder {
         } else if let Some(name) = value.strip_suffix(';') {
             self.headers.push(KeyValue::new(name.trim(), ""));
         } else {
+            // Only the first word: the rest can be a credential, such as `Bearer <token>`.
+            let first = value.split_whitespace().next().unwrap_or_default();
             self.warnings
-                .push(format!("-H {value} is not a header and was ignored"));
+                .push(format!("-H {first} … is not a header and was ignored"));
         }
     }
 

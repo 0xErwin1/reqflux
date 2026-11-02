@@ -507,3 +507,88 @@ fn forgetting_the_token_deletes_it_from_the_secret_store() {
 
     assert!(store.accounts().is_empty());
 }
+
+#[test]
+fn a_401_with_a_stored_token_drops_it_and_retries_once_with_a_new_one() {
+    let rt = runtime();
+    let server = start(
+        &rt,
+        vec![
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .and(body_string_contains("grant_type=client_credentials"))
+                .respond_with(token(
+                    json!({ "access_token": "fresh", "expires_in": 3600 }),
+                )),
+            Mock::given(method("GET"))
+                .and(path("/api"))
+                .and(header("authorization", "Bearer revoked"))
+                .respond_with(ResponseTemplate::new(401)),
+            Mock::given(method("GET"))
+                .and(path("/api"))
+                .and(header("authorization", "Bearer fresh"))
+                .respond_with(api_ok()),
+        ],
+    );
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let revoked = json!({ "access_token": "revoked", "expires_at": 99_999_999_999u64 });
+    if let Err(error) = store.set(&token_key(), &revoked.to_string()) {
+        panic!("{error}");
+    }
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::clone(&store),
+    );
+
+    let executed = execute(&engine);
+
+    assert_eq!(executed.response.status, 200);
+    assert_eq!(received(&rt, &server, "/api").len(), 2);
+    assert_eq!(received(&rt, &server, "/token").len(), 1);
+    assert_eq!(stored(&store)["access_token"], "fresh");
+}
+
+#[test]
+fn a_401_with_a_new_token_is_returned_and_the_next_send_fetches_another() {
+    let rt = runtime();
+    let server = start(
+        &rt,
+        vec![
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .respond_with(token(
+                    json!({ "access_token": "refused", "expires_in": 3600 }),
+                )),
+            Mock::given(method("GET"))
+                .and(path("/api"))
+                .respond_with(ResponseTemplate::new(401)),
+        ],
+    );
+    let dir = temp_dir();
+    let store = Arc::new(MemorySecretStore::new());
+    let engine = engine(
+        dir.path(),
+        &server,
+        "client_id = \"app\"\n",
+        Arc::clone(&store),
+    );
+
+    let first = execute(&engine);
+    assert_eq!(first.response.status, 401);
+    assert_eq!(
+        received(&rt, &server, "/api").len(),
+        1,
+        "a token just fetched is not retried"
+    );
+    assert_eq!(
+        store.get(&token_key()).ok().flatten(),
+        None,
+        "the refused token is dropped"
+    );
+
+    assert_eq!(execute(&engine).response.status, 401);
+    assert_eq!(received(&rt, &server, "/token").len(), 2);
+}

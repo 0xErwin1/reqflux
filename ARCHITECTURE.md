@@ -138,7 +138,8 @@ billing/                              workspace root
 │           ├── list-invoices.req.toml
 │           ├── list-invoices.test.js
 │           └── list-invoices.examples/
-│               └── ok.toml
+│               ├── ok.example.toml
+│               └── ok.body       optional, a body that is not UTF-8
 └── .reqflux/                           local, git-ignored, reserved; nothing is written here yet
 ```
 
@@ -302,6 +303,37 @@ Saving is explicit, as in Postman: an edit never touches the workspace file unti
   to the folder's or collection's, as an absent sidecar does. Resend of a history entry runs
   the saved scripts.
 
+### Examples
+
+A saved example is a request-and-response pair next to its request, one file each:
+`<request-slug>.examples/<example-slug>.example.toml`, its slug from the name (a taken name gets
+a number: `OK`, `OK 2`). The request is kept as written, `{{variables}}` included; the response
+goes through the send's masker (headers, reason, a UTF-8 body; `Set-Cookie` values masked). A
+body that is not UTF-8 is written as received to `<example-slug>.body` beside it. Renaming,
+moving, duplicating or deleting the request carries its `.examples/` directory; ids are unique
+within one request. `Engine::{examples, save_example, rename_example, delete_example}` own them,
+and `Engine::save_response_body` writes a response body to a chosen path.
+
+```text
+id = "…"
+name = "OK"
+
+[request]               as written: method, url, params, headers, auth, body
+method = "GET"
+url = "{{base_url}}/v1/invoices"
+
+[response]
+status = 200
+reason = "OK"
+
+[[response.headers]]
+key = "content-type"
+value = "application/json"
+
+[response.body]
+text = '…'              or: file = "ok.body"
+```
+
 ### History
 
 Every completed or failed send in the window (not a cancelled one) is recorded in the app
@@ -329,7 +361,8 @@ masked: header values (`Authorization`, `Proxy-Authorization` and `Cookie` maske
 the reason phrase and a UTF-8 text body. A `Set-Cookie` is stored as received, apart from a
 secret value inside it, as Postman keeps cookies: it is the user's own data in per-user state,
 so a session cookie sits in the state file in clear. A body that is not UTF-8 is stored as received, since the
-masker works on text. `PreparedRequest`'s `Debug` prints no URL, header value or body.
+masker works on text. Schema v6 adds the send's timings (a JSON array, one object per hop, in
+microseconds); rows recorded before it read as no timings. `PreparedRequest`'s `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back
   and returns the new file hash, and `Engine::request_base_hash`, which reports the hash
@@ -469,9 +502,16 @@ measurably demand it, and then by one-way layers.
   CA bundle or `danger_accept_invalid_certs` is per client in `reqwest`.
 - Certificates follow Postman's model: a list of client certificates matched by host and port,
   plus an optional custom CA bundle and a per-request "verify TLS" toggle.
-- Timings (DNS, connect, TLS, first byte, download) come from a custom resolver and a connector
-  layer. If that proves insufficient, `reqflux_http` drops to `hyper-util` directly; the crate
+- Timings (`Response.timings`: one `HopTimings` per hop, redirects included, with DNS, connect,
+  TLS, first byte and download) come from a timed `getaddrinfo` resolver and a connector layer,
+  attributed to the send through a Tokio task-local; the download time goes on the last hop.
+  reqwest's connector layer wraps TCP and rustls together, so `connect` includes the TLS
+  handshake and `tls` stays `None`; `dns` is `None` for an IP address and both are `None` for a
+  reused connection. Splitting TLS out means dropping to `hyper-util` directly; the crate
   boundary keeps that change local.
+- `reqflux_core::jsonpath::filter(body, expr)` filters a JSON body with RFC 9535 JSONPath
+  (`serde_json_path`, the published crate that runs the compliance suite), returning the matches
+  as a pretty-printed array in document order, keeping the server's key order.
 - Known limits of the reqwest-based transport: repeated headers with the same name are grouped
   at the position of the first one (the order among their values is kept), and the reason
   phrase is the standard one for the status code rather than the server's own text. Both are
@@ -599,8 +639,9 @@ send starts, so history records the signed request. OAuth 2.0 tokens live only i
 under `<workspace>/collection/<collection>/oauth2/<request|folder|collection>/<id>` and are
 refreshed before a send once expired; the authorization code grant uses PKCE S256, opens the
 system browser (`Engine::set_browser` replaces it) and waits up to 300 s for a loopback redirect
-on `127.0.0.1:<random>/callback` with a matching `state`. An `Authorization` request header still
-wins.
+on `127.0.0.1:<random>/callback` with a matching `state`. A `401` to an OAuth token drops it (a
+kept refresh token stays, marked expired); a token that came from the keyring is retried once
+with a new one. An `Authorization` request header still wins.
 `Engine::prepare_draft` prepares a draft request document in the place of the stored one,
 keeping the stored request's parents (and with them the scopes and the environment
 allowlist), and `Engine::execute_draft` sends it.

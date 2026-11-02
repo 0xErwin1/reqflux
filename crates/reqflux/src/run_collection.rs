@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use reqflux_engine::{
-    CancellationToken, Engine, ExecuteOptions, RunEnd, RunEvent, RunOptions, RunSummary, StepResult,
+    CancellationToken, Engine, ExecuteOptions, RunEnd, RunEvent, RunOptions, RunSummary,
+    StepResult, Timings,
 };
 use serde_json::{Value, json};
 
@@ -144,6 +145,25 @@ fn summary_line(summary: &RunSummary) -> String {
     line
 }
 
+/// The phases of a send in the `--json` report, one object per hop, in milliseconds; a
+/// phase that was not measured is `null`.
+fn timings(timings: &Timings) -> Value {
+    let ms = |duration: Duration| duration.as_secs_f64() * 1000.0;
+    timings
+        .hops
+        .iter()
+        .map(|hop| {
+            json!({
+                "dns_ms": hop.dns.map(ms),
+                "connect_ms": hop.connect.map(ms),
+                "tls_ms": hop.tls.map(ms),
+                "first_byte_ms": ms(hop.first_byte),
+                "download_ms": ms(hop.download),
+            })
+        })
+        .collect()
+}
+
 /// The `--json` report.
 fn report(target: &str, summary: &RunSummary) -> Value {
     let (end, next) = match &summary.end {
@@ -176,6 +196,7 @@ fn report(target: &str, summary: &RunSummary) -> Value {
                 "reason": result.reason,
                 "elapsed_ms": result.elapsed_ms,
                 "size": result.size,
+                "timings": result.timings.as_ref().map(timings),
                 "tests": tests,
                 "error": result.error,
             })

@@ -60,6 +60,15 @@ fn unix_now() -> u64 {
         .map_or(0, |elapsed| elapsed.as_secs())
 }
 
+/// Where the access token [`access_token`] returned came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum Origin {
+    /// Kept in the secret store from an earlier send.
+    Stored,
+    /// Obtained for this send, by refresh or by the grant.
+    New,
+}
+
 /// The access token to send: the stored one while it is valid, else a refreshed one, else a
 /// new one obtained with the configured grant. A new token is stored before it is returned.
 pub(super) async fn access_token(
@@ -67,11 +76,11 @@ pub(super) async fn access_token(
     config: &OAuth2Auth,
     key: &SecretKey,
     options: RequestOptions,
-) -> Result<String, HttpError> {
+) -> Result<(String, Origin), HttpError> {
     let stored = read(context, key);
     if let Some(stored) = &stored {
         if !stored.expired(unix_now()) {
-            return Ok(stored.access_token.clone());
+            return Ok((stored.access_token.clone(), Origin::Stored));
         }
         if let Some(refresh) = stored.refresh_token.as_deref() {
             match refresh_grant(context, config, refresh, options).await {
@@ -79,7 +88,7 @@ pub(super) async fn access_token(
                     if token.refresh_token.is_none() {
                         token.refresh_token = Some(refresh.to_owned());
                     }
-                    return Ok(store(context, key, token));
+                    return Ok((store(context, key, token), Origin::New));
                 }
                 Err(error) => log::info!("the OAuth 2.0 token was not refreshed: {error}"),
             }
@@ -124,7 +133,29 @@ pub(super) async fn access_token(
             token_request(context, config, form, options).await?
         }
     };
-    Ok(store(context, key, token))
+    Ok((store(context, key, token), Origin::New))
+}
+
+/// Drops the access token the server refused with a 401, so the next send obtains a new
+/// one: a kept refresh token stays, marked expired, so that send refreshes first; without
+/// one the entry is deleted. A store that cannot be updated is logged.
+pub(super) fn drop_access_token(context: &AuthContext, key: &SecretKey) {
+    let refresh = read(context, key).and_then(|token| token.refresh_token);
+    match refresh {
+        Some(refresh) => {
+            let expired = OAuthToken {
+                access_token: String::new(),
+                refresh_token: Some(refresh),
+                expires_at: Some(0),
+            };
+            store(context, key, expired);
+        }
+        None => {
+            if let Err(error) = context.secrets.delete(key) {
+                log::warn!("the refused OAuth 2.0 token was not deleted from the keyring: {error}");
+            }
+        }
+    }
 }
 
 fn pair(key: &str, value: &str) -> (String, String) {

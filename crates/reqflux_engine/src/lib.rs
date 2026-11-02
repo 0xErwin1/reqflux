@@ -73,6 +73,7 @@ mod create;
 mod current;
 mod engine;
 mod error;
+mod examples;
 mod guard;
 mod import;
 mod managed;
@@ -93,9 +94,10 @@ pub use create::create_workspace;
 pub use current::CurrentValues;
 pub use engine::{Engine, Executed, Execution, PendingExecution};
 pub use error::{
-    CreateWorkspaceError, ExecuteError, ImportError, OpenError, PersistError, SaveError, TreeError,
-    VariableError,
+    CreateWorkspaceError, ExampleError, ExecuteError, ImportError, OpenError, PersistError,
+    SaveError, TreeError, VariableError,
 };
+pub use examples::SavedExample;
 pub use guard::HostGuard;
 pub use import::{ImportPreview, ImportSummary, postman, postman_preview};
 pub use managed::{
@@ -105,8 +107,11 @@ pub use managed::{
 pub use prepare::{
     DEFAULT_TIMEOUT_MS, ExecuteOptions, Inspection, Prepared, Span, inspect, prepare, prepare_draft,
 };
+/// The JSONPath filter of a response body, re-exported so front ends depend on the engine
+/// only.
+pub use reqflux_core::jsonpath::{self, JsonPathError};
 /// The transport types front ends read, re-exported so they depend on the engine only.
-pub use reqflux_http::{HttpError, PreparedBody, PreparedRequest, Response};
+pub use reqflux_http::{HopTimings, HttpError, PreparedBody, PreparedRequest, Response, Timings};
 pub use reqflux_script::{
     ConsoleEntry, ConsoleLevel, NextRequest, ScriptOutcome, TestResult, VariableScope,
     VariableWrite,

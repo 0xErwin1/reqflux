@@ -107,24 +107,39 @@ pub(crate) fn sign_now(
 }
 
 /// Sends `request`, completing `auth` around it: the OAuth 2.0 token is added first, and a
-/// digest challenge in a `401` is answered with one more send.
+/// digest challenge in a `401` is answered with one more send. A `401` to an OAuth 2.0
+/// token drops it; when the token was a stored one, the send retries once with a new one.
 pub(crate) async fn send(
     context: AuthContext,
-    mut request: PreparedRequest,
+    request: PreparedRequest,
     auth: Option<PendingAuth>,
     cancel: CancellationToken,
     rules: RedirectRules,
 ) -> Result<Response, HttpError> {
     match auth {
         Some(PendingAuth::OAuth2 { config, token }) => {
-            let access = tokio::select! {
-                biased;
-                () = cancel.cancelled() => return Err(HttpError::Cancelled),
-                access = oauth::access_token(&context, &config, &token, request.options) => access?,
-            };
-            add_token(&mut request, &config, &access);
-            let result = context.client.send_with(request, cancel, rules).await;
-            scrub(result, &access)
+            let mut retried = false;
+            loop {
+                let (access, origin) = tokio::select! {
+                    biased;
+                    () = cancel.cancelled() => return Err(HttpError::Cancelled),
+                    access = oauth::access_token(&context, &config, &token, request.options) => access?,
+                };
+                let mut attempt = request.clone();
+                add_token(&mut attempt, &config, &access);
+                let result = context
+                    .client
+                    .send_with(attempt, cancel.clone(), rules.clone())
+                    .await;
+                if !matches!(&result, Ok(response) if response.status == 401) {
+                    return scrub(result, &access);
+                }
+                oauth::drop_access_token(&context, &token);
+                if origin == oauth::Origin::New || retried {
+                    return scrub(result, &access);
+                }
+                retried = true;
+            }
         }
         Some(PendingAuth::Digest {
             username,

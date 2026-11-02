@@ -16,6 +16,7 @@ use crate::error::HttpError;
 use crate::redirect;
 use crate::request::{MultipartValue, PreparedBody, PreparedRequest, RequestOptions};
 use crate::response::Response;
+use crate::timing::{self, Recorder, TimedResolver, TimingLayer, Timings};
 
 /// The maximum number of redirects followed for one request.
 const MAX_REDIRECTS: usize = 10;
@@ -129,6 +130,7 @@ impl HttpClient {
         let client = self.client(request.options)?;
         let mut body = request.body;
         let mut hops = 0;
+        let mut timings = Timings::default();
         let started = Instant::now();
         loop {
             let replay = if follow {
@@ -141,22 +143,26 @@ impl HttpClient {
                 .request(method.clone(), url.clone())
                 .headers(headers.clone());
             let builder = with_body(builder, body, has_content_type).await?;
-            let response = builder
-                .send()
+            let recorder = Arc::new(Recorder::default());
+            let hop_started = Instant::now();
+            let response = timing::recorded(Arc::clone(&recorder), builder.send())
                 .await
                 .map_err(|error| classify(&error, &url, timeout))?;
+            timings
+                .hops
+                .push(timing::hop(&recorder, hop_started.elapsed()));
             let next = if follow {
                 redirect::target(&response, &url)
             } else {
                 None
             };
             let Some(next) = next else {
-                return read(response, &url, started, timeout).await;
+                return read(response, &url, started, timeout, timings).await;
             };
             let keeps_body = redirect::keeps_body(response.status());
             body = match (keeps_body, replay) {
                 (true, Some(replay)) => replay,
-                (true, None) => return read(response, &url, started, timeout).await,
+                (true, None) => return read(response, &url, started, timeout, timings).await,
                 (false, _) => {
                     redirect::to_get(&mut method, &mut headers);
                     PreparedBody::None
@@ -200,6 +206,8 @@ impl HttpClient {
         // Redirects are followed by `execute`, which can change headers between hops.
         let client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
+            .dns_resolver(Arc::new(TimedResolver))
+            .connector_layer(TimingLayer)
             .tls_danger_accept_invalid_certs(!key.verify_tls)
             .build()
             .map_err(|error| HttpError::Client(error_chain(&error)))?;
@@ -208,12 +216,14 @@ impl HttpClient {
     }
 }
 
-/// The final response of a send, its whole body read.
+/// The final response of a send, its whole body read; the download time goes to the last
+/// hop of `timings`.
 async fn read(
     response: reqwest::Response,
     url: &Url,
     started: Instant,
     timeout: Duration,
+    mut timings: Timings,
 ) -> Result<Response, HttpError> {
     let status = response.status();
     let version = version_text(response.version());
@@ -228,10 +238,14 @@ async fn read(
             )
         })
         .collect();
+    let download_started = Instant::now();
     let body = response
         .bytes()
         .await
         .map_err(|error| classify(&error, url, timeout))?;
+    if let Some(last) = timings.hops.last_mut() {
+        last.download = download_started.elapsed();
+    }
     Ok(Response {
         status: status.as_u16(),
         reason: status.canonical_reason().map(str::to_owned),
@@ -240,6 +254,7 @@ async fn read(
         body: body.to_vec(),
         final_url,
         elapsed: started.elapsed(),
+        timings,
     })
 }
 

@@ -53,6 +53,7 @@ fn record_send(path: &Path, request_id: &str) {
             truncated: false,
             elapsed_ms: 12,
             size: 14,
+            timings: None,
         }),
     };
     if let Err(error) = state.record_history(WORKSPACE, record) {

@@ -91,6 +91,8 @@ pub struct StepResult {
     pub elapsed_ms: u64,
     /// The size of the response body in bytes; 0 without a response.
     pub size: u64,
+    /// The phases of every request of the send; `None` without a response.
+    pub timings: Option<reqflux_http::Timings>,
     /// The test results of the pre-request and test scripts, text masked.
     pub tests: Vec<TestResult>,
     /// Why there is no response, masked: the request did not prepare, the host guard
