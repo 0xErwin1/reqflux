@@ -1,0 +1,21 @@
+{
+  "title": "V7: layout modes, keymap, allowlist, body leftovers",
+  "brief": "The last v1 UI block in one pass, in two directions. Direction 1 (01) keeps the bolt-v2 shell and splits the document island into a request column and a response column (Side by side). Direction 2 (02) drops the sidebar and stacks a folder's requests as one .http-style document with ### separators, navigated by palette only (Document). Both artboards carry every V7 surface in their states desk: the layout switcher (palette command, tab-row and action-strip controls, layout = \"side-by-side\" | \"document\" in config.toml), the Keymap settings section (registry rows, Ctrl+click rebind, capture, conflict, Reset to defaults, read-only [keymap] block), binary and graphql body editing with JSON validation, the per-collection environment allowlist with the engine's refusal message, and the empty, draft, failed-send and narrow-window states.",
+  "feature": "odd/tasks/v1-features.md",
+  "artboards": [
+    {
+      "file": "01-side-by-side.html",
+      "title": "Layout: Side by side",
+      "tradeoff": "Request and response stay in view in columns; the sidebar stays, so the document columns are narrower and every other document (settings, cookies, runner) keeps the whole island",
+      "width": 1440,
+      "height": 4832
+    },
+    {
+      "file": "02-document-layout.html",
+      "title": "Layout: Document",
+      "tradeoff": "The request as an .http-style document with ### separators, no sidebar, palette-only navigation; strongest for writing and reviewing requests in bulk, weakest for teaching the tree",
+      "width": 1440,
+      "height": 3714
+    }
+  ]
+}

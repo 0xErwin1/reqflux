@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Layout: Side by side (V7)</title>
+<!--
+  Direction 1 of design/layouts/: the Side by side layout mode, plus the rest of V7
+  (odd/tasks/v1-features.md S7) in the states desk below.
+
+  Layout mode Side by side keeps the bolt-v2 shell (design/bolt-v2/01-main.html): title bar,
+  activity rail, sidebar tree and status bar. The document island divides into a request
+  column and a response column with bolt's splitter standing vertically between them.
+  Settings, cookie-jar and runner documents keep the whole island (state D7), as the
+  approvals and audit views do today.
+
+  Engine backing (ARCHITECTURE.md, crates/reqflux_ui/src/shell/commands.rs):
+  - The keymap rows quote the command registry exactly: label and default key of every
+    Command in COMMANDS, grouped by Area. The keymap section, the [keymap] config block and
+    rebinding are the new S7 surface; the two layout commands are proposed with the
+    unassigned keys Ctrl+Alt+1 / Ctrl+Alt+2 (the coverage test requires every command to
+    carry a key).
+  - Layout persists as `layout = "side-by-side" | "document"` in the user's config.toml,
+    written by the same format-preserving editor that writes `theme`.
+  - The allowlist refusal quotes ExecuteError::EnvironmentNotAllowed verbatim; the GraphQL
+    variables error quotes the engine's "graphql variables are not valid JSON: <reason>".
+  - Binary and graphql bodies are stored in the request document ([body] path / query,
+    variables) and are read-only in the window today; editing them is the V7 work.
+
+  bolt gap: bolt's splitter is drawn here as a 6 px vertical gutter with a three-dot grip;
+  bolt's splitter needs a vertical orientation if it only draws horizontally.
+  bolt gap: no bolt key-capture field exists for "press the new keys" while rebinding.
+  bolt gap: no bolt file field (read-only path well with a trailing Choose button) for the
+  binary body; drawn with bolt's field plus button.
+  bolt gap: no bolt read-only segmented control for the read-only config block (as in
+  network/01-settings-sections.html).
+-->
+<style>
+body{margin:0;background:#09090B}
+.x{font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-stretch:125%}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.c18{clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)}
+.in14{clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;background:#100F13}
+.edge{display:flex;padding:1px;background:rgba(255,255,255,.05)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;overflow:visible;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap}
+.isl-doc [style*=" width:"],.isl-doc [style^="width:"]{flex-shrink:0}
+:focus-visible{outline:1.5px solid #9DB1FF;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+.kc{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;padding:2px 6px;background:#1A181E;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset;white-space:nowrap}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
+.ib{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:0;background:#1A181E;color:#C6C3CC}
+.ib.g{background:transparent;color:#8E8996}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.btn.sm{height:26px;padding:0 10px;font-size:12px}
+.btn.pri{background:#2B45B8;color:#FFFFFF}
+.rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
+.sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px;white-space:nowrap}
+.tab{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;color:#8E8996;font-size:13px;white-space:nowrap}
+.tab.on{background:#1A181E;color:#F7F4F7;font-weight:600}
+.seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7}
+.chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
+.dia{width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.badge{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em;white-space:nowrap}
+.b-tint{background:rgba(157,177,255,.12);color:#9DB1FF}
+.b-warn{background:rgba(255,194,61,.12);color:#FFC23D}
+.b-dang{background:rgba(255,107,94,.12);color:#FF6B5E}
+.b-ok{background:rgba(123,224,160,.12);color:#7BE0A0}
+
+.row{position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:13px;color:#C6C3CC}
+.row .gl{position:absolute;top:0;bottom:0;width:1px;background:#232128}
+.row .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.row.sel-row{background:rgba(157,177,255,.14);color:#F7F4F7}
+.row.sel-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.mt{width:38px;flex-shrink:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.02em;text-align:left}
+.get{color:#7BE0A0}.post{color:#FFC23D}.patch{color:#B79CFF}.del{color:#FF6B5E}
+
+.gh{display:flex;align-items:center;height:32px;background:#09090B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;color:#F7F4F7;font-weight:600}
+.gr{display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr>.rn{padding:0 12px 0 0;text-align:right;color:#37333D}
+.tp{font-weight:400;font-size:10.5px;color:#8E8996;margin-left:6px}
+.var{color:#9DB1FF;background:rgba(157,177,255,.12)}
+.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+
+.ln{display:flex;align-items:center;height:20px}
+.ln>.no{width:36px;padding-right:12px;box-sizing:border-box;text-align:right;color:#37333D}
+.ln>.tx{white-space:pre;color:#C6C3CC}
+.k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}.b{color:#FFC23D}
+.cap{font-family:Archivo,system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+.ban{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;font-size:12.5px;line-height:1.45;color:#F7F4F7}
+.ban.d{background:rgba(255,107,94,.12);box-shadow:#FF6B5E 0 0 0 1px inset}
+.ban.w{background:rgba(255,194,61,.10);box-shadow:#FFC23D 0 0 0 1px inset}
+.dlg{background:#100F13;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.6) 0 18px 50px}
+.toast{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#1A181E;box-shadow:#37333D 0 0 0 1px;font-size:12.5px;color:#F7F4F7}
+.vsplit{display:flex;align-items:center;justify-content:center;width:6px;flex-shrink:0;cursor:col-resize;color:#37333D}
+.vsplit span{display:flex;flex-direction:column;gap:2px}
+.vsplit i{display:block;width:3px;height:3px;background:currentColor}
+
+/* states desk, same layout as bolt-v2/12-agent-approval.html */
+.desk{width:1440px;box-sizing:border-box;padding:40px 48px 56px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px}
+.desk h2{margin:0 0 6px;font-size:18px;font-weight:600;color:#F7F4F7}
+.desk h3{margin:0;white-space:nowrap;font-size:13px;font-weight:600;color:#F7F4F7}
+.desk p{margin:0;color:#8E8996;font-size:12.5px;line-height:1.5}
+.state{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+.state-head{display:flex;align-items:baseline;gap:12px}
+.frame{width:1344px;box-sizing:border-box;background:#100F13;box-shadow:#232128 0 0 0 1px inset;overflow:hidden;position:relative}
+.pad{padding:8px 28px 16px}
+.fr{display:grid;grid-template-columns:220px 1fr;gap:24px;align-items:center;padding:11px 0;border-bottom:1px solid #18161B}
+.fr .l{display:flex;flex-direction:column;gap:3px}
+.fr .l b{font-weight:600;color:#F7F4F7;font-size:13px}
+.ds{color:#8E8996;font-size:12px}
+.krow{display:grid;grid-template-columns:1fr 240px 170px 120px;gap:0;align-items:center;height:34px;border-bottom:1px solid #18161B;font-size:13px}
+.krow>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.toml{background:#09090B;box-shadow:#232128 0 0 0 1px inset;padding:12px 16px;font-size:12.5px;line-height:1.7}
+.toml .cm{color:#8E8996}
+.nav a,.nav div{display:flex;align-items:center;gap:10px;height:32px;padding:0 16px;font-size:13px;color:#C6C3CC}
+.nav .on{background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset;color:#F7F4F7}
+.nav .ico{width:15px;height:15px;color:#8E8996}
+.nav .on .ico{color:#9DB1FF}
+.nav .n{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;color:#8E8996}
+.ed{background:#09090B;box-shadow:#232128 0 0 0 1px inset;padding:8px 0}
+.cb{display:flex;align-items:center;justify-content:center;width:14px;height:14px;flex-shrink:0;box-shadow:#37333D 0 0 0 1px inset;background:#09090B;color:transparent}
+.cb.on{background:#1F3389;color:#C6C3CC}
+.hint{color:#8E8996;font-size:12px}
+.sh{display:flex;align-items:center;gap:10px;padding:18px 0 8px}
+</style></head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 1 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-workspace" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></symbol>
+  <symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M14 13.12c0 2.38 0 6.38-1 8.88"/><path d="M17.29 21.02c.12-.6.43-2.3.5-3.02"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M2 16h.01"/><path d="M21.8 16c.2-2 .131-5.354 0-6"/><path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2"/><path d="M8.65 22c.21-.66.45-1.32.57-2"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 1 1 1h7"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z"/><path d="m21.854 2.147-10.94 10.939"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5c0 1.1.9 2 2 2h1"/><path d="M16 21h1a2 2 0 0 0 2-2v-5c0-1.1.9-2 2-2a2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M3 5h.01"/><path d="M3 12h.01"/><path d="M3 19h.01"/><path d="M8 5h13"/><path d="M8 12h13"/><path d="M8 19h13"/></symbol>
+  <symbol id="i-cookie" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></symbol>
+  <symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/></symbol>
+  <symbol id="i-export" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M12 18v-6"/><path d="m9 15 3 3 3-3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-hash" viewBox="0 0 24 24"><path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3l-2 18"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></symbol>
+  <symbol id="i-cols" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-test" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 15h18"/><path d="m15 8-3 3-3-3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/></symbol>
+  <symbol id="i-graph" viewBox="0 0 24 24"><circle cx="5" cy="6" r="3"/><circle cx="19" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M7.5 8 10.5 16"/><path d="m16.5 8-3 8"/><path d="M8 6h8"/></symbol>
+</svg>
+
+<main aria-label="ReqFlux in the Side by side layout" style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+
+  <!-- Title bar, as bolt-v2/01-main -->
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg>
+        <span style="color:#F7F4F7;font-weight:600">billing</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+      <svg class="ico" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font:inherit;font-size:12.5px">
+        <span class="dia" style="background:#FFC23D"></span>
+        <span style="color:#F7F4F7;font-weight:600">staging</span>
+        <svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg>
+      </button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="c6 field" style="width:420px">
+        <svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg>
+        <span style="flex-grow:1;color:#8E8996">Search or run a command</span>
+        <span class="c4 kc">Ctrl K</span>
+      </div>
+    </div>
+    <span style="position:relative;display:flex;justify-self:end">
+      <button aria-label="Approvals" class="c6" style="display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:0;background:rgba(157,177,255,.14);color:#9DB1FF">
+        <svg class="ico" style="width:16px;height:16px"><use href="#i-bell"/></svg>
+      </button>
+      <span class="c4" style="position:absolute;top:-5px;right:-5px;padding:0 4px;background:#2B45B8;color:#FFF;font-size:10px;font-weight:700;line-height:15px">1</span>
+    </span>
+  </header>
+
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+
+    <!-- Activity rail. Problems stays a status-bar chip, as built (status-problems). -->
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail" style="position:relative"><svg class="ico" style="width:19px;height:19px"><use href="#i-bot"/></svg><span class="c4" style="position:absolute;top:3px;right:3px;padding:0 3px;background:#2B45B8;color:#FFF;font-size:9px;font-weight:700;line-height:13px">1</span></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="c6 rail" style="margin-bottom:4px"><svg class="ico" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+
+    <!-- Sidebar island: kept in Side by side -->
+    <div class="c14" style="display:flex;flex-shrink:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <aside style="flex-grow:1;min-height:0;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;width:250px;display:flex;flex-direction:column;background:#100F13">
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0">
+          <span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span>
+          <span style="flex-grow:1"></span>
+          <button aria-label="New request" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></button>
+        </div>
+        <div style="flex-grow:1;overflow:hidden;padding-top:4px">
+          <div class="row" style="color:#F7F4F7">
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+            <span class="n">Billing API</span><span class="ct">9</span>
+          </div>
+          <div class="row" style="padding-left:26px;color:#F7F4F7">
+            <span class="gl" style="left:19px"></span>
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg>
+            <span class="n">invoices</span><span class="ct">4</span>
+          </div>
+          <div class="row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt get">GET</span><span class="n">List invoices</span></div>
+          <div class="row sel-row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt post">POST</span><span class="n">Create invoice</span><span class="dia" style="margin-left:auto;background:#9DB1FF" title="Unsaved draft"></span></div>
+          <div class="row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt get">GET</span><span class="n">Get invoice</span></div>
+          <div class="row" style="padding-left:40px"><span class="gl" style="left:19px"></span><span class="gl" style="left:33px"></span><span style="width:12px"></span><span class="mt patch">PATCH</span><span class="n">Void invoice</span></div>
+          <div class="row" style="padding-left:26px"><span class="gl" style="left:19px"></span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" style="width:15px;height:15px;color:#8E8996"><use href="#i-folder"/></svg><span class="n">customers</span><span class="ct">3</span></div>
+          <div class="row" style="color:#F7F4F7">
+            <svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg>
+            <svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>
+            <span class="n">Auth</span><span class="ct">2</span>
+          </div>
+          <div class="row" style="padding-left:26px"><span class="gl" style="left:19px"></span><span style="width:12px"></span><span class="mt post">POST</span><span class="n">Token</span></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 16px;flex-shrink:0;font-size:12px;color:#8E8996">
+          <span>11 requests</span><span>·</span><span>2 collections</span>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Document island: Side by side — request column, vertical splitter, response column -->
+    <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
+
+        <!-- Document tabs -->
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
+          <span class="c6 tab on"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF" title="Unsaved draft"></span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
+          <span class="tab"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+          <span class="tab"><span class="mt post" style="width:auto">POST</span>Token</span>
+          <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
+        </div>
+
+        <!-- Path bar -->
+        <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 14px;flex-shrink:0;border-top:1px solid #232128;font-size:12px">
+          <svg class="ico" style="width:12px;height:12px;color:#9DB1FF"><use href="#i-box"/></svg><span style="color:#8E8996">Billing API</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-folder"/></svg><span style="color:#8E8996">invoices</span>
+          <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Create invoice</span>
+          <span style="flex-grow:1"></span>
+          <!-- Layout switcher, where it belongs in the shell: the tab row, beside the path -->
+          <span role="radiogroup" aria-label="Layout" style="display:flex;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px">
+            <span role="radio" aria-checked="true" class="c4" title="Side by side (Ctrl+Alt+1)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;background:#1A181E;color:#F7F4F7"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span>
+            <span role="radio" aria-checked="false" title="Document (Ctrl+Alt+2)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span>
+          </span>
+        </div>
+
+        <!-- Columns -->
+        <div style="display:flex;flex-grow:1;min-height:0;border-top:1px solid #232128">
+
+          <!-- Action strip: draft actions, then the layout control at its foot -->
+          <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:36px;padding:8px 0;flex-shrink:0;border-right:1px solid #232128">
+            <button aria-label="Save (Ctrl S)" class="c6 ib g" style="position:relative;width:28px;height:28px;color:#C6C3CC"><svg class="ico" style="width:14px;height:14px"><use href="#i-save"/></svg><span class="dia" style="position:absolute;top:3px;right:3px;width:5px;height:5px;background:#9DB1FF" title="Unsaved draft"></span></button>
+            <button aria-label="Revert" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-revert"/></svg></button>
+            <span style="width:16px;height:1px;background:#232128;margin:2px 0"></span>
+            <span style="flex-grow:1"></span>
+            <!-- The same switcher, small, in the action strip -->
+            <span role="radiogroup" aria-label="Layout" style="display:flex;flex-direction:column;gap:2px">
+              <button aria-label="Side by side" aria-pressed="true" class="c6 ib g" style="width:28px;height:28px;background:rgba(157,177,255,.14);color:#9DB1FF"><svg class="ico" style="width:14px;height:14px"><use href="#i-cols"/></svg></button>
+              <button aria-label="Document" aria-pressed="false" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-file"/></svg></button>
+            </span>
+          </div>
+
+          <!-- Request column -->
+          <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;flex-basis:46%">
+            <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;flex-shrink:0">
+              <div class="c6 sel" style="width:92px;box-sizing:border-box"><span class="m post" style="flex-grow:1;font-weight:700;font-size:12.5px">POST</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
+              <div class="c6 field m" style="flex-grow:1;width:auto;font-size:12.5px;color:#F7F4F7;height:32px"><span style="white-space:nowrap;overflow:hidden"><span class="var">{{base_url}}</span>/v1/invoices<span style="color:#8E8996">?</span>expand<span style="color:#8E8996">=</span>lines</span></div>
+              <button class="c6" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 12px;border:0;background:#2B45B8;color:#FFF;font-size:12.5px;font-weight:600;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px)"><svg class="ico" style="width:14px;height:14px"><use href="#i-send"/></svg>Send<span class="c4 m" style="font-size:10.5px;padding:2px 6px;background:rgba(0,0,0,.25);color:rgba(255,255,255,.82);box-shadow:rgba(0,0,0,.35) 0 -1px 0 inset">Ctrl ↵</span></button>
+            </div>
+            <div style="display:flex;align-items:center;gap:4px;height:42px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128">
+              <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-hash"/></svg>Params<span class="m" style="font-size:10.5px">1</span></span>
+              <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-list"/></svg>Headers<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">4</span></span>
+              <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-braces"/></svg>Body</span>
+              <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-key"/></svg>Auth</span>
+              <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-code"/></svg>Scripts</span>
+              <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Settings</span>
+            </div>
+            <div style="flex-grow:1;overflow:hidden">
+              <div class="gh"><span style="width:36px"></span><span style="width:170px">key<span class="tp">header</span></span><span style="flex-grow:1">value<span class="tp">resolved in staging</span></span></div>
+              <div class="gr"><span class="rn" style="width:36px">1</span><span style="width:170px;color:#F7F4F7">Content-Type</span><span style="flex-grow:1;color:#C6C3CC">application/json</span></div>
+              <div class="gr"><span class="rn" style="width:36px">2</span><span style="width:170px;color:#F7F4F7">Authorization</span><span style="flex-grow:1;color:#C6C3CC;display:flex;align-items:center;gap:8px">Bearer <span class="var">{{access_token}}</span><span style="color:#8E8996;letter-spacing:.1em">••••••••••••</span><span class="c4 badge"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></span></div>
+              <div class="gr" style="background:rgba(255,194,61,.05)"><span class="rn" style="width:36px;color:#FFC23D">3</span><span style="width:170px;color:#F7F4F7">X-Tenant-Id</span><span style="flex-grow:1"><span class="unres">{{tenant_id}}</span></span></div>
+              <div class="gr"><span class="rn" style="width:36px">4</span><span style="width:170px;color:#F7F4F7">Idempotency-Key</span><span style="flex-grow:1;color:#C6C3CC"><span class="var">{{$guid}}</span></span></div>
+              <div class="gr" style="border-bottom:0"><span class="rn" style="width:36px">5</span><span style="width:170px;color:#37333D">Header</span><span style="flex-grow:1;color:#37333D">Value</span></div>
+            </div>
+          </div>
+
+          <!-- Vertical splitter (bolt gap: bolt's splitter needs a vertical orientation) -->
+          <div class="vsplit" role="separator" aria-orientation="vertical" aria-label="Split between request and response" title="Drag · Enter collapses the response"><span><i></i><i></i><i></i></span></div>
+
+          <!-- Response column -->
+          <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 12px;flex-shrink:0">
+              <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-send"/></svg>Response<span class="m" style="font-size:11px;font-weight:600;color:#7BE0A0">201 Created</span></span>
+              <span class="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-test"/></svg>Tests<span class="m" style="font-size:10.5px">3 passed</span></span>
+              <span style="flex-grow:1"></span>
+              <span class="m" style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#8E8996;white-space:nowrap"><svg class="ico" style="width:13px;height:13px"><use href="#i-clock"/></svg>184 ms · 1.2 KB</span>
+              <button aria-label="Collapse response" class="c6 ib"><svg class="ico" style="width:14px;height:14px"><use href="#i-collapse"/></svg></button>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;height:42px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128">
+              <div class="c6 seg">
+                <span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Body</span>
+                <span><svg class="ico" style="width:13px;height:13px"><use href="#i-list"/></svg>Headers<span class="m" style="font-size:10.5px">11</span></span>
+                <span><svg class="ico" style="width:13px;height:13px"><use href="#i-cookie"/></svg>Cookies<span class="m" style="font-size:10.5px">1</span></span>
+                <span><svg class="ico" style="width:13px;height:13px"><use href="#i-activity"/></svg>Timeline</span>
+              </div>
+              <span style="flex-grow:1"></span>
+              <div class="c6 field" style="width:180px"><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg><span style="flex-grow:1;color:#8E8996;white-space:nowrap">Search in response</span></div>
+            </div>
+            <div class="m" style="flex-grow:1;min-height:0;overflow:hidden;padding-top:6px;font-size:12px;border-top:1px solid #232128">
+              <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+              <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span>,</span></div>
+              <div class="ln"><span class="no">3</span><span class="tx">  <span class="k">"status"</span>: <span class="s">"draft"</span>,</span></div>
+              <div class="ln"><span class="no">4</span><span class="tx">  <span class="k">"customer"</span>: <span class="s">"cus_9s6XKzkNRiz8i3"</span>,</span></div>
+              <div class="ln"><span class="no">5</span><span class="tx">  <span class="k">"currency"</span>: <span class="s">"eur"</span>,</span></div>
+              <div class="ln"><span class="no">6</span><span class="tx">  <span class="k">"amount_due"</span>: <span class="nu">12900</span>,</span></div>
+              <div class="ln"><span class="no">7</span><span class="tx">  <span class="k">"lines"</span>: [</span></div>
+              <div class="ln"><span class="no">8</span><span class="tx">    { <span class="k">"description"</span>: <span class="s">"Pro plan, October"</span>, <span class="k">"amount"</span>: <span class="nu">12900</span> }</span></div>
+              <div class="ln"><span class="no">9</span><span class="tx">  ],</span></div>
+              <div class="ln"><span class="no">10</span><span class="tx">  <span class="k">"livemode"</span>: <span class="b">false</span></span></div>
+              <div class="ln"><span class="no">11</span><span class="tx">}</span></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px;height:44px;padding:0 12px;flex-shrink:0;border-top:1px solid #232128;font-size:12px;color:#8E8996">
+              <span style="display:flex;align-items:center;gap:6px;color:#C6C3CC"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg>Pretty</span>
+              <span>11 lines</span>
+              <span style="flex-grow:1"></span>
+              <button class="c6 btn sm"><svg class="ico" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy</button>
+              <button class="c6 btn sm"><svg class="ico" style="width:13px;height:13px"><use href="#i-bookmark"/></svg>Save as example</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- Status bar -->
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <span class="c6 chip"><svg class="ico" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">POST /v1/invoices · 201 · 184 ms</span></span>
+    <span style="flex-grow:1"></span>
+    <span class="m" style="font-size:11px;color:#37333D">layout: side-by-side</span>
+  </footer>
+</main>
+
+<!-- ============ States desk ============ -->
+<section class="desk" aria-label="Side by side · states">
+<h2>Side by side · states</h2>
+<p>Direction 1 of the V7 layout block. Every V7 surface appears here at least once; the Document layout has its own artboard (<span class="m">02-document-layout.html</span>). No state shows a secret value.</p>
+
+<!-- D1: Layout: Document (compact) -->
+<div class="state"><div class="state-head"><h3>Layout: Document, compact</h3><p>The other mode, without the sidebar: the request as an <span class="m">.http</span>-style document, navigated with the palette. Full window in <span class="m">02-document-layout.html</span>.</p></div>
+<div class="frame" style="width:900px">
+  <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;border-bottom:1px solid #232128">
+    <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-file"/></svg>invoices · document<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">3 requests</span></span>
+    <span style="flex-grow:1"></span>
+    <span class="c4 kc">Ctrl K</span>
+  </div>
+  <div class="m" style="padding:10px 16px;font-size:12.5px">
+    <div class="ln"><span class="no">1</span><span class="tx" style="color:#8E8996">### Create invoice</span></div>
+    <div class="ln"><span class="no">2</span><span class="tx"><span class="post" style="font-weight:700">POST</span> <span class="var">{{base_url}}</span>/v1/invoices</span></div>
+    <div class="ln"><span class="no">3</span><span class="tx">Authorization: Bearer <span style="color:#8E8996;letter-spacing:.1em">••••••••</span></span></div>
+    <div class="ln"><span class="no">4</span><span class="tx"></span></div>
+    <div class="ln"><span class="no">5</span><span class="tx">{ <span class="k">"currency"</span>: <span class="s">"eur"</span> }</span></div>
+    <div class="ln"><span class="no">6</span><span class="tx" style="color:#8E8996">### Get invoice</span></div>
+  </div>
+</div></div>
+
+<!-- D2: Layout switcher -->
+<div class="state"><div class="state-head"><h3>The layout switcher</h3><p>Three entry points: palette commands, the tab-row control and the action-strip control. The choice persists as <span class="m">layout</span> in config.toml, written like <span class="m">theme</span>.</p></div>
+<div class="frame" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;background:#050507">
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Palette · View</span>
+    <div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px">
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px"><svg class="ico" style="width:16px;height:16px;color:#8E8996"><use href="#i-cols"/></svg><span style="color:#C6C3CC;font-size:14px">Layout: Side by side</span><span style="flex-grow:1"></span><span class="c4 kc">Ctrl</span><span class="c4 kc">Alt</span><span class="c4 kc">1</span></div>
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px;background:rgba(157,177,255,.12);box-shadow:#9DB1FF 2px 0 0 inset"><svg class="ico" style="width:16px;height:16px;color:#9DB1FF"><use href="#i-file"/></svg><span style="color:#F7F4F7;font-size:14px">Layout: Document</span><span style="flex-grow:1"></span><span class="c4 kc">Ctrl</span><span class="c4 kc">Alt</span><span class="c4 kc">2</span></div>
+    </div>
+    <span class="hint">Proposed keys: Ctrl+Alt+1 / Ctrl+Alt+2 are unassigned in the command registry today. Both commands are new (not yet in <span class="m">shell/commands.rs</span>).</span>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">config.toml, read from the section</span>
+    <div class="toml m"><span class="cm"># ~/.config/reqflux/config.toml</span><br>theme = <span class="s">"dark"</span><br>font_size = <span class="nu">13</span><br>layout = <span class="s">"side-by-side"</span>   <span class="cm"># "side-by-side" | "document"</span></div>
+  </div>
+</div></div>
+
+<!-- D3: Keymap section -->
+<div class="state"><div class="state-head"><h3>Keymap · settings section</h3><p>App &gt; Keymap. Every command of the registry with its default key and context; Ctrl+click a key to rebind; conflicts refuse with the command they hit. The <span class="m">[keymap]</span> block shows read-only what was overridden.</p></div>
+<div class="frame" style="display:flex">
+  <div class="c14" style="display:flex;padding:1px;background:rgba(255,255,255,.05);width:1342px">
+  <nav class="nav" aria-label="Settings sections" style="width:220px;background:#100F13;padding-top:6px;flex-shrink:0">
+    <div style="padding:12px 16px 6px"><span class="cap">App</span></div>
+    <a href="#"><svg class="ico"><use href="#i-gear"/></svg>General</a>
+    <a href="#"><svg class="ico"><use href="#i-bot"/></svg>MCP policy</a>
+    <a href="#"><svg class="ico"><use href="#i-cookie"/></svg>Network</a>
+    <a href="#" class="on" aria-current="page"><svg class="ico"><use href="#i-key"/></svg>Keymap</a>
+  </nav>
+  <section style="flex-grow:1;padding:16px 28px 20px;display:flex;flex-direction:column;gap:4px">
+    <div style="display:flex;align-items:flex-start;gap:12px">
+      <div style="flex-grow:1"><h1 style="margin:0;font-size:20px;font-weight:700;color:#F7F4F7">Keymap</h1>
+      <span class="ds" style="font-size:13px">One registry names every command, its key and its context. Ctrl+click a key to rebind it; Esc cancels a capture.</span></div>
+      <button class="c6 btn"><svg class="ico" style="width:13px;height:13px"><use href="#i-revert"/></svg>Reset to defaults</button>
+    </div>
+    <div class="krow" style="height:30px;color:#F7F4F7;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;border-bottom:1px solid #232128"><span>command</span><span>key</span><span>context</span><span></span></div>
+    <div class="krow"><span style="color:#F7F4F7">Send request</span><span><span class="c4 kc" style="box-shadow:#9DB1FF 0 0 0 1px inset;color:#F7F4F7">Ctrl+↵</span></span><span class="ds">shell</span><span class="ds">default</span></div>
+    <div class="krow" style="background:rgba(157,177,255,.07)"><span style="color:#F7F4F7">Save request</span><span style="display:flex;align-items:center;gap:6px"><span class="c4 kc">Ctrl+S</span><span class="badge b-tint">REBOUND</span></span><span class="ds">shell</span><span class="ds">Ctrl+click to rebind</span></div>
+    <div class="krow" style="background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset"><span style="color:#F7F4F7">Generate code</span><span class="m" style="color:#9DB1FF;font-size:12.5px">listening… press the new keys, Esc cancels</span><span class="ds">shell</span><span class="ds">capturing</span></div>
+    <div class="krow"><span style="color:#C6C3CC">Toggle theme</span><span><span class="c4 kc">Ctrl+Shift+T</span></span><span class="ds">shell</span><span class="ds">default</span></div>
+    <div style="padding-top:10px"><div class="ban d" role="alert"><svg class="ico" style="width:15px;height:15px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><div style="flex-grow:1"><b>Ctrl+Shift+M is already bound to Open MCP approvals in shell.</b><div class="ds">Pick another key, or save the binding here and the other command loses it.</div></div><button class="c6 btn sm">Keep mine</button><button class="c6 btn sm">Cancel</button></div></div>
+    <div class="sh"><span class="cap">config.toml · keymap block, read-only</span></div>
+    <div class="toml m"><span class="cm"># only bindings that differ from the defaults are kept; Reset removes the table</span><br>[keymap]<br><span class="s">"save-request"</span> = <span class="s">"ctrl-shift-s"</span><br><span class="s">"generate-code"</span> = <span class="s">"ctrl-shift-k"</span></div>
+  </section>
+  </div>
+</div></div>
+
+<!-- D4: Body binary -->
+<div class="state"><div class="state-head"><h3>Body · binary</h3><p>A file, not text: Choose file… opens the OS dialog, the path shows in a read-only well. Switching away keeps <span class="m">[body] path</span> in the draft.</p></div>
+<div class="frame pad" style="width:760px">
+  <div class="seg" style="width:max-content;margin-bottom:10px"><span>None</span><span>JSON</span><span>XML</span><span>Text</span><span>URLencoded</span><span>Form data</span><span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Binary</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-graph"/></svg>GraphQL</span></div>
+  <div class="fr" style="grid-template-columns:110px 1fr;border-bottom:0"><div class="l"><b>File</b><span class="ds">sent as the body, byte for byte</span></div>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <!-- bolt gap: no bolt file field (read-only path well with a trailing Choose button) -->
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="c6 field m" style="flex-grow:1;color:#F7F4F7"><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg>~/fixtures/contract-2026.pdf<span style="flex-grow:1"></span><span class="ds">read-only</span></span>
+        <button class="c6 btn">Choose file…</button>
+        <button class="c6 btn sm" aria-label="Clear the file">Clear</button>
+      </div>
+      <span class="hint">Stored as <span class="m">[body] path</span> in the request; the file itself never lands in the workspace.</span>
+    </div></div>
+</div></div>
+
+<!-- D5: Body binary, no file -->
+<div class="state"><div class="state-head"><h3>Body · binary, no file</h3><p>The well is empty and Send is off until a file is chosen, matching design/bolt-v2/04.</p></div>
+<div class="frame pad" style="width:760px">
+  <div class="fr" style="grid-template-columns:110px 1fr;border-bottom:0"><div class="l"><b>File</b></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="c6 field" style="flex-grow:1;color:#8E8996">No file</span>
+      <button class="c6 btn pri">Choose file…</button>
+    </div></div>
+</div></div>
+
+<!-- D6: Body GraphQL -->
+<div class="state"><div class="state-head"><h3>Body · GraphQL</h3><p>The query beside its variables, both plain text. The variables are validated as JSON on every edit; the engine's message shows under the editor and Send stays off while it fails.</p></div>
+<div class="frame pad" style="width:1100px">
+  <div style="display:flex;gap:16px">
+    <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px;height:22px;font-size:12.5px"><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-code"/></svg><span style="color:#F7F4F7;font-weight:600">Query</span></div>
+      <div class="ed m" style="font-size:12.5px">
+        <div class="ln"><span class="no">1</span><span class="tx"><span class="k">query</span> Invoice(<span class="nu">$id</span>: ID!) {</span></div>
+        <div class="ln"><span class="no">2</span><span class="tx">  invoice(id: <span class="nu">$id</span>) {</span></div>
+        <div class="ln"><span class="no">3</span><span class="tx">    id  status  amountDue</span></div>
+        <div class="ln"><span class="no">4</span><span class="tx">  }</span></div>
+        <div class="ln"><span class="no">5</span><span class="tx">}</span></div>
+      </div>
+    </div>
+    <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px;height:22px;font-size:12.5px"><svg class="ico" style="width:13px;height:13px"><use href="#i-braces"/></svg><span style="color:#F7F4F7;font-weight:600">Variables</span><span class="badge b-ok">VALID JSON</span></div>
+      <div class="ed m" style="font-size:12.5px">
+        <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+        <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span></span></div>
+        <div class="ln"><span class="no">3</span><span class="tx">}</span></div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Body · GraphQL, variables that do not parse</h3><p>The banner quotes the engine verbatim; the request line shows the same problem (<span class="m">request-problem</span>) and Ctrl+Enter refuses the send.</p></div>
+<div class="frame pad" style="width:1100px">
+  <div style="display:flex;gap:16px">
+    <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px;height:22px;font-size:12.5px"><span style="color:#F7F4F7;font-weight:600">Query</span></div>
+      <div class="ed m" style="font-size:12.5px"><div class="ln"><span class="no">1</span><span class="tx"><span class="k">query</span> Invoice(<span class="nu">$id</span>: ID!) { … }</span></div></div>
+    </div>
+    <div style="flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px">
+      <div style="display:flex;align-items:center;gap:8px;height:22px;font-size:12.5px"><span style="color:#F7F4F7;font-weight:600">Variables</span><span class="badge b-dang">NOT VALID JSON</span></div>
+      <div class="ed m" style="font-size:12.5px;box-shadow:#FF6B5E 0 0 0 1px inset">
+        <div class="ln"><span class="no">1</span><span class="tx">{</span></div>
+        <div class="ln"><span class="no">2</span><span class="tx">  <span class="k">"id"</span>: <span class="s">"in_1Q8ZtR2eZvKYlo2C"</span><span style="background:rgba(255,107,94,.16);color:#FF6B5E">,</span></span></div>
+        <div class="ln"><span class="no">3</span><span class="tx">}</span></div>
+      </div>
+      <div class="ban d" role="alert"><svg class="ico" style="width:14px;height:14px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><span class="m">graphql variables are not valid JSON: trailing comma at line 2 column 34</span></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- D7: Allowlist -->
+<div class="state"><div class="state-head"><h3>Collection · environment allowlist</h3><p>Collection settings &gt; Environments, <span class="m">environments</span> in collection.toml. Selected only lists chips per workspace environment; an empty selection means any.</p></div>
+<div class="frame pad" style="width:900px">
+  <div class="sh" style="padding-top:0"><svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-layers"/></svg><span class="cap">Environments</span><span style="flex-grow:1"></span><span class="hint">Requests of Billing API may run with</span></div>
+  <div class="fr" style="grid-template-columns:110px 1fr"><div class="l"><b>Allow</b></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="seg" style="width:max-content"><span>All environments</span><span class="c4 on">Selected only</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#F7F4F7"><span class="cb on"><svg class="ico" style="width:10px;height:10px"><use href="#i-check"/></svg></span><span class="dia" style="background:#7BE0A0"></span>dev</span>
+        <span class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#F7F4F7"><span class="cb on"><svg class="ico" style="width:10px;height:10px"><use href="#i-check"/></svg></span><span class="dia" style="background:#FFC23D"></span>staging</span>
+        <span class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#8E8996"><span class="cb"></span><span class="dia" style="background:#FF6B5E"></span>prod</span>
+      </div>
+      <span class="hint">Written as <span class="m">environments = ["dev", "staging"]</span> in collection.toml. New environments stay out until they are ticked.</span>
+    </div></div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Allowlist · empty means any</h3><p>No allowlist in collection.toml: the seg reads All environments and the workspace menu offers every environment.</p></div>
+<div class="frame pad" style="width:900px">
+  <div class="fr" style="grid-template-columns:110px 1fr;border-bottom:0"><div class="l"><b>Allow</b></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div class="seg" style="width:max-content"><span class="c4 on">All environments</span><span>Selected only</span></div>
+      <span class="hint">No <span class="m">environments</span> key in collection.toml — every workspace environment may run these requests.</span>
+    </div></div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Allowlist · refusal on send</h3><p>The environment menu still lists every environment; a send with one the collection excludes fails before anything goes out, with the engine's message (<span class="m">ExecuteError::EnvironmentNotAllowed</span>) as the request problem.</p></div>
+<div class="frame pad" style="width:900px">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+    <span class="c6 sel" style="width:120px"><span class="dia" style="background:#FF6B5E"></span><span style="flex-grow:1;color:#F7F4F7">prod</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></span>
+    <span class="badge b-warn">NOT IN THE ALLOWLIST OF Billing API</span>
+  </div>
+  <div class="ban d" role="alert"><svg class="ico" style="width:15px;height:15px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><span class="m">environment prod is not allowed for collection Billing API</span></div>
+  <div class="hint" style="padding-top:8px">Nothing is sent and nothing is recorded: the refusal happens in <span class="m">prepare</span>, before the send. Switch the environment, or add it to the allowlist.</div>
+</div></div>
+
+<!-- D8: Failed send -->
+<div class="state"><div class="state-head"><h3>Failed send</h3><p>The response column keeps the request in view; the error banner quotes the transport error and Retry sends again (design/bolt-v2/07, moved into the column).</p></div>
+<div class="frame" style="width:640px;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 12px;flex-shrink:0">
+    <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#FF6B5E"><use href="#i-send"/></svg>Response<span class="m" style="font-size:11px;font-weight:600;color:#FF6B5E">failed</span></span>
+    <span style="flex-grow:1"></span>
+    <span class="m" style="font-size:11.5px;color:#8E8996">after 5.0 s</span>
+  </div>
+  <div style="padding:0 12px 12px"><div class="ban d" role="alert"><svg class="ico" style="width:15px;height:15px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><div style="flex-grow:1"><b>error sending request</b><div class="ds m">error sending request for url (https://api.staging.billing.acme.com/v1/invoices): operation timed out after 5000 ms</div></div><button class="c6 btn sm"><svg class="ico" style="width:12px;height:12px"><use href="#i-refresh"/></svg>Retry</button></div></div>
+</div></div>
+
+<!-- D9: Narrow window -->
+<div class="state"><div class="state-head"><h3>Narrow window (1024)</h3><p>The command search shrinks to 160 px (ShellMetrics), the sidebar keeps its 290 px, and the response column collapses to the 40 px response bar; each split pane keeps at least 120 px.</p></div>
+<div style="width:1024px;box-sizing:border-box;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,sans-serif;font-size:13px;height:520px;overflow:hidden">
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <div style="justify-self:start;display:flex;align-items:center;gap:6px;margin-left:55px;font-size:12px"><span style="color:#F7F4F7;font-weight:600">billing</span><span class="dia" style="background:#FFC23D"></span><span style="color:#F7F4F7;font-weight:600">staging</span></div>
+    <div class="c6 field" style="width:160px"><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-search"/></svg><span style="flex-grow:1"></span><span class="c4 kc">Ctrl K</span></div>
+    <span></span>
+  </header>
+  <div style="display:flex;gap:8px;flex-grow:1;min-height:0;padding:0 8px">
+    <div class="c14" style="display:flex;flex-shrink:0;padding:1px;background:rgba(255,255,255,.05);width:250px">
+      <aside style="flex-grow:1;background:#100F13;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;height:46px;padding:0 16px"><span class="x" style="font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996">Collections</span></div>
+        <div class="row" style="color:#F7F4F7"><svg class="ico" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg><span class="n">Billing API</span><span class="ct">9</span></div>
+        <div class="row sel-row" style="padding-left:26px"><span class="gl" style="left:19px"></span><span style="width:12px"></span><span class="mt post">POST</span><span class="n">Create invoice</span><span class="dia" style="margin-left:auto;background:#9DB1FF"></span></div>
+      </aside>
+    </div>
+    <div class="c14" style="display:flex;flex-grow:1;min-width:0;padding:1px;background:rgba(255,255,255,.05)">
+      <section style="flex-grow:1;background:#100F13;display:flex;flex-direction:column;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0"><span class="c6 tab on"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF"></span></span></div>
+        <div style="display:flex;align-items:center;gap:8px;height:48px;padding:0 12px;flex-shrink:0">
+          <div class="c6 sel" style="width:88px;box-sizing:border-box"><span class="m post" style="flex-grow:1;font-weight:700;font-size:12px">POST</span></div>
+          <div class="c6 field m" style="flex-grow:1;height:32px;font-size:12px;color:#F7F4F7"><span style="white-space:nowrap;overflow:hidden"><span class="var">{{base_url}}</span>/v1/invoices</span></div>
+          <button class="c6" style="height:32px;padding:0 10px;border:0;background:#2B45B8;color:#FFF;font-size:12px;font-weight:600;clip-path:polygon(6px 0,100% 0,100% 100%,0 100%,0 6px)"><svg class="ico" style="width:13px;height:13px"><use href="#i-send"/></svg>Send</button>
+        </div>
+        <!-- Response collapsed to its 40 px bar -->
+        <div role="button" aria-label="Expand response: 201 Created · 184 ms · 1.2 KB" class="m" style="margin-top:auto;display:flex;align-items:center;gap:12px;height:40px;padding:0 12px;border-top:1px solid #37333D;background:#09090B;font-size:12px;flex-shrink:0">
+          <span style="color:#7BE0A0;font-weight:700">201</span><span style="color:#C6C3CC">Created</span><span style="color:#8E8996">· 184 ms · 1.2 KB · 3 tests</span><span style="flex-grow:1"></span><svg class="ico" style="width:13px;height:13px;color:#8E8996;transform:rotate(180deg)"><use href="#i-collapse"/></svg>
+        </div>
+      </section>
+    </div>
+  </div>
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0"><span class="c6 chip"><span class="m">POST /v1/invoices · 201 · 184 ms</span></span></footer>
+</div></div>
+
+<!-- D10: Empty -->
+<div class="state"><div class="state-head"><h3>Empty · nothing open</h3><p>The columns appear with the first send; until then the island holds the empty state and the layout control waits in the tab row.</p></div>
+<div class="frame" style="width:900px;height:240px;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;border-bottom:1px solid #232128">
+    <span style="flex-grow:1"></span>
+    <span class="seg" style="width:max-content"><span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span></span>
+  </div>
+  <div style="flex-grow:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center">
+    <span style="color:#F7F4F7;font-size:14px;font-weight:600">No request open</span>
+    <span class="hint">Open one from the tree, or press <span class="c4 kc">Ctrl N</span> for a new request in the selected folder.</span>
+  </div>
+</div></div>
+
+<!-- D11: Runner document keeps the whole island -->
+<div class="state"><div class="state-head"><h3>Where the other documents land</h3><p>Collection and workspace settings, the cookie jar and a runner document use the whole island in Side by side, as the approvals and audit views do. The response column returns with the next request tab.</p></div>
+<div class="frame" style="width:900px;height:210px;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;border-bottom:1px solid #232128">
+    <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-play"/></svg>Run · Billing API</span>
+    <span class="tab"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF"></span></span>
+    <span style="flex-grow:1"></span>
+    <span class="hint">no split while a whole-island document is active</span>
+  </div>
+  <div class="m" style="flex-grow:1;display:flex;align-items:center;padding:0 16px;font-size:12.5px">
+    <div style="flex-grow:1">
+      <div class="gh"><span style="width:36px"></span><span style="width:120px">method</span><span style="flex-grow:1">name</span><span style="width:110px">status</span><span style="width:80px">time</span><span style="width:110px">tests</span></div>
+      <div class="gr"><span class="rn" style="width:36px">1</span><span style="width:120px" class="get">GET</span><span style="flex-grow:1;color:#F7F4F7">List invoices</span><span style="width:110px;color:#7BE0A0">200</span><span style="width:80px">96 ms</span><span style="width:110px;color:#7BE0A0">2/2</span></div>
+      <div class="gr" style="border-bottom:0"><span class="rn" style="width:36px">2</span><span style="width:120px" class="post">POST</span><span style="flex-grow:1;color:#F7F4F7">Create invoice</span><span style="width:110px;color:#7BE0A0">201</span><span style="width:80px">184 ms</span><span style="width:110px;color:#7BE0A0">3/3</span></div>
+    </div>
+  </div>
+</div></div>
+</section>
+</body></html>
