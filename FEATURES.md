@@ -71,9 +71,9 @@ v1.
 |---------|-------|
 | HTTP/1.1 and HTTP/2, response decompression | MVP |
 | Cancel an in-flight request | MVP |
-| Custom CA bundle and per-host client certificates (PEM or PKCS#12; engine, CLI and MCP; window settings pending) | v1 |
-| Proxies: system, manual, per workspace (engine, CLI and MCP; window settings pending) | v1 |
-| Per-workspace cookie jar, editable (engine and MCP; window view pending) | v1 |
+| Custom CA bundle and per-host client certificates (PEM or PKCS#12) | v1 |
+| Proxies: system, manual, per workspace | v1 |
+| Per-workspace cookie jar, editable | v1 |
 
 ## Scripts and tests
 
