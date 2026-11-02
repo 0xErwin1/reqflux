@@ -110,11 +110,57 @@ fn reqflux(args: &[&str]) -> Output {
         // A bus that does not exist: the Linux keyring is unavailable, so no test reads the
         // real one (keyring-secrets S8). On macOS the Keychain is still read.
         .env("DBUS_SESSION_BUS_ADDRESS", NO_BUS)
+        // No config file: the user's `[network]` never reaches a test.
+        .env("XDG_CONFIG_HOME", NO_CONFIG)
         .output()
     {
         Ok(output) => output,
         Err(error) => panic!("run reqflux: {error}"),
     }
+}
+
+/// A config directory that does not exist.
+const NO_CONFIG: &str = "/nonexistent/reqflux-test-config";
+
+#[test]
+fn run_sends_through_the_proxy_of_the_users_config_file() {
+    let runtime = runtime();
+    let proxy = server(
+        &runtime,
+        vec![
+            Mock::given(path("/via"))
+                .and(header("host", "target.invalid"))
+                .respond_with(ResponseTemplate::new(200).set_body_string("proxied")),
+        ],
+    );
+    let dir = workspace("", &[("via", get("http://target.invalid/via"))]);
+    let config = match TempDir::new() {
+        Ok(config) => config,
+        Err(error) => panic!("temp dir: {error}"),
+    };
+    write(
+        config.path(),
+        "reqflux/config.toml",
+        &format!(
+            "[network.proxy]\nmode = \"manual\"\nurl = \"{}\"\n",
+            proxy.uri()
+        ),
+    );
+    let root = dir.path().to_string_lossy().into_owned();
+
+    let output = match Command::new(env!("CARGO_BIN_EXE_reqflux"))
+        .args(["run", "--workspace", root.as_str(), "api/via"])
+        .env_remove("RUST_LOG")
+        .env("DBUS_SESSION_BUS_ADDRESS", NO_BUS)
+        .env("XDG_CONFIG_HOME", config.path())
+        .output()
+    {
+        Ok(output) => output,
+        Err(error) => panic!("run reqflux: {error}"),
+    };
+
+    assert_eq!(text(&output.stdout), "proxied", "{}", text(&output.stderr));
+    assert_eq!(output.status.code(), Some(0));
 }
 
 fn run(dir: &TempDir, args: &[&str]) -> Output {

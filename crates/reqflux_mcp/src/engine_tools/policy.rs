@@ -53,7 +53,7 @@ impl PolicyPaths {
 }
 
 /// The class of every engine tool (S5).
-pub const TOOL_CLASSES: [(&str, ToolClass); 23] = [
+pub const TOOL_CLASSES: [(&str, ToolClass); 26] = [
     ("workspace_open", ToolClass::Read),
     ("workspace_info", ToolClass::Read),
     ("request_get", ToolClass::Read),
@@ -61,6 +61,7 @@ pub const TOOL_CLASSES: [(&str, ToolClass); 23] = [
     ("history_get", ToolClass::Read),
     ("environment_list", ToolClass::Read),
     ("variables_get", ToolClass::Read),
+    ("cookie_list", ToolClass::Read),
     ("workspace_create", ToolClass::Write),
     ("collection_create", ToolClass::Write),
     ("folder_create", ToolClass::Write),
@@ -77,6 +78,8 @@ pub const TOOL_CLASSES: [(&str, ToolClass); 23] = [
     ("item_delete", ToolClass::Destructive),
     ("environment_delete", ToolClass::Destructive),
     ("variable_delete", ToolClass::Destructive),
+    ("cookie_delete", ToolClass::Destructive),
+    ("cookie_clear", ToolClass::Destructive),
 ];
 
 /// The class of every policed `ui_*` tool (mcp-approvals S5).

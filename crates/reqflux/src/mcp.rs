@@ -53,7 +53,11 @@ fn run(args: McpArgs) -> Result<(), Failure> {
     if let Err(error) = config::load(&paths.config) {
         log::warn!("the MCP policy runs on the defaults: {error}");
     }
-    let mut engine = EngineState::new(Arc::new(KeyringSecretStore), None, paths)
+    // The app state holds the history the tools read and every workspace's cookie jar.
+    let state_path = reqflux_engine::state::default_path()
+        .inspect_err(|error| log::warn!("the cookie jar is kept in memory only: {error}"))
+        .ok();
+    let mut engine = EngineState::new(Arc::new(KeyringSecretStore), state_path, paths)
         .with_approvals(Approvals::user());
     engine
         .open_startup(args.workspace.as_deref(), &cwd, &recent_workspaces())

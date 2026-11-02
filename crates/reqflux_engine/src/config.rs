@@ -13,7 +13,8 @@
 //! DBFlux bounds its interface size.
 //!
 //! The `[mcp]` tables are only parsed here; the policy that evaluates them lives with the
-//! MCP tools.
+//! MCP tools. `[network]` is parsed here too (see [`NetworkConfig`]); the engine turns it into
+//! the transport's settings.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -26,7 +27,11 @@ use reqflux_core::model::Id;
 pub use reqflux_core::model::{McpOverride, Rule};
 
 mod edit;
+mod network;
 pub use edit::{McpList, add_list_entry, remove_list_entry, set_font_size, set_rule};
+pub use network::{
+    CertificateConfig, NetworkConfig, ProxyConfig, ProxyMode, WorkspaceNetworkConfig,
+};
 
 /// The interface font size when the file sets none, in pixels, as DBFlux's.
 pub const DEFAULT_FONT_SIZE: f32 = 13.0;
@@ -84,6 +89,9 @@ pub struct UserConfig {
     /// `[mcp]`, the MCP policy.
     #[serde(default)]
     pub mcp: McpConfig,
+    /// `[network]`, the CA bundle, client certificates and proxy (v1-features S5).
+    #[serde(default)]
+    pub network: NetworkConfig,
 }
 
 impl UserConfig {

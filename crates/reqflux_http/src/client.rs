@@ -5,7 +5,7 @@ use std::error::Error as _;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
-use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderName, HeaderValue};
+use reqwest::header::{CONTENT_TYPE, COOKIE, HeaderMap, HeaderName, HeaderValue, SET_COOKIE};
 use reqwest::multipart::{Form, Part};
 use reqwest::{Method, RequestBuilder, Version};
 use tokio_util::io::ReaderStream;
@@ -13,6 +13,7 @@ use tokio_util::sync::CancellationToken;
 use url::Url;
 
 use crate::error::HttpError;
+use crate::network::{self, CookieJar, NetworkSettings};
 use crate::redirect;
 use crate::request::{MultipartValue, PreparedBody, PreparedRequest, RequestOptions};
 use crate::response::Response;
@@ -48,23 +49,70 @@ impl std::fmt::Debug for RedirectRules {
     }
 }
 
-/// Sends requests, reusing one `reqwest` client per verify TLS setting.
+/// Sends requests, reusing one `reqwest` client per TLS configuration: the verify TLS
+/// setting and the client certificate the request's host and port match. The
+/// [`NetworkSettings`] and the [`CookieJar`] apply to every send.
 ///
-/// Cloning is cheap and clones share the cache. Requests must run inside a Tokio runtime.
-#[derive(Debug, Clone, Default)]
+/// Cloning is cheap and clones share the cache, the settings and the jar. Requests must run
+/// inside a Tokio runtime.
+#[derive(Clone, Default)]
 pub struct HttpClient {
-    clients: Arc<Mutex<HashMap<ClientKey, reqwest::Client>>>,
+    shared: Arc<Mutex<Shared>>,
+}
+
+/// What the clones of an [`HttpClient`] share.
+#[derive(Default)]
+struct Shared {
+    network: Arc<NetworkSettings>,
+    clients: HashMap<ClientKey, reqwest::Client>,
+    jar: Option<Arc<dyn CookieJar>>,
+}
+
+impl std::fmt::Debug for HttpClient {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        formatter
+            .debug_struct("HttpClient")
+            .field("network", &shared.network)
+            .field("clients", &shared.clients.len())
+            .field("jar", &shared.jar.is_some())
+            .finish()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 struct ClientKey {
     verify_tls: bool,
+    /// The index of the client certificate presented, if any.
+    certificate: Option<usize>,
 }
 
 impl HttpClient {
-    /// A client with an empty cache.
+    /// A client with an empty cache, the default [`NetworkSettings`] and no cookie jar.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Replaces the network settings of this client and its clones. Sends started after
+    /// this use them; a send in flight keeps the connection it has.
+    pub fn set_network(&self, settings: NetworkSettings) {
+        let mut shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        shared.network = Arc::new(settings);
+        shared.clients.clear();
+    }
+
+    /// The network settings this client applies.
+    #[must_use]
+    pub fn network(&self) -> Arc<NetworkSettings> {
+        let shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        Arc::clone(&shared.network)
+    }
+
+    /// Sets the cookie jar of this client and its clones; `None` sends no cookie but the
+    /// request's own and keeps none.
+    pub fn set_cookie_jar(&self, jar: Option<Arc<dyn CookieJar>>) {
+        let mut shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        shared.jar = jar;
     }
 
     /// Sends `request` and reads the whole response body.
@@ -113,10 +161,32 @@ impl HttpClient {
         }
     }
 
+    /// The settings and the jar a send uses, read once so every hop of the send sees the
+    /// same ones.
+    fn snapshot(&self) -> (Arc<NetworkSettings>, Option<Arc<dyn CookieJar>>) {
+        let shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        (Arc::clone(&shared.network), shared.jar.clone())
+    }
+
+    /// [`HttpClient::send_with`] without the timeout and the cancellation; a passphrase or
+    /// a proxy password of the settings never reaches the error.
     async fn execute(
         &self,
         request: PreparedRequest,
         rules: RedirectRules,
+    ) -> Result<Response, HttpError> {
+        let (network, jar) = self.snapshot();
+        self.execute_with(request, rules, &network, jar.as_deref())
+            .await
+            .map_err(|error| error.masked(|text| network.mask(text)))
+    }
+
+    async fn execute_with(
+        &self,
+        request: PreparedRequest,
+        rules: RedirectRules,
+        network: &Arc<NetworkSettings>,
+        jar: Option<&dyn CookieJar>,
     ) -> Result<Response, HttpError> {
         let mut url = Url::parse(&request.url).map_err(|error| HttpError::InvalidUrl {
             url: request.url.clone(),
@@ -127,7 +197,7 @@ impl HttpClient {
         let mut headers = header_map(&request.headers)?;
         let follow = request.options.follow_redirects;
         let timeout = request.options.timeout;
-        let client = self.client(request.options)?;
+        let options = request.options;
         let mut body = request.body;
         let mut hops = 0;
         let mut timings = Timings::default();
@@ -139,9 +209,14 @@ impl HttpClient {
                 None
             };
             let has_content_type = headers.contains_key(CONTENT_TYPE);
-            let builder = client
-                .request(method.clone(), url.clone())
-                .headers(headers.clone());
+            // Each hop picks its own client: a redirect to another host can match another
+            // client certificate.
+            let client = self.client(options, network, &url)?;
+            let mut sent = headers.clone();
+            if let Some(jar) = jar {
+                add_jar_cookies(&mut sent, jar, &url);
+            }
+            let builder = client.request(method.clone(), url.clone()).headers(sent);
             let builder = with_body(builder, body, has_content_type).await?;
             let recorder = Arc::new(Recorder::default());
             let hop_started = Instant::now();
@@ -151,6 +226,9 @@ impl HttpClient {
             timings
                 .hops
                 .push(timing::hop(&recorder, hop_started.elapsed()));
+            if let Some(jar) = jar {
+                store_set_cookies(jar, &response, &url);
+            }
             let next = if follow {
                 redirect::target(&response, &url)
             } else {
@@ -195,24 +273,72 @@ impl HttpClient {
         }
     }
 
-    fn client(&self, options: RequestOptions) -> Result<reqwest::Client, HttpError> {
+    /// The cached client for `options` and the certificate `url` matches under `network`,
+    /// built on first use. A client built for settings that were replaced meanwhile is used
+    /// for this send but not cached.
+    fn client(
+        &self,
+        options: RequestOptions,
+        network: &Arc<NetworkSettings>,
+        url: &Url,
+    ) -> Result<reqwest::Client, HttpError> {
         let key = ClientKey {
             verify_tls: options.verify_tls,
+            certificate: network.certificate_for(url),
         };
-        let mut clients = self.clients.lock().unwrap_or_else(PoisonError::into_inner);
-        if let Some(client) = clients.get(&key) {
+        let mut shared = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+        let current = Arc::ptr_eq(&shared.network, network);
+        if current && let Some(client) = shared.clients.get(&key) {
             return Ok(client.clone());
         }
         // Redirects are followed by `execute`, which can change headers between hops.
-        let client = reqwest::Client::builder()
+        let builder = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .dns_resolver(Arc::new(TimedResolver))
             .connector_layer(TimingLayer)
-            .tls_danger_accept_invalid_certs(!key.verify_tls)
+            .tls_danger_accept_invalid_certs(!key.verify_tls);
+        let client = network::configure(builder, network, key.certificate)?
             .build()
             .map_err(|error| HttpError::Client(error_chain(&error)))?;
-        clients.insert(key, client.clone());
+        if current {
+            shared.clients.insert(key, client.clone());
+        }
         Ok(client)
+    }
+}
+
+/// Adds the cookies `jar` holds for `url` to the `Cookie` header of `headers`, after the
+/// request's own cookies.
+fn add_jar_cookies(headers: &mut HeaderMap, jar: &dyn CookieJar, url: &Url) {
+    let Some(cookies) = jar.cookie_header(url) else {
+        return;
+    };
+    let own: Vec<String> = headers
+        .get_all(COOKIE)
+        .iter()
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+        .collect();
+    let joined = own
+        .into_iter()
+        .chain(std::iter::once(cookies))
+        .collect::<Vec<_>>()
+        .join("; ");
+    // A jar cookie that is not a valid header value is not sent; the request's own stay.
+    if let Ok(value) = HeaderValue::from_str(&joined) {
+        headers.insert(COOKIE, value);
+    }
+}
+
+/// Gives `jar` the `Set-Cookie` headers of `response`, received from `url`.
+fn store_set_cookies(jar: &dyn CookieJar, response: &reqwest::Response, url: &Url) {
+    let set_cookies: Vec<String> = response
+        .headers()
+        .get_all(SET_COOKIE)
+        .iter()
+        .map(|value| String::from_utf8_lossy(value.as_bytes()).into_owned())
+        .collect();
+    if !set_cookies.is_empty() {
+        jar.store(url, &set_cookies);
     }
 }
 

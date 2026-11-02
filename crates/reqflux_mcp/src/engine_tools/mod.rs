@@ -1,5 +1,5 @@
 //! The engine tools: workspace, tree, request, execute, history, environments and variables
-//! (mcp-engine-tools S1-S6).
+//! (mcp-engine-tools S1-S6), and the cookie jar (v1-features S5).
 //!
 //! Handlers are plain synchronous functions over [`EngineState`] returning the JSON text
 //! result, so they can be tested on temp workspaces without rmcp. They block (the engine
@@ -11,6 +11,7 @@
 //! the request timeout) arrives. A tool that
 //! panicked does not disable the others: the lock is recovered.
 
+mod cookies;
 mod environments;
 mod execute;
 mod history;
@@ -35,6 +36,7 @@ use crate::approvals::Approvals;
 use crate::tools::ToolError;
 use policy::Scope;
 
+pub use cookies::{CookieArgs, cookie_clear, cookie_delete, cookie_list};
 pub use environments::{
     EnvironmentArgs, EnvironmentCreateArgs, EnvironmentRenameArgs, ScopeArgs, VariableDeleteArgs,
     VariableSetArgs, environment_create, environment_delete, environment_list, environment_rename,
@@ -176,8 +178,10 @@ impl EngineState {
 
     /// The workspace at `root`, loaded without opening it.
     fn load(&self, root: &Path) -> Result<Engine, ToolError> {
-        Engine::open_with_secrets(root, Arc::clone(&self.secrets))
-            .map_err(|error| ToolError::Engine(format!("{}: {error}", root.display())))
+        let engine = Engine::open_with_secrets(root, Arc::clone(&self.secrets))
+            .map_err(|error| ToolError::Engine(format!("{}: {error}", root.display())))?;
+        self.configure(&engine);
+        Ok(engine)
     }
 
     /// The warnings of the user's config file and the open workspace's manifest `[mcp]`:

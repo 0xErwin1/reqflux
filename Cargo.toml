@@ -37,7 +37,13 @@ base64 = "0.23.1"
 # Local dates in the UI; it reads the system time zone safely in a multithreaded process.
 chrono = { version = "0.4" }
 clap = { version = "4.6.7", features = ["derive"] }
-reqwest = { version = "0.13.5", features = ["gzip", "brotli", "deflate", "zstd", "form", "multipart", "stream"] }
+# The per-workspace cookie jar: RFC 6265 domain, path, secure and expiry matching, the store
+# reqwest's own `cookies` feature uses. No public suffix list (it would need a list download),
+# so a `Domain=` on a public suffix is not refused.
+cookie_store = { version = "0.22.1", default-features = false, features = ["serde_json"] }
+# Reads PKCS#12 client certificates for rustls, which only takes PEM identities.
+p12-keystore = "0.4.1"
+reqwest = { version = "0.13.5", features = ["gzip", "brotli", "deflate", "zstd", "form", "multipart", "stream", "socks"] }
 serde_json = "1.0.154"
 # RFC 9535 JSONPath, the response filter; it runs the JSONPath compliance suite.
 serde_json_path = "0.7"

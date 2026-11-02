@@ -45,6 +45,21 @@ pub(crate) fn run(args: RunArgs) -> ExitCode {
     }
 }
 
+/// Applies the user's `[network]` settings (v1-features S5) to `engine`. A config file that
+/// cannot be read leaves the defaults and says so; the cookie jar lives for this run only.
+fn apply_network(engine: &Engine) {
+    let loaded =
+        reqflux_engine::config::default_path().and_then(|path| reqflux_engine::config::load(&path));
+    match loaded {
+        Ok(user) => {
+            for warning in engine.apply_network(&user.network) {
+                eprintln!("warning: {warning}");
+            }
+        }
+        Err(error) => eprintln!("warning: network settings not applied: {error}"),
+    }
+}
+
 fn send(args: RunArgs) -> Result<ExitCode, Failure> {
     let vars = args
         .vars
@@ -56,6 +71,7 @@ fn send(args: RunArgs) -> Result<ExitCode, Failure> {
     for warning in engine.warnings() {
         eprintln!("warning: {warning}");
     }
+    apply_network(&engine);
 
     let options = ExecuteOptions {
         environment: args.env,

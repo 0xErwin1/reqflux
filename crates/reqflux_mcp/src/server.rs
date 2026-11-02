@@ -362,7 +362,7 @@ mod tests {
         "ui_scroll",
     ];
 
-    const ENGINE_TOOL_NAMES: [&str; 23] = [
+    const ENGINE_TOOL_NAMES: [&str; 26] = [
         "workspace_open",
         "workspace_create",
         "workspace_info",
@@ -386,6 +386,9 @@ mod tests {
         "variables_get",
         "variable_set",
         "variable_delete",
+        "cookie_list",
+        "cookie_delete",
+        "cookie_clear",
     ];
 
     #[allow(clippy::unwrap_used, clippy::expect_used)]

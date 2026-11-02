@@ -114,6 +114,7 @@ environments = ["dev"]
                 environments: strings(&["dev", "staging"]),
                 workspaces,
             },
+            network: NetworkConfig::default(),
         }
     );
 }

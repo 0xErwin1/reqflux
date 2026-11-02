@@ -255,6 +255,40 @@ pub fn write(root: &Path, relative: &str, content: &str) {
     }
 }
 
+/// A runtime outside the engine's that starts and inspects mock servers, so a blocking
+/// engine call is never made from async code.
+pub fn runtime() -> tokio::runtime::Runtime {
+    match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => panic!("runtime: {error}"),
+    }
+}
+
+/// Writes a workspace (id 900) whose collection `api` holds the GET request `api/r` to `url`.
+pub fn write_get_workspace(root: &Path, url: &str) {
+    write(
+        root,
+        "reqflux.toml",
+        &format!("id = \"{}\"\nname = \"W\"\nformat = 1\n", id_text(900)),
+    );
+    write(
+        root,
+        "collections/api/collection.toml",
+        &format!("id = \"{}\"\nname = \"Api\"\n", id_text(1)),
+    );
+    write(
+        root,
+        "collections/api/r.req.toml",
+        &format!(
+            "id = \"{}\"\nname = \"R\"\nmethod = \"GET\"\nurl = \"{url}\"\n",
+            id_text(2)
+        ),
+    );
+}
+
 /// Opens the workspace at `root` with an empty in-memory secret store, so no test touches
 /// the OS keyring (keyring-secrets S8).
 pub fn open_engine(

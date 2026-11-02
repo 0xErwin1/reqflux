@@ -14,6 +14,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::auth::{Browser, SystemBrowser};
+use crate::cookies::WorkspaceCookies;
 use crate::current::CurrentValues;
 use crate::error::{ExecuteError, OpenError, SaveError};
 use crate::guard::HostGuard;
@@ -35,6 +36,8 @@ pub struct Engine {
     pub(crate) loaded: Loaded,
     pub(crate) secrets: Arc<dyn SecretStore>,
     pub(crate) browser: Arc<dyn Browser>,
+    /// The workspace's cookie jar, installed in `client`.
+    pub(crate) cookies: Arc<WorkspaceCookies>,
 }
 
 /// A request in flight.
@@ -270,13 +273,16 @@ impl Engine {
             .thread_name("reqflux-engine")
             .build()
             .map_err(OpenError::Runtime)?;
+        let client = HttpClient::new();
+        let cookies = crate::cookies::install(&client, loaded.workspace.manifest.id.to_string());
         Ok(Self {
             runtime,
-            client: HttpClient::new(),
+            client,
             root,
             loaded,
             secrets,
             browser: Arc::new(SystemBrowser),
+            cookies,
         })
     }
 
@@ -588,7 +594,7 @@ impl Engine {
     /// task completes an OAuth 2.0 or digest auth.
     fn send_guarded(&self, mut prepared: Prepared, guard: Option<&HostGuard>) -> Execution {
         let signed = crate::auth::sign_now(&mut prepared.request, prepared.auth.as_ref());
-        let sent = prepared.sent();
+        let mut sent = prepared.sent();
         let masker = prepared.masker();
         let Prepared {
             request,
@@ -599,6 +605,7 @@ impl Engine {
         } = prepared;
         let PreparedRequest { method, url, .. } = &request;
         let (method, url) = (method.clone(), url.clone());
+        crate::cookies::record_jar_cookie(&self.cookies, &url, &mut sent, &masker);
         let rules = RedirectRules {
             check: guard.map(|guard| guard.redirect_check(&method)),
             mask: Some(masker.secret_mask()),

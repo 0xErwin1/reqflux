@@ -11,10 +11,10 @@ use rmcp::{
 };
 
 use super::{
-    CollectionCreateArgs, EngineState, EntryArgs, EnvironmentArgs, EnvironmentCreateArgs,
-    EnvironmentRenameArgs, ExecuteArgs, FolderCreateArgs, HistoryListArgs, ItemArgs, MoveArgs,
-    PathArgs, RenameArgs, RequestCreateArgs, RunArgs, ScopeArgs, UpdateArgs, VariableDeleteArgs,
-    VariableSetArgs, WorkspaceCreateArgs,
+    CollectionCreateArgs, CookieArgs, EngineState, EntryArgs, EnvironmentArgs,
+    EnvironmentCreateArgs, EnvironmentRenameArgs, ExecuteArgs, FolderCreateArgs, HistoryListArgs,
+    ItemArgs, MoveArgs, PathArgs, RenameArgs, RequestCreateArgs, RunArgs, ScopeArgs, UpdateArgs,
+    VariableDeleteArgs, VariableSetArgs, WorkspaceCreateArgs,
 };
 use crate::server::{ReqFluxMcp, into_result};
 use crate::tools::ToolError;
@@ -311,6 +311,34 @@ impl ReqFluxMcp {
     ) -> Result<CallToolResult, ErrorData> {
         self.run_engine(move |state| super::variable_delete(state, args))
             .await
+    }
+
+    #[tool(
+        name = "cookie_list",
+        description = "List the cookies of the open workspace's cookie jar (domain, path, name, expiry and flags); every value is masked"
+    )]
+    async fn cookie_list(&self) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(super::cookie_list).await
+    }
+
+    #[tool(
+        name = "cookie_delete",
+        description = "Delete one cookie of the open workspace's cookie jar by the domain, path and name cookie_list returns"
+    )]
+    async fn cookie_delete(
+        &self,
+        Parameters(args): Parameters<CookieArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(move |state| super::cookie_delete(state, args))
+            .await
+    }
+
+    #[tool(
+        name = "cookie_clear",
+        description = "Delete every cookie of the open workspace's cookie jar"
+    )]
+    async fn cookie_clear(&self) -> Result<CallToolResult, ErrorData> {
+        self.run_engine(super::cookie_clear).await
     }
 }
 

@@ -1,7 +1,8 @@
 //! Per-user app state in SQLite (S1, S8): drafts, the send history (history S1-S5,
 //! see [`history`](self#history)), current values (variables-editor S4) and the recent
-//! workspaces (recent-workspaces S1, see [`AppState::recent_workspaces`]) and small settings
-//! (light-theme S4, see [`AppState::setting`]).
+//! workspaces (recent-workspaces S1, see [`AppState::recent_workspaces`]), small settings
+//! (light-theme S4, see [`AppState::setting`]) and the cookie jar of every workspace
+//! (v1-features S5, see [`AppState::cookies`]).
 //!
 //! The state file lives at `$XDG_STATE_HOME/reqflux/state.sqlite3`, or
 //! `$HOME/.local/state/reqflux/state.sqlite3` when the variable is unset, and never inside
@@ -27,7 +28,8 @@
 //! adds the `current_values` table (see [`AppState::current_values`]) and keeps the drafts
 //! and the history; version 4 adds the `recent_workspaces` table and keeps everything
 //! before it; version 5 adds the `settings` table and keeps everything before it; version 6
-//! adds the `timings` column to `history`, empty for the entries before it. A fresh
+//! adds the `timings` column to `history`, empty for the entries before it; version 7 adds the
+//! `cookies` table (see [`AppState::cookies`]) and keeps everything before it. A fresh
 //! file is created at the latest version, an older one is upgraded in one transaction, and
 //! a newer one is refused with [`StateError::UnsupportedVersion`].
 //!
@@ -42,11 +44,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
+mod cookies;
 mod current;
 mod history;
 mod recent;
 mod settings;
 
+pub use cookies::CookieRow;
 pub use history::{
     HISTORY_MAX_BODY_BYTES, HISTORY_MAX_ENTRIES, HistoryEntry, HistoryLimits, HistoryOutcome,
     HistoryRecord, RecordedResponse,
@@ -54,7 +58,7 @@ pub use history::{
 pub use recent::{RECENT_WORKSPACES_MAX, RecentWorkspace};
 
 /// The schema version this build writes. Raising it is a forward-only migration.
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 
 /// The drafts table of schema version 1.
 const SCHEMA_V1: &str = "
@@ -186,6 +190,18 @@ pub(crate) fn default_state_path(
     Some(base.join("reqflux/state.sqlite3"))
 }
 
+/// The standard per-user state path, `$XDG_STATE_HOME/reqflux/state.sqlite3` or
+/// `$HOME/.local/state/reqflux/state.sqlite3`, which [`AppState::open_default`] opens.
+///
+/// # Errors
+///
+/// [`StateError::NoStateDirectory`] when neither variable is set.
+pub fn default_path() -> Result<PathBuf, StateError> {
+    let state_home = std::env::var_os("XDG_STATE_HOME").map(PathBuf::from);
+    let home = std::env::var_os("HOME").map(PathBuf::from);
+    default_state_path(state_home.as_deref(), home.as_deref()).ok_or(StateError::NoStateDirectory)
+}
+
 impl AppState {
     /// The state file path, so a front end can open a second connection for a background run.
     #[must_use]
@@ -246,12 +262,7 @@ impl AppState {
     /// `$XDG_STATE_HOME/reqflux/state.sqlite3`, or `$HOME/.local/state/reqflux/state.sqlite3`
     /// when the variable is unset.
     pub fn open_default() -> Result<Self, StateError> {
-        let state_home = std::env::var_os("XDG_STATE_HOME").map(PathBuf::from);
-        let home = std::env::var_os("HOME").map(PathBuf::from);
-        let Some(path) = default_state_path(state_home.as_deref(), home.as_deref()) else {
-            return Err(StateError::NoStateDirectory);
-        };
-        Self::open(&path)
+        Self::open(&default_path()?)
     }
 
     /// Sets the pragmas every connection needs and the owner-only file mode.
@@ -405,6 +416,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             recent::SCHEMA_V4,
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
+            cookies::SCHEMA_V7,
         ]
         .as_slice(),
         1 => [
@@ -413,6 +425,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             recent::SCHEMA_V4,
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
+            cookies::SCHEMA_V7,
         ]
         .as_slice(),
         2 => [
@@ -420,11 +433,19 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             recent::SCHEMA_V4,
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
+            cookies::SCHEMA_V7,
         ]
         .as_slice(),
-        3 => [recent::SCHEMA_V4, settings::SCHEMA_V5, history::SCHEMA_V6].as_slice(),
-        4 => [settings::SCHEMA_V5, history::SCHEMA_V6].as_slice(),
-        5 => [history::SCHEMA_V6].as_slice(),
+        3 => [
+            recent::SCHEMA_V4,
+            settings::SCHEMA_V5,
+            history::SCHEMA_V6,
+            cookies::SCHEMA_V7,
+        ]
+        .as_slice(),
+        4 => [settings::SCHEMA_V5, history::SCHEMA_V6, cookies::SCHEMA_V7].as_slice(),
+        5 => [history::SCHEMA_V6, cookies::SCHEMA_V7].as_slice(),
+        6 => [cookies::SCHEMA_V7].as_slice(),
         version if version == SCHEMA_VERSION => return Ok(()),
         version => {
             return Err(StateError::UnsupportedVersion {

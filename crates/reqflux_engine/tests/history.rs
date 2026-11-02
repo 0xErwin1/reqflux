@@ -116,7 +116,7 @@ fn a_v1_file_upgrades_to_the_latest_and_keeps_its_drafts() {
 
     let mut state = open(&path);
 
-    assert_eq!(user_version(&path), 6);
+    assert_eq!(user_version(&path), 7);
     let draft = state.draft("ws", "req").unwrap().unwrap();
     assert_eq!(draft.payload, "a = 1");
     assert_eq!(draft.base_hash.as_deref(), Some("hash-1"));
@@ -131,7 +131,7 @@ fn a_fresh_file_is_created_at_v3() {
     let dir = tempfile::tempdir().unwrap();
     let path = state_path(&dir);
     open(&path);
-    assert_eq!(user_version(&path), 6);
+    assert_eq!(user_version(&path), 7);
 }
 
 #[test]
@@ -148,7 +148,7 @@ fn a_v5_entry_without_timings_stays_readable_after_the_upgrade() {
 
     let state = open(&path);
 
-    assert_eq!(user_version(&path), 6);
+    assert_eq!(user_version(&path), 7);
     let entry = state.history_entry(id).unwrap().unwrap();
     let mut expected = record(1);
     if let HistoryOutcome::Response(response) = &mut expected.outcome {
@@ -163,12 +163,74 @@ fn a_file_newer_than_the_build_is_refused() {
     let path = state_path(&dir);
     {
         let conn = rusqlite::Connection::open(&path).unwrap();
-        conn.execute_batch("PRAGMA user_version = 7;").unwrap();
+        conn.execute_batch("PRAGMA user_version = 8;").unwrap();
     }
     match AppState::open(&path) {
-        Err(StateError::UnsupportedVersion { version, .. }) => assert_eq!(version, 7),
+        Err(StateError::UnsupportedVersion { version, .. }) => assert_eq!(version, 8),
         other => panic!("expected UnsupportedVersion, got {other:?}"),
     }
+}
+
+#[test]
+fn a_v6_file_upgrades_to_v7_keeping_its_history_and_drafts() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = state_path(&dir);
+    let id = {
+        let mut state = open(&path);
+        state
+            .put_draft(
+                "ws",
+                "req",
+                reqflux_engine::state::Draft::new("a = 1", None),
+            )
+            .unwrap();
+        state.record_history("ws", record(1)).unwrap()
+    };
+    {
+        // Turn the file back into what a v6 build wrote: no cookies table.
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute_batch("DROP TABLE cookies; PRAGMA user_version = 6;")
+            .unwrap();
+    }
+
+    let mut state = open(&path);
+
+    assert_eq!(user_version(&path), 7);
+    assert_eq!(state.history_entry(id).unwrap().unwrap().record, record(1));
+    assert_eq!(state.draft("ws", "req").unwrap().unwrap().payload, "a = 1");
+    assert_eq!(state.cookies("ws").unwrap(), Vec::new());
+    let cookie = reqflux_engine::state::CookieRow {
+        domain: "example.test".to_owned(),
+        path: "/".to_owned(),
+        name: "session".to_owned(),
+        payload: "{}".to_owned(),
+    };
+    state.put_cookie("ws", &cookie).unwrap();
+    assert_eq!(state.cookies("ws").unwrap(), vec![cookie]);
+}
+
+#[test]
+fn a_failed_v6_upgrade_leaves_the_file_at_v6_with_its_history() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = state_path(&dir);
+    let id = open(&path).record_history("ws", record(1)).unwrap();
+    let conn = rusqlite::Connection::open(&path).unwrap();
+    conn.execute_batch("DROP TABLE cookies; PRAGMA user_version = 6;")
+        .unwrap();
+    // Another connection holds the write lock, so the upgrade transaction cannot start.
+    conn.execute_batch("BEGIN EXCLUSIVE;").unwrap();
+
+    let refused = AppState::open(&path);
+
+    assert!(
+        matches!(refused, Err(StateError::Migrate { .. })),
+        "{refused:?}"
+    );
+    conn.execute_batch("ROLLBACK;").unwrap();
+    assert_eq!(user_version(&path), 6);
+    let state = open(&path);
+    assert_eq!(user_version(&path), 7);
+    assert_eq!(state.history_entry(id).unwrap().unwrap().record, record(1));
 }
 
 #[test]

@@ -83,29 +83,57 @@ pub enum SecretError {
     Failed(String),
 }
 
-/// Reads and writes secret values by [`SecretKey`]. A missing entry is `Ok(None)`, never an
-/// error.
+/// Reads and writes secret values by keyring account: a [`SecretKey`]'s for a secret
+/// variable, a [`NetworkSecret`](crate::NetworkSecret)'s for a proxy password or a
+/// certificate passphrase. A missing entry is `Ok(None)`, never an error.
 pub trait SecretStore: Debug + Send + Sync {
+    /// The value stored under the keyring `account`, or `None` when none is.
+    ///
+    /// # Errors
+    ///
+    /// The store is unavailable or failed.
+    fn get_account(&self, account: &str) -> Result<Option<String>, SecretError>;
+
+    /// Stores `value` under the keyring `account`, replacing any previous value.
+    ///
+    /// # Errors
+    ///
+    /// The store is unavailable or failed.
+    fn set_account(&self, account: &str, value: &str) -> Result<(), SecretError>;
+
+    /// Deletes the value under the keyring `account`; deleting a missing entry succeeds.
+    ///
+    /// # Errors
+    ///
+    /// The store is unavailable or failed.
+    fn delete_account(&self, account: &str) -> Result<(), SecretError>;
+
     /// The value stored for `key`, or `None` when none is.
     ///
     /// # Errors
     ///
     /// The store is unavailable or failed.
-    fn get(&self, key: &SecretKey) -> Result<Option<String>, SecretError>;
+    fn get(&self, key: &SecretKey) -> Result<Option<String>, SecretError> {
+        self.get_account(&key.account())
+    }
 
     /// Stores `value` for `key`, replacing any previous value.
     ///
     /// # Errors
     ///
     /// The store is unavailable or failed.
-    fn set(&self, key: &SecretKey, value: &str) -> Result<(), SecretError>;
+    fn set(&self, key: &SecretKey, value: &str) -> Result<(), SecretError> {
+        self.set_account(&key.account(), value)
+    }
 
     /// Deletes the value for `key`; deleting a missing entry succeeds.
     ///
     /// # Errors
     ///
     /// The store is unavailable or failed.
-    fn delete(&self, key: &SecretKey) -> Result<(), SecretError>;
+    fn delete(&self, key: &SecretKey) -> Result<(), SecretError> {
+        self.delete_account(&key.account())
+    }
 
     /// Whether a value is stored for `key`.
     ///
@@ -122,26 +150,28 @@ pub trait SecretStore: Debug + Send + Sync {
 pub struct KeyringSecretStore;
 
 impl KeyringSecretStore {
-    fn entry(key: &SecretKey) -> Result<keyring::Entry, SecretError> {
-        keyring::Entry::new(SECRET_SERVICE, &key.account()).map_err(keyring_error)
+    fn entry(account: &str) -> Result<keyring::Entry, SecretError> {
+        keyring::Entry::new(SECRET_SERVICE, account).map_err(keyring_error)
     }
 }
 
 impl SecretStore for KeyringSecretStore {
-    fn get(&self, key: &SecretKey) -> Result<Option<String>, SecretError> {
-        match Self::entry(key)?.get_password() {
+    fn get_account(&self, account: &str) -> Result<Option<String>, SecretError> {
+        match Self::entry(account)?.get_password() {
             Ok(value) => Ok(Some(value)),
             Err(keyring::Error::NoEntry) => Ok(None),
             Err(error) => Err(keyring_error(error)),
         }
     }
 
-    fn set(&self, key: &SecretKey, value: &str) -> Result<(), SecretError> {
-        Self::entry(key)?.set_password(value).map_err(keyring_error)
+    fn set_account(&self, account: &str, value: &str) -> Result<(), SecretError> {
+        Self::entry(account)?
+            .set_password(value)
+            .map_err(keyring_error)
     }
 
-    fn delete(&self, key: &SecretKey) -> Result<(), SecretError> {
-        match Self::entry(key)?.delete_credential() {
+    fn delete_account(&self, account: &str) -> Result<(), SecretError> {
+        match Self::entry(account)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(error) => Err(keyring_error(error)),
         }
@@ -220,31 +250,31 @@ impl MemorySecretStore {
 }
 
 impl SecretStore for MemorySecretStore {
-    fn get(&self, key: &SecretKey) -> Result<Option<String>, SecretError> {
+    fn get_account(&self, account: &str) -> Result<Option<String>, SecretError> {
         self.check()?;
         Ok(self
             .values
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .get(&key.account())
+            .get(account)
             .cloned())
     }
 
-    fn set(&self, key: &SecretKey, value: &str) -> Result<(), SecretError> {
+    fn set_account(&self, account: &str, value: &str) -> Result<(), SecretError> {
         self.check()?;
         self.values
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .insert(key.account(), value.to_owned());
+            .insert(account.to_owned(), value.to_owned());
         Ok(())
     }
 
-    fn delete(&self, key: &SecretKey) -> Result<(), SecretError> {
+    fn delete_account(&self, account: &str) -> Result<(), SecretError> {
         self.check()?;
         self.values
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .remove(&key.account());
+            .remove(account);
         Ok(())
     }
 }

@@ -96,7 +96,7 @@ fn s4_a_v4_file_upgrades_to_v5_keeping_drafts_history_current_values_and_recents
 
     let mut state = AppState::open(&path).unwrap();
 
-    assert_eq!(user_version(&path), 6);
+    assert_eq!(user_version(&path), 7);
     let draft = state.draft("ws", "req").unwrap().unwrap();
     assert_eq!(draft.payload, "a = 1");
     assert_eq!(draft.base_hash.as_deref(), Some("hash-1"));

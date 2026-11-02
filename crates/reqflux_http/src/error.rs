@@ -65,6 +65,11 @@ pub enum HttpError {
     /// The caller cancelled the request.
     #[error("request cancelled")]
     Cancelled,
+    /// The network settings could not be applied: a CA bundle, a client certificate or a
+    /// proxy that cannot be read or used. The text names the file and never holds a
+    /// passphrase or a password.
+    #[error("network settings: {0}")]
+    Network(String),
     /// The HTTP client could not be built.
     #[error("could not build HTTP client: {0}")]
     Client(String),
@@ -76,4 +81,23 @@ pub enum HttpError {
     /// Any other transport failure, such as too many redirects.
     #[error("{0}")]
     Request(String),
+}
+
+impl HttpError {
+    /// This error with `mask` applied to every text that comes from the transport, which can
+    /// echo a proxy URL with its credentials.
+    #[must_use]
+    pub(crate) fn masked(self, mask: impl Fn(&str) -> String) -> Self {
+        match self {
+            Self::Connect { host, reason } => Self::Connect {
+                host,
+                reason: mask(&reason),
+            },
+            Self::Tls(reason) => Self::Tls(mask(&reason)),
+            Self::Network(reason) => Self::Network(mask(&reason)),
+            Self::Client(reason) => Self::Client(mask(&reason)),
+            Self::Request(reason) => Self::Request(mask(&reason)),
+            other => other,
+        }
+    }
 }

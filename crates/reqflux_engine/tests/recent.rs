@@ -99,7 +99,7 @@ fn s1_a_v3_file_upgrades_to_v4_keeping_drafts_history_and_current_values() {
 
     let mut state = AppState::open(&path).unwrap();
 
-    assert_eq!(user_version(&path), 6);
+    assert_eq!(user_version(&path), 7);
     let draft = state.draft("ws", "req").unwrap().unwrap();
     assert_eq!(draft.payload, "a = 1");
     assert_eq!(draft.base_hash.as_deref(), Some("hash-1"));
@@ -131,7 +131,7 @@ fn s1_an_empty_file_is_created_at_v4_with_every_table() {
 
     let mut state = AppState::open(&path).unwrap();
 
-    assert_eq!(user_version(&path), 6);
+    assert_eq!(user_version(&path), 7);
     assert!(state.drafts("ws").unwrap().is_empty());
     assert!(state.history("ws", 10).unwrap().is_empty());
     assert!(state.current_values("ws").unwrap().is_empty());
@@ -145,9 +145,9 @@ fn s1_an_empty_file_is_created_at_v4_with_every_table() {
 fn s1_a_file_newer_than_v4_is_refused() {
     let dir = temp_dir();
     let path = state_path(&dir);
-    write_file(&path, "PRAGMA user_version = 7;");
+    write_file(&path, "PRAGMA user_version = 8;");
     match AppState::open(&path) {
-        Err(StateError::UnsupportedVersion { version, .. }) => assert_eq!(version, 7),
+        Err(StateError::UnsupportedVersion { version, .. }) => assert_eq!(version, 8),
         other => panic!("expected UnsupportedVersion, got {other:?}"),
     }
 }

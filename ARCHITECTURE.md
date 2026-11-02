@@ -516,10 +516,22 @@ measurably demand it, and then by one-way layers.
 ## HTTP engine
 
 - `reqwest` with rustls, HTTP/1.1 and HTTP/2, gzip, brotli, deflate and zstd.
-- Clients are cached by their TLS and proxy configuration, because a client certificate, a
-  CA bundle or `danger_accept_invalid_certs` is per client in `reqwest`.
-- Certificates follow Postman's model: a list of client certificates matched by host and port,
-  plus an optional custom CA bundle and a per-request "verify TLS" toggle.
+- A client's `NetworkSettings` apply to every send of the engine (the request, OAuth and digest
+  requests, `pm.sendRequest`): a custom CA bundle merged with the platform roots, client
+  certificates matched by host and port (`*.` matches subdomains only; first match wins), PEM or
+  PKCS#12 (converted to PEM through `p12-keystore`, since rustls takes PEM identities only), and
+  the proxy: `system` (the default: `HTTP(S)_PROXY`/`NO_PROXY`), `none`, or `manual` http,
+  https, socks5 or socks5h with basic auth and a NO_PROXY-style bypass. A per-request "verify
+  TLS" toggle stays. reqwest clients are cached by verify-TLS and the matched certificate; each
+  redirect hop picks its own. Through a proxy, `dns` is the proxy lookup and `connect` includes
+  the CONNECT or SOCKS handshake and TLS. Errors and `Debug` never print a passphrase or proxy
+  password.
+- Cookies: each engine has a per-workspace jar (`cookie_store`, RFC 6265 domain, path, Secure,
+  HttpOnly and expiry, without the public suffix list) consulted on every hop of every send.
+  `Engine::persist_cookies` keeps it in the app state (schema v7, table `cookies`, written
+  through on every change), never in the workspace; `Engine::{cookies, add_cookie,
+  delete_cookie, clear_cookies}` edit it. The jar's `Cookie` header is recorded masked whole like
+  every `Cookie` header. `reqflux run` keeps a jar for the run only, as Newman does.
 - Timings (`Response.timings`: one `HopTimings` per hop, redirects included, with DNS, connect,
   TLS, first byte and download) come from a timed `getaddrinfo` resolver and a connector layer,
   attributed to the send through a Tokio task-local; the download time goes on the last hop.
@@ -840,7 +852,8 @@ The user's configuration is `$XDG_CONFIG_HOME/reqflux/config.toml` (`~/.config/r
 when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `system`, written by
 `Toggle theme` with a format-preserving editor that keeps comments, order and unknown keys),
 `font_size` (the interface font size in px, 13 by default, clamped to 8..=32 as in DBFlux) and
-`[mcp]`. `reqflux_engine::config` edits `font_size`, the `[mcp]` rules and the
+`[mcp]` and `[network]` (certificates and proxies are per user and machine, never in a
+workspace file; see below). `reqflux_engine::config` edits `font_size`, the `[mcp]` rules and the
 `hosts`/`environments` lists the same way (`set_font_size`, `set_rule`, `add_list_entry`,
 `remove_list_entry`); removing the last list entry removes the key (no list means any). A missing file is the defaults; a file that does not parse is reported (path, line and
 column, never the source line) as an error in the window's Problems panel and by `reqflux mcp`,
@@ -858,14 +871,35 @@ environments = ["dev", "staging"]                                  # absent: any
 
 [mcp.workspaces."01J00000000000000000000900"]
 destructive = "deny"
+
+[network]
+ca_bundle = "/etc/ssl/corp-ca.pem"        # absolute; ~/ expands
+[network.proxy]
+mode = "manual"                           # "system" (default) | "none" | "manual"
+url = "http://proxy.corp:3128"            # http, https, socks5, socks5h
+username = "me"
+bypass = ["localhost", ".corp"]           # NO_PROXY syntax
+[[network.certificates]]
+host = "api.example.com"                  # "*.x" matches subdomains only
+port = 8443                               # optional: any port when absent
+cert = "/c/client.pem"
+key = "/c/client-key.pem"                 # or: pkcs12 = "/c/client.p12"
+[network.workspaces."01J00000000000000000000900".proxy]
+mode = "none"
 ```
+
+Passwords and passphrases live only in the OS keyring, service `reqflux`: the proxy password
+under `network/proxy` (a workspace's under `network/workspace/<id>/proxy`) and a certificate
+passphrase under `network/certificate/<host>[:<port>]`. A `[network]` entry that does not read
+or has a relative path is skipped with a warning that never carries a secret.
 
 The engine tools are policed (`reqflux_engine::policy`); every tool has a class: read
 (`workspace_open`, `workspace_info`, `request_get`, `history_list`, `history_get`,
-`environment_list`, `variables_get`), write (`workspace_create`, `collection_create`,
+`environment_list`, `variables_get`, `cookie_list` with values masked), write (`workspace_create`, `collection_create`,
 `folder_create`, `request_create`, `item_rename`, `item_duplicate`, `item_move`, `request_update`,
 `environment_create`, `environment_rename`, `variable_set`), execute (`request_execute`, `collection_run`) and
-destructive (`item_delete`, `environment_delete`, `variable_delete`). Each class is `allow`,
+destructive (`item_delete`, `environment_delete`, `variable_delete`, `cookie_delete`,
+`cookie_clear`). Each class is `allow`,
 `ask` or `deny`; `ask` asks the running window (below). The effective rule is the strictest
 of the user's `[mcp]`, the matching `[mcp.workspaces."<id>"]` (the id in any case) and the open
 workspace's `reqflux.toml` `[mcp]`, and the effective `hosts` and `environments` are what every

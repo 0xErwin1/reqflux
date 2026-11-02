@@ -62,13 +62,23 @@
 //! # User configuration
 //!
 //! [`config`] reads and edits the user's config file,
-//! `$XDG_CONFIG_HOME/reqflux/config.toml`: the theme and the MCP policy.
+//! `$XDG_CONFIG_HOME/reqflux/config.toml`: the theme, the MCP policy and the network
+//! settings.
+//!
+//! # Network
+//!
+//! [`Engine::apply_network`] applies `[network]` of the config file (a custom CA bundle,
+//! client certificates matched by host and port, and the proxy), with its passwords read from
+//! the secret store under [`NetworkSecret`] accounts, to every send of the engine. Each
+//! engine has a cookie jar ([`Engine::cookies`]) that captures `Set-Cookie` and sends
+//! matching cookies; [`Engine::persist_cookies`] keeps it in the app state.
 
 pub mod approvals;
 pub mod audit;
 mod auth;
 mod code;
 pub mod config;
+mod cookies;
 mod create;
 mod current;
 mod engine;
@@ -77,6 +87,7 @@ mod examples;
 mod guard;
 mod import;
 mod managed;
+mod network;
 pub mod policy;
 mod prepare;
 mod runner;
@@ -90,6 +101,7 @@ mod variables;
 
 pub use auth::{Browser, OAuthBrowser, OAuthFetch, OAuthTokenState, SystemBrowser};
 pub use code::code;
+pub use cookies::{CookieError, StoredCookie};
 pub use create::create_workspace;
 pub use current::CurrentValues;
 pub use engine::{Engine, Executed, Execution, PendingExecution};
@@ -104,6 +116,7 @@ pub use managed::{
     create_managed_workspace, create_managed_workspace_in, is_managed, is_managed_in,
     managed_workspaces_dir,
 };
+pub use network::{NetworkSecret, network_settings};
 pub use prepare::{
     DEFAULT_TIMEOUT_MS, ExecuteOptions, Inspection, Prepared, Span, inspect, prepare, prepare_draft,
 };
@@ -111,7 +124,10 @@ pub use prepare::{
 /// only.
 pub use reqflux_core::jsonpath::{self, JsonPathError};
 /// The transport types front ends read, re-exported so they depend on the engine only.
-pub use reqflux_http::{HopTimings, HttpError, PreparedBody, PreparedRequest, Response, Timings};
+pub use reqflux_http::{
+    CertificateFile, ClientCertificate, HopTimings, HttpError, ManualProxy, NetworkSettings,
+    PreparedBody, PreparedRequest, ProxySetting, Response, Timings,
+};
 pub use reqflux_script::{
     ConsoleEntry, ConsoleLevel, NextRequest, ScriptOutcome, TestResult, VariableScope,
     VariableWrite,
