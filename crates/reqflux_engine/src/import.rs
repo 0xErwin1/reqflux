@@ -354,12 +354,14 @@ fn mask_header_values(masker: &Masker, headers: Option<&mut Value>) {
 }
 
 /// `text`, Postman's `Key: value` per line header string, with each value masked by the
-/// `header_for_agent` rule; a line without a colon stays as it is.
+/// `header_for_agent` rule; a disabled header (`// Key: value`) is masked by its name
+/// without the `//`, which stays in the text. A line without a colon stays as it is.
 fn mask_header_lines(masker: &Masker, text: &str) -> String {
     text.split('\n')
         .map(|line| match line.split_once(':') {
             Some((key, value)) => {
-                let (_, value) = masker.header_for_agent(key.trim(), value.trim());
+                let name = key.trim().trim_start_matches("//").trim();
+                let (_, value) = masker.header_for_agent(name, value.trim());
                 format!("{key}: {value}")
             }
             None => line.to_owned(),

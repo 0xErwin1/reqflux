@@ -340,7 +340,9 @@ fn an_unmappable_response_with_a_header_string_keeps_no_credential() {
     if let Some(response) = document["item"][0]["response"][2].as_object_mut() {
         response.insert(
             "header".to_owned(),
-            serde_json::json!("Content-Type: text/plain\nAuthorization: Bearer kept-secret-4"),
+            serde_json::json!(
+                "Content-Type: text/plain\nAuthorization: Bearer kept-secret-4\n// Cookie: sid=kept-secret-5"
+            ),
         );
     }
     let dir = temp();
@@ -371,7 +373,7 @@ fn an_unmappable_response_with_a_header_string_keeps_no_credential() {
     assert_eq!(
         kept["response"][0]["header"],
         serde_json::json!(format!(
-            "Content-Type: text/plain\nAuthorization: Bearer {MASK}"
+            "Content-Type: text/plain\nAuthorization: Bearer {MASK}\n// Cookie: {MASK}"
         ))
     );
 }
