@@ -132,6 +132,7 @@ button{font:inherit;white-space:nowrap}
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
   <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+  <symbol id="i-rows" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/></symbol>
   <symbol id="i-cols" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 3v18"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
   <symbol id="i-test" viewBox="0 0 24 24"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></symbol>
@@ -200,8 +201,9 @@ button{font:inherit;white-space:nowrap}
           <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
           <span style="flex-grow:1"></span>
           <span role="radiogroup" aria-label="Layout" style="display:flex;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px">
-            <span role="radio" aria-checked="false" title="Side by side (Ctrl+Alt+1)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span>
-            <span role="radio" aria-checked="true" class="c4" title="Document (Ctrl+Alt+2)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;background:#1A181E;color:#F7F4F7"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span>
+            <span role="radio" aria-checked="false" title="Stacked, the layout in use today (Ctrl+Alt+1)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-rows"/></svg>Stacked</span>
+            <span role="radio" aria-checked="false" title="Side by side (Ctrl+Alt+2)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span>
+            <span role="radio" aria-checked="true" class="c4" title="Document (Ctrl+Alt+3)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;background:#1A181E;color:#F7F4F7"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span>
           </span>
         </div>
 
@@ -291,7 +293,7 @@ button{font:inherit;white-space:nowrap}
   <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;border-bottom:1px solid #232128">
     <span class="c6 tab on"><span class="mt post" style="width:auto">POST</span>Create invoice<span class="dia" style="background:#9DB1FF"></span></span>
     <span style="flex-grow:1"></span>
-    <span class="seg" style="width:max-content"><span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span></span>
+    <span class="seg" style="width:max-content"><span><svg class="ico" style="width:13px;height:13px"><use href="#i-rows"/></svg>Stacked</span><span class="c4 on"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span><span><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span></span>
   </div>
   <div style="display:flex;flex-grow:1;min-height:0">
     <div style="flex-basis:46%;padding:10px 12px;border-right:1px solid #232128">
