@@ -16,9 +16,19 @@ next to the code it calls, where collections diff, merge and review cleanly in g
 
 Linux only for now.
 
-- **Nix**: from a clone of this repository, `nix build .#reqflux` builds the package
-  (binary, desktop entry and icons) into `./result`; `nix profile install .#reqflux`
-  installs it; `nix run .#reqflux` starts the app directly.
+- **Nix, prebuilt nightly** (nothing compiles): `nix run github:0xErwin1/reqflux/nightly#reqflux-nightly`.
+  Use the `nightly` ref, not `main`: only that ref holds the hash of the published tarball. The
+  package installs `reqflux-nightly` and a "ReqFlux Nightly" desktop entry. With home-manager:
+
+  ```nix
+  inputs.reqflux.url = "github:0xErwin1/reqflux/nightly";
+  home.packages = [ inputs.reqflux.packages.${pkgs.system}.reqflux-nightly ];
+  ```
+
+  The flake also exports `overlays.default` (`pkgs.reqflux-nightly`, `pkgs.reqflux-source`,
+  `pkgs.reqflux`).
+- **Nix, from source**: `nix run github:0xErwin1/reqflux#reqflux-source`, or from a clone
+  `nix build .#reqflux-source`.
 - **Nightly**: once a day, when `main` has new commits, a prerelease under the single tag
   `nightly` is replaced with a fresh `reqflux-linux-amd64.tar.gz` (binary, desktop entry and
   icons); see the [releases page](https://github.com/0xErwin1/reqflux/releases).
@@ -33,6 +43,9 @@ cargo run            # opens the ReqFlux window on your last workspace (Personal
 cargo run -- ~/billing                     # opens the workspace in the directory ~/billing
 cargo run -- run billing-api/invoices/list-invoices --workspace ~/billing --env staging
                      # sends one request, body to stdout, summary to stderr
+cargo run -- run billing-api --workspace ~/billing --environment staging --bail
+                     # runs a collection or folder, one report line per request;
+                     # --json for a machine report, exit 1 on a failed request or test
 scripts/lint.py      # fmt, clippy, file-size and layering checks
 cargo nextest run    # tests
 ```
