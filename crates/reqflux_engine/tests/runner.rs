@@ -604,3 +604,66 @@ fn every_send_is_recorded_in_history_with_secrets_masked() {
     let debug = format!("{events:?}{summary:?}");
     assert!(!debug.contains("hunter2"), "{debug}");
 }
+
+#[test]
+fn each_step_reports_the_variables_it_could_not_resolve() {
+    let rt = runtime();
+    let server = server(&rt, &["a", "b", "c", "d"]);
+    let dir = tree(&server.uri());
+    let root = dir.path();
+    write(
+        root,
+        "collections/api/collection.toml",
+        &format!(
+            "id = \"{}\"\nname = \"Api\"\norder = [\"a\", \"f\", \"d\"]\n\n\
+             [[variables]]\nkey = \"secret\"\nsecret = true\n",
+            id_text(3)
+        ),
+    );
+    write(
+        root,
+        "collections/api/d.req.toml",
+        &format!(
+            "id = \"{}\"\nname = \"D\"\nmethod = \"GET\"\n\
+             url = \"{}/d?k={{{{secret}}}}&w={{{{who}}}}\"\n",
+            id_text(13),
+            server.uri()
+        ),
+    );
+    let engine = engine(root);
+
+    let (summary, events) = run_with(
+        &engine,
+        "api",
+        &RunOptions::default(),
+        &CancellationToken::new(),
+        None,
+    );
+    let unresolved: Vec<Vec<String>> = summary
+        .results
+        .iter()
+        .map(|result| result.unresolved.clone())
+        .collect();
+    assert_eq!(
+        unresolved,
+        [
+            vec![],
+            vec![],
+            vec![],
+            vec!["secret".to_owned(), "who".to_owned()]
+        ]
+    );
+    let finished: Vec<Vec<String>> = events
+        .iter()
+        .filter_map(|event| match event {
+            RunEvent::Finished(result) => Some(result.unresolved.clone()),
+            RunEvent::Started { .. } => None,
+        })
+        .collect();
+    assert_eq!(finished, unresolved, "the events carry them too");
+    assert_eq!(
+        summary.results[3].status,
+        Some(200),
+        "the request still went out"
+    );
+}

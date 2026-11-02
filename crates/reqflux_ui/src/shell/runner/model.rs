@@ -38,6 +38,21 @@ pub(crate) struct PlanRow {
     pub(crate) method: String,
     /// The folder the request sits in, else its collection.
     pub(crate) folder: String,
+    /// Whether the request sits at the collection root, in no folder.
+    pub(crate) at_root: bool,
+}
+
+/// A line of the setup's order list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OrderLine {
+    /// The header of a run of requests in one folder, before the plan row at `index`.
+    Folder {
+        index: usize,
+        name: String,
+        count: usize,
+    },
+    /// The plan row at `index`.
+    Request(usize),
 }
 
 /// Where the run is.
@@ -132,7 +147,11 @@ impl RunModel {
             .iter()
             .map(|item| {
                 let location = locate(roots, &item.id);
+                let at_root = location
+                    .as_ref()
+                    .is_some_and(|location| location.folders.is_empty());
                 PlanRow {
+                    at_root,
                     id: item.id.clone(),
                     name: item.name.clone(),
                     method: location
@@ -260,7 +279,35 @@ impl RunModel {
                 name: item.name.clone(),
                 method: String::new(),
                 folder: String::new(),
+                at_root: false,
             })
+    }
+
+    /// The setup's order list: every request in run order, a header before each run of
+    /// requests in one folder; a request at the collection root sits under no header, as
+    /// the artboard groups by folder only.
+    pub(crate) fn order(&self) -> Vec<OrderLine> {
+        let mut lines = Vec::new();
+        let mut folder: Option<&str> = None;
+        for (index, plan) in self.plan.iter().enumerate() {
+            let group = (!plan.at_root).then_some(plan.folder.as_str());
+            if group.is_some() && folder != group {
+                let count = self
+                    .plan
+                    .iter()
+                    .skip(index)
+                    .take_while(|row| !row.at_root && row.folder == plan.folder)
+                    .count();
+                lines.push(OrderLine::Folder {
+                    index,
+                    name: plan.folder.clone(),
+                    count,
+                });
+            }
+            folder = group;
+            lines.push(OrderLine::Request(index));
+        }
+        lines
     }
 
     /// The result of step `step`.
@@ -491,6 +538,20 @@ fn status_tone(code: u16) -> Tone {
         500..=599 => Tone::Danger,
         _ => Tone::Muted,
     }
+}
+
+/// `Unresolved: {{a}}, {{b}}`, the variables the step sent literally; `None` when every
+/// variable resolved.
+pub(crate) fn unresolved_text(result: &StepResult) -> Option<String> {
+    if result.unresolved.is_empty() {
+        return None;
+    }
+    let names: Vec<String> = result
+        .unresolved
+        .iter()
+        .map(|name| format!("{{{{{name}}}}}"))
+        .collect();
+    Some(format!("Unresolved: {}", names.join(", ")))
 }
 
 /// `3 passed`, `2 failed · 1 passed`, or a dash without tests.

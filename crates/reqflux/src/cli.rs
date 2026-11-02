@@ -78,6 +78,9 @@ Nothing is written to the workspace or the app state. Ctrl-C cancels the run.
           or `<METHOD> <name> -> error: <message>`, a `  fail <test>: <message>` line per
           failing test, then `<n> requests, <n> failed; tests <n> passed, <n> failed;
           <ms> ms` and why the run ended early; with --json, one JSON report instead
+  stderr  one `warning: unresolved variable {{<name>}}` line per unresolved variable of
+          each request, as it finishes; with --json each result also lists them in
+          `unresolved`
 
 ",
     "\

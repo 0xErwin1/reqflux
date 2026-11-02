@@ -13,7 +13,7 @@ use gpui_kit_assets::IconName;
 use reqflux_engine::{StepResult, TestResult};
 
 use super::RunTab;
-use super::model::tests_text;
+use super::model::{tests_text, unresolved_text};
 use super::view::tone_color;
 use crate::shell::request::{elapsed_text, size_text, ui};
 use crate::shell::rows::part;
@@ -128,8 +128,9 @@ pub(super) fn render(
         .into_any_element()
 }
 
-/// The tests of the step, `runner-test-<n>` from 1, a failing one with its message; or its
-/// error when it got no response.
+/// The tests of the step, `runner-test-<n>` from 1, a failing one with its message; its
+/// error when it got no response; and the variables it sent unresolved,
+/// `runner-result-unresolved`, as a single send warns of them.
 fn tests(result: &StepResult, cx: &mut Context<Shell>) -> gpui::Stateful<Div> {
     let colors = bolt::colors(cx);
     let (counts, tone) = tests_text(result);
@@ -160,6 +161,19 @@ fn tests(result: &StepResult, cx: &mut Context<Shell>) -> gpui::Stateful<Div> {
                 .py(Spacing::SM)
                 .text_color(colors.danger)
                 .child(error.clone()),
+        );
+    }
+    if let Some(text) = unresolved_text(result) {
+        column = column.child(
+            ui::role(
+                text_region("runner-result-unresolved"),
+                TextVariant::Code,
+                cx,
+            )
+            .aria_label(text.clone())
+            .py(Spacing::SM)
+            .text_color(colors.warning)
+            .child(text),
         );
     }
     if result.tests.is_empty() {

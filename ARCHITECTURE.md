@@ -109,7 +109,9 @@ and nothing reaches disk. `pm.setNextRequest(id|name)` jumps (an id first, then 
 with that name); `null` stops; an unknown name ends the run as a failure. At most
 `RunOptions::max_steps` sends (default 1000) end a jump loop. A cancellation token stops the run
 and cancels the send in flight; `bail` stops at the first failed step. Events (`Started`,
-`Finished(StepResult)`) and the summary carry only masked URL, error and test text. A caller that
+`Finished(StepResult)`) and the summary carry only masked URL, error and test text; each
+`StepResult` also carries the variable names that did not resolve and went out literally
+(`StepResult::unresolved`), as `Execution::unresolved` does for a single send. A caller that
 passes the app state gets one history entry per send; pre-send failures and cancelled sends are
 not recorded.
 
@@ -1162,7 +1164,9 @@ the app state (`AppState::path`), so every send is recorded in history; its even
 window through a channel the document polls. Stop cancels the run's token. The results grid is
 `bolt`'s grid (its header row and the determinate progress bar are `// bolt gap:` stand-ins);
 selecting a finished row shows its tests beside the response history recorded for that send
-(the last send when a jump ran it twice). When the run ends, the current values its scripts
+(the last send when a jump ran it twice), and names the variables that step sent unresolved
+above its tests. The setup's order list heads each folder's requests with the folder and its
+count; requests at the collection root sit under no header. When the run ends, the current values its scripts
 changed (`RunSummary::current` against the values it started with) are persisted like a single
 send's script writes.
 

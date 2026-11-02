@@ -98,6 +98,10 @@ pub struct StepResult {
     /// Why there is no response, masked: the request did not prepare, the host guard
     /// refused it, the transport failed or the run was cancelled.
     pub error: Option<String>,
+    /// Variable names that did not resolve and went out literally, in first-occurrence
+    /// order, as [`Execution::unresolved`](crate::Execution::unresolved) reports them for a
+    /// single send; empty when the request did not reach the send.
+    pub unresolved: Vec<String>,
 }
 
 impl StepResult {

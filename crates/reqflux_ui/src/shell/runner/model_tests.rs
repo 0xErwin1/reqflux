@@ -4,7 +4,10 @@ use reqflux_engine::{
     CurrentValues, RunEnd, RunEvent, RunItem, RunSummary, SecretScope, StepResult, TestResult,
 };
 
-use super::{Change, Phase, RowStatus, RunModel, TargetKind, Tone, cells, changes};
+use super::{
+    Change, OrderLine, Phase, RowStatus, RunModel, TargetKind, Tone, cells, changes,
+    unresolved_text,
+};
 use crate::shell::tree_model::{Node, NodeKind};
 
 fn node(id: &str, name: &str, kind: NodeKind, children: Vec<Node>) -> Node {
@@ -103,6 +106,7 @@ fn result(step: usize, id: &str, status: Option<u16>, tests: Vec<TestResult>) ->
         timings: None,
         tests,
         error: status.is_none().then(|| "connection refused".to_owned()),
+        unresolved: Vec::new(),
     }
 }
 
@@ -122,6 +126,68 @@ fn statuses(model: &RunModel) -> Vec<(String, RowStatus)> {
         .into_iter()
         .map(|row| (row.plan.name, row.status))
         .collect()
+}
+
+#[test]
+fn the_order_heads_each_folder_and_leaves_root_requests_unheaded() {
+    let folder = |index: usize, name: &str, count: usize| OrderLine::Folder {
+        index,
+        name: name.to_owned(),
+        count,
+    };
+    assert_eq!(
+        model().order(),
+        [
+            folder(0, "invoices", 2),
+            OrderLine::Request(0),
+            OrderLine::Request(1),
+            folder(2, "customers", 1),
+            OrderLine::Request(2),
+        ],
+        "folders keep their header and count"
+    );
+
+    let mut roots = roots();
+    if let Some(collection) = roots.first_mut() {
+        collection
+            .children
+            .insert(0, request("r0", "Health", "GET"));
+        collection.children.push(request("r4", "Slow", "GET"));
+    }
+    let mut items = items();
+    items.insert(0, item("r0", "Health"));
+    items.push(item("r4", "Slow"));
+    let Some(model) = RunModel::new(&roots, "c", &items, None) else {
+        panic!("the collection has a run");
+    };
+    assert_eq!(
+        model.order(),
+        [
+            OrderLine::Request(0),
+            folder(1, "invoices", 2),
+            OrderLine::Request(1),
+            OrderLine::Request(2),
+            folder(3, "customers", 1),
+            OrderLine::Request(3),
+            OrderLine::Request(4),
+        ]
+    );
+    assert_eq!(
+        model.plan.first().map(|row| row.folder.as_str()),
+        Some("Billing API"),
+        "the grid still names the collection of a root request"
+    );
+}
+
+#[test]
+fn the_unresolved_text_names_every_variable_sent_literally() {
+    let mut step = result(0, "r1", Some(200), Vec::new());
+    assert_eq!(unresolved_text(&step), None);
+    step.unresolved = vec!["secret".to_owned(), "who".to_owned()];
+    assert_eq!(
+        unresolved_text(&step).as_deref(),
+        Some("Unresolved: {{secret}}, {{who}}")
+    );
 }
 
 #[test]

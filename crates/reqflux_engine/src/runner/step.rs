@@ -38,6 +38,7 @@ impl Engine {
             timings: None,
             tests: Vec::new(),
             error: None,
+            unresolved: Vec::new(),
         };
         let sent_at = now_millis();
         let pending = match self.prepare_execution(&item.id, options) {
@@ -61,6 +62,7 @@ impl Engine {
         let sent = execution.sent.clone();
         result.method = Some(sent.method.clone());
         result.url = Some(sent.url.clone());
+        result.unresolved.clone_from(&execution.unresolved);
         let pre_request = execution.scripts.clone();
         let step_cancel = execution.cancel.clone();
         let (run, request) = (cancel.clone(), step_cancel.clone());

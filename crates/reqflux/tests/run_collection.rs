@@ -200,6 +200,35 @@ fn a_collection_run_prints_one_line_per_request_and_exits_zero() {
 }
 
 #[test]
+fn a_step_with_an_unresolved_variable_warns_like_a_single_send() {
+    let rt = runtime();
+    let server = server(&rt);
+    let dir = workspace(&server.uri());
+    // Without the environment `second` asks for `/{{path}}` literally.
+    let (output, _state) = run(&dir, &["api"]);
+    assert_eq!(
+        text(&output.stderr),
+        "warning: unresolved variable {{path}}\n"
+    );
+    let stdout = normalized(&text(&output.stdout));
+    let lines: Vec<&str> = stdout.lines().collect();
+    assert_eq!(lines[0], "GET First -> 200 OK in <t> ms, 2 B, tests 1/1");
+    assert_eq!(lines.len(), 3, "{stdout}");
+
+    let (json_output, _state) = run(&dir, &["api", "--json"]);
+    assert_eq!(
+        text(&json_output.stderr),
+        "warning: unresolved variable {{path}}\n"
+    );
+    let report = json(&json_output);
+    assert_eq!(report["results"][0]["unresolved"], serde_json::json!([]));
+    assert_eq!(
+        report["results"][1]["unresolved"],
+        serde_json::json!(["path"])
+    );
+}
+
+#[test]
 fn a_folder_runs_alone_and_env_is_still_accepted() {
     let rt = runtime();
     let server = server(&rt);
@@ -325,6 +354,7 @@ fn json_prints_a_machine_report() {
                     "size": 2,
                     "tests": [{ "name": "is ok", "passed": true, "message": null }],
                     "error": null,
+                    "unresolved": [],
                 },
                 {
                     "step": 1,
@@ -339,6 +369,7 @@ fn json_prints_a_machine_report() {
                     "size": 2,
                     "tests": [],
                     "error": null,
+                    "unresolved": [],
                 },
             ],
         })

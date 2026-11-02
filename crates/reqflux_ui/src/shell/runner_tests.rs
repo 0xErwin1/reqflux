@@ -186,6 +186,51 @@ fn run_opens_the_setup_in_its_own_active_tab(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_order_heads_folders_only_and_root_requests_sit_under_no_header(cx: &mut TestAppContext) {
+    let port = serve(Server::Ok);
+    let dir = workspace(port, port, FIRST_TEST);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_run(cx, &shell, COLLECTION);
+
+    assert!(
+        bounds(cx, "runner-order-folder-0").is_none(),
+        "First sits at the collection root"
+    );
+    present(cx, "runner-order-folder-1");
+}
+
+#[gpui::test]
+fn a_step_result_lists_its_unresolved_variables(cx: &mut TestAppContext) {
+    let port = serve(Server::Ok);
+    let dir = workspace(port, port, FIRST_TEST);
+    write(
+        dir.path(),
+        "collections/api/first.req.toml",
+        &format!(
+            "id = \"{FIRST}\"\nname = \"First\"\nmethod = \"GET\"\n\
+             url = \"http://127.0.0.1:{port}/first?k={{{{missing}}}}\"\n"
+        ),
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_run(cx, &shell, COLLECTION);
+    click(cx, "runner-start");
+    settle_run(cx, &shell);
+
+    cx.update(|_, cx| shell.update(cx, |shell, cx| shell.select_run_step(0, cx)));
+    cx.run_until_parked();
+    present(cx, "runner-result-unresolved");
+    cx.update(|_, cx| shell.update(cx, |shell, cx| shell.select_run_step(1, cx)));
+    cx.run_until_parked();
+    present(cx, "runner-result");
+    assert!(
+        bounds(cx, "runner-result-unresolved").is_none(),
+        "Second resolved everything"
+    );
+}
+
+#[gpui::test]
 fn a_run_sends_every_request_records_history_and_persists_script_writes(cx: &mut TestAppContext) {
     let port = serve(Server::Ok);
     let dir = workspace(port, port, FIRST_TEST);

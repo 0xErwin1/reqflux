@@ -16,7 +16,7 @@ use gpui::{
 use gpui_kit_assets::IconName;
 
 use super::RunTab;
-use super::model::PlanRow;
+use super::model::{OrderLine, PlanRow};
 use crate::shell::request::ui;
 use crate::shell::rows::part;
 use crate::shell::{Shell, region, text_region};
@@ -263,25 +263,22 @@ fn environment_menu(
 }
 
 /// The run order: a header row per folder with its count, then its requests numbered in
-/// run order with their method.
+/// run order with their method; requests at the collection root have no header.
 fn order(shell: &Shell, run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     let mut rows: Vec<AnyElement> = Vec::new();
-    let mut folder: Option<&str> = None;
-    for (index, plan) in run.model.plan.iter().enumerate() {
-        if folder != Some(plan.folder.as_str()) {
-            folder = Some(plan.folder.as_str());
-            let count = run
-                .model
-                .plan
-                .iter()
-                .skip(index)
-                .take_while(|row| row.folder == plan.folder)
-                .count();
-            rows.push(folder_row(index, &plan.folder, count, cx));
+    for line in run.model.order() {
+        match line {
+            OrderLine::Folder { index, name, count } => {
+                rows.push(folder_row(index, &name, count, cx));
+            }
+            OrderLine::Request(index) => {
+                if let Some(plan) = run.model.plan.get(index) {
+                    let drafted = shell.drafts.contains_key(&plan.id);
+                    rows.push(order_row(index + 1, plan, drafted, cx));
+                }
+            }
         }
-        let drafted = shell.drafts.contains_key(&plan.id);
-        rows.push(order_row(index + 1, plan, drafted, cx));
     }
     region("runner-order")
         .role(Role::List)

@@ -19,7 +19,9 @@ use crate::run::size;
 const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Runs `target` and prints the report: one line per request as it finishes, then the
-/// summary; with `json`, one JSON document at the end. Exit code 0 when the run passed, 1
+/// summary; with `json`, one JSON document at the end. Either way each step's unresolved
+/// variables go to stderr as it finishes, one `warning: unresolved variable {{name}}` line
+/// each, as a single send warns. Exit code 0 when the run passed, 1
 /// otherwise. `reqflux run` never touches the app state, so the run records no history.
 pub(crate) fn run(
     engine: &Engine,
@@ -37,9 +39,13 @@ pub(crate) fn run(
     let mut stdout = io::stdout().lock();
     let mut write_failed = false;
     let summary = engine.run_collection(target, &options, &cancel, None, &mut |event| {
-        if let (RunEvent::Finished(result), false) = (event, as_json)
-            && let Err(error) = write_step(&mut stdout, result)
-        {
+        let RunEvent::Finished(result) = event else {
+            return;
+        };
+        for name in &result.unresolved {
+            eprintln!("warning: unresolved variable {{{{{name}}}}}");
+        }
+        if !as_json && let Err(error) = write_step(&mut stdout, result) {
             write_failed = true;
             log::error!("could not write the report: {error}");
         }
@@ -199,6 +205,7 @@ fn report(target: &str, summary: &RunSummary) -> Value {
                 "timings": result.timings.as_ref().map(timings),
                 "tests": tests,
                 "error": result.error,
+                "unresolved": result.unresolved,
             })
         })
         .collect();
