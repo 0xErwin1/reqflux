@@ -33,9 +33,9 @@
     {
       "file": "05-request-auth.html",
       "title": "Request auth",
-      "tradeoff": "DBFlux form rows; inheritance visible",
+      "tradeoff": "DBFlux form rows; inheritance visible; OAuth 2.0 shows token state, never the token",
       "width": 1440,
-      "height": 1435
+      "height": 3570
     },
     {
       "file": "06-response-sending.html",

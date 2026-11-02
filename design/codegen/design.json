@@ -1,0 +1,21 @@
+{
+  "title": "Generate code and curl paste",
+  "brief": "Generate code for the request (curl, HTTPie, Python requests, JavaScript fetch), opened from the request line, the command palette and the tree menu, read-only with Copy and secrets kept as {{variables}}; pasting a curl command into the URL bar replaces the request and reports what was imported, the ignored options and Undo.",
+  "feature": "odd/tasks/v1-features.md",
+  "artboards": [
+    {
+      "file": "01-dialog-and-toast.html",
+      "title": "Dialog and toast",
+      "tradeoff": "Focused and familiar (palette-style dialog); hides the request while open, and the paste report vanishes with the toast",
+      "width": 1440,
+      "height": 2206
+    },
+    {
+      "file": "02-code-tab-and-banner.html",
+      "title": "Code tab and banner",
+      "tradeoff": "Code stays live beside the draft and the paste report stays in place until dismissed; takes the response pane and adds a fourth response tab",
+      "width": 1440,
+      "height": 2324
+    }
+  ]
+}

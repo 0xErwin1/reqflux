@@ -77,6 +77,15 @@ button{font:inherit;white-space:nowrap}
 .state{display:flex;flex-direction:column;gap:10px;margin-top:28px}
 .state-head{display:flex;align-items:baseline;gap:12px}
 .frame{width:1344px;box-sizing:border-box;background:#100F13;box-shadow:#232128 0 0 0 1px inset;overflow:hidden}
+/* digest, SigV4 and OAuth 2.0 states, values from 11-import-postman.html */
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;font-size:11px;font-weight:600;white-space:nowrap}
+.banner{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;font-size:13px;line-height:1.45}
+.sk{display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em}
+.mask{flex-grow:1;color:#8E8996;letter-spacing:.1em}
+.pri{background:#2B45B8;color:#FFF;font-weight:600}
+.opt{display:flex;align-items:center;gap:10px;height:30px;padding:0 12px;color:#C6C3CC;font-size:12.5px}
+.dim{opacity:.5}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -493,6 +502,193 @@ button{font:inherit;white-space:nowrap}
         <span><svg class="ico" style="width:13px;height:13px"><use href="#i-hash"/></svg>Query</span>
       </div>
     </div>
+  </div>
+</div></div>
+
+<!-- New auth types (v1-features S3). Source is "This request" in every crop below, as in the window above. -->
+<div class="state"><div class="state-head"><h3>Digest</h3><p>Username and a masked password; Algorithm is a select. The first send takes the server's challenge and answers it.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow">
+      <span class="lb">Type</span>
+      <div class="c6 sel" style="width:240px;box-sizing:border-box"><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-key"/></svg><span style="flex-grow:1">Digest</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
+    </div>
+    <div class="frow">
+      <span class="lb">Username</span>
+      <div class="c6 field m" style="width:360px;color:#F7F4F7">billing-bot</div>
+    </div>
+    <div class="frow">
+      <span class="lb">Password</span>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+    </div>
+    <div class="frow">
+      <span class="lb">Algorithm</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 sel m" style="width:240px;box-sizing:border-box"><span style="flex-grow:1">SHA-256</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
+        <span class="hint">MD5, MD5-sess, SHA-256, SHA-256-sess, SHA-512-256. Realm, nonce and qop come from the server's challenge on the first send.</span>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>AWS Signature v4</h3><p>Both keys and the session token are secrets; region and service are plain. The signature is computed at send time.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow">
+      <span class="lb">Type</span>
+      <div class="c6 sel" style="width:240px;box-sizing:border-box"><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-key"/></svg><span style="flex-grow:1">AWS Signature v4</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
+    </div>
+    <div class="frow">
+      <span class="lb">Access key</span>
+      <div class="c6 field m" style="width:360px;color:#F7F4F7"><span class="var">{{aws_access_key_id}}</span></div>
+    </div>
+    <div class="frow">
+      <span class="lb">Secret key</span>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+    </div>
+    <div class="frow">
+      <span class="lb">Session token</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px"><span style="flex-grow:1;color:#8E8996">Optional</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+        <span class="hint">Only for temporary credentials (STS, SSO).</span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Region</span>
+      <div class="c6 field m" style="width:240px;color:#F7F4F7">eu-west-1</div>
+    </div>
+    <div class="frow">
+      <span class="lb">Service</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:240px;color:#F7F4F7">execute-api</div>
+        <span class="hint">Send adds Authorization, X-Amz-Date and X-Amz-Content-Sha256, plus X-Amz-Security-Token with a session token.</span>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · grant type</h3><p>Grant type is a select; the rows below it change with the grant.</p></div>
+<div class="frame" style="height:236px;position:relative">
+  <div style="padding:2px 16px 8px">
+    <div class="frow">
+      <span class="lb">Type</span>
+      <div class="c6 sel" style="width:240px;box-sizing:border-box"><svg class="ico" style="width:14px;height:14px;color:#8E8996"><use href="#i-key"/></svg><span style="flex-grow:1">OAuth 2.0</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div>
+    </div>
+    <div class="frow">
+      <span class="lb">Grant type</span>
+      <div class="c6 sel" style="width:300px;box-sizing:border-box;box-shadow:#9DB1FF 0 0 0 1px inset"><span style="flex-grow:1">Client credentials</span><svg class="ico" style="width:12px;height:12px;color:#9DB1FF;transform:rotate(180deg)"><use href="#i-down"/></svg></div>
+    </div>
+  </div>
+  <div class="c12" role="listbox" aria-label="Grant type" style="position:absolute;top:82px;left:202px;width:300px;padding:1px;background:#37333D">
+    <div style="background:#1A181E;clip-path:polygon(11.4px 0,100% 0,100% calc(100% - 11.4px),calc(100% - 11.4px) 100%,0 100%,0 11.4px);padding:6px 0">
+      <div class="opt" role="option" aria-selected="true" style="background:rgba(157,177,255,.12);box-shadow:inset 2px 0 0 #9DB1FF;color:#F7F4F7"><span style="flex-grow:1">Client credentials</span><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-check"/></svg></div>
+      <div class="opt" role="option"><span style="flex-grow:1">Authorization code with PKCE</span><span class="hint">browser</span></div>
+      <div class="opt" role="option">Password</div>
+      <div class="opt" role="option">Refresh token</div>
+    </div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · client credentials, valid token</h3><p>The token lives in the keyring; the form shows its state, never its value.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow"><span class="lb">Grant type</span>
+      <div class="c6 sel" style="width:300px;box-sizing:border-box"><span style="flex-grow:1">Client credentials</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div></div>
+    <div class="frow"><span class="lb">Token URL</span>
+      <div class="c6 field m" style="color:#F7F4F7"><span><span class="var">{{auth_url}}</span>/oauth/token</span></div></div>
+    <div class="frow"><span class="lb">Client ID</span>
+      <div class="c6 field m" style="width:360px;color:#F7F4F7">billing-service</div></div>
+    <div class="frow"><span class="lb">Client secret</span>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div></div>
+    <div class="frow"><span class="lb">Scopes</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="color:#F7F4F7">invoices:read invoices:write</div>
+        <span class="hint">Separated by spaces.</span>
+      </div></div>
+    <div class="frow" style="border-top:1px solid #232128;margin-top:6px;padding-top:11px"><span class="lb">Token</span>
+      <div style="display:flex;align-items:center;gap:10px;min-height:30px">
+        <span class="c4 badge" style="background:rgba(123,224,160,.12);color:#7BE0A0"><svg class="ico" style="width:11px;height:11px"><use href="#i-check"/></svg>Valid</span>
+        <span class="m" style="font-size:12.5px;color:#C6C3CC">until 14:32 · 52 min left</span>
+        <span class="hint">Bearer · invoices:read invoices:write · in the keyring</span>
+        <span style="flex-grow:1"></span>
+        <button class="c6 btn"><svg class="ico" style="width:14px;height:14px"><use href="#i-revert"/></svg>Get new token</button>
+        <button class="c6 btn"><svg class="ico" style="width:14px;height:14px"><use href="#i-ban"/></svg>Clear</button>
+      </div></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · token states</h3><p>The Token row alone. No token: Get new token is the primary action. Expired: same, with the expiry time.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow"><span class="lb">Token · none</span>
+      <div style="display:flex;align-items:center;gap:10px;min-height:30px">
+        <span class="c4 badge" style="background:#1A181E;color:#8E8996">No token</span>
+        <span class="hint">Get a token before sending.</span>
+        <span style="flex-grow:1"></span>
+        <button class="c6 btn pri"><svg class="ico" style="width:14px;height:14px"><use href="#i-key"/></svg>Get new token</button>
+      </div></div>
+    <div class="frow"><span class="lb">Token · expired</span>
+      <div style="display:flex;align-items:center;gap:10px;min-height:30px">
+        <span class="c4 badge" style="background:rgba(255,194,61,.12);color:#FFC23D"><svg class="ico" style="width:11px;height:11px"><use href="#i-clock"/></svg>Expired</span>
+        <span class="m" style="font-size:12.5px;color:#C6C3CC">at 09:10 today</span>
+        <span class="hint">A refresh token is kept; Get new token uses it first.</span>
+        <span style="flex-grow:1"></span>
+        <button class="c6 btn pri"><svg class="ico" style="width:14px;height:14px"><use href="#i-key"/></svg>Get new token</button>
+        <button class="c6 btn"><svg class="ico" style="width:14px;height:14px"><use href="#i-ban"/></svg>Clear</button>
+      </div></div>
+    <div class="frow"><span class="lb">Token · failed</span>
+      <div class="c8 banner" style="background:rgba(255,107,94,.08);box-shadow:#FF6B5E 3px 0 0 inset">
+        <svg class="ico" style="width:14px;height:14px;margin-top:2px;color:#FF6B5E"><use href="#i-alert"/></svg>
+        <span style="flex-grow:1"><span style="color:#F7F4F7">The token endpoint refused the request.</span> <span style="color:#8E8996">400 invalid_client from {{auth_url}}/oauth/token; the previous token was kept.</span></span>
+        <button class="c6 btn" style="margin:-4px 0">Try again</button>
+      </div></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · authorization code with PKCE, waiting for the browser</h3><p>Get new token opened the system browser; ReqFlux listens on a loopback redirect. The form is locked until the browser returns or you cancel.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow"><span class="lb">Grant type</span>
+      <div class="c6 sel dim" style="width:300px;box-sizing:border-box"><span style="flex-grow:1">Authorization code with PKCE</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div></div>
+    <div class="frow dim"><span class="lb">Auth URL</span>
+      <div class="c6 field m" style="color:#F7F4F7">https://accounts.acme.dev/oauth/authorize</div></div>
+    <div class="frow dim"><span class="lb">Token URL</span>
+      <div class="c6 field m" style="color:#F7F4F7">https://accounts.acme.dev/oauth/token</div></div>
+    <div class="frow dim"><span class="lb">Client ID</span>
+      <div class="c6 field m" style="width:360px;color:#F7F4F7">reqflux-desktop</div></div>
+    <div class="frow dim"><span class="lb">Client secret</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px"><span style="flex-grow:1;color:#8E8996">Optional</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+        <span class="hint">Leave empty for a public client; PKCE (S256) is always used.</span>
+      </div></div>
+    <div class="frow dim"><span class="lb">Scopes</span>
+      <div class="c6 field m" style="color:#F7F4F7">openid profile invoices:read</div></div>
+    <div class="frow" style="border-top:1px solid #232128;margin-top:6px;padding-top:11px"><span class="lb">Token</span>
+      <div class="c8 banner" role="status" style="background:rgba(157,177,255,.06);box-shadow:#9DB1FF 3px 0 0 inset">
+        <svg class="ico" style="width:14px;height:14px;margin-top:2px;color:#9DB1FF"><use href="#i-loader"/></svg>
+        <span style="flex-grow:1"><span style="color:#F7F4F7">Waiting for the browser.</span> <span style="color:#8E8996">Sign in at accounts.acme.dev. ReqFlux listens on <span class="m" style="font-size:12px;color:#C6C3CC">http://127.0.0.1:53682/callback</span> for 5 minutes.</span></span>
+        <button class="c6 btn" style="margin:-4px 0">Open browser again</button>
+        <button class="c6 btn" style="margin:-4px 0">Cancel</button>
+      </div></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · password and refresh token</h3><p>Rows that differ from client credentials. Password adds the resource owner's username and password; Refresh token takes a kept refresh token.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow"><span class="lb">Grant type</span>
+      <div class="c6 sel" style="width:300px;box-sizing:border-box"><span style="flex-grow:1">Password</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div></div>
+    <div class="frow"><span class="lb">Username</span>
+      <div class="c6 field m" style="width:360px;color:#F7F4F7">qa@acme.dev</div></div>
+    <div class="frow"><span class="lb">Password</span>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div></div>
+    <div class="frow" style="border-top:1px solid #232128;margin-top:6px;padding-top:11px"><span class="lb">Grant type</span>
+      <div class="c6 sel" style="width:300px;box-sizing:border-box"><span style="flex-grow:1">Refresh token</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div></div>
+    <div class="frow"><span class="lb">Refresh token</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+        <span class="hint">Token URL, client ID, client secret and scopes as in client credentials.</span>
+      </div></div>
   </div>
 </div></div>
 </section>
