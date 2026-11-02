@@ -76,6 +76,46 @@ impl ThemeMode {
     }
 }
 
+/// The layout the window starts in: `layout = "stacked" | "side-by-side"`
+/// (v1-features S7). A name this build does not know, such as a mode a newer
+/// build added, reads as the default so the rest of the file still applies.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum LayoutMode {
+    /// The request above its response, the layout in use before the modes existed.
+    #[default]
+    Stacked,
+    /// The request and its response side by side.
+    SideBySide,
+}
+
+impl LayoutMode {
+    /// The name the file stores.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Stacked => "stacked",
+            Self::SideBySide => "side-by-side",
+        }
+    }
+
+    /// The mode stored as `name`, or `None` for a name this build does not know.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "stacked" => Some(Self::Stacked),
+            "side-by-side" => Some(Self::SideBySide),
+            _ => None,
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for LayoutMode {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let name = String::deserialize(deserializer)?;
+        Ok(Self::from_name(&name).unwrap_or_default())
+    }
+}
+
 /// The parsed config file. Every field is optional; [`Default`] is a missing file.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
 pub struct UserConfig {
@@ -86,6 +126,10 @@ pub struct UserConfig {
     /// [`UserConfig::interface_font_size`], which bounds it.
     #[serde(default)]
     pub font_size: Option<f32>,
+    /// `layout`, the layout mode the window starts in; `None` when the file does
+    /// not set it (v1-features S7).
+    #[serde(default)]
+    pub layout: Option<LayoutMode>,
     /// `[mcp]`, the MCP policy.
     #[serde(default)]
     pub mcp: McpConfig,
@@ -291,6 +335,13 @@ fn unknown_key(path: &Path, key: &str, table: &str) -> String {
 /// refused and left alone.
 pub fn set_theme(path: &Path, mode: ThemeMode) -> Result<(), ConfigError> {
     edit::set_theme_value(path, mode.name())
+}
+
+/// Sets `layout` in the config file at `path`, creating the file and its directory when
+/// missing. Everything else in the file is kept as written; a file that does not parse is
+/// refused and left alone.
+pub fn set_layout(path: &Path, mode: LayoutMode) -> Result<(), ConfigError> {
+    edit::set_layout_value(path, mode.name())
 }
 
 /// The file's text, or `None` when it does not exist.

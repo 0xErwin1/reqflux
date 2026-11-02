@@ -1,21 +1,25 @@
 //! The Body pane: the mode row, a segmented control that switches the body mode with, for a
 //! raw body, the language select that opens the language menu, and the content type hint;
 //! then the raw text in a field well, which opens a multi-line editor, the urlencoded or
-//! form-data grid, which edits like the Params grid, the read-only GraphQL query or binary
-//! file path in a well, or the empty state. Every edit lands in the request's draft.
+//! form-data grid, which edits like the Params grid, the GraphQL query and variables
+//! beside each other, each edited like the raw text (see [`graphql`]), the binary body's
+//! file well with its Choose and Clear buttons (see [`binary`]), or the empty state. Every
+//! edit lands in the request's draft.
 
+pub(super) mod binary;
 pub(super) mod controls;
+pub(super) mod graphql;
 
 use bolt::controls::{InputEnter, InputEscape};
-use bolt::primitives::{Icon, SegmentedItem};
-use bolt::tokens::{Borders, EditorMetrics, Fields, ResultMetrics, Spacing};
+use bolt::primitives::SegmentedItem;
+use bolt::tokens::{Borders, EditorMetrics, ResultMetrics, Spacing};
 use gpui::{AnyElement, Context, ParentElement, SharedString, Styled, Window, div, prelude::*};
 use gpui_component::input::Textarea;
 use gpui_kit_assets::IconName;
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
 
-use self::controls::{focus_ring, select, text_well, well};
+use self::controls::{focus_ring, select, text_well};
 use super::pane_model::body_mode;
 use super::segmented::control;
 use super::{body_menu, code, grid, ui};
@@ -82,7 +86,7 @@ fn mode_row(
         .collect();
     let request = request_id.to_owned();
     let on_select = cx.listener(move |this, kind: &SharedString, window, cx| {
-        this.set_body_mode(&request, kind, window, cx);
+        this.change_body_mode(&request, kind, window, cx);
     });
     let language = match body {
         Body::Raw { language, .. } => Some(
@@ -220,26 +224,9 @@ pub(super) fn render(
             }
         },
         Body::Graphql { query, variables } => {
-            let query = code_block(query, cx);
-            let variables = code::block(
-                inspection,
-                "request-body-variables".to_owned(),
-                "request-body-variables-line",
-                variables,
-                cx,
-            );
-            vec![
-                text_well("request-body-query".to_owned(), cx)
-                    .mx(Spacing::MD)
-                    .mt(Spacing::SM)
-                    .child(query)
-                    .into_any_element(),
-                code::label("Variables", cx).into_any_element(),
-                text_well("request-body-variables-well".to_owned(), cx)
-                    .mx(Spacing::MD)
-                    .child(variables)
-                    .into_any_element(),
-            ]
+            vec![graphql::render(
+                request_id, inspection, query, variables, shell, cx,
+            )]
         }
         Body::Urlencoded { fields } => {
             vec![grid::render(
@@ -267,24 +254,7 @@ pub(super) fn render(
             )]
         }
         Body::Binary { path } => {
-            let muted = bolt::colors(cx).muted;
-            let shown = if path.is_empty() {
-                div().text_color(muted).child("No file")
-            } else {
-                div().child(path.clone())
-            };
-            vec![
-                well("request-body-file".to_owned(), cx)
-                    .mx(Spacing::MD)
-                    .mt(Spacing::SM)
-                    .child(
-                        Icon::new(ui::icon(IconName::File))
-                            .size(Fields::LEADING_ICON)
-                            .color(muted),
-                    )
-                    .child(shown)
-                    .into_any_element(),
-            ]
+            vec![binary::render(request_id, path, cx)]
         }
     };
     std::iter::once(mode).chain(content).collect()

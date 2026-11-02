@@ -10,7 +10,9 @@ use bolt::tokens::Borders;
 use gpui::{Context, IntoElement, ParentElement, Styled, Window};
 
 use super::documents::locate;
-use super::{Shell, action_strip, empty_state, history, path_bar, region, request, split, tabs};
+use super::{
+    Shell, action_strip, empty_state, history, layout, path_bar, region, request, split, tabs,
+};
 
 pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
     let colors = bolt::colors(cx);
@@ -47,16 +49,20 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             let active_id = shell.documents.active();
             let drafted = active_id.is_some_and(|id| shell.drafts.contains_key(id));
             let state = active_id.and_then(|id| shell.requests.get(id).map(|state| (id, state)));
-            body.child(action_strip::render(active_id, drafted, cx))
-                .child(match state {
-                    Some((id, state)) => {
-                        let send = shell.sends.get(id);
-                        let sending = send.is_some_and(|send| send.state.is_sending());
-                        let request = request::render(id, state, sending, shell, window, cx);
-                        content.child(split::render(id, request, send, shell, cx))
-                    }
-                    None => content,
-                })
+            body.child(layout::with_strip_switcher(
+                action_strip::render(active_id, drafted, cx),
+                shell,
+                cx,
+            ))
+            .child(match state {
+                Some((id, state)) => {
+                    let send = shell.sends.get(id);
+                    let sending = send.is_some_and(|send| send.state.is_sending());
+                    let request = request::render(id, state, sending, shell, window, cx);
+                    content.child(split::render(id, request, send, shell, cx))
+                }
+                None => content,
+            })
         }
         (None, None) => body.child(region("document-content").flex_1()),
     };

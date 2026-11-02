@@ -69,6 +69,14 @@ pub(super) fn set_theme_value(path: &Path, name: &str) -> Result<(), ConfigError
     })
 }
 
+/// Sets `layout`, as [`super::set_layout`] does.
+pub(super) fn set_layout_value(path: &Path, name: &str) -> Result<(), ConfigError> {
+    edit(path, |document| {
+        set_value(document.as_table_mut(), "layout", Value::from(name));
+        Ok(())
+    })
+}
+
 /// Sets the `[mcp]` rule of `class`, creating `[mcp]` when the file has none.
 pub fn set_rule(path: &Path, class: ToolClass, rule: Rule) -> Result<(), ConfigError> {
     edit(path, |document| {

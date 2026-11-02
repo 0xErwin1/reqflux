@@ -46,8 +46,10 @@ Workspace
 
 - **Workspace** owns N collections and N environments.
 - **Environment** belongs to the workspace. A collection may restrict which environments apply
-  to it with an allowlist; an empty list means all of them. The UI only offers the allowed
-  environments when a request of that collection is active.
+  to it with an allowlist; an empty list means all of them. The environment menu lists every
+  environment of the workspace; a send of that collection with one outside the list is refused
+  (`environment prod is not allowed for collection Billing API`), as `reqflux run` and
+  `collection_run` are.
 - **Collection** owns N requests, optionally grouped in folders, plus collection variables,
   auth and scripts.
 - **Request** covers any HTTP method, including custom verbs. Body modes follow Postman: `none`,
@@ -397,9 +399,17 @@ A row with an empty key and an empty value is never sent, and params go before a
 A row with an empty value shows as its bare key (`?b`); the request sends `b=`. While the URL
 field is open, a grid change (a row toggled, edited or deleted) re-seeds it in place, keeping
 the cursor; Escape then returns to that point.
-The response pane and the split appear after the request's first send in the session, or at
-once when its history has a send (the newest one, masked as recorded); before that the request
-uses the whole height. In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
+The window has two built layout modes (v1-features S7, design/layouts/01): Stacked, the
+request above its response across the draggable split, and Side by side, the request and its
+response in columns with the splitter standing vertically between them (`bolt`'s
+`SplitAxis::Horizontal`). Collapsing the response shows its bar across the island in both modes.
+The mode is `layout` in the user's config.toml (`"stacked"` by default, `"side-by-side"`), read
+at startup and written by the same format-preserving editor as `theme`; a name this build does
+not know reads as the default. The tab-row switcher (`layout-switcher`) and the action-strip
+switcher (`layout-strip`) change it, as do the `Layout: Stacked` and `Layout: Side by side`
+commands (Ctrl+Alt+1, Ctrl+Alt+2). Document mode and the keymap are later S7 work.
+
+ In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
 and clicking a row's key or value cell (`request-<table>-<key|value>-<n>`) swaps the cell
 for a field (`request-cell-input`) seeded with the cell's text; Enter commits it to that
@@ -428,7 +438,16 @@ exists:
   starts empty. Raw text opens a multi-line editor (`request-body-input`) that writes the
   draft as it is typed: Enter inserts a newline, Ctrl+Enter sends, Escape leaves it. The
   urlencoded and form-data grids edit like Params and Headers (a file part's value is its
-  path). GraphQL and binary bodies stay read-only.
+  path). The GraphQL query (`request-body-query`) and variables (`request-body-variables`)
+  each open a multi-line editor (`request-body-query-input`, `request-body-variables-input`)
+  that writes the draft as it is typed, one field at a time; the variables are validated as
+  JSON on every edit against what the engine sends, the badge
+  (`request-body-variables-badge`) shows `VALID JSON` or `NOT VALID JSON`, a failure shows the
+  engine's exact message (`request-body-variables-error`) and Ctrl+Enter refuses the send while
+  it stands. The binary body shows its path read-only (`request-body-file`, `No file` while
+  empty) beside Choose file… (`request-body-choose`), which asks the OS for the file, and Clear
+  (`request-body-clear`); only the path lands in the draft as `[body] path`, and the engine
+  reads and sends the file itself.
 - **Auth.** The type row (`request-auth-type`) opens a menu
   (`auth-type-<inherit|none|basic|bearer|apikey|digest|awsv4|oauth2>`); a new type starts with
   empty fields. Username, Key and the plain fields of digest, AWS SigV4 and OAuth 2.0 (region,
@@ -1310,7 +1329,13 @@ History, `settings-close` or Escape leave it. A header row names the workspace a
 (`settings-nav-environments`) under `WORKSPACE` and one entry per collection
 (`variables-scope-collection-<id>`) under `COLLECTION VARIABLES`, each with its count, over the
 resolution order. The content island shows the section title (`settings-heading`,
-`settings-description`); in Environments the environment list sits beside the variables:
+`settings-description`); in a collection's section the Environments block
+(`collection-allowlist-block`, `shell/settings_collection.rs`) writes the collection's
+environment allowlist: the control (`collection-allowlist-all`, `collection-allowlist-selected`)
+reads All environments while the list is empty and Selected only otherwise, and one checkbox per
+workspace environment (`collection-allowlist-environment-<id>`) ticks it into the list; every
+write goes through the engine at once and re-inspects open requests, and an empty list means
+every environment. In Environments the environment list sits beside the variables:
 `New environment` (`variables-new-environment`) creates one and opens its name into a field
 (`variables-rename-input`, hint `variables-rename-hint`); each row
 (`variables-scope-environment-<id>`, by name; the first is shown by default) has its count and
@@ -1411,8 +1436,14 @@ does not back yet.
 | History | `design/history/01-sidebar-readonly-tab.html` |
 | Environments and variables | `design/variables/01-settings-page.html` |
 | Toasts | `design/toasts/01-toasts.html` |
+| App settings (theme, font size, MCP policy, App > Network) | `design/app-settings/02-workspace-page-app-section.html` with `design/network/01-settings-sections.html` |
+| Run document | `design/runner/01-run-document.html` |
+| Generate code and curl paste | `design/codegen/01-dialog-and-toast.html` |
+| Saved examples | `design/examples/01-tree-children.html` |
+| Layout modes | `design/layouts/01-side-by-side.html` (Stacked, the default, is `design/bolt-v2/01-main.html`) |
+| Request panes (stacked with the grip) | `design/request-panes/01-stacked-grip.html` |
 
-The other artboards in those folders are directions that were not chosen.
+The other artboards in those folders are directions that were not chosen, and nothing reads them.
 
 Bolt is DBFlux's `bolt` crate, a git dependency pinned to the DBFlux rev the GPUI stack uses;
 ReqFlux never copies it. Every screen draws with it, and what gpui-component draws (inputs,

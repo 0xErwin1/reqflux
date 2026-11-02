@@ -411,13 +411,13 @@ button{font:inherit;white-space:nowrap}
 <div class="frame" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;background:#050507">
   <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Palette · View</span>
     <div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px">
-      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px"><svg class="ico" style="width:16px;height:16px;color:#8E8996"><use href="#i-cols"/></svg><span style="color:#C6C3CC;font-size:14px">Layout: Side by side</span><span style="flex-grow:1"></span><span class="c4 kc">Ctrl</span><span class="c4 kc">Alt</span><span class="c4 kc">1</span></div>
-      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px;background:rgba(157,177,255,.12);box-shadow:#9DB1FF 2px 0 0 inset"><svg class="ico" style="width:16px;height:16px;color:#9DB1FF"><use href="#i-file"/></svg><span style="color:#F7F4F7;font-size:14px">Layout: Document</span><span style="flex-grow:1"></span><span class="c4 kc">Ctrl</span><span class="c4 kc">Alt</span><span class="c4 kc">2</span></div>
+      <div role="option" aria-selected="true" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px;background:rgba(157,177,255,.12);box-shadow:#9DB1FF 2px 0 0 inset"><svg class="ico" style="width:16px;height:16px;color:#9DB1FF"><use href="#i-rows"/></svg><span style="color:#F7F4F7;font-size:14px">Layout: Stacked</span><span style="flex-grow:1"></span><span class="c4 kc">Ctrl</span><span class="c4 kc">Alt</span><span class="c4 kc">1</span></div>
+      <div role="option" aria-selected="false" style="display:flex;align-items:center;gap:12px;height:38px;padding:0 18px"><svg class="ico" style="width:16px;height:16px;color:#8E8996"><use href="#i-cols"/></svg><span style="color:#C6C3CC;font-size:14px">Layout: Side by side</span><span style="flex-grow:1"></span><span class="c4 kc">Ctrl</span><span class="c4 kc">Alt</span><span class="c4 kc">2</span></div>
     </div>
-    <span class="hint">Proposed keys: Ctrl+Alt+1 / Ctrl+Alt+2 are unassigned in the command registry today. Both commands are new (not yet in <span class="m">shell/commands.rs</span>).</span>
+    <span class="hint">Keys Ctrl+Alt+1 / Ctrl+Alt+2, as the command registry binds them (<span class="m">shell/commands.rs</span>). Document mode gets its key when it is built.</span>
   </div>
   <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">config.toml, read from the section</span>
-    <div class="toml m"><span class="cm"># ~/.config/reqflux/config.toml</span><br>theme = <span class="s">"dark"</span><br>font_size = <span class="nu">13</span><br>layout = <span class="s">"side-by-side"</span>   <span class="cm"># "side-by-side" | "document"</span></div>
+    <div class="toml m"><span class="cm"># ~/.config/reqflux/config.toml</span><br>theme = <span class="s">"dark"</span><br>font_size = <span class="nu">13</span><br>layout = <span class="s">"side-by-side"</span>   <span class="cm"># "stacked" (default) | "side-by-side"</span></div>
   </div>
 </div></div>
 

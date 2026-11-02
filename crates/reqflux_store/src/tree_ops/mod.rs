@@ -215,6 +215,31 @@ pub fn rename(root: &Path, loaded: &Loaded, id: Id, name: &str) -> Result<Placed
     Ok(Placed { id, path })
 }
 
+/// Replaces the environment allowlist of the collection `id`: the ids of the workspace
+/// environments its requests may run with; empty means every one of them (v1-features S7).
+///
+/// # Errors
+///
+/// [`StoreError::NotFound`], a conflict when `collection.toml` changed since `loaded` read
+/// it, or an IO error.
+pub fn set_collection_environments(
+    root: &Path,
+    loaded: &Loaded,
+    id: Id,
+    environments: Vec<Id>,
+) -> Result<(), StoreError> {
+    let Entity::Collection(node) = find(&loaded.workspace, id)? else {
+        return Err(StoreError::NotFound { id });
+    };
+    let file = collection_file(root, &node.slug);
+    let expected = loaded.hash(&file);
+    check(&file, expected)?;
+    let mut collection = node.collection.clone();
+    collection.environments = environments;
+    save_document(&file, &collection, expected)?;
+    Ok(())
+}
+
 /// Moves a folder or request from `old` to `slug` in `parent` and writes `document` (the
 /// renamed entity) over its moved file, then renames the `order` entry in place.
 fn rename_child<T: Serialize>(

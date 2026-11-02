@@ -5,6 +5,8 @@
 mod auth;
 mod auth_menu;
 mod body;
+#[cfg(test)]
+pub(crate) use body::binary::answer_body_file_dialog;
 mod body_menu;
 mod code;
 mod grid;

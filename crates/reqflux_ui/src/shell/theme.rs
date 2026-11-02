@@ -13,6 +13,8 @@ impl Shell {
     /// startup, for the Problems panel. Without a path the choice is not saved; tests pass
     /// their own file so no test touches the user's config.
     pub(crate) fn set_config(&mut self, path: Option<PathBuf>, report: ConfigReport) {
+        // The config file decides the layout mode the window starts in (layouts S7).
+        self.apply_config_layout(path.as_deref());
         self.config_path = path;
         self.config_report = report;
         // The config file decides `[network]`, so an engine opened before it read the file

@@ -105,6 +105,7 @@ environments = ["dev"]
         UserConfig {
             theme: Some(ThemeMode::Light),
             font_size: None,
+            layout: None,
             mcp: McpConfig {
                 read: Some(Rule::Allow),
                 write: Some(Rule::Ask),
@@ -213,6 +214,47 @@ fn set_theme_adds_a_missing_key_before_the_tables() {
         read(&path),
         "# Mine.\nzeta = 1\ntheme = \"dark\"\n\n[mcp]\nwrite = \"deny\"\n"
     );
+}
+
+#[test]
+fn the_layout_reads_its_two_names_and_defaults_for_anything_else() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    write(&path, "layout = \"side-by-side\"\n");
+    assert_eq!(loaded(&path).layout, Some(LayoutMode::SideBySide));
+    write(&path, "layout = \"stacked\"\n");
+    assert_eq!(loaded(&path).layout, Some(LayoutMode::Stacked));
+    // A mode a newer build added, or a typo, reads as the default instead of failing.
+    write(&path, "layout = \"document\"\n");
+    assert_eq!(loaded(&path).layout, Some(LayoutMode::Stacked));
+    write(&path, "font_size = 15\n");
+    assert_eq!(loaded(&path).layout, None);
+}
+
+#[test]
+fn set_layout_creates_the_file_and_keeps_the_rest() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    if let Err(error) = set_layout(&path, LayoutMode::SideBySide) {
+        panic!("set layout: {error}");
+    }
+    assert_eq!(read(&path), "layout = \"side-by-side\"\n");
+    let before = "# Mine.\ntheme = \"dark\"\nlayout = \"stacked\"\n\n[mcp]\nwrite = \"deny\"\n";
+    write(&path, before);
+    if let Err(error) = set_layout(&path, LayoutMode::SideBySide) {
+        panic!("set layout: {error}");
+    }
+    assert_eq!(
+        read(&path),
+        before.replace("\"stacked\"", "\"side-by-side\"")
+    );
+    let broken = "layout = \n";
+    write(&path, broken);
+    assert!(matches!(
+        set_layout(&path, LayoutMode::Stacked),
+        Err(ConfigError::Parse { .. })
+    ));
+    assert_eq!(read(&path), broken, "a broken file is left alone");
 }
 
 #[test]

@@ -88,6 +88,22 @@ impl Engine {
         self.apply(|root, loaded| reqflux_store::reorder(root, loaded, id, index).map(|()| id))
     }
 
+    /// Replaces the environment allowlist of the collection `id`: the ids of the workspace
+    /// environments its requests may run with; empty means every one of them (v1-features S7).
+    ///
+    /// # Errors
+    ///
+    /// The store error (an unknown collection, a conflict), or [`TreeError::Reload`].
+    pub fn set_collection_environments(
+        &mut self,
+        id: Id,
+        environments: Vec<Id>,
+    ) -> Result<(), TreeError> {
+        self.apply(|root, loaded| {
+            reqflux_store::set_collection_environments(root, loaded, id, environments)
+        })
+    }
+
     /// Runs a store operation against the loaded workspace and reloads after it succeeds.
     pub(crate) fn apply<T>(
         &mut self,

@@ -32,6 +32,7 @@ use reqflux_engine::SecretScope;
 
 use super::request::{option_menu, ui};
 use super::rows::labeled_row;
+use super::settings_collection;
 use super::settings_page::Section;
 use super::settings_page::cookie_jar;
 use super::variables_model::{
@@ -427,6 +428,12 @@ fn content(
             }
         })
         .children(message(shell, cx))
+        .children(match section {
+            Section::Collection(id) => Some(settings_collection::allowlist(shell, id, cx)),
+            Section::App(_) | Section::Globals | Section::Environments(_) | Section::Cookies => {
+                None
+            }
+        })
         .child(
             div()
                 .flex_1()

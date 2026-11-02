@@ -7,6 +7,7 @@ use tempfile::TempDir;
 
 use super::Shell;
 use super::draft_tests::{bounds, click, marker, render, state_file};
+use super::request::answer_body_file_dialog;
 use super::send_tests::closed_port;
 use crate::workspace_tests::{demo_workspace, write};
 
@@ -84,6 +85,30 @@ fn type_text(cx: &mut VisualTestContext, text: &str) {
 
 fn file(dir: &TempDir) -> String {
     std::fs::read_to_string(dir.path().join(FILE)).unwrap_or_default()
+}
+
+/// The accessible label of element `id`, if it is shown.
+fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
+    bounds(cx, id)?;
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
+}
+
+/// The message the engine gives for GraphQL `variables` that do not parse.
+fn engine_variables_message(text: &str) -> String {
+    match serde_json::from_str::<serde_json::Value>(text) {
+        Ok(_) => panic!("{text} should not parse as JSON"),
+        Err(error) => reqflux_engine::ExecuteError::GraphqlVariables(error.to_string()).to_string(),
+    }
 }
 
 fn raw(language: RawLanguage, text: &str) -> Body {
@@ -373,5 +398,196 @@ fn a_header_cell_still_writes_the_headers(cx: &mut TestAppContext) {
     assert!(
         matches!(&request.body, Body::Urlencoded { fields } if fields.first().map(|f| f.key.as_str()) == Some("a")),
         "the body is untouched"
+    );
+}
+
+#[gpui::test]
+fn choosing_a_file_fills_the_binary_path_and_clear_empties_it(cx: &mut TestAppContext) {
+    let dir = body_workspace("mode = \"binary\"\npath = \"\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+
+    assert_eq!(
+        label_of(cx, "request-body-file").as_deref(),
+        Some("No file"),
+        "the empty well"
+    );
+    assert!(
+        bounds(cx, "request-body-clear").is_none(),
+        "nothing to clear"
+    );
+
+    let chosen = dir.path().join("contract.pdf");
+    cx.update(|_, cx| answer_body_file_dialog(Some(chosen.clone()), cx));
+    click(cx, "request-body-choose");
+    cx.run_until_parked();
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(Body::Binary {
+            path: chosen.display().to_string()
+        }),
+        "the chosen path is the draft's"
+    );
+    assert_eq!(
+        label_of(cx, "request-body-file").as_deref(),
+        Some(chosen.display().to_string().as_str()),
+        "the well shows the path"
+    );
+    assert!(
+        bounds(cx, "request-body-clear").is_some(),
+        "Clear is offered"
+    );
+    assert!(marker(cx, POSTED), "the edit marks the tab");
+
+    click(cx, "request-body-clear");
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(Body::Binary {
+            path: String::new()
+        })
+    );
+    assert_eq!(
+        label_of(cx, "request-body-file").as_deref(),
+        Some("No file"),
+        "the well is empty again"
+    );
+    assert!(
+        bounds(cx, "request-body-clear").is_none(),
+        "nothing to clear"
+    );
+}
+
+#[gpui::test]
+fn the_graphql_editors_edit_the_draft_and_validate_the_variables(cx: &mut TestAppContext) {
+    let dir = body_workspace("mode = \"graphql\"\nquery = \"query Q { ok }\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+    assert!(draft_body(cx, &shell).is_none(), "no draft before editing");
+
+    click(cx, "request-body-query");
+    assert!(
+        bounds(cx, "request-body-query-input").is_some(),
+        "the query editor opened"
+    );
+    type_text(cx, "x");
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(Body::Graphql {
+            query: "xquery Q { ok }".to_owned(),
+            variables: String::new()
+        }),
+        "every keystroke lands in the draft"
+    );
+
+    click(cx, "request-body-variables");
+    assert!(
+        bounds(cx, "request-body-query-input").is_none(),
+        "one editor at a time"
+    );
+    assert!(bounds(cx, "request-body-variables-input").is_some());
+    assert_eq!(
+        label_of(cx, "request-body-variables-badge").as_deref(),
+        Some("VALID JSON"),
+        "blank variables are valid, as the engine treats them"
+    );
+
+    type_text(cx, "{");
+    assert_eq!(
+        label_of(cx, "request-body-variables-error").as_deref(),
+        Some(engine_variables_message("{").as_str()),
+        "the engine's exact message"
+    );
+    assert_eq!(
+        label_of(cx, "request-body-variables-badge").as_deref(),
+        Some("NOT VALID JSON")
+    );
+
+    cx.simulate_keystrokes("ctrl-a backspace");
+    type_text(cx, "{\"id\":\"1\"}");
+    assert!(
+        bounds(cx, "request-body-variables-error").is_none(),
+        "valid JSON shows no banner"
+    );
+    assert_eq!(
+        label_of(cx, "request-body-variables-badge").as_deref(),
+        Some("VALID JSON")
+    );
+
+    type_text(cx, ",");
+    cx.simulate_keystrokes("ctrl-enter");
+    cx.run_until_parked();
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(Body::Graphql {
+            query: "xquery Q { ok }".to_owned(),
+            variables: "{\"id\":\"1\"},".to_owned()
+        }),
+        "Ctrl+Enter inserts no newline"
+    );
+    assert!(
+        !cx.update(|_, cx| shell.read(cx).sends.contains_key(POSTED)),
+        "Ctrl+Enter refuses the send while the variables fail"
+    );
+
+    cx.simulate_keystrokes("backspace");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("ctrl-enter");
+    cx.run_until_parked();
+    assert!(
+        cx.update(|_, cx| shell.read(cx).sends.contains_key(POSTED)),
+        "valid variables send"
+    );
+
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(
+        bounds(cx, "request-body-variables-input").is_none(),
+        "Escape leaves the editor"
+    );
+    assert!(
+        matches!(draft_body(cx, &shell), Some(Body::Graphql { variables, .. }) if variables == "{\"id\":\"1\"}"),
+        "Escape keeps the text"
+    );
+}
+
+#[gpui::test]
+fn switching_the_mode_away_closes_the_graphql_editor(cx: &mut TestAppContext) {
+    let dir = body_workspace("mode = \"graphql\"\nquery = \"query Q { ok }\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+
+    click(cx, "request-body-query");
+    assert!(bounds(cx, "request-body-query-input").is_some());
+    click(cx, "body-mode-raw");
+    assert!(
+        bounds(cx, "request-body-query-input").is_none(),
+        "the editor of the mode that is gone closes"
+    );
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(raw(RawLanguage::Json, "")),
+        "the mode switched"
+    );
+}
+
+#[gpui::test]
+fn picking_the_stored_graphql_mode_still_creates_no_draft(cx: &mut TestAppContext) {
+    let dir = body_workspace("mode = \"graphql\"\nquery = \"query Q { ok }\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+
+    click(cx, "body-mode-graphql");
+    assert!(draft_body(cx, &shell).is_none(), "the same mode is a no-op");
+    assert!(
+        bounds(cx, "request-body-query").is_some(),
+        "the read-only well"
+    );
+    assert!(
+        bounds(cx, "request-body-query-input").is_none(),
+        "nothing opened"
     );
 }

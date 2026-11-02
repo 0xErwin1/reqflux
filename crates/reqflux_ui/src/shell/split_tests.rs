@@ -28,7 +28,7 @@ const PROBE: &str = "01J00000000000000000000092";
 const WORKSPACE: &str = "01J00000000000000000000900";
 
 /// Records a `201` send of `request_id` whose body carries a masked secret.
-fn record_send(path: &Path, request_id: &str) {
+pub(super) fn record_send(path: &Path, request_id: &str) {
     let mut state = match AppState::open(path) {
         Ok(state) => state,
         Err(error) => panic!("open state: {error}"),
@@ -78,7 +78,7 @@ fn shown_response(
 }
 
 /// A workspace holding `GET Probe`, which targets a port nothing listens on.
-fn split_workspace() -> TempDir {
+pub(super) fn split_workspace() -> TempDir {
     let port = closed_port();
     let dir = demo_workspace();
     let root = dir.path();
@@ -97,23 +97,23 @@ fn split_workspace() -> TempDir {
     dir
 }
 
-fn click(cx: &mut VisualTestContext, selector: &str) {
+pub(super) fn click(cx: &mut VisualTestContext, selector: &str) {
     let target = present(cx, selector);
     cx.simulate_click(target.center(), Modifiers::none());
     cx.run_until_parked();
 }
 
-fn open_probe(cx: &mut VisualTestContext) {
+pub(super) fn open_probe(cx: &mut VisualTestContext) {
     click(cx, &format!("tree-row-{PROBE}"));
 }
 
 /// Opens `GET Probe` and sends it, which brings the response pane in.
-fn open_sent(cx: &mut VisualTestContext) {
+pub(super) fn open_sent(cx: &mut VisualTestContext) {
     open_probe(cx);
     click(cx, "request-send");
 }
 
-fn setting(path: &Path, key: &str) -> Option<String> {
+pub(super) fn setting(path: &Path, key: &str) -> Option<String> {
     let state = match AppState::open(path) {
         Ok(state) => state,
         Err(error) => panic!("open state: {error}"),
@@ -124,7 +124,7 @@ fn setting(path: &Path, key: &str) -> Option<String> {
     }
 }
 
-fn store(path: &Path, key: &str, value: &str) {
+pub(super) fn store(path: &Path, key: &str, value: &str) {
     let mut state = match AppState::open(path) {
         Ok(state) => state,
         Err(error) => panic!("open state: {error}"),
@@ -150,7 +150,7 @@ fn drag_split(cx: &mut VisualTestContext, dy: gpui::Pixels) {
     cx.run_until_parked();
 }
 
-fn double_click(cx: &mut VisualTestContext, selector: &str) {
+pub(super) fn double_click(cx: &mut VisualTestContext, selector: &str) {
     let position = present(cx, selector).center();
     for click_count in 1..=2 {
         cx.simulate_event(MouseDownEvent {
@@ -170,11 +170,11 @@ fn double_click(cx: &mut VisualTestContext, selector: &str) {
     cx.run_until_parked();
 }
 
-fn request_height(cx: &mut VisualTestContext) -> gpui::Pixels {
+pub(super) fn request_height(cx: &mut VisualTestContext) -> gpui::Pixels {
     present(cx, "request-area").size.height
 }
 
-fn collapsed(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
+pub(super) fn collapsed(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
     cx.update(|_, cx| shell.read(cx).split.collapsed())
 }
 

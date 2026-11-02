@@ -27,6 +27,7 @@ mod examples;
 mod history;
 mod import_flow;
 mod last_request;
+mod layout;
 mod method_edit;
 mod palette;
 mod palette_match;
@@ -42,6 +43,7 @@ mod runner;
 mod scripts_edit;
 mod send;
 mod setting_edit;
+mod settings_collection;
 mod settings_page;
 mod settings_view;
 mod sidebar;
@@ -634,6 +636,8 @@ mod history_tests;
 mod interaction_tests;
 #[cfg(test)]
 mod last_request_tests;
+#[cfg(test)]
+mod layout_tests;
 #[cfg(test)]
 mod method_edit_tests;
 #[cfg(test)]

@@ -33,7 +33,7 @@ pub use tree_ops::{
     Placed, StoredExample, create_collection, create_environment, create_example,
     create_example_at, create_folder, create_request, delete, delete_environment, delete_example,
     duplicate, example_files_at, examples, move_item, rename, rename_environment, rename_example,
-    reorder,
+    reorder, set_collection_environments,
 };
 pub use variables::{ScopeFile, VariableChange, VariableWrite, plan_variables, scope_variables};
 

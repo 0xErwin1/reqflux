@@ -43,11 +43,25 @@ impl SubTab {
     }
 }
 
-/// An open request: what the engine inspected and the selected sub-tab.
-#[derive(Debug, Clone, PartialEq)]
+/// An open request: what the engine inspected, the selected sub-tab, and its open GraphQL
+/// editor. Its `Debug` leaves the editor's input out, as [`Inspection`](reqflux_engine::Inspection)
+/// does its scopes.
 pub(crate) struct RequestState {
     pub(crate) inspection: Inspection,
     pub(crate) tab: SubTab,
+    /// The GraphQL query or variables editor the Body pane holds open, while it has one.
+    pub(crate) graphql_edit: Option<super::body::graphql::GraphqlEdit>,
+}
+
+impl std::fmt::Debug for RequestState {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("RequestState")
+            .field("inspection", &self.inspection)
+            .field("tab", &self.tab)
+            .field("graphql_edit", &self.graphql_edit.is_some())
+            .finish()
+    }
 }
 
 impl RequestState {
@@ -56,6 +70,7 @@ impl RequestState {
         Self {
             inspection,
             tab: SubTab::Headers,
+            graphql_edit: None,
         }
     }
 }

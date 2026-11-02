@@ -15,6 +15,7 @@ use super::sidebar_edit::TreeCommand;
 use super::sidebar_history::Panel;
 use super::tree_model::NodeKind;
 use crate::workspace::OpenedWorkspace;
+use reqflux_engine::config::LayoutMode;
 
 /// One command: what the palette shows and where its key is bound.
 pub(crate) struct Command {
@@ -143,6 +144,8 @@ commands! {
     ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", View, loaded;
     ShowEnvironments: ShowEnvironments, "show-environments", "Show Environments", "ctrl-3", Environment, loaded;
     ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", View, always;
+    LayoutStacked: LayoutStacked, "layout-stacked", "Layout: Stacked", "ctrl-alt-1", View, always;
+    LayoutSideBySide: LayoutSideBySide, "layout-side-by-side", "Layout: Side by side", "ctrl-alt-2", View, always;
     OpenApprovals: OpenApprovals, "open-approvals", "Open MCP approvals", "ctrl-shift-m", Agents, always;
     OpenAudit: OpenAudit, "open-audit", "Open audit log", "ctrl-shift-a", Agents, always;
 }
@@ -330,6 +333,8 @@ impl Shell {
                 self.restore_focus(window, cx);
             }
             CommandId::ToggleTheme => self.toggle_theme(window, cx),
+            CommandId::LayoutStacked => self.set_layout(LayoutMode::Stacked, cx),
+            CommandId::LayoutSideBySide => self.set_layout(LayoutMode::SideBySide, cx),
             CommandId::OpenApprovals => self.open_approvals(window, cx),
             CommandId::OpenAudit => self.open_audit(window, cx),
         }

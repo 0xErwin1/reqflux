@@ -1,10 +1,9 @@
 //! The code of the Body and Scripts panes: numbered lines in the data face with their
-//! references styled, a caption over a block, and the empty state of a pane.
+//! references styled, and the empty state of a pane.
 
 use bolt::composites::EmptyState;
-use bolt::primitives::TextVariant;
 use bolt::tokens::{EditorMetrics, GridMetrics, Spacing};
-use gpui::{AnyElement, App, Div, ParentElement, Styled, div, prelude::*};
+use gpui::{AnyElement, App, ParentElement, Styled, div, prelude::*};
 use gpui_kit_assets::IconName;
 use reqflux_engine::Inspection;
 
@@ -49,15 +48,6 @@ pub(super) fn block(
                 )
         }))
         .into_any_element()
-}
-
-/// A muted caption `text` over a block.
-pub(super) fn label(text: &'static str, cx: &App) -> Div {
-    ui::role(div(), TextVariant::Caption, cx)
-        .pl(Spacing::MD)
-        .pt(Spacing::MD)
-        .pb(Spacing::SM)
-        .child(text)
 }
 
 /// The empty state `id` of a pane: `icon` over `text`, which also names it.

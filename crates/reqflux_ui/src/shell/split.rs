@@ -3,12 +3,19 @@
 //! with a dotted grip), element id `request-response-split`, and the response under it. The
 //! panes are `request-area` and `response-area`.
 //!
-//! Dragging the gutter sets the request pane's height; Up and Down move it by
-//! `SplitterMetrics::KEY_STEP` while the gutter has focus. Enter or a double click collapses the
-//! response to its bar, element id `response-bar`, and restores it; the bar's expand button,
+//! In the Side by side layout (v1-features S7, design/layouts/01) the same split stands
+//! vertically between the request and response columns: `bolt`'s splitter drawn with
+//! [`SplitAxis::Horizontal`], the request column's width kept instead of its height.
+//!
+//! Dragging the gutter sets the request pane's height or the request column's width; the
+//! arrows along the axis move it by `SplitterMetrics::KEY_STEP` while the gutter has focus.
+//! Enter or a double click collapses the response to its bar, element id `response-bar`,
+//! across the island in both modes, and restores it; the bar's expand button,
 //! `response-expand`, and any drag restore it too. Each pane keeps at least
-//! [`tokens::SPLIT_PANE_MIN`]. The height and the collapsed flag are per user: the app state
-//! settings [`HEIGHT_SETTING`] and [`COLLAPSED_SETTING`] hold them across restarts.
+//! [`tokens::SPLIT_PANE_MIN`]. The position and the collapsed flag are per user: the app
+//! state settings [`HEIGHT_SETTING`], [`WIDTH_SETTING`] and [`COLLAPSED_SETTING`] hold them
+//! across restarts. The layout mode itself is `layout` in the user's config file (see
+//! `layout`).
 //!
 //! A request not sent in this session shows its last recorded send from history; one never
 //! sent shows neither the gutter nor the response: its pane takes the whole height
@@ -26,9 +33,10 @@ use bolt::tokens::{
 };
 use gpui::{
     AnyElement, Context, Div, FocusHandle, FontWeight, Hsla, MouseButton, ParentElement, Pixels,
-    Stateful, Styled, canvas, div, prelude::*,
+    Stateful, Styled, canvas, div, prelude::*, relative,
 };
 use gpui_kit_assets::IconName;
+use reqflux_engine::config::LayoutMode;
 use reqflux_engine::state::AppState;
 
 use super::request::{Completed, SendState, StatusClass, elapsed_text, size_text, ui};
@@ -38,18 +46,32 @@ use crate::tokens;
 
 /// The app state setting that holds the request pane's height in pixels.
 pub(super) const HEIGHT_SETTING: &str = "request_response_split/height";
+/// The app state setting that holds the request column's width in pixels (Side by side).
+pub(super) const WIDTH_SETTING: &str = "request_response_split/width";
 /// The app state setting that holds `true` while the response is collapsed.
 pub(super) const COLLAPSED_SETTING: &str = "request_response_split/collapsed";
 
+/// The share of the split's width the request column takes before the user moves it, as
+/// the artboard draws the columns (design/layouts/01).
+const DEFAULT_REQUEST_SHARE: f32 = 0.46;
+
 /// The position of the split, shared by every request tab.
 pub(super) struct Split {
+    /// The layout mode the split draws (layouts S7); changed through `layout`.
+    pub(super) mode: LayoutMode,
     /// The request pane's height as last set, before it is fitted to the split's height.
     request: Pixels,
+    /// The request column's width as last set, `None` for the default share (Side by side).
+    request_w: Option<Pixels>,
     collapsed: bool,
     /// The split's height at the last layout; `None` before the first one.
     height: Option<Pixels>,
+    /// The split's width at the last layout; `None` before the first one.
+    width: Option<Pixels>,
     /// The split's top in the window at the last layout.
     top: Pixels,
+    /// The split's left in the window at the last layout.
+    left: Pixels,
     dragging: bool,
     focus: FocusHandle,
     /// The requests whose last recorded send was looked up, so a never-sent request reads
@@ -60,10 +82,14 @@ pub(super) struct Split {
 impl Split {
     pub(super) fn new(focus: FocusHandle) -> Self {
         Self {
+            mode: LayoutMode::default(),
             request: tokens::SPLIT_DEFAULT_REQUEST,
+            request_w: None,
             collapsed: false,
             height: None,
+            width: None,
             top: Pixels::ZERO,
+            left: Pixels::ZERO,
             dragging: false,
             focus,
             recorded: HashSet::new(),
@@ -87,12 +113,20 @@ impl Split {
             return;
         };
         match state.setting(HEIGHT_SETTING) {
-            Ok(Some(stored)) => match parse_height(&stored) {
+            Ok(Some(stored)) => match parse_pixels(&stored) {
                 Some(height) => self.request = height,
                 None => log::warn!("ignoring the stored request pane height {stored:?}"),
             },
             Ok(None) => {}
             Err(error) => log::warn!("cannot read the request pane height: {error}"),
+        }
+        match state.setting(WIDTH_SETTING) {
+            Ok(Some(stored)) => match parse_pixels(&stored) {
+                Some(width) => self.request_w = Some(width),
+                None => log::warn!("ignoring the stored request column width {stored:?}"),
+            },
+            Ok(None) => {}
+            Err(error) => log::warn!("cannot read the request column width: {error}"),
         }
         match state.setting(COLLAPSED_SETTING) {
             Ok(stored) => self.collapsed = stored.as_deref() == Some("true"),
@@ -108,6 +142,12 @@ impl Split {
         let height = format!("{}", f32::from(self.request).round());
         if let Err(error) = state.set_setting(HEIGHT_SETTING, &height) {
             log::warn!("cannot save the request pane height: {error}");
+        }
+        if let Some(width) = self.request_w {
+            let width = format!("{}", f32::from(width).round());
+            if let Err(error) = state.set_setting(WIDTH_SETTING, &width) {
+                log::warn!("cannot save the request column width: {error}");
+            }
         }
         let collapsed = if self.collapsed { "true" } else { "false" };
         if let Err(error) = state.set_setting(COLLAPSED_SETTING, collapsed) {
@@ -127,6 +167,26 @@ impl Split {
         fit(self.request, height)
     }
 
+    /// The axis the split lays its panes out in: columns side by side while the layout is
+    /// Side by side and the response is shown, else stacked rows.
+    fn axis(&self) -> SplitAxis {
+        match self.mode {
+            LayoutMode::SideBySide if !self.collapsed => SplitAxis::Horizontal,
+            LayoutMode::SideBySide | LayoutMode::Stacked => SplitAxis::Vertical,
+        }
+    }
+
+    /// The request column's width inside a split `width` wide: the stored width, else the
+    /// default share the artboard draws (design/layouts/01), kept
+    /// [`tokens::SPLIT_PANE_MIN`] away from both ends. A split too narrow for both
+    /// minimums shares its room evenly.
+    fn request_width(&self, width: Pixels) -> Pixels {
+        let stored = self
+            .request_w
+            .unwrap_or_else(|| width * DEFAULT_REQUEST_SHARE);
+        fit(stored, width)
+    }
+
     /// Sets the request pane's height, fitted to the last layout, and shows the response.
     fn set_request(&mut self, request: Pixels) {
         self.request = match self.height {
@@ -136,19 +196,43 @@ impl Split {
         self.collapsed = false;
     }
 
-    /// Moves the gutter by `delta` from where it shows.
+    /// Sets the request column's width, fitted to the last layout, and shows the response.
+    fn set_request_width(&mut self, request: Pixels) {
+        self.request_w = Some(match self.width {
+            Some(width) => fit(request, width),
+            None => request.max(tokens::SPLIT_PANE_MIN),
+        });
+        self.collapsed = false;
+    }
+
+    /// Moves the gutter by `delta` along its axis.
     fn step(&mut self, delta: Pixels) {
-        let shown = match self.height {
-            Some(height) => self.request_height(height),
-            None => self.request,
-        };
-        self.set_request(shown + delta);
+        match self.axis() {
+            SplitAxis::Horizontal => {
+                let shown = match self.width {
+                    Some(width) => self.request_width(width),
+                    None => match self.request_w {
+                        Some(width) => width,
+                        None => return,
+                    },
+                };
+                self.set_request_width(shown + delta);
+            }
+            SplitAxis::Vertical => {
+                let shown = match self.height {
+                    Some(height) => self.request_height(height),
+                    None => self.request,
+                };
+                self.set_request(shown + delta);
+            }
+        }
     }
 }
 
-/// `request` kept [`tokens::SPLIT_PANE_MIN`] away from both ends of a split `height` tall.
-fn fit(request: Pixels, height: Pixels) -> Pixels {
-    let room = (height - SplitterMetrics::GUTTER).max(Pixels::ZERO);
+/// `request` kept [`tokens::SPLIT_PANE_MIN`] away from both ends of a split `height` or
+/// `width` tall.
+fn fit(request: Pixels, span: Pixels) -> Pixels {
+    let room = (span - SplitterMetrics::GUTTER).max(Pixels::ZERO);
     let max = room - tokens::SPLIT_PANE_MIN;
     if max < tokens::SPLIT_PANE_MIN {
         return room * 0.5;
@@ -156,8 +240,8 @@ fn fit(request: Pixels, height: Pixels) -> Pixels {
     request.clamp(tokens::SPLIT_PANE_MIN, max)
 }
 
-/// A stored height: a finite, positive number of pixels.
-fn parse_height(stored: &str) -> Option<Pixels> {
+/// A stored position: a finite, positive number of pixels.
+fn parse_pixels(stored: &str) -> Option<Pixels> {
     stored
         .trim()
         .parse::<f32>()
@@ -188,11 +272,20 @@ impl Shell {
         cx.notify();
     }
 
-    /// Follows a drag of the gutter to `y`, in window coordinates.
-    fn drag_split(&mut self, y: Pixels, cx: &mut Context<Self>) {
+    /// Follows a drag of the gutter to `position` along its axis, in window coordinates.
+    fn drag_split(&mut self, position: Pixels, cx: &mut Context<Self>) {
         self.split.dragging = true;
-        let y = y - self.split.top;
-        self.split.set_request(y - SplitterMetrics::GUTTER * 0.5);
+        match self.split.axis() {
+            SplitAxis::Horizontal => {
+                let x = position - self.split.left;
+                self.split
+                    .set_request_width(x - SplitterMetrics::GUTTER * 0.5);
+            }
+            SplitAxis::Vertical => {
+                let y = position - self.split.top;
+                self.split.set_request(y - SplitterMetrics::GUTTER * 0.5);
+            }
+        }
         cx.notify();
     }
 
@@ -223,7 +316,9 @@ pub(super) fn render(
         move |bounds, _window, cx| {
             entity.update(cx, |shell, _cx| {
                 shell.split.top = bounds.top();
+                shell.split.left = bounds.left();
                 shell.split.height = Some(bounds.size.height);
+                shell.split.width = Some(bounds.size.width);
             });
         },
         |_, _, _, _| {},
@@ -256,14 +351,28 @@ pub(super) fn render(
             .flex_col()
             .child(request_pane.flex_1().min_h_0());
     };
-    let request_pane = match (split.collapsed, split.height) {
-        (true, _) => request_pane.flex_1().min_h_0(),
-        (false, Some(height)) => request_pane.flex_none().h(split.request_height(height)),
-        (false, None) => request_pane
-            .h(split.request)
-            .flex_grow(0.)
-            .flex_shrink(1.)
-            .min_h(tokens::SPLIT_PANE_MIN),
+    // Collapsed, the request fills the island and the response is its bar across it, in
+    // both modes (design/layouts/01, narrow-window state D9).
+    let request_pane = if split.collapsed {
+        request_pane.flex_1().min_h_0()
+    } else {
+        match split.mode {
+            LayoutMode::Stacked => match split.height {
+                Some(height) => request_pane.flex_none().h(split.request_height(height)),
+                None => request_pane
+                    .h(split.request)
+                    .flex_grow(0.)
+                    .flex_shrink(1.)
+                    .min_h(tokens::SPLIT_PANE_MIN),
+            },
+            LayoutMode::SideBySide => {
+                let request_pane = match split.width {
+                    Some(width) => request_pane.flex_none().w(split.request_width(width)),
+                    None => request_pane.flex_none().w(relative(DEFAULT_REQUEST_SHARE)),
+                };
+                request_pane.min_w(tokens::SPLIT_PANE_MIN)
+            }
+        }
     };
     let response: AnyElement = if split.collapsed {
         response_bar(Some(send), cx).into_any_element()
@@ -271,20 +380,24 @@ pub(super) fn render(
         region("response-area")
             .flex_1()
             .min_h(tokens::SPLIT_PANE_MIN)
+            .min_w(tokens::SPLIT_PANE_MIN)
             .flex()
             .flex_col()
             .child(response::render(id, Some(send), cx))
             .into_any_element()
     };
 
-    region("request-response-area")
+    let area = region("request-response-area")
         .relative()
         .flex_1()
         .min_h_0()
         .min_w_0()
-        .flex()
-        .flex_col()
-        .child(measure)
+        .flex();
+    let area = match split.axis() {
+        SplitAxis::Horizontal => area.flex_row(),
+        SplitAxis::Vertical => area.flex_col(),
+    };
+    area.child(measure)
         .child(request_pane)
         .child(gutter(shell, cx))
         .child(response)
@@ -298,24 +411,32 @@ pub(super) fn render(
         )
 }
 
-/// The gutter, element id `request-response-split`: `bolt`'s splitter across the split,
-/// named "Resize request and response", its value the request pane's share once laid out.
+/// The gutter, element id `request-response-split`: `bolt`'s splitter along the split's
+/// axis, named "Resize request and response", its value the request pane's share once
+/// laid out.
 fn gutter(shell: &Shell, cx: &mut Context<Shell>) -> Splitter {
     let split = &shell.split;
+    let axis = split.axis();
+    let percent = match axis {
+        SplitAxis::Horizontal => split
+            .width
+            .filter(|width| *width > Pixels::ZERO)
+            .map(|width| f64::from((split.request_width(width) / width * 100.0).round())),
+        SplitAxis::Vertical => split
+            .height
+            .filter(|height| *height > Pixels::ZERO)
+            .map(|height| {
+                let request = if split.collapsed {
+                    height
+                } else {
+                    split.request_height(height)
+                };
+                f64::from((request / height * 100.0).round())
+            }),
+    };
     let (on_drag, on_step, on_toggle) = (cx.entity(), cx.entity(), cx.entity());
-    let percent = split
-        .height
-        .filter(|height| *height > Pixels::ZERO)
-        .map(|height| {
-            let request = if split.collapsed {
-                height
-            } else {
-                split.request_height(height)
-            };
-            f64::from((request / height * 100.0).round())
-        });
-    let splitter = Splitter::new("request-response-split", SplitAxis::Vertical)
-        .aria_label("Resize request and response");
+    let splitter =
+        Splitter::new("request-response-split", axis).aria_label("Resize request and response");
     let splitter = match percent {
         Some(percent) => splitter.value_percent(percent),
         None => splitter,
@@ -323,8 +444,8 @@ fn gutter(shell: &Shell, cx: &mut Context<Shell>) -> Splitter {
     splitter
         .active(split.dragging)
         .track_focus(&split.focus)
-        .on_drag(move |y, _window, cx| {
-            on_drag.update(cx, |shell, cx| shell.drag_split(y, cx));
+        .on_drag(move |position, _window, cx| {
+            on_drag.update(cx, |shell, cx| shell.drag_split(position, cx));
         })
         .on_step(move |delta, _window, cx| {
             on_step.update(cx, |shell, cx| shell.step_split(delta, cx));
