@@ -1,8 +1,9 @@
 //! The `Set-Cookie` headers of a response parsed for the Cookies sub-tab, without GPUI, and
-//! the table's columns with a secret value masked. The parse is read-only: no cookie is
-//! stored (the cookie jar is v1).
+//! the table's columns with a secret value masked. The parse is read-only: the engine's jar
+//! stores cookies, and the cookie jar section shows them with the same masking rule
+//! ([`cookie_value`]).
 
-use reqflux_engine::MASK;
+pub(crate) use crate::shell::settings_page::cookie_jar::{CookieValue, cookie_value};
 
 /// One `Set-Cookie` header.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,15 +26,6 @@ pub(crate) struct SetCookie {
     pub(crate) secure: bool,
     pub(crate) http_only: bool,
     pub(crate) same_site: Option<String>,
-}
-
-/// A cookie value as the table shows it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum CookieValue {
-    Shown(String),
-    /// A value that holds a secret the send knows, or one history stored masked: never
-    /// shown.
-    Secret,
 }
 
 /// The columns of one row of the cookie table (response-views/02).
@@ -70,12 +62,7 @@ impl SetCookie {
     /// The table columns, every text masked by `mask` (the send's `Masker::mask`) and the
     /// value hidden whole when masking changes it or it already holds [`MASK`].
     pub(crate) fn columns(&self, mask: impl Fn(&str) -> String) -> CookieColumns {
-        let masked = mask(&self.value);
-        let value = if masked != self.value || self.value.contains(MASK) {
-            CookieValue::Secret
-        } else {
-            CookieValue::Shown(masked)
-        };
+        let value = cookie_value(&self.value, &mask);
         let mut flags = Vec::new();
         if self.http_only {
             flags.push("HttpOnly".to_owned());
@@ -162,6 +149,8 @@ pub(crate) fn parse(header: &str) -> Option<SetCookie> {
 
 #[cfg(test)]
 mod tests {
+    use reqflux_engine::MASK;
+
     use super::*;
 
     #[test]

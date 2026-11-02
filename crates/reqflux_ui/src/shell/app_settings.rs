@@ -92,8 +92,8 @@ impl Shell {
         }
     }
 
-    /// Reload: reads `config.toml` again and applies its theme and font size, and refreshes
-    /// what the Problems panel says about it.
+    /// Reload: reads `config.toml` again and applies its theme, font size and `[network]`,
+    /// and refreshes what the Problems panel says about it.
     pub(crate) fn reload_app_config(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.read_app_config(cx);
         if let Some(loaded) = self.settings.app.config() {
@@ -115,6 +115,7 @@ impl Shell {
             },
             None => ConfigReport::default(),
         };
+        self.apply_network_config();
         cx.notify();
     }
 

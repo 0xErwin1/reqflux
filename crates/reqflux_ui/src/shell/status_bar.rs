@@ -1,8 +1,9 @@
 //! The status bar: chips on the desk, drawn as DBFlux's status bar draws them. The last send
 //! of the window on the left, when there is one; on the right the Problems chip, when the
 //! config file did not load or there are config or workspace load warnings, which opens the
-//! Problems panel above it. Pending approvals count on the title bar bell and the rail badge,
-//! not here.
+//! Problems panel above it, and, while the workspace's cookie jar holds cookies, the
+//! `N cookies` chip (`status-cookies`), which opens Workspace > Cookies. Pending approvals
+//! count on the title bar bell and the rail badge, not here.
 
 use std::time::Instant;
 
@@ -29,6 +30,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         summary(&last.method, &last.path, state, Instant::now())
     });
     let problems = shell.problems();
+    let cookies = shell.jar_cookies().len();
 
     region("status-bar")
         .flex_none()
@@ -64,6 +66,28 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         .when(!problems.is_empty(), |bar| {
             bar.child(problems_chip(shell, &problems, window, cx))
         })
+        .when(cookies > 0, |bar| bar.child(cookies_chip(cookies, cx)))
+}
+
+/// The `N cookies` chip: opens the workspace's cookie jar.
+fn cookies_chip(cookies: usize, cx: &mut Context<Shell>) -> impl IntoElement {
+    let colors = bolt::colors(cx);
+    let text = count(cookies, "cookie");
+    StatusChip::new("status-cookies")
+        .clickable(true)
+        .build(cx)
+        .role(Role::Button)
+        .aria_label(format!("Cookie jar: {text}. Open it"))
+        .text_color(colors.foreground)
+        .font_weight(FontWeight::NORMAL)
+        .cursor_pointer()
+        .child(
+            Icon::new(ui::icon(IconName::Cookie))
+                .size(ShellMetrics::STATUS_ICON)
+                .color(colors.muted),
+        )
+        .child(text)
+        .on_click(cx.listener(|this, _event, window, cx| this.open_cookie_jar(window, cx)))
 }
 
 /// The Problems chip: the alert icon, then `1 error` in danger and `3 warnings` in the body

@@ -10,7 +10,7 @@ pub(crate) const OPEN_HINT: &str = "Open a workspace: reqflux <directory>";
 
 /// The OS keyring in the app; an empty in-memory store in tests, which never touch the real
 /// keyring (keyring-secrets S8).
-fn secret_store() -> Arc<dyn SecretStore> {
+pub(crate) fn secret_store() -> Arc<dyn SecretStore> {
     if cfg!(test) {
         Arc::new(MemorySecretStore::new())
     } else {

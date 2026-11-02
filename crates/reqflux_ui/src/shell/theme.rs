@@ -15,6 +15,9 @@ impl Shell {
     pub(crate) fn set_config(&mut self, path: Option<PathBuf>, report: ConfigReport) {
         self.config_path = path;
         self.config_report = report;
+        // The config file decides `[network]`, so an engine opened before it read the file
+        // (the one at startup) is connected once it is known.
+        self.connect_workspace();
     }
 
     /// Switches to the mode after the installed one and saves it; a save that fails shows in

@@ -6,7 +6,8 @@
 //! `rule-destructive`), the host and environment lists (`hosts-list`, `environments-list`)
 //! and the read-only workspace overrides (`overrides-table`, `overrides-open-config`). A file
 //! that does not parse shows `config-error` with `config-open` and `config-reload`, and every
-//! control is drawn dimmed and does not write.
+//! control is drawn dimmed and does not write. Network (`nav-network`, with a warning mark
+//! while an entry has one) draws through the network section's view.
 //!
 //! It draws with `bolt`: `ListRow` nav entries, `SegmentedControl`, `Dropdown`, `Input`,
 //! `Button`, `Badge` and `BannerBlock`.
@@ -32,6 +33,7 @@ use super::super::request::{segmented, ui};
 use super::super::rows::labeled_row;
 use super::super::settings_page::AppSection;
 use super::super::settings_page::app_settings::font_size_label;
+use super::super::settings_page::network_settings;
 use super::super::{Shell, region, text_region};
 use super::{caption, message};
 
@@ -131,7 +133,20 @@ pub(super) fn nav_entries(
     active: Option<AppSection>,
     cx: &mut Context<Shell>,
 ) -> Vec<AnyElement> {
-    let failed = shell.settings.app.error().is_some();
+    let colors = bolt::colors(cx);
+    let failed = shell
+        .settings
+        .app
+        .error()
+        .is_some()
+        .then_some(colors.danger);
+    let network = shell
+        .settings
+        .network
+        .model
+        .as_ref()
+        .is_some_and(|model| model.warning_count() > 0)
+        .then_some(colors.warning);
     vec![
         caption("APP".into(), cx).into_any_element(),
         nav_entry(
@@ -147,9 +162,18 @@ pub(super) fn nav_entries(
             "nav-mcp-policy",
             IconName::Bot,
             "MCP policy",
-            false,
+            None,
             active == Some(AppSection::McpPolicy),
             AppSection::McpPolicy,
+            cx,
+        ),
+        nav_entry(
+            "nav-network",
+            IconName::Globe,
+            "Network",
+            network,
+            active == Some(AppSection::Network),
+            AppSection::Network,
             cx,
         ),
     ]
@@ -159,7 +183,7 @@ fn nav_entry(
     id: &'static str,
     icon_name: IconName,
     name: &'static str,
-    warning: bool,
+    alert: Option<gpui::Hsla>,
     active: bool,
     target: AppSection,
     cx: &mut Context<Shell>,
@@ -173,10 +197,10 @@ fn nav_entry(
         .role(Role::Link)
         .aria_label(name)
         .aria_selected(active);
-    let alert = warning.then(|| {
+    let alert = alert.map(|color| {
         Icon::new(ui::icon(IconName::TriangleAlert))
             .size(TreeMetrics::ICON)
-            .color(colors.danger)
+            .color(color)
     });
     ui::role(element, TextVariant::Body, cx)
         .flex_none()
@@ -195,8 +219,12 @@ fn nav_entry(
         .child(div().flex_1().min_w_0().child(name))
         .children(alert)
         .on_click(cx.listener(move |this, _event, window, cx| {
-            this.ensure_app_controls(window, cx);
-            this.select_settings_section(super::Section::App(target), window, cx);
+            if target == AppSection::Network {
+                this.open_network_settings(window, cx);
+            } else {
+                this.ensure_app_controls(window, cx);
+                this.select_settings_section(super::Section::App(target), window, cx);
+            }
         }))
         .into_any_element()
 }
@@ -209,8 +237,13 @@ pub(super) fn content(
     window: &Window,
     cx: &mut Context<Shell>,
 ) -> Div {
+    if section == AppSection::Network {
+        return network_settings::view::content(shell, window, cx);
+    }
     let (heading, description) = match section {
-        AppSection::General => ("General", "How ReqFlux looks on this machine."),
+        AppSection::General | AppSection::Network => {
+            ("General", "How ReqFlux looks on this machine.")
+        }
         AppSection::McpPolicy => (
             "MCP policy",
             "What agents may do through reqflux mcp. Changes save to config.toml at once; \
@@ -246,7 +279,7 @@ pub(super) fn content(
         .error()
         .map(|error| config_error(shell, error, cx));
     let body = match section {
-        AppSection::General => general(shell, window, cx),
+        AppSection::General | AppSection::Network => general(shell, window, cx),
         AppSection::McpPolicy => policy(shell, workspace, window, cx),
     };
     div()

@@ -9,8 +9,10 @@
 //! asks first. Variables are edited by [`super::variables_ops`].
 //!
 //! Above them sits the App section (app-pending S3, design/app-settings/02): General and MCP
-//! policy, which edit the user's `config.toml` through [`app_settings`]. The rail's Settings
-//! opens the page there, and it opens with no workspace too.
+//! policy, which edit the user's `config.toml` through [`app_settings`], and Network, which
+//! shows `[network]` read-only and edits its keyring entries ([`network_settings`]). The
+//! rail's Settings opens the page there, and it opens with no workspace too. The workspace
+//! part ends with Cookies, the workspace's cookie jar ([`cookie_jar`]).
 
 use gpui::{App, AppContext as _, Context, Entity, FocusHandle, Pixels, Point, Window};
 use gpui_component::input::InputState;
@@ -24,6 +26,10 @@ use crate::workspace::OpenedWorkspace;
 
 #[path = "app_settings.rs"]
 pub(crate) mod app_settings;
+#[path = "cookie_jar.rs"]
+pub(crate) mod cookie_jar;
+#[path = "network_settings.rs"]
+pub(crate) mod network_settings;
 
 /// A section of the App part of the page.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +38,8 @@ pub(crate) enum AppSection {
     General,
     /// The `[mcp]` rules and lists, and the workspace overrides read-only.
     McpPolicy,
+    /// `[network]` read-only, and the keyring entries of its secrets.
+    Network,
 }
 
 /// A section of the page.
@@ -44,13 +52,15 @@ pub(crate) enum Section {
     Environments(Option<Id>),
     /// The variables of a collection.
     Collection(Id),
+    /// The workspace's cookie jar.
+    Cookies,
 }
 
 impl Section {
     /// The scope whose variables the section shows.
     pub(crate) fn scope(self) -> Option<SecretScope> {
         match self {
-            Self::App(_) => None,
+            Self::App(_) | Self::Cookies => None,
             Self::Globals => Some(SecretScope::Global),
             Self::Environments(id) => id.map(SecretScope::Environment),
             Self::Collection(id) => Some(SecretScope::Collection(id)),
@@ -83,6 +93,10 @@ pub(crate) struct SettingsPage {
     pub(crate) warning: Option<String>,
     /// The App section: what `config.toml` holds and its controls.
     pub(crate) app: app_settings::AppSettings,
+    /// App > Network: what `[network]` holds and the keyring dialog.
+    pub(crate) network: network_settings::NetworkState,
+    /// Workspace > Cookies: the filter and the Clear all confirmation.
+    pub(crate) cookies: cookie_jar::CookieJarState,
 }
 
 impl SettingsPage {
@@ -97,6 +111,8 @@ impl SettingsPage {
             error: None,
             warning: None,
             app: app_settings::AppSettings::default(),
+            network: network_settings::NetworkState::new(cx),
+            cookies: cookie_jar::CookieJarState::new(cx),
         }
     }
 
@@ -111,6 +127,7 @@ impl SettingsPage {
         self.confirm = None;
         self.error = None;
         self.warning = None;
+        self.cookies.reset();
     }
 }
 
@@ -128,6 +145,7 @@ impl Shell {
         match self.settings.section {
             Section::App(section) => Section::App(section),
             Section::Globals => Section::Globals,
+            Section::Cookies => Section::Cookies,
             Section::Environments(id) => {
                 let all = environments(workspace);
                 let kept = id.filter(|id| all.iter().any(|entry| entry.id == *id));

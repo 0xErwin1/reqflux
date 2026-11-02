@@ -9,6 +9,8 @@
 //!
 //! The App section (app-pending S3) sits above the workspace sections in the nav and draws
 //! through [`app_settings_view`]; with no workspace open, the page holds only the App section.
+//! Workspace > Cookies (`nav-cookies`, with the jar's count) draws through the cookie jar's
+//! view.
 
 #[path = "app_settings_view.rs"]
 mod app_settings_view;
@@ -31,6 +33,7 @@ use reqflux_engine::SecretScope;
 use super::request::{option_menu, ui};
 use super::rows::labeled_row;
 use super::settings_page::Section;
+use super::settings_page::cookie_jar;
 use super::variables_model::{
     ScopeEntry, collections, environments, scope_file, scope_name, variable_count,
 };
@@ -56,6 +59,10 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
         (Section::App(app), workspace) => (
             app_settings_view::header(shell, cx),
             app_settings_view::content(shell, app, workspace, window, cx),
+        ),
+        (Section::Cookies, Some(workspace)) => (
+            header(shell, workspace, cx),
+            cookie_jar::view::content(shell, workspace, window, cx),
         ),
         (section, Some(workspace)) => (
             header(shell, workspace, cx),
@@ -169,10 +176,14 @@ fn nav(
 ) -> Stateful<Div> {
     let app_section = match section {
         Section::App(app) => Some(app),
-        Section::Globals | Section::Environments(_) | Section::Collection(_) => None,
+        Section::Globals | Section::Environments(_) | Section::Collection(_) | Section::Cookies => {
+            None
+        }
     };
     let app = app_settings_view::nav_entries(shell, app_section, cx);
-    let workspace_entries = workspace.map(|workspace| workspace_nav(workspace, section, cx));
+    let cookies = shell.jar_cookies().len();
+    let workspace_entries =
+        workspace.map(|workspace| workspace_nav(workspace, section, cookies, cx));
     let note = if app_section.is_some() {
         APP_NOTE
     } else {
@@ -200,6 +211,7 @@ fn nav(
 fn workspace_nav(
     workspace: &Workspace,
     section: Section,
+    cookies: usize,
     cx: &mut Context<Shell>,
 ) -> Vec<AnyElement> {
     let environments = environments(workspace);
@@ -239,6 +251,15 @@ fn workspace_nav(
             environments.len(),
             matches!(section, Section::Environments(_)),
             Section::Environments(None),
+            cx,
+        ),
+        nav_entry(
+            "nav-cookies".to_owned(),
+            IconName::Cookie,
+            "Cookies".to_owned(),
+            cookies,
+            section == Section::Cookies,
+            Section::Cookies,
             cx,
         ),
     ];
@@ -306,7 +327,11 @@ fn nav_entry(
                 .child(count.to_string()),
         )
         .on_click(cx.listener(move |this, _event, window, cx| {
-            this.select_settings_section(target, window, cx);
+            if target == Section::Cookies {
+                this.open_cookie_jar(window, cx);
+            } else {
+                this.select_settings_section(target, window, cx);
+            }
         }))
         .into_any_element()
 }
@@ -322,8 +347,8 @@ fn content(
 ) -> Div {
     let scope = section.scope();
     let (heading, description) = match section {
-        // Drawn by `app_settings_view`.
-        Section::App(_) => (String::new(), ""),
+        // Drawn by `app_settings_view` and the cookie jar's view.
+        Section::App(_) | Section::Cookies => (String::new(), ""),
         Section::Globals => (
             "Globals".to_owned(),
             "Initial values live in reqflux.toml and are committed. Current values stay on \
@@ -397,7 +422,9 @@ fn content(
                         .pr(HeaderMetrics::SECTION_PADDING_X)
                         .child(super::runner::settings_run_button(id.to_string(), cx)),
                 ),
-            Section::App(_) | Section::Globals | Section::Environments(_) => title,
+            Section::App(_) | Section::Globals | Section::Environments(_) | Section::Cookies => {
+                title
+            }
         })
         .children(message(shell, cx))
         .child(
@@ -444,7 +471,7 @@ fn environment_list(
     let line = bolt::colors(cx).line;
     let selected = match section {
         Section::Environments(id) => id,
-        Section::App(_) | Section::Globals | Section::Collection(_) => None,
+        Section::App(_) | Section::Globals | Section::Collection(_) | Section::Cookies => None,
     };
     let entries = environments(workspace);
     let prompt = environment_delete_prompt(shell, &entries, cx);

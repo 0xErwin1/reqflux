@@ -67,6 +67,8 @@ impl Shell {
         };
         self.leave_workspace();
         self.workspace = opened;
+        // A new engine starts without `[network]` or a jar: connect it before anything sends.
+        self.connect_workspace();
         let (roots, workspace_id) = match &self.workspace {
             OpenedWorkspace::Loaded(engine) => (
                 tree_model::engine_nodes(engine),

@@ -1,8 +1,10 @@
 //! The Cookies sub-tab (response-views/02): a table of every `Set-Cookie` header, name,
 //! value, domain, path, expires and flags. A value that holds a secret the send knows (by
 //! the send's masker), or that history stored masked, shows as dots with the SECRET badge;
-//! every other text goes through the masker too.
+//! every other text goes through the masker too. A bar above the table counts them and
+//! offers `Open cookie jar` (`response-cookies-open-jar`), Workspace > Cookies.
 
+use bolt::controls::Button;
 use bolt::primitives::{Badge, BadgeTone, Icon};
 use bolt::tokens::{Borders, Fields, FontSizes, GridMetrics, Heights, Spacing};
 use gpui::{AnyElement, App, Div, FontWeight, ParentElement, Pixels, Styled, div, prelude::*};
@@ -13,6 +15,7 @@ use super::cookies::{Cookie, CookieColumns, CookieValue, cookies};
 use crate::shell::region;
 use crate::shell::request::{Received, secret, ui};
 use crate::shell::rows::{labeled_row, part};
+use crate::shell::settings_page::cookie_jar::OpenCookieJar;
 use crate::tokens;
 
 /// What a hidden value shows.
@@ -25,43 +28,72 @@ const DOTS: &str = "••••••••••";
 /// parse is one cell with a warning mark.
 pub(super) fn render(received: &Received, masker: &Masker, cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
-    let rows = cookies(&received.headers)
-        .into_iter()
-        .enumerate()
-        .map(|(index, cookie)| {
-            let n = index + 1;
-            let id = format!("response-cookie-{n}");
-            match cookie {
-                Cookie::Parsed(cookie) => row(n, cookie.columns(|text| masker.mask(text)), cx),
-                Cookie::Raw(raw) => {
-                    let raw = masker.mask(&raw);
-                    labeled_row(id, format!("Could not parse: {raw}"))
-                        .flex()
-                        .items_center()
-                        .gap(Spacing::SM)
-                        .h(Heights::ROW)
-                        .pl(Spacing::MD)
-                        .border_b(Borders::THIN)
-                        .border_color(colors.row_divider)
-                        .child(
-                            Icon::new(ui::icon(IconName::TriangleAlert))
-                                .size(Fields::CHEVRON)
-                                .color(colors.warning),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w_0()
-                                .pr(Spacing::MD)
-                                .overflow_hidden()
-                                .whitespace_nowrap()
-                                .text_color(colors.foreground)
-                                .child(raw),
-                        )
-                        .into_any_element()
-                }
+    let all = cookies(&received.headers);
+    let set = format!("{} set by this response", all.len());
+    let bar = div()
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(Spacing::SM)
+        .h(Heights::ROW)
+        .pl(Spacing::MD)
+        .pr(Spacing::MD)
+        .font_family(bolt::fonts::ui_family(cx))
+        .text_color(colors.muted)
+        .child(
+            Icon::new(ui::icon(IconName::Cookie))
+                .size(Fields::CHEVRON)
+                .color(colors.muted),
+        )
+        .child(
+            part("response-cookies-count".to_owned())
+                .role(gpui::Role::Label)
+                .aria_label(set.clone())
+                .child(set),
+        )
+        .child(div().flex_1())
+        .child(
+            Button::new("response-cookies-open-jar", "Open cookie jar")
+                .secondary()
+                .inline()
+                .on_click(|_event, window, cx| {
+                    window.dispatch_action(Box::new(OpenCookieJar), cx);
+                }),
+        );
+    let rows = all.into_iter().enumerate().map(|(index, cookie)| {
+        let n = index + 1;
+        let id = format!("response-cookie-{n}");
+        match cookie {
+            Cookie::Parsed(cookie) => row(n, cookie.columns(|text| masker.mask(text)), cx),
+            Cookie::Raw(raw) => {
+                let raw = masker.mask(&raw);
+                labeled_row(id, format!("Could not parse: {raw}"))
+                    .flex()
+                    .items_center()
+                    .gap(Spacing::SM)
+                    .h(Heights::ROW)
+                    .pl(Spacing::MD)
+                    .border_b(Borders::THIN)
+                    .border_color(colors.row_divider)
+                    .child(
+                        Icon::new(ui::icon(IconName::TriangleAlert))
+                            .size(Fields::CHEVRON)
+                            .color(colors.warning),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .pr(Spacing::MD)
+                            .overflow_hidden()
+                            .whitespace_nowrap()
+                            .text_color(colors.foreground)
+                            .child(raw),
+                    )
+                    .into_any_element()
             }
-        });
+        }
+    });
     region("response-cookies")
         .flex_1()
         .min_h_0()
@@ -70,6 +102,7 @@ pub(super) fn render(received: &Received, masker: &Masker, cx: &App) -> AnyEleme
         .border_color(colors.line)
         .font_family(bolt::fonts::grid_family(cx))
         .text_size(GridMetrics::FONT)
+        .child(bar)
         .child(header(cx))
         .children(rows)
         .into_any_element()

@@ -4,7 +4,8 @@
 //! their path (`In ReqFlux` for a workspace the app keeps), the current one marked, each with
 //! `Remove`; then `New workspace…` (an inline name field, standalone-workspaces S3),
 //! `New workspace in folder…`, `Open workspace…` and, while one is open, `Workspace
-//! settings…` (design-catch-up T7, the settings page) and `Close workspace`, over the footer
+//! settings…` (design-catch-up T7, the settings page), `Cookies…` (the cookie jar, with its
+//! count) and `Close workspace`, over the footer
 //! note. A recent workspace that does not load keeps the menu open and shows
 //! its error in its row, `workspace-error`, with `Retry`; any other error shows under the
 //! recents. Escape or a click outside closes the menu.
@@ -57,6 +58,9 @@ pub(crate) const CLOSE_WORKSPACE: &str = "Close workspace";
 /// `Workspace settings…`: opens the workspace settings page.
 pub(crate) const WORKSPACE_SETTINGS: &str = "Workspace settings…";
 
+/// `Cookies…`: opens the workspace's cookie jar.
+pub(crate) const COOKIES: &str = "Cookies…";
+
 /// The note at the foot of the menu.
 pub(crate) const FOOTER_NOTE: &str = "One workspace is open at a time. Drafts stay with their \
                                       workspace and come back when you switch to it.";
@@ -90,6 +94,7 @@ pub(super) enum Action {
     NewInFolder,
     Import,
     Settings,
+    Cookies,
     Close,
 }
 
@@ -105,6 +110,7 @@ impl Action {
                 shell.open_settings(super::settings_page::Section::Globals, cx);
                 shell.restore_focus(window, cx);
             }
+            Self::Cookies => shell.open_cookie_jar(window, cx),
             Self::Close => shell.switch_workspace(None, window, cx),
         }
         cx.notify();
@@ -494,6 +500,23 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             Some(CommandId::WorkspaceSettings),
             cx,
         ));
+        let cookies = shell.jar_cookies().len();
+        menu = menu.child(
+            action_row(
+                "workspace-cookies",
+                IconName::Cookie,
+                COOKIES,
+                Action::Cookies,
+                cx,
+            )
+            .aria_label(format!("{COOKIES} {cookies}"))
+            .child(
+                labeled_row("workspace-cookies-count".to_owned(), cookies.to_string())
+                    .font_family(bolt::fonts::editor_family(cx))
+                    .text_size(MenuMetrics::DETAIL_FONT)
+                    .child(cookies.to_string()),
+            ),
+        );
         menu = menu.child(menu_action(
             "workspace-close",
             IconName::LogOut,
