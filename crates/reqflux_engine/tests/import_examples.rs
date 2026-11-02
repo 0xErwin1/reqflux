@@ -335,6 +335,48 @@ fn an_unmappable_response_keeps_its_shape_but_not_its_credentials() {
 }
 
 #[test]
+fn an_unmappable_response_with_a_header_string_keeps_no_credential() {
+    let mut document = collection();
+    if let Some(response) = document["item"][0]["response"][2].as_object_mut() {
+        response.insert(
+            "header".to_owned(),
+            serde_json::json!("Content-Type: text/plain\nAuthorization: Bearer kept-secret-4"),
+        );
+    }
+    let dir = temp();
+    if let Err(error) = postman(dir.path(), &document, &[]) {
+        panic!("import: {error}");
+    }
+    let file = dir.path().join("collections/shop/get-user.req.toml");
+    let text = match fs::read_to_string(&file) {
+        Ok(text) => text,
+        Err(error) => panic!("read {}: {error}", file.display()),
+    };
+    assert!(!text.contains("kept-secret"), "{text}");
+
+    let engine = open_engine(dir.path());
+    let Item::Request(get_user) = &engine.workspace().collections[0].items[0] else {
+        panic!("expected Get User first");
+    };
+    let kept = get_user
+        .request
+        .extensions
+        .get("postman")
+        .and_then(toml::Value::as_str)
+        .unwrap_or_default();
+    let kept: serde_json::Value = match serde_json::from_str(kept) {
+        Ok(kept) => kept,
+        Err(error) => panic!("postman text: {error}"),
+    };
+    assert_eq!(
+        kept["response"][0]["header"],
+        serde_json::json!(format!(
+            "Content-Type: text/plain\nAuthorization: Bearer {MASK}"
+        ))
+    );
+}
+
+#[test]
 fn an_import_without_responses_writes_no_examples() {
     let mut document = collection();
     if let Some(item) = document["item"][0].as_object_mut() {

@@ -326,9 +326,17 @@ fn mask_kept_responses(extensions: &mut toml::Table) {
 }
 
 /// Masks the `value` of each Postman `{ key, value }` header in `headers` by the
-/// `header_for_agent` rule. A header list in another shape stays as it is.
+/// `header_for_agent` rule. Postman also writes headers as one `Key: value` per line
+/// string; each line is masked the same way. Any other shape stays as it is.
 fn mask_header_values(masker: &Masker, headers: Option<&mut Value>) {
-    let Some(headers) = headers.and_then(Value::as_array_mut) else {
+    let Some(headers) = headers else {
+        return;
+    };
+    if let Value::String(text) = headers {
+        *text = mask_header_lines(masker, text);
+        return;
+    }
+    let Some(headers) = headers.as_array_mut() else {
         return;
     };
     for header in headers {
@@ -343,6 +351,21 @@ fn mask_header_values(masker: &Masker, headers: Option<&mut Value>) {
             *slot = Value::String(value);
         }
     }
+}
+
+/// `text`, Postman's `Key: value` per line header string, with each value masked by the
+/// `header_for_agent` rule; a line without a colon stays as it is.
+fn mask_header_lines(masker: &Masker, text: &str) -> String {
+    text.split('\n')
+        .map(|line| match line.split_once(':') {
+            Some((key, value)) => {
+                let (_, value) = masker.header_for_agent(key.trim(), value.trim());
+                format!("{key}: {value}")
+            }
+            None => line.to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Collects every file the import would write for `items` under `parent`: the entity
