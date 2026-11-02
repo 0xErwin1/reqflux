@@ -399,16 +399,24 @@ A row with an empty key and an empty value is never sent, and params go before a
 A row with an empty value shows as its bare key (`?b`); the request sends `b=`. While the URL
 field is open, a grid change (a row toggled, edited or deleted) re-seeds it in place, keeping
 the cursor; Escape then returns to that point.
-The window has two built layout modes (v1-features S7, design/layouts/01): Stacked, the
-request above its response across the draggable split, and Side by side, the request and its
+
+The split-based modes show the response pane and the split after the request's first send in
+the session, or at once when its history has a send (the newest one, masked as recorded); before
+that the request uses the whole height.
+
+The window has three built layout modes (v1-features S7, design/layouts/01): Stacked, the
+request above its response across the draggable split; Side by side, the request and its
 response in columns with the splitter standing vertically between them (`bolt`'s
-`SplitAxis::Horizontal`). Collapsing the response shows its bar across the island in both modes.
-The mode is `layout` in the user's config.toml (`"stacked"` by default, `"side-by-side"`), read
-at startup and written by the same format-preserving editor as `theme`; a name this build does
-not know reads as the default. The tab-row switcher (`layout-switcher`) and the action-strip
-switcher (`layout-strip`) change it, as do the `Layout: Stacked` and `Layout: Side by side`
-commands (Ctrl+Alt+1, Ctrl+Alt+2). Document mode is the remaining S7 surface; the keymap
-is configurable (see `Configuration and policy` for the `[keymap]` table).
+`SplitAxis::Horizontal`); and Document, which draws no split at all, the active request's folder
+as one read-only `.http` document (`document-view`, numbered `document-line-<n>` rows grouped in
+`document-section-<n>`). Collapsing the response shows its bar across the island in both
+split-based modes. The mode is `layout` in the user's config.toml (`"stacked"` by default,
+`"side-by-side"`, `"document"`), read at startup and written by the same format-preserving
+editor as `theme`; a name this build does not know reads as the default. The tab-row switcher
+(`segmented-layout`) and the action-strip switcher (`layout-strip`) change it, as do the
+`Layout: Stacked`, `Layout: Side by side` and `Layout: Document` commands (Ctrl+Alt+1,
+Ctrl+Alt+2, Ctrl+Alt+3). The keymap is configurable (see `Configuration and policy` for the
+`[keymap]` table).
 
 A `.http` document, the text that mode reads, is plain text: sections separated by
 `### <name>` lines, each with a `<METHOD> <url>` line (a lone URL line means GET), `Key: value`
@@ -417,9 +425,11 @@ a section at column zero before the body, or after a blank line inside it, so an
 or one directly after body text is body. `reqflux_core::http_document::parse` never fails
 (broken sections come back as warnings) and `write` re-emits canonical text, so `parse(write(x))
 == x` and a canonical document round-trips byte for byte; `DocumentRequest::to_request` turns a
-section into a model `Request`.
+section into a model `Request`. The window shows a folder through `write`: every value as
+written (no resolved secrets, never a draft's resolved value), no body text for the non-raw body
+types yet, and no editing, syncing or running (later S7 units).
 
- In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
+In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
 and clicking a row's key or value cell (`request-<table>-<key|value>-<n>`) swaps the cell
 for a field (`request-cell-input`) seeded with the cell's text; Enter commits it to that
