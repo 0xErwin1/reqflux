@@ -8,6 +8,8 @@
 //!
 //! A request's Postman `response` entries become saved examples written after the request
 //! (v1-features S4), their response headers masked as `Engine::save_example` masks them.
+//! An entry that does not map stays as Postman text in the request's `extensions.postman`
+//! with the same masking: credential header values and `cookie[].value`.
 
 mod preview;
 
@@ -214,7 +216,9 @@ fn write_items(
             }
             Item::Request(request) => {
                 let file = target_path(checked_request_file(root, parent, &request.slug), root)?;
-                save_request(root, parent, &request.slug, &request.request, None)
+                let mut kept = request.request.clone();
+                mask_kept_responses(&mut kept.extensions);
+                save_request(root, parent, &request.slug, &kept, None)
                     .map_err(|error| store_error(&file, error))?;
                 save_scripts(
                     root,
@@ -276,13 +280,69 @@ fn masked(example: &Example) -> Example {
 /// it has no `cookie` array and so stays as it is.
 fn masked_cookies(kept: &str) -> Option<String> {
     let mut rest: Value = serde_json::from_str(kept).ok()?;
-    let cookies = rest.get_mut("cookie")?.as_array_mut()?;
+    mask_cookie_values(rest.get_mut("cookie")?.as_array_mut()?);
+    serde_json::to_string(&rest).ok()
+}
+
+fn mask_cookie_values(cookies: &mut [Value]) {
     for cookie in cookies {
         if let Some(value) = cookie.get_mut("value") {
             *value = Value::String(crate::sent::MASK.to_owned());
         }
     }
-    serde_json::to_string(&rest).ok()
+}
+
+/// Masks the Postman `response` entries a request keeps in `extensions.postman` because
+/// they did not map to an example, as [`masked`] masks a mapped one: the value of a
+/// credential response header and every `cookie[].value`. The shape of each entry stays,
+/// and its `originalRequest` is kept as written, like a mapped example's request.
+fn mask_kept_responses(extensions: &mut toml::Table) {
+    let Some(mut rest) = extensions
+        .get("postman")
+        .and_then(toml::Value::as_str)
+        .and_then(|kept| serde_json::from_str::<Value>(kept).ok())
+    else {
+        return;
+    };
+    let Some(responses) = rest.get_mut("response").and_then(Value::as_array_mut) else {
+        return;
+    };
+    let masker = Masker::default();
+    for response in responses {
+        mask_header_values(&masker, response.get_mut("header"));
+        if let Some(cookies) = response.get_mut("cookie").and_then(Value::as_array_mut) {
+            mask_cookie_values(cookies);
+        }
+    }
+    match serde_json::to_string(&rest) {
+        Ok(text) => {
+            extensions.insert("postman".to_owned(), toml::Value::String(text));
+        }
+        // Unreachable for a value just parsed; drop the text rather than keep it unmasked.
+        Err(_) => {
+            extensions.remove("postman");
+        }
+    }
+}
+
+/// Masks the `value` of each Postman `{ key, value }` header in `headers` by the
+/// `header_for_agent` rule. A header list in another shape stays as it is.
+fn mask_header_values(masker: &Masker, headers: Option<&mut Value>) {
+    let Some(headers) = headers.and_then(Value::as_array_mut) else {
+        return;
+    };
+    for header in headers {
+        let (Some(key), Some(value)) = (
+            header.get("key").and_then(Value::as_str),
+            header.get("value").and_then(Value::as_str),
+        ) else {
+            continue;
+        };
+        let (_, value) = masker.header_for_agent(key, value);
+        if let Some(slot) = header.get_mut("value") {
+            *slot = Value::String(value);
+        }
+    }
 }
 
 /// Collects every file the import would write for `items` under `parent`: the entity

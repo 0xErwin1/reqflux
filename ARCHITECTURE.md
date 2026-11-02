@@ -319,7 +319,9 @@ and `Engine::save_response_body` writes a response body to a chosen path. A Post
 else the item's request, kept as written; response headers are masked as `save_example` masks
 them, and so is the `value` of each entry in the Postman `cookie` array kept in
 `extensions.postman`. An entry without a numeric status or with a request that does not map stays in the
-request's `extensions.postman`; `response` leaves it only when every entry mapped. The import
+request's `extensions.postman`, masked the same way (credential header values by the
+`header_for_agent` rule and every `cookie[].value`); `response` leaves it only when every entry
+mapped. The import
 summary and preview count the examples, and the preview lists their files.
 
 ```text
