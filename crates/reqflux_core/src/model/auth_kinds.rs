@@ -5,7 +5,8 @@
 //! every field. [`Auth::typed`] reads the fields, accepting the ReqFlux keys and the keys a
 //! Postman import keeps (`accessKey`, `grant_type = "password_credentials"`, ...), and
 //! ignoring keys it does not use. The `From` conversions build the `Other` value in the
-//! canonical key order, so a file the app writes is stable.
+//! canonical key order, so a new auth the app writes is stable; [`Auth::with_typed`] writes an
+//! edit back into an existing table, keeping its other keys and their spelling.
 
 use serde::{Deserialize, Serialize};
 
@@ -303,6 +304,8 @@ impl From<TypedAuth> for Auth {
         }
     }
 }
+
+mod edit;
 
 #[cfg(test)]
 mod tests;

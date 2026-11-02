@@ -643,7 +643,9 @@ yet`.
 
 Digest, AWS SigV4 and OAuth 2.0 stay `Auth::Other` in the model and are read through typed views
 (`Auth::typed`); `secret_fields(kind)` names their credential keys, which history and every
-masked view hide. Digest answers a `401` challenge once (RFC 7616: MD5, SHA-256, `-sess`,
+masked view hide. Editing a typed auth field (`Auth::with_typed`) rewrites only that key, under
+the spelling the file already uses (a Postman alias such as `accessKey` stays); unknown keys are
+kept. Only a newly picked auth type is written with the canonical keys in canonical order. Digest answers a `401` challenge once (RFC 7616: MD5, SHA-256, `-sess`,
 `qop=auth`). SigV4 signs every header plus `host` and `x-amz-date`, and the payload hash, when the
 send starts, so history records the signed request. OAuth 2.0 tokens live only in the OS keyring
 under `<workspace>/collection/<collection>/oauth2/<request|folder|collection>/<id>` and are

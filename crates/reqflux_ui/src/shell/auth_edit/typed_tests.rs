@@ -235,6 +235,30 @@ fn aws_shows_region_and_service_and_masks_the_keys(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn editing_a_field_keeps_unknown_keys_and_postman_spellings(cx: &mut TestAppContext) {
+    let dir = auth_workspace(
+        "type = \"awsv4\"\naccessKey = \"AKIDEXAMPLE\"\nsecret_key = \"aws-literal\"\nregion = \"eu-west-1\"\nservice = \"s3\"\nx_custom = \"kept\"\n",
+    );
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    type_field(cx, "region", "us-east-1");
+    type_field(cx, "access-key", "AKIDNEW");
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+
+    assert!(
+        file(&dir).contains(
+            "[auth]\ntype = \"awsv4\"\naccessKey = \"AKIDNEW\"\nsecret_key = \"aws-literal\"\nregion = \"us-east-1\"\nservice = \"s3\"\nx_custom = \"kept\"\n"
+        ),
+        "{}",
+        file(&dir)
+    );
+    assert!(!file(&dir).contains("access_key"), "{}", file(&dir));
+}
+
+#[gpui::test]
 fn the_grant_select_changes_the_oauth_rows(cx: &mut TestAppContext) {
     let dir = auth_workspace(
         "type = \"oauth2\"\ntoken_url = \"https://id/token\"\nclient_id = \"billing\"\nclient_secret = \"oauth-literal\"\n",

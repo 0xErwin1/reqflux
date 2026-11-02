@@ -1,6 +1,7 @@
 //! Editing digest, AWS SigV4 and OAuth 2.0 through their typed views: a field writes one
-//! on-disk key, and the auth is written back through the `From` constructors, so the file
-//! keeps the canonical keys in their order. The digest algorithm and the OAuth 2.0 grant are
+//! on-disk key, and the auth is written back through
+//! [`Auth::with_typed`](reqflux_core::model::Auth::with_typed), so only the edited
+//! key changes: every other key, known or not, and a Postman spelling stay as they were. The digest algorithm and the OAuth 2.0 grant are
 //! picked from a menu.
 
 use gpui::{Context, Window};
@@ -111,7 +112,11 @@ impl Shell {
             return;
         }
         *text = value;
-        self.edit_draft(id, |request| request.auth = typed.into(), cx);
+        self.edit_draft(
+            id,
+            |request| request.auth = request.auth.with_typed(typed),
+            cx,
+        );
     }
 
     /// Writes `edit` of the typed auth of the request `id` to its draft when it changes it.
@@ -130,7 +135,11 @@ impl Shell {
         let mut edited = typed.clone();
         edit(&mut edited);
         if edited != typed {
-            self.edit_draft(id, |request| request.auth = edited.into(), cx);
+            self.edit_draft(
+                id,
+                |request| request.auth = request.auth.with_typed(edited),
+                cx,
+            );
         }
     }
 
