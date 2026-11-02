@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Network and cookies: document tabs</title>
+<!--
+  Direction 2: network and cookies open as document tabs beside the requests of the bolt-v2 shell
+  (design/bolt-v2/01-main.html: title bar, rail, sidebar tree, document island, status bar).
+  "Network" shows what sends of this workspace use now: Engine::network_settings() after
+  Engine::apply_network, so the view is per workspace by construction (the workspace proxy
+  override already replaced the app proxy) and skipped entries are absent from it; the warnings
+  apply_network returned sit in one banner on top, never carrying a secret. "Cookies" is the jar
+  as a grid with an inspector.
+
+  Engine backing: config/edit.rs has no [network] writer, so nothing here edits config.toml:
+  "Open config.toml" and "Reload" (load again, apply_network again) are the only config actions,
+  and no file picker is drawn. Secrets: NetworkSettings carries the read password and passphrase;
+  the view only asks is_some() and shows SET or NOT SET; Set and Clear write the keyring through
+  SecretStore::{set,delete}_account and apply_network runs again. ManualProxy.url may hold
+  userinfo; its password part shows as •••••••• .
+  Cookie jar: Engine::{cookies, delete_cookie, clear_cookies}. StoredCookie has no secret flag,
+  so jar values show as stored; masking a value that equals a secret variable is not drawn until
+  the engine can tell (the response Cookies view masks through the send's masker).
+
+  bolt: activity_rail, island, tree, tabs (document tab row), segmented_control, data grid,
+  list_row, button, badge, banner, dialog, toast, chip, input.
+  bolt gap: banner with a list of lines (warnings) and a trailing action column.
+  bolt gap: grid row selection driving an inspector pane (the response-views/03 inspector pattern).
+-->
+<style>
+body{margin:0;background:#09090B}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.c18{clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px)}
+.in14{clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden;background:#100F13}
+.edge{display:flex;padding:1px;background:rgba(255,255,255,.05)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap;cursor:pointer}
+:focus-visible{outline:2px solid #9DB1FF;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{transition-duration:.01ms!important}}
+.cap{font-family:Archivo,system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+.ds{color:#8E8996;font-size:12px}
+.kc{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;padding:2px 6px;background:#1A181E;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#C6C3CC}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.btn.sm{height:26px;padding:0 10px;font-size:12px}
+.btn.pri{background:#2B45B8;color:#FFFFFF}
+.btn.dng{background:#FF6B5E;color:#050507;font-weight:600}
+.ib{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border:0;background:transparent;color:#8E8996}
+.rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
+.tab{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;color:#8E8996;font-size:13px;white-space:nowrap}
+.tab.on{background:#1A181E;color:#F7F4F7;font-weight:600}
+.seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7}
+.chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;border:0;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
+.row{position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:13px;color:#C6C3CC}
+.mt{width:38px;flex-shrink:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10px;font-weight:700}
+.get{color:#7BE0A0}.post{color:#FFC23D}.del{color:#FF6B5E}
+.gh{display:flex;align-items:center;height:32px;background:#09090B;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;color:#F7F4F7;font-weight:600}
+.gr{display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;color:#C6C3CC}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+.gr>.rn{padding:0 12px 0 0;text-align:right;color:#37333D}
+.gr.sel{position:relative;background:rgba(157,177,255,.07)}
+.gr.sel::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.badge{display:inline-flex;align-items:center;gap:4px;height:18px;padding:0 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em;white-space:nowrap}
+.b-set{background:rgba(123,224,160,.12);color:#7BE0A0}
+.b-unset{background:rgba(255,194,61,.12);color:#FFC23D}
+.b-skip{background:rgba(255,107,94,.12);color:#FF6B5E}
+.b-tint{background:rgba(157,177,255,.12);color:#9DB1FF}
+.flag{display:inline-flex;align-items:center;height:18px;padding:0 6px;background:#1A181E;color:#C6C3CC;font-size:10.5px;font-family:Archivo,system-ui,sans-serif;font-weight:600}
+.pill{display:inline-flex;align-items:center;height:22px;padding:0 8px;background:#1A181E;color:#C6C3CC;font-size:12px}
+.card{background:#09090B;box-shadow:#232128 0 0 0 1px inset;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;align-items:center;font-size:12.5px}
+.kv>span:nth-child(odd){color:#8E8996}
+.kv>span:nth-child(even){color:#F7F4F7;min-width:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ban{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;font-size:12.5px;line-height:1.5;color:#F7F4F7}
+.ban.w{background:rgba(255,194,61,.10);box-shadow:#FFC23D 0 0 0 1px inset}
+.ban.d{background:rgba(255,107,94,.12);box-shadow:#FF6B5E 0 0 0 1px inset}
+.dia{display:inline-block;width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.dlg{background:#100F13;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.6) 0 18px 50px}
+.toast{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#1A181E;box-shadow:#37333D 0 0 0 1px;font-size:12.5px;color:#F7F4F7}
+.desk{width:1440px;box-sizing:border-box;padding:40px 48px 56px;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px}
+.desk h2{margin:0 0 6px;font-size:18px;font-weight:600;color:#F7F4F7}
+.desk h3{margin:0;white-space:nowrap;font-size:13px;font-weight:600;color:#F7F4F7}
+.desk p{margin:0;color:#8E8996;font-size:12.5px;line-height:1.5}
+.state{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+.state-head{display:flex;align-items:baseline;gap:12px}
+.frame{width:1344px;box-sizing:border-box;background:#100F13;box-shadow:#232128 0 0 0 1px inset;overflow:hidden;position:relative}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/></symbol>
+  <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/></symbol>
+  <symbol id="i-fingerprint" viewBox="0 0 24 24"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4"/><path d="M2 12a10 10 0 0 1 18-6"/><path d="M9 6.8a6 6 0 0 1 9 5.2v2"/><path d="M5 19.5C5.5 18 6 15 6 12"/></symbol>
+  <symbol id="i-workspace" viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="i-cookie" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></symbol>
+</svg>
+
+<main style="position:relative;width:1440px;height:900px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#050507;color:#C6C3CC;font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px">
+  <header style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:44px;padding:0 14px;flex-shrink:0">
+    <div style="justify-self:start;display:flex;align-items:center;gap:2px;margin-left:55px">
+      <button aria-label="Workspace: billing" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 8px 0 10px;border:0;background:transparent;color:#C6C3CC;font-size:12.5px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-workspace"/></svg><span style="color:#F7F4F7;font-weight:600">billing</span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></button>
+      <svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#37333D"><use href="#i-chev"/></svg>
+      <button aria-label="Environment: staging" class="c6" style="display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;border:0;background:transparent;color:#C6C3CC;font-size:12.5px"><span class="dia" style="background:#FFC23D"></span><span style="color:#F7F4F7;font-weight:600">staging</span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></button>
+    </div>
+    <div class="c6 field" style="width:420px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg><span style="flex-grow:1;color:#8E8996">Search or run a command</span><span class="c4 kc">Ctrl K</span></div>
+    <span style="justify-self:end"><button aria-label="Approvals" class="c6 ib"><svg class="ico" aria-hidden="true" style="width:16px;height:16px"><use href="#i-bell"/></svg></button></span>
+  </header>
+
+  <div style="flex-grow:1;min-height:0;display:flex;gap:8px;padding:0 8px">
+    <nav aria-label="Activity" style="display:flex;flex-direction:column;align-items:center;gap:6px;width:46px;flex-shrink:0;padding-top:4px">
+      <button aria-label="Collections" aria-pressed="true" class="c6 rail" style="background:rgba(157,177,255,.16);color:#9DB1FF"><svg class="ico" aria-hidden="true" style="width:19px;height:19px"><use href="#i-box"/></svg></button>
+      <button aria-label="History" class="c6 rail"><svg class="ico" aria-hidden="true" style="width:19px;height:19px"><use href="#i-history"/></svg></button>
+      <button aria-label="Environments" class="c6 rail"><svg class="ico" aria-hidden="true" style="width:19px;height:19px"><use href="#i-layers"/></svg></button>
+      <button aria-label="MCP approvals" class="c6 rail"><svg class="ico" aria-hidden="true" style="width:19px;height:19px"><use href="#i-bot"/></svg></button>
+      <button aria-label="Audit log" class="c6 rail"><svg class="ico" aria-hidden="true" style="width:19px;height:19px"><use href="#i-fingerprint"/></svg></button>
+      <span style="flex-grow:1"></span>
+      <button aria-label="Settings" class="c6 rail" style="margin-bottom:4px"><svg class="ico" aria-hidden="true" style="width:19px;height:19px"><use href="#i-gear"/></svg></button>
+    </nav>
+
+    <div class="c14 edge"><aside class="in14" aria-label="Collections" style="width:250px;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:8px;height:46px;padding:0 12px 0 16px;flex-shrink:0"><span class="cap">Collections</span><span style="flex-grow:1"></span><button aria-label="New request" class="c6 ib"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-plus"/></svg></button></div>
+      <div class="row" style="color:#F7F4F7"><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996;transform:rotate(90deg)"><use href="#i-chev"/></svg><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>Billing API</div>
+      <div class="row" style="padding-left:30px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>invoices</div>
+      <div class="row" style="padding-left:48px"><span class="mt get">GET</span>List invoices</div>
+      <div class="row" style="padding-left:48px"><span class="mt post">POST</span>Create invoice</div>
+      <div class="row" style="padding-left:48px"><span class="mt del">DEL</span>Void invoice</div>
+      <div class="row" style="padding-left:30px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-folder"/></svg>exports</div>
+      <div class="row" style="color:#F7F4F7"><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-chev"/></svg><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-box"/></svg>Auth</div>
+    </aside></div>
+
+    <div class="c14 edge" style="flex-grow:1;min-width:0"><section class="in14" aria-label="Documents" style="flex-grow:1;display:flex;flex-direction:column">
+      <div role="tablist" style="display:flex;align-items:center;gap:4px;height:46px;padding:0 12px;flex-shrink:0;border-bottom:1px solid #232128">
+        <span class="c6 tab" role="tab" aria-selected="false"><span class="mt get" style="width:auto">GET</span>List invoices</span>
+        <span id="tab-network" class="c6 tab on" role="tab" aria-selected="true"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-globe"/></svg>Network<svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-x"/></svg></span>
+        <span id="tab-cookies" class="c6 tab" role="tab" aria-selected="false"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-cookie"/></svg>Cookies<span class="m" style="font-size:10.5px">7</span></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 20px;flex-shrink:0;border-bottom:1px solid #232128">
+        <span style="font-weight:600;color:#F7F4F7;font-size:14px">What sends in billing use</span>
+        <span class="ds">from <span class="m">[network]</span> in <span class="m">~/.config/reqflux/config.toml</span> and the OS keyring</span>
+        <span style="flex-grow:1"></span>
+        <button id="network-open-config" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open config.toml</button>
+        <button id="network-reload" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-refresh"/></svg>Reload</button>
+      </div>
+
+      <div style="flex-grow:1;min-height:0;overflow:hidden;padding:16px 20px;display:flex;flex-direction:column;gap:14px">
+        <!-- bolt gap: Banner with a list of lines (the warnings apply_network returned) -->
+        <div id="network-warnings" class="c8 ban w" role="status"><svg class="ico" aria-hidden="true" style="width:16px;height:16px;color:#FFC23D;margin-top:2px"><use href="#i-alert"/></svg>
+          <div style="display:flex;flex-direction:column;gap:2px;flex-grow:1"><b>1 entry is skipped; sends go on without it.</b><span class="m" style="font-size:12px;color:#C6C3CC">[[network.certificates]] legacy.acme.com needs cert and key, or pkcs12; it is ignored</span></div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="c12 card" id="network-proxy">
+            <div style="display:flex;align-items:center;gap:8px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-globe"/></svg><span class="cap">Proxy</span><span style="flex-grow:1"></span><span class="c4 badge b-tint">THIS WORKSPACE'S OWN</span></div>
+            <div class="kv">
+              <span>Mode</span><span>Manual</span>
+              <span>URL</span><span class="m">socks5h://bastion.billing.acme.com:1080</span>
+              <span>Username</span><span class="m">deploy</span>
+              <span>Password</span><span><span class="c4 badge b-set"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-key"/></svg>KEYRING · SET</span><span style="flex-grow:1"></span><button class="c6 btn sm">Change…</button><button class="c6 btn sm">Clear</button></span>
+              <span>Bypass</span><span class="m"><span class="c4 pill">localhost</span><span class="c4 pill">10.0.0.0/8</span></span>
+            </div>
+            <span class="ds" style="line-height:1.5;border-top:1px solid #18161B;padding-top:8px">Replaces the app proxy (Manual, <span class="m">http://proxy.corp.acme.com:3128</span>) for this workspace only, from <span class="m">[network.workspaces."01J9Z4…KQ7M".proxy]</span>.</span>
+          </div>
+          <div class="c12 card" id="network-trust">
+            <div style="display:flex;align-items:center;gap:8px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-shield"/></svg><span class="cap">Trust</span></div>
+            <div class="kv">
+              <span>CA bundle</span><span class="m"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg>/etc/ssl/acme/corp-root-ca.pem</span>
+              <span>Roots</span><span>the platform's, plus the bundle</span>
+              <span>Verify TLS</span><span style="color:#C6C3CC">per request, in each request's Settings</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="c12 card" id="network-certificates" style="padding:0;gap:0">
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 16px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-key"/></svg><span class="cap">Client certificates · 3 in use</span><span class="ds">first match by host and port wins</span></div>
+          <div role="table" aria-label="Client certificates">
+            <div class="gh" role="row"><span style="width:40px"></span><span style="width:230px">host</span><span style="width:90px">port</span><span style="width:100px">format</span><span style="width:380px">files</span><span style="flex-grow:1;flex-shrink:1">passphrase</span></div>
+            <div class="gr" role="row"><span class="rn" style="width:40px">1</span><span style="width:230px;color:#F7F4F7">api.billing.acme.com</span><span style="width:90px">8443</span><span style="width:100px">PEM</span><span style="width:380px">~/certs/billing-client.pem + -key.pem</span><span style="flex-grow:1;flex-shrink:1;color:#8E8996">none</span></div>
+            <div class="gr" role="row"><span class="rn" style="width:40px">2</span><span style="width:230px;color:#F7F4F7">*.internal.acme.com</span><span style="width:90px;color:#8E8996">any</span><span style="width:100px">PKCS#12</span><span style="width:380px">~/certs/acme-internal.p12</span><span style="flex-grow:1;flex-shrink:1;display:flex;align-items:center;gap:8px"><span class="c4 badge b-set">KEYRING · SET</span><button class="c6 btn sm" style="height:22px">Change…</button></span></div>
+            <div class="gr" role="row" style="border-bottom:0"><span class="rn" style="width:40px">3</span><span style="width:230px;color:#F7F4F7">vault.acme.com</span><span style="width:90px">8200</span><span style="width:100px">PKCS#12</span><span style="width:380px">~/certs/vault-ops.p12</span><span style="flex-grow:1;flex-shrink:1;display:flex;align-items:center;gap:8px"><span class="c4 badge b-unset">KEYRING · NOT SET</span><button class="c6 btn sm" style="height:22px">Set…</button></span></div>
+          </div>
+        </div>
+      </div>
+    </section></div>
+  </div>
+
+  <footer style="display:flex;align-items:center;gap:8px;height:38px;padding:0 8px;flex-shrink:0">
+    <button class="c6 chip" aria-label="Last request: GET /v1/invoices · 200 · 212 ms"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">GET /v1/invoices · 200 · 212 ms</span></button>
+    <button class="c6 chip" aria-label="Problems: 1 warning"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#FFC23D"><use href="#i-alert"/></svg><span style="color:#C6C3CC">1 warning</span></button>
+    <span style="flex-grow:1"></span>
+    <button id="status-proxy" class="c6 chip" aria-label="Network: own proxy socks5h, open the Network tab"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-globe"/></svg><span style="color:#C6C3CC">socks5h · bastion.billing</span></button>
+    <button id="status-cookies" class="c6 chip" aria-label="Cookie jar: 7 cookies, open the Cookies tab"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-cookie"/></svg><span style="color:#C6C3CC">7 cookies</span></button>
+  </footer>
+</main>
+
+<section class="desk" aria-label="Network and cookies tabs · states"><h2>Network and cookies tabs · states</h2><p>Crops of the two document tabs; anything not shown matches the window above. No crop shows a password, passphrase or keyring value.</p>
+
+<div class="state"><div class="state-head"><h3>Proxy from the app, System</h3><p>No workspace table and no <span class="m">[network.proxy]</span>: the card names the environment variables; the status bar proxy chip is hidden.</p></div>
+<div class="frame" style="width:660px;padding:14px"><div class="c12 card">
+  <div style="display:flex;align-items:center;gap:8px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-globe"/></svg><span class="cap">Proxy</span><span style="flex-grow:1"></span><span class="c4 badge">APP DEFAULT</span></div>
+  <div class="kv"><span>Mode</span><span>System</span><span>From</span><span style="color:#C6C3CC"><span class="m">HTTP_PROXY</span>, <span class="m">HTTPS_PROXY</span>, <span class="m">ALL_PROXY</span>, <span class="m">NO_PROXY</span></span></div>
+</div></div></div>
+
+<div class="state"><div class="state-head"><h3>Proxy None for this workspace</h3><p>The workspace table sends direct while the app proxy stays for other workspaces.</p></div>
+<div class="frame" style="width:660px;padding:14px"><div class="c12 card">
+  <div style="display:flex;align-items:center;gap:8px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-globe"/></svg><span class="cap">Proxy</span><span style="flex-grow:1"></span><span class="c4 badge b-tint">THIS WORKSPACE'S OWN</span></div>
+  <div class="kv"><span>Mode</span><span>None, every send goes direct</span></div>
+  <span class="ds" style="border-top:1px solid #18161B;padding-top:8px">Other workspaces use the app proxy (Manual, <span class="m">http://proxy.corp.acme.com:3128</span>).</span>
+</div></div></div>
+
+<div class="state"><div class="state-head"><h3>Proxy URL with credentials</h3><p>A password written inside the URL is masked like any secret; the username stays.</p></div>
+<div class="frame" style="width:660px;padding:14px"><div class="c12 card"><div class="kv"><span>URL</span><span class="m">http://mbrandt:<span style="color:#8E8996;letter-spacing:.1em" aria-label="hidden value">••••••••</span>@proxy.corp.acme.com:3128</span></div></div></div></div>
+
+<div class="state"><div class="state-head"><h3>Several warnings</h3><p>Every warning of the last apply, verbatim from the engine (table, host or path, the reason; never a secret). Reload runs it again after an edit.</p></div>
+<div class="frame" style="padding:14px">
+  <div class="c8 ban w" role="status"><svg class="ico" aria-hidden="true" style="width:16px;height:16px;color:#FFC23D;margin-top:2px"><use href="#i-alert"/></svg>
+    <div style="display:flex;flex-direction:column;gap:2px;flex-grow:1"><b>3 entries are skipped; sends go on without them.</b>
+      <span class="m" style="font-size:12px;color:#C6C3CC">[network] ca_bundle certs/corp-root-ca.pem is not an absolute path; it is ignored</span>
+      <span class="m" style="font-size:12px;color:#C6C3CC">[network.workspaces."01J9Z4…KQ7M".proxy] mode = "manual" has no url; the system proxy is used</span>
+      <span class="m" style="font-size:12px;color:#C6C3CC">[[network.certificates]] *.internal.acme.com: cannot read its passphrase from the OS keyring: the Secret Service is not running</span>
+    </div>
+    <button class="c6 btn sm"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open config.toml</button>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Nothing configured</h3><p>No <span class="m">[network]</span> table: the defaults, said once, with where to add entries.</p></div>
+<div class="frame" style="height:190px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center">
+  <span class="c8" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:#1A181E;color:#8E8996"><svg class="ico" aria-hidden="true" style="width:20px;height:20px"><use href="#i-globe"/></svg></span>
+  <span style="color:#F7F4F7;font-size:14px;font-weight:600">Default network: system proxy, platform roots, no client certificate</span>
+  <span style="color:#8E8996;font-size:12.5px">Add a <span class="m">[network]</span> table to config.toml for a CA bundle, client certificates or a proxy.</span>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Set password</h3><p>The keyring dialog. The field starts empty and masked; Save writes <span class="m">network/workspace/&lt;id&gt;/proxy</span> and applies again.</p></div>
+<div class="frame" style="height:270px;display:flex;align-items:center;justify-content:center;background:rgba(5,5,7,.62)">
+  <div class="c18 dlg" role="dialog" aria-label="Proxy password for billing" style="width:460px">
+    <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-key"/></svg><span style="font-weight:600;color:#F7F4F7;font-size:14px">Proxy password for deploy</span></div>
+    <div style="padding:6px 18px 14px;display:flex;flex-direction:column;gap:8px">
+      <span class="ds" style="font-size:12.5px">Used with <span class="m">bastion.billing.acme.com:1080</span> in billing only. Kept in the OS keyring, never in config.toml.</span>
+      <label class="c8 field" style="box-shadow:#9DB1FF 0 0 0 1px inset"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-lock"/></svg><span style="color:#8E8996">Password</span></label>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #232128"><button class="c6 btn">Cancel</button><button class="c6 btn pri">Save to keyring</button></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Cookies tab</h3><p>The jar of billing as a grid; the selected row opens in the inspector, which holds Delete. Values show as stored.</p></div>
+<div class="frame" style="height:430px;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:12px;height:46px;padding:0 16px;flex-shrink:0;border-bottom:1px solid #232128">
+    <label id="cookies-filter" class="c6 field" style="width:320px"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg><span style="flex-grow:1;color:#8E8996">Filter by domain or name</span><span class="c4 kc">/</span></label>
+    <span class="ds">7 cookies · 3 domains · stored on this machine, never in the workspace</span>
+    <span style="flex-grow:1"></span>
+    <button id="cookies-clear" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg>Clear all…</button>
+  </div>
+  <div style="flex-grow:1;min-height:0;display:flex">
+    <div role="table" aria-label="Cookies" style="flex-grow:1;min-width:0;border-right:1px solid #232128">
+      <div class="gh" role="row"><span style="width:40px"></span><span style="width:220px">domain</span><span style="width:90px">path</span><span style="width:200px">name</span><span style="width:170px">value</span><span style="width:150px">expires</span></div>
+      <div class="gr" role="row"><span class="rn" style="width:40px">1</span><span style="width:220px">.billing.acme.com</span><span style="width:90px">/</span><span style="width:200px;color:#F7F4F7">region</span><span style="width:170px">eu-west-1</span><span style="width:150px">30 Nov 2026</span></div>
+      <div class="gr" role="row"><span class="rn" style="width:40px">2</span><span style="width:220px">.billing.acme.com</span><span style="width:90px">/</span><span style="width:200px;color:#F7F4F7">locale</span><span style="width:170px">en-GB</span><span style="width:150px;color:#8E8996">Session</span></div>
+      <div class="gr sel" role="row" aria-selected="true"><span class="rn" style="width:40px">3</span><span style="width:220px">staging.billing.acme.com</span><span style="width:90px">/</span><span style="width:200px;color:#F7F4F7">__Host-billing_session</span><span style="width:170px">s%3A9f3Kq2xLm0Zt…</span><span style="width:150px;color:#8E8996">Session</span></div>
+      <div class="gr" role="row"><span class="rn" style="width:40px">4</span><span style="width:220px">staging.billing.acme.com</span><span style="width:90px">/</span><span style="width:200px;color:#F7F4F7">csrf_token</span><span style="width:170px">c1f4e88a07b2</span><span style="width:150px">2 Nov 2026</span></div>
+      <div class="gr" role="row"><span class="rn" style="width:40px">5</span><span style="width:220px">staging.billing.acme.com</span><span style="width:90px">/v1/exports</span><span style="width:200px;color:#F7F4F7">export_cursor</span><span style="width:170px">MjAyNi0xMC0zMVQx…</span><span style="width:150px">9 Nov 2026</span></div>
+      <div class="gr" role="row"><span class="rn" style="width:40px">6</span><span style="width:220px">auth.acme.com</span><span style="width:90px">/</span><span style="width:200px;color:#F7F4F7">device_id</span><span style="width:170px">d-5b1e9c40</span><span style="width:150px">2 Nov 2027</span></div>
+      <div class="gr" role="row"><span class="rn" style="width:40px">7</span><span style="width:220px">localhost</span><span style="width:90px">/</span><span style="width:200px;color:#F7F4F7">dev_flags</span><span style="width:170px">new-invoices,beta…</span><span style="width:150px;color:#8E8996">Session</span></div>
+    </div>
+    <!-- bolt gap: grid selection driving an inspector pane -->
+    <aside aria-label="Cookie details" style="width:380px;flex-shrink:0;display:flex;flex-direction:column;gap:14px;padding:16px">
+      <div style="display:flex;align-items:center;gap:8px"><span class="m" style="color:#F7F4F7;font-weight:600">__Host-billing_session</span><span style="flex-grow:1"></span><button class="c6 btn sm" aria-label="Delete cookie __Host-billing_session"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg>Delete</button></div>
+      <div class="kv" style="grid-template-columns:90px 1fr">
+        <span>Domain</span><span class="m">staging.billing.acme.com <span class="c4 badge">HOST ONLY</span></span>
+        <span>Path</span><span class="m">/</span>
+        <span>Value</span><span class="m" style="word-break:break-all">s%3A9f3Kq2xLm0Zt7bVw.Rr8</span>
+        <span>Expires</span><span>Session, kept until deleted</span>
+        <span>Flags</span><span><span class="c4 flag">Secure</span><span class="c4 flag">HttpOnly</span><span class="c4 flag">SameSite=Strict</span></span>
+      </div>
+      <span class="ds" style="line-height:1.5">Sent to https://staging.billing.acme.com only, on every path. Delete ends this session; the next response that sets it adds it again.</span>
+    </aside>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Filtered, no match</h3><p>The grid keeps its header; one line says nothing matches and how to get back.</p></div>
+<div class="frame" style="padding:12px 16px">
+  <div style="display:flex;align-items:center;gap:12px;padding-bottom:12px"><label class="c6 field" style="width:320px;box-shadow:#9DB1FF 0 0 0 1px inset"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-search"/></svg><span style="flex-grow:1;color:#F7F4F7">stripe</span></label><span class="ds">0 of 7</span></div>
+  <div class="gh"><span style="width:40px"></span><span style="width:220px">domain</span><span style="width:90px">path</span><span style="width:200px">name</span><span style="width:170px">value</span><span style="width:150px">expires</span></div>
+  <div style="padding:14px 12px;font-size:12.5px;color:#8E8996">No cookie of billing matches "stripe". Escape clears the filter.</div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Clear all, confirm</h3><p>Asks first; afterwards a toast gives the count <span class="m">clear_cookies</span> returned.</p></div>
+<div class="frame" style="height:250px;display:flex;align-items:center;justify-content:center;gap:40px;background:rgba(5,5,7,.62)">
+  <div class="c18 dlg" role="alertdialog" aria-label="Clear the cookie jar" style="width:430px">
+    <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#FF6B5E"><use href="#i-trash"/></svg><span style="font-weight:600;color:#F7F4F7;font-size:14px">Clear the cookie jar of billing?</span></div>
+    <p style="margin:0;padding:6px 18px 16px;font-size:12.5px;color:#C6C3CC;line-height:1.5">Deletes all 7 cookies on this machine; sessions they hold end. Other workspaces keep theirs.</p>
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #232128"><button class="c6 btn">Cancel</button><button class="c6 btn dng">Delete 7 cookies</button></div>
+  </div>
+  <div class="c8 toast" role="status"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#7BE0A0"><use href="#i-check"/></svg>Cleared 7 cookies from billing</div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Empty jar</h3><p>The tab stays open after Clear all; its count reads 0 and Clear all is off.</p></div>
+<div class="frame" style="height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center">
+  <span class="c8" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:#1A181E;color:#8E8996"><svg class="ico" aria-hidden="true" style="width:20px;height:20px"><use href="#i-cookie"/></svg></span>
+  <span style="color:#F7F4F7;font-size:14px;font-weight:600">No cookies in billing</span>
+  <span style="color:#8E8996;font-size:12.5px;max-width:440px">Cookies that responses set land here and go out with the next matching request.</span>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Where the tabs open from</h3><p>The status bar chips (proxy chip only when the proxy is not System), palette commands, the workspace menu and the response Cookies view. Each focuses an open tab before opening another.</p></div>
+<div class="frame" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:18px;background:#050507">
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Status bar</span><div style="display:flex;gap:8px;height:38px;align-items:center"><button class="c6 chip"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-globe"/></svg><span style="color:#C6C3CC">socks5h · bastion…</span></button><button class="c6 chip" style="box-shadow:#9DB1FF 0 0 0 1px inset"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-cookie"/></svg><span style="color:#C6C3CC">7 cookies</span></button></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Palette</span><div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px"><div class="m" style="padding:8px 12px;color:#F7F4F7;border-bottom:1px solid #232128;font-size:12.5px">net</div><div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;background:rgba(157,177,255,.11);color:#F7F4F7;font-size:12.5px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-globe"/></svg>Show network settings</div><div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;font-size:12.5px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-refresh"/></svg>Reload network settings</div></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Workspace menu</span><div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px;padding:4px 0;font-size:12.5px"><div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 12px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-globe"/></svg>Network…</div><div style="display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;background:rgba(157,177,255,.11);color:#F7F4F7"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#9DB1FF"><use href="#i-cookie"/></svg>Cookies…<span class="m ds" style="margin-left:auto">7</span></div></div></div>
+  <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Response · Cookies view</span><div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px;display:flex;align-items:center;gap:8px;height:46px;padding:0 12px;font-size:12px;color:#8E8996"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-cookie"/></svg>3 set by this response<span style="flex-grow:1"></span><button class="c6 btn sm">Open in jar</button></div></div>
+</div></div>
+</section>
+</body></html>
