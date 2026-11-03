@@ -1280,7 +1280,12 @@ phase the engine did not time), a JSONPath filter beside the body search, both o
 line count follow; an error shows the engine message in a danger banner over the unfiltered
 body), a bottom bar under the body with the Pretty / Raw / Preview switch and the
 line count (Pretty re-indents JSON keeping key order), the body split into lines once
-off the UI thread and drawn with `uniform_list` so only visible lines render, an error banner
+off the UI thread and drawn with `uniform_list` so only visible lines render, colored by
+`bolt::syntax::highlight` (design/syntax/01: JSON when the body parsed as JSON, XML or HTML by
+the content type; Raw JSON stays plain) with the search matches laid over the syntax runs by
+`bolt::syntax::overlay`. The runs are computed once per shown lines and palette (the view
+state caches them) and split by line; a body over 1 MiB (`HIGHLIGHT_LIMIT`) is drawn plain,
+an error banner
 with Retry, and the unresolved variables the send used. Each open request keeps its last
 response in memory, and every send is recorded in history (see "History"). A request's saved
 examples are its children in the tree (a leaf with the status code), opened read-only in the
@@ -1558,7 +1563,7 @@ scrollbars, the code editor) is DBFlux's palette with ReqFlux's accent.
 | Topic | Rule |
 |-------|------|
 | What `bolt` owns | Everything product-agnostic: color roles and washes, typography roles, spacing, cuts and chrome metrics, the chamfer shape, the theme mapping onto gpui-component, and the components (button, field, select trigger, segmented control, tabs, menu, badge, keycap, banner, checkbox, list row, empty state, modal, splitter, island, status chip). It never names ReqFlux, HTTP or a ReqFlux type. |
-| What ReqFlux passes in | `reqflux_ui::brand::reqflux()`, the `Brand` (cobalt accent fill, hover, pressed, tint, text on accent, app name), and its own tokens in `reqflux_ui::tokens` (method hues, syntax colors, ReqFlux-only widths). |
+| What ReqFlux passes in | `reqflux_ui::brand::reqflux()`, the `Brand` (cobalt accent fill, hover, pressed, tint, text on accent, app name), and its own tokens in `reqflux_ui::tokens` (method hues, ReqFlux-only widths); syntax colors are `bolt`'s `SyntaxColors` roles. |
 | Install | `reqflux_ui::theme::install` loads `bolt`'s bundled fonts (Archivo, Archivo Expanded, JetBrains Mono) at the default interface size (13), so a rem is 16 px and `bolt::tokens` sizes are DBFlux's pixels; then the default density and `bolt::theme::install` with the brand and the mode from `config.toml`. It also installs `bolt`'s modal seams: Escape cancels, Enter confirms, the scroll keys scroll; and ReqFlux's translator into `bolt::strings` (`reqflux_ui::strings`), which answers in English every key `bolt`'s surfaces read (dropdown and multi-select, toasts, command palette, chart legend), interpolating `%{name}`, and answers an unknown key with the key itself so a missing one shows instead of rendering blank. A test lists every key `bolt` uses at the pinned rev. The first install registers the Tree-sitter grammars `bolt` bundles behind the `syntax-*` features ReqFlux enables (json, javascript, bash, python, xml, html) with `bolt::syntax::register_bundled`; a theme switch does not register them again. |
 | Icons | The Lucide catalog of `gpui-kit-assets` (the one gpui-component bundles), drawn through `bolt`'s `IconSource::Svg`; `reqflux_ui::assets()` is its asset source. |
 | Screens | Use `bolt` roles (`bolt::colors(cx)`, `bolt::brand::brand(cx)`) and components, never gpui-component `Theme` fields or raw colors. A guardrail test rejects color literals and bare pixel values outside `tokens.rs` and `brand.rs`, as DBFlux does. A control `bolt` lacks is added to `bolt` in DBFlux; until then the stand-in carries a `// bolt gap:` comment that says what is missing. |
@@ -1568,8 +1573,8 @@ scrollbars, the code editor) is DBFlux's palette with ReqFlux's accent.
 Light, System}` is passed to `theme::install` and switched at runtime with `theme::set_mode`,
 which applies `bolt`'s theme for the resolved palette; `bolt` keeps only the resolved
 palette, so ReqFlux keeps the selected mode itself and System follows the window appearance.
-In light the accent washes use the accent instead of the tint. ReqFlux's method and syntax
-colors read the active palette. The choice is the `Toggle theme` command (Ctrl+Shift+T, Dark,
+In light the accent washes use the accent instead of the tint. ReqFlux's method colors and
+`bolt`'s syntax colors read the active palette. The choice is the `Toggle theme` command (Ctrl+Shift+T, Dark,
 Light, System) and persists as `theme` in the user's `config.toml` (a value from the app
 state's older `settings` key is moved there once); Dark is the default.
 

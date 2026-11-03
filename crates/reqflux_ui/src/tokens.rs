@@ -1,8 +1,9 @@
-//! ReqFlux's own tokens, on top of Bolt: method labels, the draft marker, syntax colors, shell
+//! ReqFlux's own tokens, on top of Bolt: method labels, the draft marker, shell
 //! sizes and the main window size. The only `reqflux_ui` file besides `brand.rs` that holds raw values.
 
 use std::time::Duration;
 
+#[cfg(test)]
 use bolt::Colors;
 use bolt::theme::rgb_to_hsla as hex;
 use gpui::{App, Hsla, Pixels, Size, px, size};
@@ -16,6 +17,7 @@ pub(crate) enum Palette {
 
 impl Palette {
     /// `bolt`'s color roles of this palette.
+    #[cfg(test)]
     pub(crate) fn colors(self) -> Colors {
         match self {
             Self::Dark => Colors::dark(),
@@ -76,43 +78,6 @@ fn method_other(palette: Palette) -> Hsla {
     match palette {
         Palette::Dark => hex(0x6FD3D8),
         Palette::Light => hex(0x0E7C83),
-    }
-}
-
-/// Body syntax colors: quiet keys, values carry the data.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct SyntaxColors {
-    pub(crate) key: Hsla,
-    pub(crate) string: Hsla,
-    /// Numbers, booleans and null.
-    pub(crate) number: Hsla,
-    pub(crate) punct: Hsla,
-}
-
-impl SyntaxColors {
-    /// The syntax colors on `palette`: strings take its success color, punctuation its
-    /// muted text.
-    pub(crate) fn for_palette(palette: Palette) -> Self {
-        let colors = palette.colors();
-        match palette {
-            Palette::Dark => Self {
-                key: hex(0xA9A4B2),
-                string: colors.success,
-                number: method_patch(palette),
-                punct: colors.muted,
-            },
-            Palette::Light => Self {
-                key: hex(0x5C5766),
-                string: colors.success,
-                number: method_patch(palette),
-                punct: colors.muted,
-            },
-        }
-    }
-
-    /// The syntax colors on the palette `bolt` has installed.
-    pub(crate) fn current(cx: &App) -> Self {
-        Self::for_palette(Palette::current(cx))
     }
 }
 
@@ -384,15 +349,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn syntax_colors_match_the_design_system() {
-        let syntax = SyntaxColors::for_palette(Palette::Dark);
-        assert_eq!(rgb_of(syntax.key), 0xA9A4B2);
-        assert_eq!(rgb_of(syntax.string), 0x7BE0A0);
-        assert_eq!(rgb_of(syntax.number), 0xB79CFF);
-        assert_eq!(rgb_of(syntax.punct), 0x8E8996);
-    }
-
-    #[test]
     fn light_methods_use_the_light_semantics_and_deeper_product_hues() {
         let colors = Colors::light();
         let palette = Palette::Light;
@@ -409,15 +365,5 @@ pub(crate) mod tests {
                 "{verb}"
             );
         }
-    }
-
-    #[test]
-    fn light_syntax_colors_read_on_the_light_panel() {
-        let syntax = SyntaxColors::for_palette(Palette::Light);
-        assert_eq!(rgb_of(syntax.key), 0x5C5766);
-        // DBFlux's light success and muted (were 1C7A45 and 6B6673).
-        assert_eq!(rgb_of(syntax.string), 0x1C7F45);
-        assert_eq!(rgb_of(syntax.number), 0x7445D6);
-        assert_eq!(rgb_of(syntax.punct), 0x6B6572);
     }
 }

@@ -1,5 +1,5 @@
 //! The response view without GPUI: the selected sub-tab and body view, the body split into
-//! lines once per response, JSON indenting and the tokens a JSON line colors.
+//! lines once per response, JSON indenting and the language whose syntax colors a body.
 
 use std::sync::Arc;
 
@@ -34,14 +34,16 @@ pub(crate) enum BodyText {
         raw: Arc<[String]>,
         /// The JSON indented, or the raw lines when the body is not JSON.
         pretty: Arc<[String]>,
-        /// Whether the body parsed as JSON, so Pretty colors its tokens.
-        json: bool,
+        /// The grammar that colors the body: `json` when it parsed as JSON, `xml` or `html`
+        /// by its content type, `None` for anything else.
+        language: Option<&'static str>,
     },
 }
 
 impl BodyText {
     /// Splits `body`, indenting it when it parses as JSON and either `content_type` names
-    /// JSON or the body starts like an object or array.
+    /// JSON or the body starts like an object or array; an XML or HTML `content_type` keeps
+    /// the lines and colors them with that grammar.
     pub(crate) fn new(body: &[u8], content_type: Option<&str>) -> Self {
         let Ok(text) = std::str::from_utf8(body) else {
             return Self::Binary;
@@ -53,24 +55,31 @@ impl BodyText {
             Some(pretty) => Self::Text {
                 raw,
                 pretty: pretty.lines().map(str::to_owned).collect(),
-                json: true,
+                language: Some("json"),
             },
             None => Self::Text {
                 pretty: Arc::clone(&raw),
                 raw,
-                json: false,
+                language: content_type.and_then(markup_language),
             },
         }
     }
 
-    /// The lines `view` shows and whether they are colored as JSON; `None` for a binary body.
-    pub(crate) fn lines(&self, view: BodyView) -> Option<(Arc<[String]>, bool)> {
+    /// The lines `view` shows and the language that colors them; `None` for a binary body.
+    /// Raw JSON is the bytes as text, plain; XML and HTML are the same lines in both views.
+    pub(crate) fn lines(&self, view: BodyView) -> Option<(Arc<[String]>, Option<&'static str>)> {
         match (self, view) {
             (Self::Binary, _) => None,
-            (Self::Text { pretty, json, .. }, BodyView::Pretty | BodyView::Preview) => {
-                Some((Arc::clone(pretty), *json))
-            }
-            (Self::Text { raw, .. }, BodyView::Raw) => Some((Arc::clone(raw), false)),
+            (
+                Self::Text {
+                    pretty, language, ..
+                },
+                BodyView::Pretty | BodyView::Preview,
+            ) => Some((Arc::clone(pretty), *language)),
+            (Self::Text { raw, language, .. }, BodyView::Raw) => Some((
+                Arc::clone(raw),
+                language.filter(|language| *language != "json"),
+            )),
         }
     }
 }
@@ -84,6 +93,22 @@ fn is_json_type(content_type: &str) -> bool {
         .trim()
         .to_ascii_lowercase();
     essence.ends_with("/json") || essence.ends_with("+json")
+}
+
+/// `html` for `text/html` and `application/xhtml+xml`, `xml` for any other `/xml` or
+/// `+xml` type.
+fn markup_language(content_type: &str) -> Option<&'static str> {
+    let essence = content_type
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+    match essence.as_str() {
+        "text/html" | "application/xhtml+xml" => Some("html"),
+        _ if essence.ends_with("/xml") || essence.ends_with("+xml") => Some("xml"),
+        _ => None,
+    }
 }
 
 /// `text` indented by two spaces when it is valid JSON. Keys keep their order and numbers
@@ -140,69 +165,6 @@ pub(crate) fn pretty_json(text: &str) -> Option<String> {
     Some(out)
 }
 
-/// The kind of a piece of a JSON line, which picks its syntax color.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Token {
-    Key,
-    String,
-    /// Numbers, booleans and null.
-    Literal,
-    Punct,
-    /// Whitespace and anything else.
-    Plain,
-}
-
-/// `line` of indented JSON cut into tokens, left to right; the pieces join back to `line`.
-pub(crate) fn tokens(line: &str) -> Vec<(Token, &str)> {
-    let mut out = Vec::new();
-    let mut rest = line;
-    while let Some(first) = rest.chars().next() {
-        let (token, len) = match first {
-            '"' => {
-                let len = string_len(rest);
-                let after = rest.get(len..).unwrap_or_default().trim_start();
-                let token = if after.starts_with(':') {
-                    Token::Key
-                } else {
-                    Token::String
-                };
-                (token, len)
-            }
-            '{' | '}' | '[' | ']' | ',' | ':' => (Token::Punct, 1),
-            c if c.is_whitespace() => (Token::Plain, run_len(rest, char::is_whitespace)),
-            c if c.is_ascii_alphanumeric() || c == '-' => (
-                Token::Literal,
-                run_len(rest, |c| c.is_ascii_alphanumeric() || "-+.".contains(c)),
-            ),
-            c => (Token::Plain, c.len_utf8()),
-        };
-        let (piece, tail) = rest.split_at(len);
-        out.push((token, piece));
-        rest = tail;
-    }
-    out
-}
-
-/// The byte length of the string literal `text` starts with, quotes included; the rest of
-/// the line when it does not close.
-fn string_len(text: &str) -> usize {
-    let mut escaped = false;
-    for (index, c) in text.char_indices().skip(1) {
-        match c {
-            _ if escaped => escaped = false,
-            '\\' => escaped = true,
-            '"' => return index + 1,
-            _ => {}
-        }
-    }
-    text.len()
-}
-
-/// The byte length of the run of `text` that `keep` accepts.
-fn run_len(text: &str, keep: impl Fn(char) -> bool) -> usize {
-    text.find(|c| !keep(c)).unwrap_or(text.len())
-}
-
 /// `Sent with unresolved variables: a, b`, or `None` when every name resolved.
 pub(crate) fn unresolved_text(names: &[String]) -> Option<String> {
     (!names.is_empty()).then(|| format!("Sent with unresolved variables: {}", names.join(", ")))
@@ -232,39 +194,6 @@ mod tests {
     }
 
     #[test]
-    fn a_json_line_splits_into_colored_tokens() {
-        assert_eq!(
-            tokens(r#"  "id": "a\"b", "n": -1.5e3, "ok": true, [null]"#),
-            vec![
-                (Token::Plain, "  "),
-                (Token::Key, r#""id""#),
-                (Token::Punct, ":"),
-                (Token::Plain, " "),
-                (Token::String, r#""a\"b""#),
-                (Token::Punct, ","),
-                (Token::Plain, " "),
-                (Token::Key, r#""n""#),
-                (Token::Punct, ":"),
-                (Token::Plain, " "),
-                (Token::Literal, "-1.5e3"),
-                (Token::Punct, ","),
-                (Token::Plain, " "),
-                (Token::Key, r#""ok""#),
-                (Token::Punct, ":"),
-                (Token::Plain, " "),
-                (Token::Literal, "true"),
-                (Token::Punct, ","),
-                (Token::Plain, " "),
-                (Token::Punct, "["),
-                (Token::Literal, "null"),
-                (Token::Punct, "]"),
-            ]
-        );
-        assert_eq!(tokens(""), Vec::new());
-        assert_eq!(tokens("\"open"), vec![(Token::String, "\"open")]);
-    }
-
-    #[test]
     fn a_json_body_has_pretty_and_raw_lines() {
         let body = BodyText::new(br#"{"id":7,"tags":["a"]}"#, Some("application/json"));
         assert_eq!(
@@ -280,26 +209,29 @@ mod tests {
         );
         assert_eq!(lines(&body, BodyView::Raw), [r#"{"id":7,"tags":["a"]}"#]);
         assert_eq!(
-            body.lines(BodyView::Pretty).map(|(_, json)| json),
-            Some(true)
+            body.lines(BodyView::Pretty).map(|(_, language)| language),
+            Some(Some("json"))
         );
-        assert_eq!(body.lines(BodyView::Raw).map(|(_, json)| json), Some(false));
+        assert_eq!(
+            body.lines(BodyView::Raw).map(|(_, language)| language),
+            Some(None)
+        );
     }
 
     #[test]
     fn json_is_detected_by_content_type_or_shape() {
         let typed = BodyText::new(b"1", Some("application/problem+json; charset=utf-8"));
         assert_eq!(
-            typed.lines(BodyView::Pretty).map(|(_, json)| json),
-            Some(true)
+            typed.lines(BodyView::Pretty).map(|(_, language)| language),
+            Some(Some("json"))
         );
         let shaped = BodyText::new(b" [1,2]", Some("text/plain"));
         assert_eq!(lines(&shaped, BodyView::Pretty), ["[", "  1,", "  2", "]"]);
         let text = BodyText::new(b"one\ntwo", Some("text/plain"));
         assert_eq!(lines(&text, BodyView::Pretty), ["one", "two"]);
         assert_eq!(
-            text.lines(BodyView::Pretty).map(|(_, json)| json),
-            Some(false)
+            text.lines(BodyView::Pretty).map(|(_, language)| language),
+            Some(None)
         );
         let broken = BodyText::new(b"{\"a\":", Some("application/json"));
         assert_eq!(lines(&broken, BodyView::Pretty), ["{\"a\":"]);

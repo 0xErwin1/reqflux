@@ -27,6 +27,7 @@ mod results;
 mod search;
 mod search_field;
 mod sub_tabs;
+mod syntax;
 mod tab_row;
 mod timeline;
 mod timeline_model;
@@ -131,7 +132,7 @@ pub(in crate::shell) fn completed(
                             current: send.views.current,
                         };
                         let lines = views::shown_lines(send, received, cx);
-                        let body = body::render(received, lines, found, &send.views.scroll, cx);
+                        let body = body::render(received, lines, found, &send.views, cx);
                         div()
                             .flex_1()
                             .min_h_0()

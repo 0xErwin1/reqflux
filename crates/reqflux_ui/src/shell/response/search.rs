@@ -1,6 +1,6 @@
 //! Search in the response body without GPUI: the matches of a query in the body's lines,
-//! the `n / total` count, stepping between matches and the pieces of a line a match cuts,
-//! so the body view can highlight them.
+//! the `n / total` count and stepping between matches; the body view draws them over the
+//! syntax colors (see `syntax`).
 
 /// One match: the line it is on, from 0, and its byte range in that line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -8,14 +8,6 @@ pub(crate) struct Hit {
     pub(crate) line: usize,
     pub(crate) start: usize,
     pub(crate) end: usize,
-}
-
-/// How a piece of a body line shows: not matched, a match, or the current match.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Mark {
-    None,
-    Hit,
-    Current,
 }
 
 /// Every match of `query` in `lines`, top to bottom and left to right, case-insensitive and
@@ -78,47 +70,6 @@ pub(crate) fn step(current: usize, total: usize, forward: bool) -> usize {
         (total, true) => (current + 1) % total,
         (total, false) => (current % total + total - 1) % total,
     }
-}
-
-/// `pieces`, the parts of one body line left to right, cut where the matches `hits` of
-/// that line start and end, each piece marked; `current` is the byte range of the current
-/// match when it is on this line.
-pub(crate) fn mark<'a, T: Copy>(
-    pieces: &[(T, &'a str)],
-    hits: &[(usize, usize)],
-    current: Option<(usize, usize)>,
-) -> Vec<(T, Mark, &'a str)> {
-    let mark_at = |at: usize| match current {
-        Some((start, end)) if (start..end).contains(&at) => Mark::Current,
-        _ if hits.iter().any(|(start, end)| (*start..*end).contains(&at)) => Mark::Hit,
-        _ => Mark::None,
-    };
-    let mut out = Vec::new();
-    let mut offset = 0;
-    for (kind, piece) in pieces {
-        // The places inside this piece where a match starts or ends.
-        let mut cuts: Vec<usize> = hits
-            .iter()
-            .chain(current.iter())
-            .flat_map(|(start, end)| [*start, *end])
-            .filter(|at| *at > offset && *at < offset + piece.len())
-            .map(|at| at - offset)
-            .collect();
-        cuts.push(piece.len());
-        cuts.sort_unstable();
-        cuts.dedup();
-        let mut from = 0;
-        for cut in cuts {
-            if let Some(part) = piece.get(from..cut)
-                && !part.is_empty()
-            {
-                out.push((*kind, mark_at(offset + from), part));
-            }
-            from = cut;
-        }
-        offset += piece.len();
-    }
-    out
 }
 
 #[cfg(test)]
@@ -186,22 +137,5 @@ mod tests {
         assert_eq!(step(0, 3, false), 2);
         assert_eq!(step(1, 3, false), 0);
         assert_eq!(step(0, 0, true), 0);
-    }
-
-    #[test]
-    fn matches_cut_the_pieces_and_the_current_one_is_marked() {
-        let pieces = [(1, "  \"lines\""), (2, ": ["), (3, "")];
-        assert_eq!(
-            mark(&pieces, &[(4, 6), (7, 10)], Some((7, 10))),
-            vec![
-                (1, Mark::None, "  \"l"),
-                (1, Mark::Hit, "in"),
-                (1, Mark::None, "e"),
-                (1, Mark::Current, "s\""),
-                (2, Mark::Current, ":"),
-                (2, Mark::None, " ["),
-            ]
-        );
-        assert_eq!(mark(&[(1, "abc")], &[], None), vec![(1, Mark::None, "abc")]);
     }
 }

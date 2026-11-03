@@ -69,6 +69,8 @@ pub(crate) struct ViewState {
     pub(crate) scroll: UniformListScrollHandle,
     /// Made the first time the response's content is clicked.
     pub(crate) focus: Option<FocusHandle>,
+    /// The syntax runs of the body lines last shown, so a render does not parse them again.
+    pub(crate) syntax: super::syntax::SyntaxCache,
 }
 
 /// The search field's text and its change subscription.
@@ -119,19 +121,22 @@ fn field_text(field: Option<&SearchField>, cx: &App) -> String {
         .unwrap_or_default()
 }
 
-/// The body lines `send` shows of `received` and whether they are colored as JSON: the
+/// The body lines `send` shows of `received` and the language that colors them: the
 /// JSONPath matches while the filter has some, else the body as its view shows it; `None`
 /// for a binary body.
 pub(crate) fn shown_lines(
     send: &RequestSend,
     received: &Received,
     cx: &App,
-) -> Option<(Arc<[String]>, bool)> {
+) -> Option<(Arc<[String]>, Option<&'static str>)> {
     let view = effective_view(send.view, received);
     if view != BodyView::Preview
         && let Some(Filtered::Matches { lines, .. }) = send.views.filtered(received, cx).as_deref()
     {
-        return Some((Arc::clone(lines), view == BodyView::Pretty));
+        return Some((
+            Arc::clone(lines),
+            (view == BodyView::Pretty).then_some("json"),
+        ));
     }
     received.text.lines(view)
 }
