@@ -28,6 +28,7 @@ mod examples;
 mod export;
 mod history;
 mod import_flow;
+mod input_marks;
 pub(crate) mod keymap;
 mod last_request;
 mod layout;
@@ -433,6 +434,7 @@ impl Shell {
                 }
             });
         }
+        self.remark_open_inputs(cx);
         cx.notify();
     }
 

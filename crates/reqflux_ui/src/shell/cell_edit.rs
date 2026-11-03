@@ -13,6 +13,7 @@ use gpui_component::input::InputState;
 use super::Shell;
 use super::auth_edit::{AUTH_TABLE, TYPED_PREFIX};
 use super::drafts::grid_cell;
+use super::input_marks::InputMarks;
 use super::method_edit::METHOD_TABLE;
 use super::setting_edit::SETTINGS_TABLE;
 use super::variables_model::Column;
@@ -37,6 +38,8 @@ pub(crate) struct CellEdit {
     /// The cell's value references a secret, so the field opened empty and an empty
     /// commit keeps the stored reference.
     pub(crate) secret: bool,
+    /// The `{{name}}` marks of the field while it is edited; none on a secret field.
+    pub(crate) marks: Option<InputMarks>,
 }
 
 impl CellEdit {
@@ -101,6 +104,8 @@ impl Shell {
             state.set_value(text, window, cx);
             state.focus(window, cx);
         });
+        // Keys are plain text at rest too, so only a value shows its references.
+        let marks = (field == CellField::Value && !secret).then(|| self.mark_input(id, &input, cx));
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),
             table: table.to_owned(),
@@ -108,6 +113,7 @@ impl Shell {
             field,
             input,
             secret,
+            marks,
         });
         cx.notify();
     }

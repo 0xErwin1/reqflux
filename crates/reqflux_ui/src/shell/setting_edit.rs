@@ -71,6 +71,7 @@ impl Shell {
             field: CellField::Value,
             input,
             secret: false,
+            marks: None,
         });
         cx.notify();
     }

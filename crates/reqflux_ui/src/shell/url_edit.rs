@@ -23,6 +23,7 @@ use reqflux_core::model::{KeyValue, Request};
 use reqflux_core::query;
 
 use super::Shell;
+use super::input_marks::InputMarks;
 
 /// The URL field of a request under edit: its state, the id of the request it belongs to
 /// and the URL and params the request had when the field opened.
@@ -37,6 +38,8 @@ pub(crate) struct UrlEdit {
     seed_params: Vec<KeyValue>,
     /// The params as the field last left them; params that differ were changed in the grid.
     synced_params: Vec<KeyValue>,
+    /// The `{{name}}` marks of the field while it is edited.
+    pub(crate) marks: Option<InputMarks>,
     /// Syncs the draft on every change of the field's text.
     _change: Subscription,
     /// Follows the grid: re-seeds the field when the params change elsewhere.
@@ -71,6 +74,7 @@ impl Shell {
             state.set_value(shown, window, cx);
             state.focus(window, cx);
         });
+        let marks = Some(self.mark_input(id, &input, cx));
         let request_id = id.to_owned();
         let change = cx.subscribe(&input, |this, _, event: &InputEvent, cx| {
             if matches!(event, InputEvent::Change)
@@ -91,6 +95,7 @@ impl Shell {
             seed_url,
             seed_params,
             synced_params,
+            marks,
             _change: change,
             _follow: follow,
         });
@@ -112,7 +117,7 @@ impl Shell {
         }
         let (url, params) = (request.url.clone(), request.params.clone());
         let shown = query::compose(&url, &params);
-        let input = edit.input.clone();
+        let (request_id, input) = (edit.request_id.clone(), edit.input.clone());
         input.update(cx, |state, cx| {
             let focused = state.focus_handle(cx).is_focused(window);
             let cursor = state.cursor();
@@ -124,6 +129,7 @@ impl Shell {
                 state.set_cursor_position(position, window, cx);
             }
         });
+        self.remark_input(&request_id, &input, cx);
         if let Some(edit) = self.url_edit.as_mut() {
             edit.seed_url = url;
             edit.seed_params.clone_from(&params);

@@ -303,6 +303,7 @@ impl Shell {
             field: CellField::Value,
             input,
             secret,
+            marks: None,
         });
         cx.notify();
     }

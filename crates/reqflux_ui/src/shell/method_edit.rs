@@ -114,6 +114,7 @@ impl Shell {
             field: CellField::Key,
             input,
             secret: false,
+            marks: None,
         });
         cx.notify();
     }

@@ -3,14 +3,40 @@
 
 use bolt::tokens::Borders;
 use gpui::{
-    AnyElement, App, Context, InteractiveElement, IntoElement, MouseButton, ParentElement,
-    SharedString, StatefulInteractiveElement, Styled, div,
+    AnyElement, App, Context, HighlightStyle, InteractiveElement, IntoElement, MouseButton,
+    ParentElement, SharedString, StatefulInteractiveElement, Styled, UnderlineStyle, div,
 };
 use reqflux_engine::{Inspection, Span};
 
 use super::variable_popover_view;
 use crate::shell::Shell;
 use crate::tokens::{variable_hot_wash, variable_wash};
+
+/// The style of a reference inside a field being edited, the same as [`render`] draws it:
+/// a resolving one in the brand tint on its wash, an unresolved one in warning text on a
+/// warning wash with a thin warning underline.
+pub(crate) fn mark_style(resolves: bool, cx: &App) -> HighlightStyle {
+    let colors = bolt::colors(cx);
+    if resolves {
+        let tint = bolt::brand::brand(cx).accent_tint;
+        HighlightStyle {
+            color: Some(tint),
+            background_color: Some(variable_wash(tint)),
+            ..HighlightStyle::default()
+        }
+    } else {
+        HighlightStyle {
+            color: Some(colors.warning),
+            background_color: Some(variable_wash(colors.warning)),
+            underline: Some(UnderlineStyle {
+                thickness: Borders::THIN,
+                color: Some(colors.warning),
+                wavy: false,
+            }),
+            ..HighlightStyle::default()
+        }
+    }
+}
 
 pub(crate) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyElement> {
     let colors = bolt::colors(cx);

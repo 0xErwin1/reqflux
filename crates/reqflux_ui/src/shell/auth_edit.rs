@@ -153,6 +153,7 @@ impl Shell {
             state.set_value(seed, window, cx);
             state.focus(window, cx);
         });
+        let marks = (!secret).then(|| self.mark_input(id, &input, cx));
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),
             table: table.to_owned(),
@@ -164,6 +165,7 @@ impl Shell {
             },
             input,
             secret,
+            marks,
         });
         cx.notify();
     }

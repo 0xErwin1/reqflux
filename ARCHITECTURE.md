@@ -1305,6 +1305,15 @@ instead". Escape or a click outside closes it without writing; after a write eve
 request is inspected again, so the marks follow. A cell whose value references a secret stays
 masked and has no marks; F2 while editing it still opens the popover.
 
+The marks stay while the URL field, a value cell field or a plain auth field is edited
+(`shell/input_marks.rs`, design/variable-popover/01 state f): `bolt::controls::decorate_input`
+styles the reference ranges of the field's text with `request::spans::mark_style`, the style
+the read-only marks draw, and whether each resolves comes from `Inspection::spans`. The
+ranges follow edits but are never detected, so they are set again from the text on every
+`InputEvent::Change`, after the URL field is re-seeded from the grid, and whenever the open
+requests are inspected again. Key cells, secret fields and the settings and method fields
+carry no marks.
+
 Send or Ctrl+Enter sends the active request with the active environment through
 `Engine::execute`. The UI awaits the execution's `JoinHandle` on GPUI's executor with
 `cx.spawn` and never calls `Engine::wait`, which blocks. While it is in flight, Send turns into
