@@ -20,10 +20,11 @@ use bolt::modals::{Modal, modal_field, modal_lead};
 use bolt::primitives::{
     Badge, BadgeTone, BannerBlock, BannerVariant, Icon, SegmentedItem, TextVariant,
 };
+use bolt::toast::Toast;
 use bolt::tokens::{Borders, Fields, HeaderMetrics, ModalMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Context, Div, FontWeight, IntoElement, ParentElement, Point, Role, Stateful,
-    Styled, Window, anchored, deferred, div, prelude::*,
+    AnyElement, App, Context, Div, IntoElement, ParentElement, Point, Role, Stateful, Styled,
+    Window, anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_engine::NetworkSecret;
@@ -37,10 +38,6 @@ use crate::tokens::{
     APP_SETTINGS_COLUMN_GAP as COLUMN_GAP, APP_SETTINGS_OVERRIDE_RULE as KIND_WIDTH,
     APP_SETTINGS_RULE_LABEL_WIDTH as LABEL_WIDTH, COOKIE_DOMAIN_COLUMN as HOST_WIDTH,
 };
-
-/// What the read-only proxy mode is drawn at
-/// (bolt gap: `SegmentedControl` has no disabled state).
-const READ_ONLY_OPACITY: f32 = 0.55;
 
 const DESCRIPTION: &str = "Used by every send on this machine: requests, auth requests and \
                            pm.sendRequest. Values come from [network] in config.toml; \
@@ -164,12 +161,51 @@ fn config_error(detail: &str, cx: &mut Context<Shell>) -> AnyElement {
         .into_any_element()
 }
 
-/// A section caption, as `h2.cap` of the artboard.
-fn caption(label: &'static str, cx: &App) -> Div {
-    ui::role(div(), TextVariant::Label, cx)
-        .pt(Spacing::LG)
-        .pb(Spacing::XS)
-        .child(label)
+/// A section title, as `.section` of the artboard: the accent `kicker` over the `heading`
+/// (with an optional `hint` beside it), on a line, so a title cannot be read as a label.
+fn section(
+    kicker: &'static str,
+    heading: &'static str,
+    hint: Option<&'static str>,
+    cx: &App,
+) -> Div {
+    let colors = bolt::colors(cx);
+    let accent = bolt::brand::brand(cx).accent_tint;
+    div()
+        .flex()
+        .flex_col()
+        .gap(Spacing::XXS)
+        .pt(Spacing::XL)
+        .pb(Spacing::SM)
+        .border_b(Borders::THIN)
+        .border_color(colors.line)
+        .child(
+            ui::role(div(), TextVariant::Label, cx)
+                .text_color(accent)
+                .child(kicker),
+        )
+        .child(
+            div()
+                .flex()
+                .items_baseline()
+                .gap(Spacing::MD)
+                .child(ui::role(div(), TextVariant::Heading, cx).child(heading))
+                .children(hint.map(|hint| ui::role(div(), TextVariant::Caption, cx).child(hint))),
+        )
+}
+
+/// A value the page shows but cannot change, on its own inset surface with the plain line, as
+/// a disabled input draws; an editable control keeps the stronger edge of `bolt`'s fields.
+// bolt gap: no read-only value field; an `Input` would need an `InputState` per value.
+fn read_only<E: Styled>(value: E, cx: &App) -> E {
+    let colors = bolt::colors(cx);
+    value
+        .min_h(Fields::HEIGHT)
+        .pl(Fields::PADDING_X)
+        .pr(Fields::PADDING_X)
+        .bg(colors.background)
+        .border_1()
+        .border_color(colors.line)
 }
 
 /// A field row: the label and its note on the left, the value on the right.
@@ -189,12 +225,7 @@ fn field_row(label: String, note: Option<String>, value: impl IntoElement, cx: &
                 .flex()
                 .flex_col()
                 .gap(Spacing::XXS)
-                .child(
-                    div()
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(colors.strong)
-                        .child(label),
-                )
+                .child(div().text_color(colors.muted).child(label))
                 .children(note.map(|note| ui::role(div(), TextVariant::Caption, cx).child(note))),
         )
         .child(div().flex_1().min_w_0().flex().flex_col().child(value))
@@ -203,7 +234,9 @@ fn field_row(label: String, note: Option<String>, value: impl IntoElement, cx: &
 /// A value as written in the file, in the editor face.
 fn mono(id: String, text: String, struck: bool, cx: &App) -> Stateful<Div> {
     let colors = bolt::colors(cx);
-    labeled_row(id, text.clone())
+    read_only(labeled_row(id, text.clone()), cx)
+        .flex()
+        .items_center()
         .overflow_hidden()
         .whitespace_nowrap()
         .font_family(bolt::fonts::editor_family(cx))
@@ -328,26 +361,19 @@ fn trust(model: &NetworkModel, editable: bool, cx: &mut Context<Shell>) -> Div {
         .min_w_0()
         .flex()
         .flex_col()
-        .child(caption("TRUST", cx))
+        .child(section("TRUST", "CA bundle", None, cx))
         .child(field_row(
             "CA bundle".to_owned(),
             Some("PEM, trusted beside the platform roots".to_owned()),
             ca,
             cx,
         ))
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(Spacing::SM)
-                .child(caption("CLIENT CERTIFICATES", cx))
-                .child(
-                    ui::role(div(), TextVariant::Caption, cx)
-                        .pt(Spacing::LG)
-                        .pb(Spacing::XS)
-                        .child("first match wins · *. matches subdomains only"),
-                ),
-        )
+        .child(section(
+            "TRUST",
+            "Client certificates",
+            Some("first match wins · *. matches subdomains only"),
+            cx,
+        ))
         .child(
             region("network-certificates")
                 .role(Role::List)
@@ -446,7 +472,8 @@ fn mode_name(mode: ProxyMode) -> &'static str {
     }
 }
 
-/// The read-only System / None / Manual control `<id>`.
+/// The System / None / Manual control `<id>`, drawn live: the mode lives in `[network.proxy]`
+/// of config.toml, which the page does not write, so choosing one points there.
 fn mode_control(id: &str, mode: ProxyMode) -> Div {
     let items = [ProxyMode::System, ProxyMode::None, ProxyMode::Manual]
         .into_iter()
@@ -455,19 +482,18 @@ fn mode_control(id: &str, mode: ProxyMode) -> Div {
             SegmentedItem::new(name, name).element_id(format!("{id}-{}", name.to_lowercase()))
         })
         .collect();
-    // bolt gap: SegmentedControl has no disabled state; `[network]` has no writer, so the
-    // control is dimmed and selecting does nothing.
-    div()
-        .flex_none()
-        .opacity(READ_ONLY_OPACITY)
-        .child(segmented::control(
-            id,
-            Some("Proxy mode".into()),
-            false,
-            items,
-            mode_name(mode),
-            |_, _, _| {},
-        ))
+    div().flex_none().child(segmented::control(
+        id,
+        Some("Proxy mode".into()),
+        false,
+        items,
+        mode_name(mode),
+        |_, _, cx| {
+            Toast::info("The proxy mode is set in config.toml")
+                .subtitle("Change mode under [network.proxy], then Reload.")
+                .push(cx);
+        },
+    ))
 }
 
 /// The rows of a proxy table under the `<prefix>` ids.
@@ -528,9 +554,10 @@ fn proxy_rows(prefix: &str, row: &ProxyRow, editable: bool, cx: &mut Context<She
             rows.push(field_row(
                 "Bypass".to_owned(),
                 Some("NO_PROXY syntax".to_owned()),
-                labeled_row(format!("{prefix}-bypass"), bypass)
+                read_only(labeled_row(format!("{prefix}-bypass"), bypass), cx)
                     .flex()
                     .flex_wrap()
+                    .items_center()
                     .gap(Spacing::XS)
                     .children(pills),
                 cx,
@@ -563,18 +590,21 @@ fn proxies(model: &NetworkModel, editable: bool, cx: &mut Context<Shell>) -> Div
                 ),
             };
             let colors = bolt::colors(cx);
-            let value = labeled_row("network-workspace-proxy".to_owned(), summary)
-                .flex()
-                .items_center()
-                .gap(Spacing::SM)
-                .child(badge)
-                .child(div().text_color(colors.strong).child(mode_name(mode)))
-                .children(url.filter(|_| mode == ProxyMode::Manual).map(|url| {
-                    div()
-                        .font_family(bolt::fonts::editor_family(cx))
-                        .text_color(colors.muted)
-                        .child(url)
-                }));
+            let value = read_only(
+                labeled_row("network-workspace-proxy".to_owned(), summary),
+                cx,
+            )
+            .flex()
+            .items_center()
+            .gap(Spacing::SM)
+            .child(badge)
+            .child(div().text_color(colors.strong).child(mode_name(mode)))
+            .children(url.filter(|_| mode == ProxyMode::Manual).map(|url| {
+                div()
+                    .font_family(bolt::fonts::editor_family(cx))
+                    .text_color(colors.muted)
+                    .child(url)
+            }));
             let own_rows = workspace.own.as_ref().map(|own| {
                 let password = own.password.as_ref().map(|password| {
                     field_row(
@@ -591,7 +621,7 @@ fn proxies(model: &NetworkModel, editable: bool, cx: &mut Context<Shell>) -> Div
             div()
             .flex()
             .flex_col()
-            .child(caption("PROXY · THIS WORKSPACE", cx))
+            .child(section("THIS WORKSPACE", "Proxy override", None, cx))
             .child(field_row(
                 workspace.name.clone(),
                 Some(workspace.id.clone()),
@@ -612,7 +642,7 @@ fn proxies(model: &NetworkModel, editable: bool, cx: &mut Context<Shell>) -> Div
         .min_w_0()
         .flex()
         .flex_col()
-        .child(caption("PROXY · EVERY WORKSPACE", cx))
+        .child(section("EVERY WORKSPACE", "Proxy", None, cx))
         .children(global)
         .children(global_warnings)
         .children(workspace)

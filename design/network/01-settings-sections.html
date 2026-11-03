@@ -17,14 +17,26 @@
   ManualProxy.url may carry credentials (http://user:pass@host); the URL field shows the userinfo
   password as •••••••• and never the value.
 
-  Cookie jar: Engine::{cookies, delete_cookie, clear_cookies}. Values show as stored. StoredCookie
+  Cookie jar: Engine::{cookies, set_cookie, replace_cookie, delete_cookie, clear_cookies}.
+  "Add cookie" and the pencil on a row open a dialog with every field of a cookie (name, value,
+  domain, path, expires as session or a UTC date, Secure, HttpOnly, send to subdomains, SameSite);
+  the engine refuses an empty name or domain, a path without a leading /, a name or value with a
+  separator and a past date, and its text shows under the fields. A value shown as a secret opens
+  empty and an empty field keeps it, so editing never reveals it. Cookie values never reach a log
+  or an MCP response. Values show as stored. StoredCookie
   has no secret flag and the jar has no masker over secret variables, so a jar value equal to a
   secret is not masked here (the response Cookies view masks it through the send's masker). Not
   drawn until the engine can say which jar values are secrets.
 
   bolt: activity_rail, island, tree_nav, field_row, segmented_control, input, list_row, data grid,
   button, badge, banner, dialog, toast, chip.
-  bolt gap: SegmentedControl has no disabled (read-only) state; it is dimmed here, as in app-settings/02.
+  Hierarchy (feedback-nov3 S14): a section title is an accent kicker over a heading on a line
+  (.sec), a field label is muted and its value strong, a value the page cannot change sits on an
+  inset surface with the plain line (.field.ro, a disabled input), an editable control keeps the
+  stronger edge (.field.ed) and the raised fill of a button. The proxy mode control is drawn live,
+  not dimmed: [network.proxy] has no writer, so choosing a mode raises a toast that points at
+  config.toml.
+  bolt gap: no read-only value field; the .field.ro surface is a stand-in.
   bolt gap: list row with trailing badge plus actions and a second muted line (certificate rows).
 -->
 <style>
@@ -56,7 +68,11 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 .seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
 .seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 12px;color:#8E8996;white-space:nowrap}
 .seg>span.on{background:#1A181E;color:#F7F4F7}
-.seg.dis{opacity:.55}
+.sec{display:flex;flex-direction:column;gap:2px;padding:20px 0 8px;border-bottom:1px solid #232128}
+.sec .k{font-family:Archivo,system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#9DB1FF}
+.sec h2{display:flex;align-items:baseline;gap:12px;margin:0;font-size:16px;font-weight:700;color:#F7F4F7}
+.field.ro{background:#09090B;box-shadow:#232128 0 0 0 1px inset;color:#C6C3CC}
+.field.ed{background:#09090B;box-shadow:#37333D 0 0 0 1px inset;color:#F7F4F7}
 .chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;border:0;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
 .nav a{display:flex;align-items:center;gap:10px;height:32px;padding:0 16px;font-size:13px;color:#C6C3CC;text-decoration:none}
 .nav a[aria-current]{background:rgba(157,177,255,.14);box-shadow:#9DB1FF 2px 0 0 inset;color:#F7F4F7}
@@ -65,7 +81,7 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 .nav .n{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11px;color:#8E8996}
 .fr{display:grid;grid-template-columns:220px 1fr;gap:24px;align-items:center;padding:11px 0;border-bottom:1px solid #18161B}
 .fr .l{display:flex;flex-direction:column;gap:3px}
-.fr .l b{font-weight:600;color:#F7F4F7;font-size:13px}
+.fr .l b{font-weight:500;color:#8E8996;font-size:13px}
 .val{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .gh{display:flex;align-items:center;height:32px;background:#09090B;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12px;color:#F7F4F7;font-weight:600}
 .gr{display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px;color:#C6C3CC}
@@ -127,6 +143,8 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
   <symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
   <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
   <symbol id="i-cookie" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5"/><path d="M8.5 8.5v.01"/><path d="M16 15.5v.01"/><path d="M12 12v.01"/><path d="M11 17v.01"/><path d="M7 14v.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
   <symbol id="i-file" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></symbol>
 </svg>
@@ -180,11 +198,11 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 
       <div style="flex-grow:1;min-height:0;overflow:hidden;padding:0 28px;display:grid;grid-template-columns:1.45fr 1fr;column-gap:32px">
         <div>
-          <h2 class="cap" style="margin:14px 0 2px">Trust</h2>
+          <div class="sec" style="padding-top:14px"><span class="k">Trust</span><h2>CA bundle</h2></div>
           <div class="fr"><div class="l"><b>CA bundle</b><span class="ds">PEM, trusted beside the platform roots</span></div>
-            <div class="val"><span id="network-ca-bundle" class="c6 field m" style="flex-grow:1;color:#F7F4F7"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg>/etc/ssl/acme/corp-root-ca.pem</span></div></div>
+            <div class="val"><span id="network-ca-bundle" class="c6 field ro m" style="flex-grow:1"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-file"/></svg>/etc/ssl/acme/corp-root-ca.pem</span></div></div>
 
-          <div style="display:flex;align-items:center;gap:8px;margin:20px 0 2px"><h2 class="cap" style="margin:0">Client certificates</h2><span class="ds">first match wins · <span class="m">*.</span> matches subdomains only</span></div>
+          <div class="sec" style="margin-top:12px"><span class="k">Trust</span><h2>Client certificates<span class="ds" style="font-weight:400">first match wins · <span class="m">*.</span> matches subdomains only</span></h2></div>
           <div id="network-certificates" role="list">
             <div class="cert" role="listitem" id="network-certificate-0">
               <span class="m" style="color:#F7F4F7">api.billing.acme.com<span style="color:#8E8996">:8443</span></span>
@@ -215,20 +233,20 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
         </div>
 
         <div>
-          <h2 class="cap" style="margin:14px 0 2px">Proxy · every workspace</h2>
+          <div class="sec" style="padding-top:14px"><span class="k">Every workspace</span><h2>Proxy</h2></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Mode</b></div>
-            <!-- bolt gap: SegmentedControl has no disabled state; read-only until [network] has a writer -->
-            <div id="network-proxy-mode" class="c6 seg dis" role="radiogroup" aria-label="Proxy mode" aria-disabled="true" style="width:max-content"><span role="radio" aria-checked="false">System</span><span role="radio" aria-checked="false">None</span><span class="on" role="radio" aria-checked="true">Manual</span></div></div>
-          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>URL</b></div><span id="network-proxy-url" class="c6 field m" style="color:#F7F4F7">http://proxy.corp.acme.com:3128</span></div>
-          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Username</b></div><span class="c6 field m" style="color:#F7F4F7">mbrandt</span></div>
+            <!-- drawn live; choosing a mode raises the "set in config.toml" toast (state below) -->
+            <div id="network-proxy-mode" class="c6 seg" role="radiogroup" aria-label="Proxy mode" style="width:max-content"><span role="radio" aria-checked="false">System</span><span role="radio" aria-checked="false">None</span><span class="on" role="radio" aria-checked="true">Manual</span></div></div>
+          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>URL</b></div><span id="network-proxy-url" class="c6 field ro m">http://proxy.corp.acme.com:3128</span></div>
+          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Username</b></div><span class="c6 field ro m">mbrandt</span></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b></div>
             <div class="val"><span id="network-proxy-password" class="c4 badge b-set"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-key"/></svg>KEYRING · SET</span><span style="flex-grow:1"></span><button class="c6 btn sm">Change…</button><button class="c6 btn sm">Clear</button></div></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Bypass</b><span class="ds">NO_PROXY syntax</span></div>
-            <div class="val m" id="network-proxy-bypass"><span class="c4 pill">localhost</span><span class="c4 pill">127.0.0.1</span><span class="c4 pill">.corp.acme.com</span></div></div>
+            <div class="val m c6 field ro" id="network-proxy-bypass" style="height:auto;min-height:30px;padding-top:3px;padding-bottom:3px"><span class="c4 pill">localhost</span><span class="c4 pill">127.0.0.1</span><span class="c4 pill">.corp.acme.com</span></div></div>
 
-          <h2 class="cap" style="margin:20px 0 2px">Proxy · this workspace</h2>
+          <div class="sec" style="margin-top:12px"><span class="k">This workspace</span><h2>Proxy override</h2></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>billing</b><span class="ds m">01J9Z4…KQ7M</span></div>
-            <div class="val" id="network-workspace-proxy"><span class="c4 badge b-tint">OWN PROXY</span><span style="color:#F7F4F7">None</span><span class="ds">sends direct, whatever the app proxy says</span></div></div>
+            <div class="val c6 field ro" id="network-workspace-proxy"><span class="c4 badge b-tint">OWN PROXY</span><span style="color:#F7F4F7">None</span><span class="ds">sends direct, whatever the app proxy says</span></div></div>
           <span class="ds" style="display:block;padding-top:8px;line-height:1.5">A <span class="m">[network.workspaces."&lt;id&gt;".proxy]</span> table replaces the app proxy for one workspace. Without one, this workspace uses the proxy above.</span>
         </div>
       </div>
@@ -309,6 +327,7 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 <div class="frame" style="display:flex;flex-direction:column">
   <div style="display:flex;align-items:flex-start;gap:12px;padding:20px 28px 12px;border-bottom:1px solid #232128">
     <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1"><h1 class="ttl">Cookies</h1><span class="ds" style="font-size:13px">Stored for billing on this machine and sent with every matching request. Never written to the workspace.</span></div>
+    <button id="cookies-add" class="c6 btn pri"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-plus"/></svg>Add cookie</button>
     <button id="cookies-clear" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg>Clear all…</button>
   </div>
   <div style="display:flex;align-items:center;gap:12px;padding:12px 28px">
@@ -316,14 +335,14 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
     <span class="ds">7 cookies · 3 domains</span>
   </div>
   <div class="jar" role="table" aria-label="Cookies" style="padding:0 28px 16px">
-    <div class="gh" role="row"><span style="width:40px"></span><span style="width:230px">domain</span><span style="width:70px">path</span><span style="width:190px">name</span><span style="width:300px">value</span><span style="width:190px">expires</span><span style="width:200px">flags</span><span style="width:44px"></span></div>
-    <div class="gr" role="row"><span class="rn" style="width:40px">1</span><span style="width:230px">.billing.acme.com</span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">region</span><span style="width:300px">eu-west-1</span><span style="width:190px">30 Nov 2026, 10:05</span><span style="width:200px"><span class="c4 flag">SameSite=Lax</span></span><span style="width:44px"></span></div>
-    <div class="gr" role="row"><span class="rn" style="width:40px">2</span><span style="width:230px">.billing.acme.com</span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">locale</span><span style="width:300px">en-GB</span><span style="width:190px;color:#8E8996">Session</span><span style="width:200px"></span><span style="width:44px"></span></div>
-    <div class="gr hov" role="row"><span class="rn" style="width:40px">3</span><span style="width:230px">staging.billing.acme.com <span class="c4 badge" title="Sent to this host only">HOST</span></span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">__Host-billing_session</span><span style="width:300px">s%3A9f3Kq2xLm0Zt7bVw.Rr8</span><span style="width:190px;color:#8E8996">Session</span><span style="width:200px;display:flex;gap:4px"><span class="c4 flag">Secure</span><span class="c4 flag">HttpOnly</span><span class="c4 flag">Strict</span></span><span style="width:44px"><button aria-label="Delete cookie __Host-billing_session" class="c6 ib" style="width:26px;height:24px;color:#C6C3CC"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></span></div>
-    <div class="gr" role="row"><span class="rn" style="width:40px">4</span><span style="width:230px">staging.billing.acme.com <span class="c4 badge">HOST</span></span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">csrf_token</span><span style="width:300px">c1f4e88a07b2</span><span style="width:190px">2 Nov 2026, 18:40</span><span style="width:200px;display:flex;gap:4px"><span class="c4 flag">Secure</span><span class="c4 flag">Lax</span></span><span style="width:44px"></span></div>
-    <div class="gr" role="row"><span class="rn" style="width:40px">5</span><span style="width:230px">staging.billing.acme.com <span class="c4 badge">HOST</span></span><span style="width:70px">/v1/exports</span><span style="width:190px;color:#F7F4F7">export_cursor</span><span style="width:300px">MjAyNi0xMC0zMVQxNDoxODoxNVo</span><span style="width:190px">9 Nov 2026, 14:18</span><span style="width:200px"></span><span style="width:44px"></span></div>
-    <div class="gr" role="row"><span class="rn" style="width:40px">6</span><span style="width:230px">auth.acme.com</span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">device_id</span><span style="width:300px">d-5b1e9c40</span><span style="width:190px">2 Nov 2027, 09:12</span><span style="width:200px;display:flex;gap:4px"><span class="c4 flag">Secure</span><span class="c4 flag">HttpOnly</span></span><span style="width:44px"></span></div>
-    <div class="gr" role="row" style="border-bottom:0"><span class="rn" style="width:40px">7</span><span style="width:230px">localhost <span class="c4 badge">HOST</span></span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">dev_flags</span><span style="width:300px">new-invoices,beta-tax</span><span style="width:190px;color:#8E8996">Session</span><span style="width:200px"></span><span style="width:44px"></span></div>
+    <div class="gh" role="row"><span style="width:40px"></span><span style="width:230px">domain</span><span style="width:70px">path</span><span style="width:190px">name</span><span style="width:300px">value</span><span style="width:190px">expires</span><span style="width:200px">flags</span><span style="width:64px"></span></div>
+    <div class="gr" role="row"><span class="rn" style="width:40px">1</span><span style="width:230px">.billing.acme.com</span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">region</span><span style="width:300px">eu-west-1</span><span style="width:190px">30 Nov 2026, 10:05</span><span style="width:200px"><span class="c4 flag">SameSite=Lax</span></span><span style="width:64px"></span></div>
+    <div class="gr" role="row"><span class="rn" style="width:40px">2</span><span style="width:230px">.billing.acme.com</span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">locale</span><span style="width:300px">en-GB</span><span style="width:190px;color:#8E8996">Session</span><span style="width:200px"></span><span style="width:64px"></span></div>
+    <div class="gr hov" role="row"><span class="rn" style="width:40px">3</span><span style="width:230px">staging.billing.acme.com <span class="c4 badge" title="Sent to this host only">HOST</span></span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">__Host-billing_session</span><span style="width:300px">s%3A9f3Kq2xLm0Zt7bVw.Rr8</span><span style="width:190px;color:#8E8996">Session</span><span style="width:200px;display:flex;gap:4px"><span class="c4 flag">Secure</span><span class="c4 flag">HttpOnly</span><span class="c4 flag">Strict</span></span><span style="width:64px;display:flex"><button id="cookie-3-edit" aria-label="Edit cookie __Host-billing_session" class="c6 ib" style="width:26px;height:24px;color:#C6C3CC"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-pencil"/></svg></button><button id="cookie-3-delete" aria-label="Delete cookie __Host-billing_session" class="c6 ib" style="width:26px;height:24px;color:#C6C3CC"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg></button></span></div>
+    <div class="gr" role="row"><span class="rn" style="width:40px">4</span><span style="width:230px">staging.billing.acme.com <span class="c4 badge">HOST</span></span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">csrf_token</span><span style="width:300px">c1f4e88a07b2</span><span style="width:190px">2 Nov 2026, 18:40</span><span style="width:200px;display:flex;gap:4px"><span class="c4 flag">Secure</span><span class="c4 flag">Lax</span></span><span style="width:64px"></span></div>
+    <div class="gr" role="row"><span class="rn" style="width:40px">5</span><span style="width:230px">staging.billing.acme.com <span class="c4 badge">HOST</span></span><span style="width:70px">/v1/exports</span><span style="width:190px;color:#F7F4F7">export_cursor</span><span style="width:300px">MjAyNi0xMC0zMVQxNDoxODoxNVo</span><span style="width:190px">9 Nov 2026, 14:18</span><span style="width:200px"></span><span style="width:64px"></span></div>
+    <div class="gr" role="row"><span class="rn" style="width:40px">6</span><span style="width:230px">auth.acme.com</span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">device_id</span><span style="width:300px">d-5b1e9c40</span><span style="width:190px">2 Nov 2027, 09:12</span><span style="width:200px;display:flex;gap:4px"><span class="c4 flag">Secure</span><span class="c4 flag">HttpOnly</span></span><span style="width:64px"></span></div>
+    <div class="gr" role="row" style="border-bottom:0"><span class="rn" style="width:40px">7</span><span style="width:230px">localhost <span class="c4 badge">HOST</span></span><span style="width:70px">/</span><span style="width:190px;color:#F7F4F7">dev_flags</span><span style="width:300px">new-invoices,beta-tax</span><span style="width:190px;color:#8E8996">Session</span><span style="width:200px"></span><span style="width:64px"></span></div>
   </div>
 </div></div>
 
@@ -353,6 +372,56 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
   <span class="c8" style="display:flex;align-items:center;justify-content:center;width:44px;height:44px;background:#1A181E;color:#8E8996"><svg class="ico" aria-hidden="true" style="width:20px;height:20px"><use href="#i-cookie"/></svg></span>
   <span style="color:#F7F4F7;font-size:14px;font-weight:600">No cookies in billing</span>
   <span style="color:#8E8996;font-size:12.5px;max-width:440px">Cookies that responses set land here and go out with the next matching request. <span class="m">reqflux run</span> keeps its own jar for the run only.</span>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Add cookie</h3><p><span class="m">Engine::set_cookie</span>: a cookie written from its fields replaces the one with its domain, path and name. Session is on by default and greys the date; the date is UTC (<span class="m">YYYY-MM-DD HH:MM</span>). Cancel, Escape or the backdrop writes nothing.</p></div>
+<div class="frame" style="height:460px;display:flex;align-items:center;justify-content:center;background:rgba(5,5,7,.62)">
+  <div class="c18 dlg" role="dialog" aria-label="Add cookie" style="width:560px">
+    <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-plus"/></svg><span style="font-weight:600;color:#F7F4F7;font-size:14px">Add cookie</span></div>
+    <div style="padding:8px 18px 14px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Name</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">session</span></label></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Value</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">abc123</span></label></div></div>
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Domain</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">api.example.com</span></label></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Path</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">/</span></label></div></div>
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Expires (UTC)</span><div style="display:flex;flex-direction:column;gap:8px"><label class="c6 field ro m" style=""><span style="color:#8E8996"><span style="color:#8E8996">2026-12-31 10:00</span></span></label><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;background:#2B45B8;color:#fff"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-check"/></svg></span>Session cookie</span></div></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">SameSite</span><label class="c6 field ed"><span style="flex-grow:1;color:#F7F4F7">Not set</span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></label></div></div>
+      <div style="display:flex;gap:20px"><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;background:#2B45B8;color:#fff"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-check"/></svg></span>Secure</span><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="width:16px;height:16px;box-shadow:#37333D 0 0 0 1px inset;background:#09090B"></span>HttpOnly</span><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="width:16px;height:16px;box-shadow:#37333D 0 0 0 1px inset;background:#09090B"></span>Send to subdomains</span></div>
+      
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #232128"><button class="c6 btn">Cancel</button><button class="c6 btn pri">Add cookie</button></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Edit cookie</h3><p>The pencil of a row (<span class="m">Engine::replace_cookie</span>). A changed domain, path or name moves the cookie; a refusal keeps the original. A value shown as a secret opens empty, and leaving it empty keeps the stored one.</p></div>
+<div class="frame" style="height:460px;display:flex;align-items:center;justify-content:center;background:rgba(5,5,7,.62)">
+  <div class="c18 dlg" role="dialog" aria-label="Edit cookie" style="width:560px">
+    <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-pencil"/></svg><span style="font-weight:600;color:#F7F4F7;font-size:14px">Edit cookie</span></div>
+    <div style="padding:8px 18px 14px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Name</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">__Host-billing_session</span></label></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Value</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7"><span style="color:#8E8996">Hidden. Leave empty to keep it</span></span></label></div></div>
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Domain</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">staging.billing.acme.com</span></label></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Path</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">/</span></label></div></div>
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Expires (UTC)</span><div style="display:flex;flex-direction:column;gap:8px"><label class="c6 field ro m" style=""><span style="color:#8E8996"><span style="color:#8E8996">2026-12-31 10:00</span></span></label><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;background:#2B45B8;color:#fff"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-check"/></svg></span>Session cookie</span></div></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">SameSite</span><label class="c6 field ed"><span style="flex-grow:1;color:#F7F4F7">Strict</span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></label></div></div>
+      <div style="display:flex;gap:20px"><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;background:#2B45B8;color:#fff"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-check"/></svg></span>Secure</span><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;background:#2B45B8;color:#fff"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-check"/></svg></span>HttpOnly</span><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="width:16px;height:16px;box-shadow:#37333D 0 0 0 1px inset;background:#09090B"></span>Send to subdomains</span></div>
+      
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #232128"><button class="c6 btn">Cancel</button><button class="c6 btn pri">Save cookie</button></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Cookie refused</h3><p>The engine's text shows under the fields and the dialog stays open. The text names the field, never the value.</p></div>
+<div class="frame" style="height:480px;display:flex;align-items:center;justify-content:center;background:rgba(5,5,7,.62)">
+  <div class="c18 dlg" role="dialog" aria-label="Add cookie" style="width:560px">
+    <div style="display:flex;align-items:center;gap:8px;padding:16px 18px 6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-plus"/></svg><span style="font-weight:600;color:#F7F4F7;font-size:14px">Add cookie</span></div>
+    <div style="padding:8px 18px 14px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Name</span><label class="c6 field ed m" style="box-shadow:#FF6B5E 0 0 0 1px inset"><span style="color:#8E8996">name</span></label></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Value</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">x</span></label></div></div>
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Domain</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">api.example.com</span></label></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Path</span><label class="c6 field ed m" style=""><span style="color:#F7F4F7">/</span></label></div></div>
+      <div style="display:flex;gap:12px"><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">Expires (UTC)</span><div style="display:flex;flex-direction:column;gap:8px"><label class="c6 field ed m" style=""><span style="color:#F7F4F7">2026-12-31 10:00</span></label><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="width:16px;height:16px;box-shadow:#37333D 0 0 0 1px inset;background:#09090B"></span>Session cookie</span></div></div><div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0"><span style="font-size:12px;color:#8E8996">SameSite</span><label class="c6 field ed"><span style="flex-grow:1;color:#F7F4F7">Lax</span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></label></div></div>
+      <div style="display:flex;gap:20px"><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="width:16px;height:16px;box-shadow:#37333D 0 0 0 1px inset;background:#09090B"></span>Secure</span><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="width:16px;height:16px;box-shadow:#37333D 0 0 0 1px inset;background:#09090B"></span>HttpOnly</span><span style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:#C6C3CC"><span style="display:flex;align-items:center;justify-content:center;width:16px;height:16px;background:#2B45B8;color:#fff"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-check"/></svg></span>Send to subdomains</span></div>
+      <span style="font-size:12.5px;color:#FF6B5E">The cookie was not saved: the name is empty</span>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;padding:12px 18px;border-top:1px solid #232128"><button class="c6 btn">Cancel</button><button class="c6 btn pri">Add cookie</button></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Proxy mode</h3><p>The mode control is live, not dimmed. <span class="m">[network.proxy]</span> has no writer yet, so choosing a mode keeps the current one and raises this toast.</p></div>
+<div class="frame" style="height:72px;display:flex;align-items:center;justify-content:flex-end;padding:0 20px">
+  <div class="c8 toast" role="status"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#6EA8FF"><use href="#i-alert"/></svg><span>The proxy mode is set in config.toml<br><span class="ds">Change mode under [network.proxy], then Reload.</span></span></div>
 </div></div>
 
 <div class="state"><div class="state-head"><h3>Where the jar opens from</h3><p>Status bar chip (shown while the jar has cookies), the palette, the workspace menu, and the response Cookies view. All open Workspace &gt; Cookies.</p></div>
