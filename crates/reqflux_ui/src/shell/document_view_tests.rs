@@ -18,13 +18,13 @@ use crate::shell::send_tests::{Server, closed_port, serve, settle};
 use crate::shell::variables_tests::{COLLECTION as API_COLLECTION, USE, variables_workspace};
 use crate::workspace_tests::{demo_workspace, write};
 
-const COLLECTION: &str = "01JF0000000000000000000001";
-const FOLDER: &str = "01JF0000000000000000000002";
-const CREATE: &str = "01JF0000000000000000000003";
-const LIST: &str = "01JF0000000000000000000004";
+pub(super) const COLLECTION: &str = "01JF0000000000000000000001";
+pub(super) const FOLDER: &str = "01JF0000000000000000000002";
+pub(super) const CREATE: &str = "01JF0000000000000000000003";
+pub(super) const LIST: &str = "01JF0000000000000000000004";
 
 /// The canonical document the folder workspace shows: `Create invoice` and `List`.
-const CANONICAL: &str = "### Create invoice\nPOST https://api.test/v1/invoices\nX-Api-Key: k\n\n{\"total\": 42}\n\n### List\nGET https://api.test/v1/invoices\n";
+pub(super) const CANONICAL: &str = "### Create invoice\nPOST https://api.test/v1/invoices\nX-Api-Key: k\n\n{\"total\": 42}\n\n### List\nGET https://api.test/v1/invoices\n";
 
 /// The text of `relative` under the workspace `dir`.
 fn read_file(dir: &TempDir, relative: &str) -> String {
@@ -35,7 +35,7 @@ fn read_file(dir: &TempDir, relative: &str) -> String {
 }
 
 /// Opens the folder of `LIST` in the Document layout with the editor open.
-fn open_editor<'a>(
+pub(super) fn open_editor<'a>(
     cx: &'a mut TestAppContext,
     dir: &TempDir,
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
@@ -51,7 +51,7 @@ fn open_editor<'a>(
 }
 
 /// Puts `text` into the open document editor, the way typing does.
-fn set_document_text(cx: &mut VisualTestContext, shell: &Entity<Shell>, text: &str) {
+pub(super) fn set_document_text(cx: &mut VisualTestContext, shell: &Entity<Shell>, text: &str) {
     cx.update(|window, cx| {
         shell.update(cx, |shell, cx| shell.set_document_text(text, window, cx));
     });
@@ -59,7 +59,7 @@ fn set_document_text(cx: &mut VisualTestContext, shell: &Entity<Shell>, text: &s
 
 /// A workspace whose collection `API` holds the folder `invoices` with `POST Create
 /// invoice` (one header, a JSON body) and `GET List`, in store order.
-fn folder_workspace() -> TempDir {
+pub(super) fn folder_workspace() -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -112,7 +112,7 @@ fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
 /// A workspace like `folder_workspace`, with the section URLs pointed at test servers:
 /// `Create invoice` at `refused`, `List` at `live`, so only the section a send covers can
 /// answer.
-fn send_workspace(live: u16, refused: u16) -> TempDir {
+pub(super) fn send_workspace(live: u16, refused: u16) -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -145,7 +145,7 @@ fn send_workspace(live: u16, refused: u16) -> TempDir {
 }
 
 /// The document the send workspace shows: two sections with different URLs.
-fn section_document(live: u16, refused: u16) -> String {
+pub(super) fn section_document(live: u16, refused: u16) -> String {
     format!(
         "### Create invoice\nPOST http://127.0.0.1:{refused}/v1/invoices\n\n\
          ### List\nGET http://127.0.0.1:{live}/v1/invoices\n"
@@ -154,7 +154,7 @@ fn section_document(live: u16, refused: u16) -> String {
 
 /// A server that accepts each connection and drops it at once, so the send fails to
 /// complete, and counts the connections.
-fn refusing_server() -> (u16, Arc<AtomicUsize>) {
+pub(super) fn refusing_server() -> (u16, Arc<AtomicUsize>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     let count = Arc::new(AtomicUsize::new(0));
@@ -169,7 +169,7 @@ fn refusing_server() -> (u16, Arc<AtomicUsize>) {
 }
 
 /// Opens the send workspace's folder in the Document layout with the editor open.
-fn open_send_editor<'a>(
+pub(super) fn open_send_editor<'a>(
     cx: &'a mut TestAppContext,
     dir: &TempDir,
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
@@ -185,7 +185,7 @@ fn open_send_editor<'a>(
 }
 
 /// Puts the document cursor `offset` bytes in, the way clicking there does.
-fn set_cursor(cx: &mut VisualTestContext, shell: &Entity<Shell>, offset: usize) {
+pub(super) fn set_cursor(cx: &mut VisualTestContext, shell: &Entity<Shell>, offset: usize) {
     cx.update(|window, cx| {
         shell.update(cx, |shell, cx| {
             shell.set_document_cursor(offset, window, cx)

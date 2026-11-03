@@ -6,6 +6,7 @@ use std::time::{Duration, Instant};
 
 use gpui::{Context, Task, Window};
 use reqflux_core::model::Request;
+use reqflux_engine::config::LayoutMode;
 use reqflux_engine::state::{HistoryOutcome, RecordedResponse};
 use reqflux_engine::{
     CancellationToken, ExecuteOptions, Executed, Execution, HttpError, Masker, ScriptOutcome,
@@ -104,8 +105,9 @@ impl Shell {
     /// palette, or the workspace, environment, auth type, body
     /// mode or method menu when one is open,
     /// else the sidebar's row menu or delete confirmation (clearing its error), else cancels
-    /// the send in flight of the active request. The binding takes Escape before the menu's
-    /// own key handler.
+    /// the send in flight of the active request — in the Document layout, the send the
+    /// window started last while it is in flight, since a section sends as its own request
+    /// whatever tab is active. The binding takes Escape before the menu's own key handler.
     pub(super) fn cancel_active(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.palette.is_some() {
             self.close_palette(window, cx);
@@ -126,8 +128,26 @@ impl Shell {
                 .sidebar
                 .update(cx, |sidebar, cx| sidebar.dismiss(window, cx))
         {
-        } else if let Some(id) = self.documents.active().map(str::to_owned) {
+        } else if let Some(id) = self.escape_target() {
             self.cancel(&id, cx);
+        }
+    }
+
+    /// The request whose send Escape cancels: in the Document layout the last one sent
+    /// while it is in flight, else the active request.
+    fn escape_target(&self) -> Option<String> {
+        let in_flight = self
+            .last_send
+            .as_ref()
+            .map(|last| last.id.as_str())
+            .filter(|id| {
+                self.sends
+                    .get(*id)
+                    .is_some_and(|send| matches!(send.state, SendState::Sending { .. }))
+            });
+        match in_flight {
+            Some(id) if self.split.mode == LayoutMode::Document => Some(id.to_owned()),
+            _ => self.documents.active().map(str::to_owned),
         }
     }
 

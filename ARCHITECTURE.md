@@ -292,7 +292,8 @@ Saving is explicit, as in Postman: an edit never touches the workspace file unti
   `$XDG_STATE_HOME/reqflux/state.sqlite3` (`$HOME/.local/state/reqflux/state.sqlite3` when the
   variable is unset), with an explicit, forward-only schema version (v2 adds the `history`
   table, v3 the `current_values` table keyed by workspace id, scope and key, v4 the
-  `recent_workspaces` table, the 20 newest by canonical path; an older file upgrades in one
+  `recent_workspaces` table, the 20 newest by canonical path, v5 `settings`, v6 the history
+  `timings` column, v7 `cookies`, v8 `document_drafts`; an older file upgrades in one
   transaction and keeps what it holds). A draft stores the
   whole entity document as TOML, so later editable surfaces need no new storage.
 - A draft payload is the request document as TOML. When the draft edits scripts, it adds a
@@ -301,6 +302,14 @@ Saving is explicit, as in Postman: an edit never touches the workspace file unti
   means the scripts are as saved. Saving checks the request and both sidecar hashes first,
   then writes the sidecars (an empty script deletes its file) and the .req.toml if its
   document changed (`Engine::save_draft`).
+- The Document layout's unsaved `.http` text of a folder is a draft of its own, in the
+  `document_drafts` table (schema v8, keyed by workspace id and folder id), apart from the
+  request drafts so their loader never meets it (`AppState::put_document_draft`,
+  `document_draft`, `delete_document_draft`). Its payload is the text as typed and its base the
+  content hash of the canonical document it was edited from. When the folder's canonical
+  document no longer hashes to that base, the text comes back stale and Save is refused until
+  Discard, as a request draft whose file moved is conflicted until reverted. Without an app
+  state the text lives only in the editor and a folder switch drops it.
 - **Sending** a request with a draft sends the draft. History records what was sent. When the
   draft edits scripts, the send runs the draft's unsaved scripts in place of the request's
   sidecars (`Engine::execute_draft_with_scripts`); an empty or absent draft script falls back
@@ -434,18 +443,25 @@ while the text is not dirty. Ctrl+S (`save-request`) parses the text and saves t
 — sections update their request (method, URL and params, enabled headers, raw body), new names
 create requests in the folder, and requests whose section disappeared are deleted only after one
 confirmation modal for the whole save (`document-confirm-delete`); parse warnings show in
-`document-warnings` and block the save; Discard drops the edit. Running a section there is
+`document-warnings` and block the save; Discard drops the edit. A dirty text is stored per
+folder in the app state (see "Drafts and saving"), so switching to another folder and back, or
+restarting, reopens the editor on it; Save and Discard forget it. A stored text whose folder
+changed since comes back with `document-stale` and refuses to save until it is discarded.
+Running a section there is
 Ctrl+Enter (`send-request`, intercepted while the focus is in the document; the `.http` editor
 consumes a secondary Enter, so the document captures it like the GraphQL editor does) or the
 editor's Send (`document-send`): the section the cursor is in — the last one that starts before it
-when the cursor sits between sections — maps to its folder request by name, the way a save matches
-sections, and sends through the same draft path as a request tab, so it records history and honours
+when the cursor sits between sections — maps to its folder request: the editor ties each seeded
+section to its request and carries the ties over every edit, by name and, for a section renamed in
+place, by position, so an unsaved rename keeps the section's request, its response block and its
+Retry (a Retry whose section was deleted says so in a toast). It sends through the same draft path as a request tab, so it records history and honours
 the environment allowlist and the host policy without saving. The response draws under that
 section in the read-only document, or below the editor while it is open
 (`document-section-<n>-response` over `document-response`, with `document-response-status`,
 `document-response-body`, `document-response-error` and its `document-response-retry`), reusing the
 response pane's views; the read-only document shows the response of the request the window sent
-last, else the active request's.
+last, else the active request's. Escape in the Document layout cancels the send the window started
+last while it is in flight, whatever tab is active; the split layouts cancel the active request's.
 
 In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,

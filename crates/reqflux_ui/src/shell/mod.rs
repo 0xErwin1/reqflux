@@ -177,6 +177,9 @@ pub(crate) struct Shell {
     /// The `.http` document editor of the Document layout, while it is under edit (see
     /// `document_view`).
     document_edit: Option<document::document_view::DocumentEdit>,
+    /// The folder the Document layout last looked up a stored text for, so it restores
+    /// one once per visit instead of on every frame.
+    document_restored: Option<String>,
     /// The per-user app state the drafts persist in; `None` when it could not be opened,
     /// which keeps drafts in memory only.
     state: Option<AppState>,
@@ -296,6 +299,7 @@ impl Shell {
             body_edit: None,
             script_edit: None,
             document_edit: None,
+            document_restored: None,
             state,
             config_path: None,
             config_report: crate::theme::ConfigReport::default(),

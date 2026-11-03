@@ -10,12 +10,14 @@
 //! (`document-section-<n>-response`, see `response::document_block`); Ctrl+S or
 //! `document-save` parses the text and saves it through the engine (see
 //! `save_document`), `document-discard` drops the edit, and `document-warnings` shows what
-//! a broken section blocks. Without an open request the view shows an empty state.
+//! a broken section blocks. A dirty text is stored per folder in the app state (see
+//! `document_drafts`), so it comes back after a folder switch or a restart, and a section
+//! keeps its request across an unsaved rename (see `document_sections`). Without an open
+//! request the view shows an empty state.
 // bolt gap: `bolt` has no read-only code view with line numbers and no plain field well
 // outside the request module; the lines are drawn as the Body pane draws its code and the
 // wells as its `text_well`.
 
-use std::ops::Range;
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -44,6 +46,14 @@ use crate::shell::{
 use crate::tokens::method_hue;
 use crate::workspace::OpenedWorkspace;
 
+#[path = "document_drafts.rs"]
+mod drafts;
+#[path = "document_sections.rs"]
+mod sections;
+
+use drafts::{StoredDocument, base_of};
+use sections::{SectionIds, document_section, section_at};
+
 /// The empty state while no request is open.
 const NO_REQUEST: &str = "No request is open";
 /// The empty state while the active request's folder shows no request.
@@ -53,7 +63,9 @@ const EDITOR_ROWS: usize = 20;
 
 /// The `.http` document under edit: the folder it belongs to, the editor state, the text
 /// it was seeded from, whether the text has changed, the warnings the last parse produced,
-/// and the removed requests the pending save still has to confirm.
+/// the removed requests the pending save still has to confirm, the request each section
+/// belongs to, the base the text was edited from (see `document_drafts`) and whether the
+/// folder changed underneath it since.
 pub(crate) struct DocumentEdit {
     folder: String,
     input: Entity<TextareaState>,
@@ -61,7 +73,22 @@ pub(crate) struct DocumentEdit {
     dirty: bool,
     warnings: Vec<String>,
     confirm: Option<Vec<String>>,
+    ids: SectionIds,
+    base: String,
+    stale: bool,
     _change: Subscription,
+}
+
+impl DocumentEdit {
+    /// Takes in `text`, the editor's text after an edit: whether it differs from the seed,
+    /// its warnings, and the request each of its sections belongs to.
+    fn track(&mut self, text: &str) {
+        let (parsed, warnings) = http_document::parse(text);
+        self.dirty = text != self.seed;
+        self.warnings = warnings;
+        self.ids
+            .track(parsed.into_iter().map(|section| section.name).collect());
+    }
 }
 
 pub(crate) fn render(
@@ -84,6 +111,7 @@ pub(crate) fn render(
         return view.child(centered(NO_FOLDER));
     }
     shell.refresh_document_edit(&folder, &sections, window, cx);
+    shell.restore_document_edit(&folder, &sections, window, cx);
     if shell.document_edit.is_some() {
         let mut items = edited_document(shell, cx);
         if let Some(block) = edited_response(shell, cx) {
@@ -143,6 +171,24 @@ fn edited_document(shell: &Shell, cx: &mut Context<Shell>) -> Vec<AnyElement> {
     let warnings = edit.warnings.clone();
     let mut items = vec![document_toolbar(edit.dirty, cx).into_any_element()];
     items.push(document_editor(shell, cx).into_any_element());
+    if edit.stale {
+        let title = "This folder changed since the text was edited";
+        let body = "Saving is blocked so it cannot overwrite those changes. Discard to load \
+                    the folder as saved.";
+        items.push(
+            part("document-stale".to_owned())
+                .flex_none()
+                .mx(Spacing::MD)
+                .role(Role::Label)
+                .aria_label(format!("{title}. {body}"))
+                .child(
+                    BannerBlock::new(BannerVariant::Warning, title)
+                        .default_icon(ui::icon(IconName::TriangleAlert))
+                        .with_body(body),
+                )
+                .into_any_element(),
+        );
+    }
     if !warnings.is_empty() {
         items.push(
             part("document-warnings".to_owned())
@@ -312,33 +358,81 @@ impl Shell {
         let Some((folder, sections)) = document_sections(self) else {
             return;
         };
-        let seed = http_document::write(&plain(&sections));
+        self.open_document_edit(folder, &sections, None, window, cx);
+    }
+
+    /// Opens the editor on the folder `folder` of `sections`: on the stored text when
+    /// given, else on the canonical document. A stored text whose base is no longer the
+    /// folder's comes back stale.
+    fn open_document_edit(
+        &mut self,
+        folder: String,
+        sections: &[(String, DocumentRequest)],
+        stored: Option<StoredDocument>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let seed = http_document::write(&plain(sections));
+        let (text, base) = match stored {
+            Some(stored) => (stored.text, stored.base.unwrap_or_default()),
+            None => (seed.clone(), base_of(&seed)),
+        };
+        let stale = base != base_of(&seed);
         let input = cx.new(|cx| TextareaState::new(window, cx).rows(EDITOR_ROWS));
-        input.update(cx, |state, cx| state.set_value(seed.clone(), window, cx));
+        input.update(cx, |state, cx| state.set_value(text.clone(), window, cx));
         let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| {
             if matches!(event, InputEvent::Change) {
                 let value = input.read(cx).value().to_string();
                 if let Some(edit) = this.document_edit.as_mut() {
-                    edit.dirty = value != edit.seed;
-                    edit.warnings = http_document::parse(&value).1;
+                    edit.track(&value);
+                    this.store_document_edit(cx);
                     cx.notify();
                 }
             }
         });
-        self.document_edit = Some(DocumentEdit {
+        let mut edit = DocumentEdit {
             folder,
             input,
             seed,
             dirty: false,
             warnings: Vec::new(),
             confirm: None,
+            ids: SectionIds::new(
+                sections
+                    .iter()
+                    .map(|(id, section)| (id.as_str(), section.name.as_str())),
+            ),
+            base,
+            stale,
             _change: change,
-        });
+        };
+        edit.track(&text);
+        self.document_edit = Some(edit);
         cx.notify();
     }
 
+    /// Opens the editor on the stored text of `folder` the first time the view shows that
+    /// folder without an editor, so a dirty text comes back after a folder switch or a
+    /// restart.
+    fn restore_document_edit(
+        &mut self,
+        folder: &str,
+        sections: &[(String, DocumentRequest)],
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if self.document_edit.is_some() || self.document_restored.as_deref() == Some(folder) {
+            return;
+        }
+        self.document_restored = Some(folder.to_owned());
+        if let Some(stored) = self.stored_document(folder) {
+            self.open_document_edit(folder.to_owned(), sections, Some(stored), window, cx);
+        }
+    }
+
     /// Re-seeds the open editor when the folder changed underneath and the text is not
-    /// dirty; drops an editor that belongs to another folder.
+    /// dirty; drops an editor that belongs to another folder, whose dirty text stays
+    /// stored for when the folder shows again.
     fn refresh_document_edit(
         &mut self,
         folder: &str,
@@ -360,6 +454,13 @@ impl Shell {
         if !edit.dirty && edit.seed != seed {
             edit.seed = seed.clone();
             edit.warnings = Vec::new();
+            edit.ids = SectionIds::new(
+                sections
+                    .iter()
+                    .map(|(id, section)| (id.as_str(), section.name.as_str())),
+            );
+            edit.base = base_of(&seed);
+            edit.stale = false;
             edit.input
                 .update(cx, |state, cx| state.set_value(seed, window, cx));
             cx.notify();
@@ -380,8 +481,8 @@ impl Shell {
         };
         edit.input
             .update(cx, |state, cx| state.set_value(text.to_owned(), window, cx));
-        edit.dirty = text != edit.seed;
-        edit.warnings = http_document::parse(text).1;
+        edit.track(text);
+        self.store_document_edit(cx);
         cx.notify();
     }
 
@@ -412,24 +513,38 @@ impl Shell {
         let Some(text) = document_text(self, cx) else {
             return;
         };
-        let section = http_document::parse(&text)
-            .0
-            .into_iter()
-            .find(|section| request_of_name(self, &section.name).as_deref() == Some(id));
-        if let Some(section) = section {
-            self.send_folder_section(id, section, window, cx);
+        let sections = http_document::parse(&text).0;
+        let section = match self.document_edit.as_ref() {
+            Some(edit) => edit
+                .ids
+                .index_of(id)
+                .and_then(|index| sections.into_iter().nth(index)),
+            None => sections
+                .into_iter()
+                .find(|section| request_of_name(self, &section.name).as_deref() == Some(id)),
+        };
+        match section {
+            Some(section) => self.send_folder_section(id, section, window, cx),
+            None => {
+                let name = tree_model::find(&self.roots, id).map_or(id, |node| node.name.as_str());
+                toasts::failure(
+                    format!("Cannot retry {name}"),
+                    "Its section is no longer in the document.",
+                    cx,
+                );
+            }
         }
     }
 
     /// The request the section the cursor is in sends as: its id in the folder and the
-    /// section itself. `None` while the editor is closed (no cursor) or the section has
-    /// no request in the folder.
+    /// section itself. `None` while the editor is closed (no cursor) or the section
+    /// belongs to no request in the folder.
     fn section_at_cursor(&self, cx: &App) -> Option<(String, DocumentRequest)> {
         let edit = self.document_edit.as_ref()?;
         let text = edit.input.read(cx).value().to_string();
         let index = section_at(&text, edit.input.read(cx).cursor())?;
+        let id = edit.ids.id(index)?.to_owned();
         let section = http_document::parse(&text).0.into_iter().nth(index)?;
-        let id = request_of_name(self, &section.name)?;
         Some((id, section))
     }
 
@@ -479,7 +594,8 @@ impl Shell {
     /// Drops the document edit: the view goes back to the read-only document of the saved
     /// requests, and nothing is written.
     pub(in crate::shell) fn discard_document(&mut self, cx: &mut Context<Self>) {
-        if self.document_edit.take().is_some() {
+        if let Some(edit) = self.document_edit.take() {
+            self.forget_document(&edit.folder);
             cx.notify();
         }
     }
@@ -496,8 +612,8 @@ impl Shell {
     /// Saves the document (Ctrl+S, `document-save`): parses the text, updates the requests
     /// the sections cover (method, URL and params, enabled headers, raw body), creates the
     /// requests the new sections name, and — after one confirmation for the whole save —
-    /// deletes the requests whose section disappeared. Warnings block the save; a failed
-    /// save keeps the edit and says why in a toast.
+    /// deletes the requests whose section disappeared. Warnings and a stale text block the
+    /// save; a failed save keeps the edit and says why in a toast.
     pub(in crate::shell) fn save_document(
         &mut self,
         confirmed: bool,
@@ -505,6 +621,7 @@ impl Shell {
         cx: &mut Context<Self>,
     ) {
         let text = match self.document_edit.as_ref() {
+            Some(edit) if edit.stale => return,
             Some(edit) => edit.input.read(cx).value().to_string(),
             None => return,
         };
@@ -563,6 +680,7 @@ impl Shell {
                 for id in &removes {
                     self.documents.close(id);
                 }
+                self.forget_document(&folder);
                 self.document_edit = None;
                 if !self.reload_workspace(cx) {
                     toasts::reload_failed("Saved", cx);
@@ -674,7 +792,8 @@ fn document_text(shell: &Shell, cx: &App) -> Option<String> {
     }
 }
 
-/// The id of the folder request a section of `name` belongs to, the match a save makes.
+/// The id of the folder request a section of `name` belongs to, the match a save makes;
+/// the read-only document's sections are the saved ones, so their names match.
 fn request_of_name(shell: &Shell, name: &str) -> Option<String> {
     let (_, ids) = active_folder(shell)?;
     ids.into_iter()
@@ -706,10 +825,11 @@ fn shown_response(
 /// The response block under the editor: the section the cursor is in, when its request
 /// was sent.
 fn edited_response(shell: &Shell, cx: &mut Context<Shell>) -> Option<AnyElement> {
-    let text = document_text(shell, cx)?;
-    let index = section_at(&text, shell.document_edit.as_ref()?.input.read(cx).cursor())?;
+    let edit = shell.document_edit.as_ref()?;
+    let text = edit.input.read(cx).value().to_string();
+    let index = section_at(&text, edit.input.read(cx).cursor())?;
     let section = http_document::parse(&text).0.into_iter().nth(index)?;
-    let id = request_of_name(shell, &section.name)?;
+    let id = edit.ids.id(index)?.to_owned();
     let send = shell.sends.get(&id)?;
     Some(section_block(index, &id, &section.name, send, cx))
 }
@@ -729,62 +849,6 @@ fn section_block(
         .into_any_element()
 }
 
-/// The section of `text` the cursor `offset` falls in, as its index in `parse`'s order:
-/// the last one that starts before the cursor when it sits between sections; `None`
-/// before the first one.
-fn section_at(text: &str, offset: usize) -> Option<usize> {
-    section_ranges(text)
-        .iter()
-        .rposition(|range| range.start <= offset)
-}
-
-/// The byte range each section of `text` spans, `parse`'s sections in order: from the
-/// separator, or the first content line of the unnamed first section, to where the next
-/// section starts — the end of the text for the last one. A `###` line opens a section
-/// under the same rule `parse` applies.
-fn section_ranges(text: &str) -> Vec<Range<usize>> {
-    let mut ranges: Vec<Range<usize>> = Vec::new();
-    let mut start: Option<usize> = None;
-    let mut in_body = false;
-    let mut previous_blank = false;
-    let mut offset = 0_usize;
-    for line in text.split_inclusive('\n') {
-        let line_start = offset;
-        offset += line.len();
-        let content = line.trim_end();
-        let blank = content.trim().is_empty();
-        if content.starts_with("###") && (!in_body || previous_blank) {
-            if let Some(from) = start.take() {
-                ranges.push(from..line_start);
-            }
-            start = Some(line_start);
-            in_body = false;
-            previous_blank = false;
-            continue;
-        }
-        match start {
-            None => {
-                if !blank && !is_head_comment(content) {
-                    start = Some(line_start);
-                }
-            }
-            Some(_) if blank && !in_body => in_body = true,
-            Some(_) => {}
-        }
-        previous_blank = blank;
-    }
-    if let Some(from) = start {
-        ranges.push(from..offset);
-    }
-    ranges
-}
-
-/// A head comment line, the ones `parse` ignores: a trimmed `#` or `//` line.
-fn is_head_comment(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    trimmed.starts_with('#') || trimmed.starts_with("//")
-}
-
 /// The container that directly holds the request `id`: the collection or folder whose
 /// subtree lists it. A request's folder is the collection or folder it sits in directly;
 /// the document covers every request under that container, its subfolders included.
@@ -799,47 +863,6 @@ fn container_of<'a>(nodes: &'a [Node], id: &str) -> Option<&'a Node> {
         }
         NodeKind::Request { .. } | NodeKind::Example { .. } => None,
     })
-}
-
-/// The section `write` emits for `request`: the name, the method, the URL with the
-/// enabled params appended after the separator `?` or `&` the URL asks for, the enabled
-/// headers, and the raw body; the other body kinds have no `.http` text yet.
-fn document_section(request: &Request) -> DocumentRequest {
-    DocumentRequest {
-        name: request.name.clone(),
-        method: request.method.clone(),
-        url: full_url(request),
-        headers: request
-            .headers
-            .iter()
-            .filter(|header| header.enabled)
-            .cloned()
-            .collect(),
-        body: match &request.body {
-            Body::Raw { text, .. } => text.clone(),
-            Body::None
-            | Body::Urlencoded { .. }
-            | Body::FormData { .. }
-            | Body::Binary { .. }
-            | Body::Graphql { .. } => String::new(),
-        },
-    }
-}
-
-/// The URL of `request` as written, its enabled params appended after `?`, or `&` when
-/// the URL already carries a query.
-fn full_url(request: &Request) -> String {
-    let params: Vec<String> = request
-        .params
-        .iter()
-        .filter(|param| param.enabled)
-        .map(|param| format!("{}={}", param.key, param.value))
-        .collect();
-    if params.is_empty() {
-        return request.url.clone();
-    }
-    let separator = if request.url.contains('?') { "&" } else { "?" };
-    format!("{}{separator}{}", request.url, params.join("&"))
 }
 
 /// One kind of document line.
@@ -939,3 +962,7 @@ fn line_row(number: usize, text: &str, kind: LineKind, method: &str, cx: &App) -
 #[cfg(test)]
 #[path = "document_view_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "document_edit_tests.rs"]
+mod edit_tests;

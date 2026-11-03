@@ -20,6 +20,10 @@
     removed sections ask "Delete removed requests?" once, and Ctrl+Enter sends the section at
     the cursor with the unsaved text, its response under the editor. The editor draws plain
     text: no line numbers or method colours while editing (bolt gap: no code editor).
+    A dirty text is kept per folder in the app state: switching folder and back, or
+    restarting, reopens the editor on it; a folder changed since shows the stale banner (D15)
+    and Save is refused until Discard. Escape cancels the section send in flight, and a
+    section renamed without saving keeps its response block and its Retry.
   - Binary bodies use the .http convention `< <path>`; GraphQL bodies show the query as the
     section body and a `Variables` block beside it (see states D4/D5). The exact document
     syntax for these two is a build decision this artboard proposes.
@@ -438,7 +442,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 
 <!-- D11: Editing in place (shell/document_view.rs: edited_document, document_toolbar, document_editor) -->
-<div class="state"><div class="state-head"><h3>Editing in place</h3><p>Clicking the document swaps it for one plain multi-line editor (<span class="m">document-editor</span>) over the folder's whole text, seeded from the saved requests. A toolbar opens above it: the dirty dot (<span class="m">document-dirty</span>) while the text differs from the seed, then Send, Discard and Save. Ctrl+S saves; Discard drops the edit.</p></div>
+<div class="state"><div class="state-head"><h3>Editing in place</h3><p>Clicking the document swaps it for one plain multi-line editor (<span class="m">document-editor</span>) over the folder's whole text, seeded from the saved requests. A toolbar opens above it: the dirty dot (<span class="m">document-dirty</span>) while the text differs from the seed, then Send, Discard and Save. Ctrl+S saves; Discard drops the edit. A dirty text stays stored for its folder, so it comes back after a folder switch or a restart; Save and Discard forget it.</p></div>
 <div class="frame" style="width:900px;padding-bottom:8px">
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 16px">
     <span role="img" aria-label="Unsaved changes" style="width:5px;height:5px;border-radius:50%;background:#9DB1FF"></span>
@@ -478,7 +482,7 @@ Content-Type: application/json
 </div></div>
 
 <!-- D14: Ctrl+Enter in the editor (send_document_section, section_at, edited_response) -->
-<div class="state"><div class="state-head"><h3>Ctrl+Enter sends the section at the cursor</h3><p>In the editor, Ctrl+Enter (or Send) sends the section the cursor is in, the last one starting before it, with the unsaved text; saving is not required. Its response block shows under the editor while the cursor stays in that section.</p></div>
+<div class="state"><div class="state-head"><h3>Ctrl+Enter sends the section at the cursor</h3><p>In the editor, Ctrl+Enter (or Send) sends the section the cursor is in, the last one starting before it, with the unsaved text; saving is not required. Its response block shows under the editor while the cursor stays in that section, also after the section is renamed without saving; Escape cancels the send while it is in flight, whatever tab is active.</p></div>
 <div class="frame" style="width:900px;padding-bottom:12px">
   <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 16px">
     <span role="img" aria-label="Unsaved changes" style="width:5px;height:5px;border-radius:50%;background:#9DB1FF"></span>
@@ -494,6 +498,12 @@ POST {{base_url}}/v1/invoices</div>
   <div class="m" style="display:flex;align-items:center;gap:12px;height:40px;margin:8px 16px 0;padding:0 12px;box-shadow:#232128 0 0 0 1px inset;background:#09090B;font-size:12px">
     <span class="cap">Response · List invoices</span><span style="color:#7BE0A0;font-weight:700">200</span><span style="color:#C6C3CC">OK</span><span style="color:#8E8996">· 96 ms · 3.4 KB</span>
   </div>
+</div></div>
+
+<!-- D15: Stale text (document_drafts, document-stale) -->
+<div class="state"><div class="state-head"><h3>The folder changed under a stored text</h3><p>A stored text comes back after a folder switch or a restart. When the folder's saved requests changed since it was edited, the warning banner <span class="m">document-stale</span> shows under the editor and Save is refused, as a conflicted request draft refuses until it is reverted; Discard loads the folder as saved.</p></div>
+<div class="frame" style="width:900px;padding:8px 16px 12px">
+  <div class="ban w" role="status"><svg class="ico" style="width:15px;height:15px;color:#FFC23D;margin-top:1px"><use href="#i-alert"/></svg><span style="display:flex;flex-direction:column;gap:4px"><span style="font-weight:600">This folder changed since the text was edited</span><span style="font-size:12px;color:#C6C3CC">Saving is blocked so it cannot overwrite those changes. Discard to load the folder as saved.</span></span></div>
 </div></div>
 </section>
 </body></html>
