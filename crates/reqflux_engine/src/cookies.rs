@@ -105,6 +105,9 @@ pub enum CookieError {
     /// does not match the URL.
     #[error("the cookie was not added: {0}")]
     Rejected(String),
+    /// A cookie written from its fields is not valid; the text names the field, never a value.
+    #[error("the cookie was not saved: {0}")]
+    Invalid(&'static str),
     /// The app state could not be read or written.
     #[error(transparent)]
     State(#[from] StateError),
@@ -198,6 +201,16 @@ impl WorkspaceCookies {
         let cookie = Cookie::parse(set_cookie, url)
             .map_err(|error| CookieError::Rejected(error.to_string()))?
             .into_owned();
+        self.insert_cookie(url, cookie)
+    }
+
+    /// Stores `cookie` as received from `url`, writing the change through to the attached
+    /// state.
+    fn insert_cookie(
+        &self,
+        url: &Url,
+        cookie: Cookie<'static>,
+    ) -> Result<Option<StoredCookie>, CookieError> {
         let (domain, path, name) = (
             String::from(&cookie.domain),
             String::from(&cookie.path),
@@ -278,6 +291,69 @@ impl reqflux_http::CookieJar for WorkspaceCookies {
     }
 }
 
+/// The cookie jar entry for the fields of `cookie`, with the URL it is stored as received from.
+fn build(cookie: &StoredCookie) -> Result<(Url, Cookie<'static>), CookieError> {
+    let name = cookie.name.trim();
+    if name.is_empty() {
+        return Err(CookieError::Invalid("the name is empty"));
+    }
+    let domain = cookie.domain.trim().trim_start_matches('.');
+    if domain.is_empty() {
+        return Err(CookieError::Invalid("the domain is empty"));
+    }
+    if !cookie.path.starts_with('/') {
+        return Err(CookieError::Invalid("the path must start with /"));
+    }
+    let separator = |c: char| c.is_control() || c.is_whitespace() || matches!(c, ';' | '=' | ',');
+    if name.contains(separator) {
+        return Err(CookieError::Invalid(
+            "the name has a separator or control character",
+        ));
+    }
+    if cookie.value.contains(|c: char| c.is_control() || c == ';') {
+        return Err(CookieError::Invalid(
+            "the value has a separator or control character",
+        ));
+    }
+    let url = Url::parse(&format!("https://{domain}/"))
+        .ok()
+        .filter(|url| {
+            url.host_str()
+                .is_some_and(|host| host.eq_ignore_ascii_case(domain))
+        })
+        .ok_or(CookieError::Invalid("the domain is not a valid host"))?;
+    // `cookie_store` does not re-export `SameSite`, so the value comes from parsing its text.
+    let same_site = match cookie.same_site.as_deref() {
+        None | Some("") => None,
+        Some(text) => cookie_store::RawCookie::parse(format!("x=y; SameSite={text}"))
+            .ok()
+            .and_then(|parsed| parsed.same_site())
+            .ok_or(CookieError::Invalid("SameSite is not Strict, Lax or None"))
+            .map(Some)?,
+    };
+    let mut raw = cookie_store::RawCookie::build((name.to_owned(), cookie.value.clone()))
+        .path(cookie.path.clone())
+        .secure(cookie.secure)
+        .http_only(cookie.http_only);
+    if !cookie.host_only {
+        raw = raw.domain(domain.to_owned());
+    }
+    if let Some(same_site) = same_site {
+        raw = raw.same_site(same_site);
+    }
+    if let Some(expires) = cookie.expires {
+        let at = time::OffsetDateTime::from_unix_timestamp(expires)
+            .map_err(|_| CookieError::Invalid("the expiry date is out of range"))?;
+        if at <= time::OffsetDateTime::now_utc() {
+            return Err(CookieError::Invalid("it has already expired"));
+        }
+        raw = raw.expires(at);
+    }
+    let built = Cookie::try_from_raw_cookie(&raw.build(), &url)
+        .map_err(|error| CookieError::Rejected(error.to_string()))?;
+    Ok((url, built.into_owned()))
+}
+
 /// The row of `cookie` in the state file `path`.
 fn row(cookie: &Cookie<'_>, path: &Path) -> Result<CookieRow, StateError> {
     let payload = serde_json::to_string(cookie).map_err(|_| StateError::Corrupt {
@@ -348,6 +424,48 @@ impl Engine {
             .filter(|parsed| matches!(parsed.scheme(), "http" | "https"))
             .ok_or_else(|| CookieError::InvalidUrl(url.to_owned()))?;
         self.cookies.insert(&parsed, set_cookie)
+    }
+
+    /// Writes `cookie` to the jar from its fields, replacing the one with its domain, path
+    /// and name, and returns the cookie stored. This is the Cookies page's "Add cookie".
+    ///
+    /// # Errors
+    ///
+    /// A field is invalid (empty name or domain, a path that does not start with `/`, a name
+    /// or value with a separator or control character, an unknown `SameSite`, a date already
+    /// past), or the app state failed. The text never holds the value.
+    pub fn set_cookie(&self, cookie: &StoredCookie) -> Result<StoredCookie, CookieError> {
+        let (url, built) = build(cookie)?;
+        self.cookies
+            .insert_cookie(&url, built)?
+            .ok_or(CookieError::Invalid("it has already expired"))
+    }
+
+    /// Replaces the cookie `name` stored under `domain` and `path` with `cookie`; a changed
+    /// domain, path or name moves it. The new cookie is validated and stored first, so a
+    /// refusal keeps the original.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`Engine::set_cookie`].
+    pub fn replace_cookie(
+        &self,
+        domain: &str,
+        path: &str,
+        name: &str,
+        cookie: &StoredCookie,
+    ) -> Result<StoredCookie, CookieError> {
+        let stored = self.set_cookie(cookie)?;
+        if (domain, path, name)
+            != (
+                stored.domain.as_str(),
+                stored.path.as_str(),
+                stored.name.as_str(),
+            )
+        {
+            self.cookies.delete(domain, path, name)?;
+        }
+        Ok(stored)
     }
 
     /// Deletes the cookie `name` stored under `domain` and `path`, reporting whether there
