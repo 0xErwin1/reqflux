@@ -862,6 +862,9 @@ pages.
 The CLI exposes them as `reqflux export`, `reqflux bundle create|import` and `reqflux docs`, and
 the MCP tools are `postman_export`, `bundle_export` and `docs_generate` (reads, they return the
 document) with `bundle_import` (a write into the open workspace; it never replaces a file).
+A file the CLI or the window writes goes through `reqflux_engine::write_export_file`: a new
+file unless forced (`--force`, or the window's Replace), and mode 0600 when it holds secret
+values in clear; `PostmanExport::text` is the document as that file holds it.
 
 Because the workspace is already a directory of text files, sharing a whole workspace through
 git needs no export at all.

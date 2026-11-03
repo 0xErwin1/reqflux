@@ -4,7 +4,7 @@
 //! Secret values come from and go to the OS keyring. A passphrase is read from stdin, never
 //! from an argument, and no message carries a value or the passphrase.
 
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::{self, IsTerminal as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use reqflux_engine::{
     BundleError, BundleImport, BundleSecrets, BundleSummary, DocsError, Engine, ExportError,
-    KeyringSecretStore, import_bundle,
+    ExportFileError, KeyringSecretStore, import_bundle, write_export_file,
 };
 
 use crate::cli::{
@@ -72,9 +72,9 @@ fn run_export(args: &ExportArgs) -> Result<(), Failure> {
             );
         }
     }
-    let mut text = serde_json::to_string_pretty(&export.document)
+    let text = export
+        .text()
         .map_err(|error| Failure::Failed(format!("could not write the document: {error}")))?;
-    text.push('\n');
     // A file with secret values in clear is readable by its owner only.
     output(
         args.output.as_deref(),
@@ -236,12 +236,8 @@ fn open(root: Option<&Path>) -> Result<Engine, Failure> {
     Ok(engine)
 }
 
-/// Writes `text` to stdout, or to `path`: a new file unless `force`, owner-only when
-/// `private`.
-#[cfg_attr(
-    not(unix),
-    expect(unused_variables, reason = "file modes are unix only")
-)]
+/// Writes `text` to stdout, or to `path` by the engine's rule: a new file unless `force`,
+/// owner-only when `private`.
 fn output(path: Option<&Path>, force: bool, private: bool, text: &str) -> Result<(), Failure> {
     let Some(path) = path else {
         let mut stdout = io::stdout().lock();
@@ -250,28 +246,10 @@ fn output(path: Option<&Path>, force: bool, private: bool, text: &str) -> Result
             .and_then(|()| stdout.flush())
             .map_err(|error| Failure::Failed(format!("could not write to stdout: {error}")));
     };
-    let mut options = OpenOptions::new();
-    options.write(true);
-    if force {
-        options.create(true).truncate(true);
-    } else {
-        options.create_new(true);
-    }
-    #[cfg(unix)]
-    if private {
-        use std::os::unix::fs::OpenOptionsExt as _;
-        options.mode(0o600);
-    }
-    let mut file = options.open(path).map_err(|error| {
-        if error.kind() == io::ErrorKind::AlreadyExists {
-            Failure::Failed(exists(path))
-        } else {
-            Failure::Failed(format!("could not write {}: {error}", path.display()))
-        }
-    })?;
-    file.write_all(text.as_bytes())
-        .and_then(|()| file.flush())
-        .map_err(|error| Failure::Failed(format!("could not write {}: {error}", path.display())))
+    write_export_file(path, text, force, private).map_err(|error| match error {
+        ExportFileError::Exists { path } => Failure::Failed(exists(&path)),
+        ExportFileError::Write { .. } => Failure::Failed(error.to_string()),
+    })
 }
 
 /// The passphrase: prompted without echo from a terminal (twice when `confirm`), else all of
