@@ -85,6 +85,16 @@ fields and certificate paths. Dynamic variables (`{{$guid}}`, `{{$timestamp}}`,
 `{{$randomInt}}` and the rest of Postman's list) resolve at the same point. An unresolved
 variable stays literal and is reported in the response view, as Postman does.
 
+`Engine::variable_info(request, environment, current, name)` answers what a front end shows
+about one `{{name}}` (`reqflux_engine/src/variable_info.rs`): the scope that wins with its
+current and initial values, the next scope down it overrides, whether it is secret (never
+its value; `Engine::reveal_variable` reads that on an explicit reveal), the environments that
+declare it when none is active, and the scopes a quick add can target (the active
+environment, the request's collection, the globals). `Engine::set_variable_value` writes a
+current value (a secret's value goes to the keyring instead), `Engine::reset_variable_value`
+clears it, and `Engine::quick_add_variable` adds the variable with the value as its initial
+value (a secret keeps only its key in the file).
+
 ### Execution pipeline
 
 ```text
@@ -1274,6 +1284,26 @@ in the automation tree.
 The Scripts pane's pre-request and test scripts, read-only and in their editor, are
 highlighted as JavaScript; the Document layout's `.http` editor stays plain (no http grammar,
 and a JSON body inside a section needs an injection or a head/body split: later).
+
+Each `{{name}}` mark in the URL (`request-url-var-<n>`), a Params, Headers or form value cell
+(`request-<table>-value-<row>-var-<n>`) and an auth field opens the variable popover
+(`variable-popover`, design/variable-popover/01; `shell/variable_popover.rs` and
+`request/variable_popover_view.rs`) after a 400 ms hover or on a click; a click on a mark
+opens it instead of editing the field, and a click elsewhere in the field still edits it.
+While the field is edited, F2 or Alt+click on a reference under the caret opens it under the
+field. It shows what `Engine::variable_info` reports: the winning scope's badge, its current
+value in a focused field (`variable-popover-input`), the initial value read-only and the
+single "Overrides" line, with Copy, Reset to initial (`variable-popover-reset`) and Open in
+Environments, which opens the settings page at that scope. Enter saves the field as the
+current value of the winning scope (an empty field clears it); a secret shows its SECRET
+badge and an empty masked field, the eye (`variable-popover-reveal`) reads its keyring value
+in, and Enter writes the keyring. An undefined name offers the quick add: the scope picker
+(`variable-popover-target-<n>`: the active environment, the collection, the globals), the
+value, which becomes the initial value, and the Secret box. With no active environment, a
+name only environments declare lists them to activate, with an "Add to collection or globals
+instead". Escape or a click outside closes it without writing; after a write every open
+request is inspected again, so the marks follow. A cell whose value references a secret stays
+masked and has no marks; F2 while editing it still opens the popover.
 
 Send or Ctrl+Enter sends the active request with the active environment through
 `Engine::execute`. The UI awaits the execution's `JoinHandle` on GPUI's executor with

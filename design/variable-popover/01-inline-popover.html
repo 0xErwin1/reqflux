@@ -26,6 +26,10 @@
       input's text layout.
     - bolt gap: hover-intent delay on Popover (open after 400 ms, keep open while the pointer
       travels into it).
+
+  As built (T12): environments carry no color in the workspace model, so the environment
+  diamonds of state e draw in the brand tint, not per environment. The popover stays open
+  until Escape, Enter or a click outside; leaving the mark does not close it.
 -->
 <style>
 body{margin:0;background:#050507;color:#C6C3CC;font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:13px}

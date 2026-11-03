@@ -41,6 +41,7 @@ v1.
 |---------|-------|
 | Any method, including custom verbs | MVP |
 | URL with `{{var}}` highlighting, resolved-value preview and unresolved-variable warnings | MVP |
+| Edit a `{{var}}` from the field it appears in: a popover on hover or click sets the current value (a secret's in the keyring) or adds an undefined variable | v1 |
 | Params and headers as tables with a per-row enable toggle | MVP |
 | Body: `none`, `raw` (JSON, XML, text) with an editor, `urlencoded`, `formdata` with files | MVP |
 | Auth: `inherit`, `none`, `basic`, `bearer`, `apikey` | MVP |

@@ -18,7 +18,7 @@ use gpui_component::input::Paste;
 use gpui_kit_assets::IconName;
 
 use super::model::RequestState;
-use super::{method_menu, spans, ui};
+use super::{method_menu, spans, ui, variable_popover_view};
 use crate::shell::{Shell, region};
 use crate::tokens::{self, method_hue};
 
@@ -170,7 +170,7 @@ fn editing_method(input: Entity<InputState>, cx: &mut Context<Shell>) -> Statefu
 /// URL's place and takes Enter and Escape while focused.
 fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
     if let Some(edit) = shell.url_edit.as_ref().filter(|edit| edit.request_id == id) {
-        return editing_url(edit.input.clone(), cx);
+        return editing_url(id, edit.input.clone(), shell, cx);
     }
     let url = shell.shown_url(id);
     let request = id.to_owned();
@@ -188,7 +188,14 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
                 .flex()
                 .items_center()
                 .overflow_hidden()
-                .children(spans::render(&state.inspection, &url, cx)),
+                .children(spans::render_marked(
+                    &state.inspection,
+                    &url,
+                    id,
+                    "request-url",
+                    shell,
+                    cx,
+                )),
         )
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.start_url_edit(&request, window, cx);
@@ -215,10 +222,16 @@ fn url_field(cx: &Context<Shell>) -> Stateful<Div> {
         )
 }
 
-/// The editable URL field, element id `request-url-input`, over the input `input`.
-fn editing_url(input: Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
-    url_field(cx)
-        .role(Role::TextInput)
+/// The editable URL field, element id `request-url-input`, over the input `input` of the
+/// request `id`. F2, or Alt+click, on a reference opens its variable popover under the field.
+fn editing_url(
+    id: &str,
+    input: Entity<InputState>,
+    shell: &Shell,
+    cx: &mut Context<Shell>,
+) -> Stateful<Div> {
+    let field = url_field(cx).role(Role::TextInput);
+    variable_popover_view::editing_keys(field, id, "request-url", &input, shell, cx)
         .on_action(cx.listener(|this, action: &InputEnter, window, cx| {
             // Ctrl+Enter maps to the input's `secondary-enter` while the field has focus:
             // it sends with the field open; Enter commits it and sends.

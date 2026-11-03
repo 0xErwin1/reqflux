@@ -27,7 +27,7 @@ use super::grid::secret;
 use super::grid_model::MASK;
 use super::pane_model::{AuthField, AuthMenu, FieldEdit, auth_fields, auth_type};
 use super::segmented::control;
-use super::{auth_menu, code, spans, ui};
+use super::{auth_menu, code, spans, ui, variable_popover_view};
 use crate::shell::Shell;
 use crate::shell::documents::locate;
 use crate::shell::rows::{labeled_row, part};
@@ -359,8 +359,17 @@ fn field_row(
     if editing(shell, request_id, auth, field.edit)
         && let Some(input) = shell.cell_edit.as_ref().map(|edit| edit.input.clone())
     {
-        let input = input_field(&input, cx);
-        let control = well(well_id, cx).w_full().child(input).into_any_element();
+        let text = input_field(&input, cx);
+        let control = variable_popover_view::editing_keys(
+            well(well_id.clone(), cx).w_full(),
+            request_id,
+            &well_id,
+            &input,
+            shell,
+            cx,
+        )
+        .child(text)
+        .into_any_element();
         return form_row(
             labeled_row(id, format!("{}: ", field.label)),
             &field.label,
@@ -400,7 +409,14 @@ fn field_row(
             .flex()
             .items_center()
             .overflow_hidden()
-            .children(spans::render(inspection, &field.value, cx));
+            .children(spans::render_marked(
+                inspection,
+                &field.value,
+                request_id,
+                &well_id,
+                shell,
+                cx,
+            ));
         (field.value.clone(), value)
     };
     let control = well(well_id, cx).w_full().child(value).into_any_element();

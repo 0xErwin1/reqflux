@@ -63,6 +63,7 @@ mod tree_drag;
 mod tree_model;
 mod tree_ops;
 mod url_edit;
+mod variable_popover;
 mod variables_document;
 mod variables_model;
 mod variables_ops;
@@ -164,6 +165,10 @@ pub(crate) struct Shell {
     save_errors: HashMap<String, String>,
     /// The URL field of the request under edit, while it has focus.
     url_edit: Option<UrlEdit>,
+    /// The variable popover over a `{{name}}` mark, while open (see [`variable_popover`]).
+    variable_popover: Option<variable_popover::VariablePopover>,
+    /// The mark the pointer rests on, until the hover delay opens its popover.
+    variable_hover: Option<variable_popover::PendingHover>,
     /// The Generate code dialog, while open, and its focus.
     codegen: codegen::Codegen,
     /// The Export… dialog, its OS dialogs and the Replace API docs question.
@@ -297,6 +302,8 @@ impl Shell {
             drafts: HashMap::new(),
             save_errors: HashMap::new(),
             url_edit: None,
+            variable_popover: None,
+            variable_hover: None,
             codegen: codegen::Codegen::new(cx),
             export: export::Export::new(cx),
             curl_undo: None,
@@ -712,6 +719,8 @@ mod theme_tests;
 mod tree_edit_tests;
 #[cfg(test)]
 mod tree_reorder_tests;
+#[cfg(test)]
+mod variable_popover_tests;
 #[cfg(test)]
 mod variables_edit_tests;
 #[cfg(test)]

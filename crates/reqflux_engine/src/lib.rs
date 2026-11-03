@@ -102,6 +102,7 @@ mod select;
 mod sent;
 pub mod state;
 mod tree;
+mod variable_info;
 mod variables;
 
 pub use auth::{Browser, OAuthBrowser, OAuthFetch, OAuthTokenState, SystemBrowser};
@@ -154,4 +155,5 @@ pub use secrets::{
 pub use sent::{MASK, Masker, SentBody, SentRequest, is_credential_header};
 /// The token type of [`Execution::cancel`], re-exported so front ends can hold it.
 pub use tokio_util::sync::CancellationToken;
+pub use variable_info::{EnvironmentChoice, ScopedValue, VariableInfo, VariableScopeRef};
 pub use variables::VariableEdit;
