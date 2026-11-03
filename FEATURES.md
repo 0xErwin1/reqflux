@@ -105,9 +105,9 @@ v1.
 | Feature | Level |
 |---------|-------|
 | Import Postman collection v2.1 and environments | MVP |
-| Export to Postman v2.1: collection, folder, request, environment (engine, CLI and MCP; window UI pending) | v1 |
-| Native bundle of a workspace, collection, request or environment, with age-encrypted secrets (engine, CLI and MCP) | v1 |
-| Local API documentation generated from a collection (engine, CLI and MCP) | v1 |
+| Export to Postman v2.1: collection, folder, request, environment (window, CLI and MCP) | v1 |
+| Native bundle of a workspace, collection, request or environment, with age-encrypted secrets (window, CLI and MCP) | v1 |
+| Local API documentation generated from a collection (window, CLI and MCP) | v1 |
 | Import OpenAPI, Insomnia and HAR | Later |
 
 ## MCP for agents

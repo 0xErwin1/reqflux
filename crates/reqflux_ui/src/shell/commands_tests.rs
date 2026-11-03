@@ -6,7 +6,7 @@ use super::{COMMANDS, PALETTE_KEYS, key_label};
 use crate::shell::send::SHELL_CONTEXT;
 
 /// The palette commands of command-palette S4, by stable id.
-const EXPECTED: [&str; 27] = [
+const EXPECTED: [&str; 29] = [
     "send-request",
     "cancel-send",
     "save-request",
@@ -14,6 +14,7 @@ const EXPECTED: [&str; 27] = [
     "generate-code",
     "undo-paste",
     "run-collection",
+    "export",
     "new-request",
     "new-collection",
     "new-environment",
@@ -22,6 +23,7 @@ const EXPECTED: [&str; 27] = [
     "new-workspace",
     "close-workspace",
     "workspace-settings",
+    "export-workspace",
     "close-tab",
     "next-tab",
     "previous-tab",
@@ -130,7 +132,8 @@ fn every_area_holds_its_commands_in_palette_order() {
             "open-workspace",
             "new-workspace",
             "close-workspace",
-            "workspace-settings"
+            "workspace-settings",
+            "export-workspace"
         ]
     );
 }

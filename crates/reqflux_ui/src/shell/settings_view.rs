@@ -607,7 +607,7 @@ fn environment_row(
         .into_any_element()
 }
 
-/// The `…` menu of the environment `id`: Rename and Delete environment….
+/// The `…` menu of the environment `id`: Rename, Export… and Delete environment….
 fn environment_menu(shell: &Shell, id: Id, window: &Window, cx: &mut Context<Shell>) -> AnyElement {
     let items = vec![
         option_menu::option(
@@ -615,6 +615,16 @@ fn environment_menu(shell: &Shell, id: Id, window: &Window, cx: &mut Context<She
             "Rename".to_owned(),
             false,
             move |this: &mut Shell, window, cx| this.start_environment_rename(id, window, cx),
+            cx,
+        ),
+        option_menu::option(
+            "variables-menu-export".to_owned(),
+            "Export…".to_owned(),
+            false,
+            move |this: &mut Shell, window, cx| {
+                this.close_settings_menu(window, cx);
+                this.open_export_environment(id, cx);
+            },
             cx,
         ),
         option_menu::option(

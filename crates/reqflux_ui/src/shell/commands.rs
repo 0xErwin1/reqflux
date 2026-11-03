@@ -147,6 +147,7 @@ commands! {
     GenerateCode: GenerateCode, "generate-code", "Generate code", "ctrl-shift-c", Request, has_request;
     UndoPaste: UndoPaste, "undo-paste", "Undo curl paste", "ctrl-alt-z", Request, can_undo_paste;
     RunCollection: RunCollection, "run-collection", "Run collection…", "ctrl-alt-r", Request, has_collection;
+    Export: Export, "export", "Export…", "ctrl-shift-x", Request, has_collection;
     NewRequest: NewRequest, "new-request", "New request", "ctrl-n", Request, has_collection;
     NewCollection: NewCollection, "new-collection", "New collection", "ctrl-shift-n", Request, loaded;
     NewEnvironment: NewEnvironment, "new-environment", "New environment", "ctrl-shift-e", Environment, loaded;
@@ -155,6 +156,7 @@ commands! {
     NewWorkspace: NewWorkspace, "new-workspace", "New workspace", "ctrl-shift-o", Workspace, always;
     CloseWorkspace: CloseWorkspace, "close-workspace", "Close workspace", "ctrl-shift-w", Workspace, loaded;
     WorkspaceSettings: WorkspaceSettings, "workspace-settings", "Workspace settings", "ctrl-,", Workspace, loaded;
+    ExportWorkspace: ExportWorkspace, "export-workspace", "Export workspace…", "ctrl-alt-x", Workspace, loaded;
     CloseTab: CloseTab, "close-tab", "Close tab", "ctrl-w", Tabs, has_tab;
     NextTab: NextTab, "next-tab", "Next tab", "ctrl-tab", Tabs, has_tab;
     PreviousTab: PreviousTab, "previous-tab", "Previous tab", "ctrl-shift-tab", Tabs, has_tab;
@@ -343,6 +345,8 @@ impl Shell {
             CommandId::GenerateCode => self.open_codegen_active(window, cx),
             CommandId::UndoPaste => self.undo_paste_from_key(cx),
             CommandId::RunCollection => self.open_run_for_selection(cx),
+            CommandId::Export => self.open_export_for_selection(cx),
+            CommandId::ExportWorkspace => self.open_export_workspace(cx),
             CommandId::NewRequest => self.new_request(window, cx),
             CommandId::NewCollection => {
                 self.show_panel(Panel::Collections, cx);

@@ -340,6 +340,9 @@ pub(crate) const RUNNER_COLUMNS: [(&str, Pixels); 7] = [
 /// The width of the Generate code dialog (codegen/01).
 pub(crate) const CODEGEN_DIALOG_WIDTH: Pixels = px(880.0);
 
+/// The width of the Export… dialog (export/01).
+pub(crate) const EXPORT_DIALOG_WIDTH: Pixels = px(620.0);
+
 /// The width of the Postman import dialog (bolt-v2/11).
 pub(crate) const IMPORT_DIALOG_WIDTH: Pixels = px(1000.0);
 

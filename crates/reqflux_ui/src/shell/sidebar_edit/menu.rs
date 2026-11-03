@@ -1,5 +1,6 @@
 //! The row menu: on a collection or folder Run…, New request, New folder, Rename, Duplicate,
-//! Move to… and Delete…; on a request Open, Rename, Duplicate, Move to… and Delete; groups
+//! Move to…, Export… and Delete…; on a request Open, Rename, Duplicate, Move to…, Generate
+//! code…, Export… and Delete; groups
 //! apart by separators, with the key of each item that has one. Move to… turns the menu
 //! into the list of collections and folders the row can move into.
 
@@ -35,11 +36,12 @@ pub(super) enum MenuItem {
     Duplicate,
     MoveTo,
     GenerateCode,
+    Export,
     Delete,
 }
 
 impl MenuItem {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
         Self::Run,
         Self::Open,
         Self::NewRequest,
@@ -48,6 +50,7 @@ impl MenuItem {
         Self::Duplicate,
         Self::MoveTo,
         Self::GenerateCode,
+        Self::Export,
         Self::Delete,
     ];
 
@@ -61,6 +64,7 @@ impl MenuItem {
             Self::Duplicate => "duplicate",
             Self::MoveTo => "move-to",
             Self::GenerateCode => "generate-code",
+            Self::Export => "export",
             Self::Delete => "delete",
         }
     }
@@ -77,6 +81,7 @@ impl MenuItem {
             Self::Duplicate => "Duplicate",
             Self::MoveTo => "Move to…",
             Self::GenerateCode => "Generate code…",
+            Self::Export => "Export…",
             Self::Delete if matches!(kind, NodeKind::Request { .. }) => "Delete",
             Self::Delete => "Delete…",
         }
@@ -91,7 +96,7 @@ impl MenuItem {
             Self::Rename => Some("F2"),
             Self::Duplicate => Some("Ctrl D"),
             Self::Delete => Some("Del"),
-            Self::Run | Self::NewFolder | Self::MoveTo | Self::GenerateCode => None,
+            Self::Run | Self::NewFolder | Self::MoveTo | Self::GenerateCode | Self::Export => None,
         }
     }
 
@@ -107,6 +112,7 @@ impl MenuItem {
             Self::Duplicate => Some(IconName::Copy),
             Self::MoveTo => Some(IconName::ArrowRight),
             Self::GenerateCode => Some(IconName::Code),
+            Self::Export => Some(IconName::Upload),
             Self::Delete => None,
         }
     }
@@ -117,21 +123,21 @@ impl MenuItem {
             Self::Run => 0,
             Self::Open | Self::NewRequest | Self::NewFolder => 1,
             Self::Rename | Self::Duplicate | Self::MoveTo => 2,
-            Self::GenerateCode => 3,
+            Self::GenerateCode | Self::Export => 3,
             Self::Delete => 4,
         }
     }
 
     /// Whether the item is offered on a row of `kind`: Open on requests, New request and New
     /// folder on collections and folders, Duplicate and Move to… on folders and requests,
-    /// Generate code… on requests.
+    /// Generate code… on requests; Export… on every row.
     pub(super) fn applies_to(self, kind: &NodeKind) -> bool {
         let request = matches!(kind, NodeKind::Request { .. });
         match self {
             Self::Open | Self::GenerateCode => request,
             Self::Run | Self::NewRequest | Self::NewFolder => !request,
             Self::Duplicate | Self::MoveTo => !matches!(kind, NodeKind::Collection),
-            Self::Rename | Self::Delete => true,
+            Self::Rename | Self::Export | Self::Delete => true,
         }
     }
 }

@@ -87,6 +87,7 @@ mod engine;
 mod error;
 mod examples;
 mod export;
+mod export_file;
 mod guard;
 mod import;
 pub mod keymap;
@@ -117,6 +118,7 @@ pub use error::{
 };
 pub use examples::SavedExample;
 pub use export::{ENVIRONMENT_PREFIX, PostmanExport, PostmanKind};
+pub use export_file::{ExportFileError, write_export_file};
 pub use guard::HostGuard;
 pub use import::{ImportPreview, ImportSummary, postman, postman_preview};
 pub use managed::{
