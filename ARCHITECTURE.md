@@ -307,8 +307,8 @@ Saving is explicit, as in Postman: an edit never touches the workspace file unti
   request drafts so their loader never meets it (`AppState::put_document_draft`,
   `document_draft`, `delete_document_draft`). Its payload is the text as typed and its base the
   content hash of the canonical document it was edited from. When the folder's canonical
-  document no longer hashes to that base, the text comes back stale and Save is refused until
-  Discard, as a request draft whose file moved is conflicted until reverted. Without an app
+  document no longer hashes to that base — when the text is reopened, or while it stays open
+  and the workspace reloads — the text is stale and Save is refused until Discard, as a request draft whose file moved is conflicted until reverted. Without an app
   state the text lives only in the editor and a folder switch drops it.
 - **Sending** a request with a draft sends the draft. History records what was sent. When the
   draft edits scripts, the send runs the draft's unsaved scripts in place of the request's
@@ -445,16 +445,21 @@ create requests in the folder, and requests whose section disappeared are delete
 confirmation modal for the whole save (`document-confirm-delete`); parse warnings show in
 `document-warnings` and block the save; Discard drops the edit. A dirty text is stored per
 folder in the app state (see "Drafts and saving"), so switching to another folder and back, or
-restarting, reopens the editor on it; Save and Discard forget it. A stored text whose folder
-changed since comes back with `document-stale` and refuses to save until it is discarded.
+restarting, reopens the editor on it; Save and Discard forget it. A dirty text whose folder
+changed since, reopened or still open when the workspace reloads, shows `document-stale` and
+refuses to save until it is discarded.
 Running a section there is
 Ctrl+Enter (`send-request`, intercepted while the focus is in the document; the `.http` editor
 consumes a secondary Enter, so the document captures it like the GraphQL editor does) or the
 editor's Send (`document-send`): the section the cursor is in — the last one that starts before it
 when the cursor sits between sections — maps to its folder request: the editor ties each seeded
-section to its request and carries the ties over every edit, by name and, for a section renamed in
-place, by position, so an unsaved rename keeps the section's request, its response block and its
-Retry (a Retry whose section was deleted says so in a toast). It sends through the same draft path as a request tab, so it records history and honours
+section to its request and carries the ties over every edit, by name (the previous one, else the
+seed's) and, for a rename in place, by position — only while the section count is unchanged,
+every section that kept its name kept its place, the section kept its method and URL, and the
+name is not two headers glued together. So an unsaved rename keeps the section's request, its
+response block and its Retry, while a section typed above another, or merged from two, belongs
+to no request and Ctrl+Enter there sends nothing (a Retry whose section was deleted says so in a
+toast). It sends through the same draft path as a request tab, so it records history and honours
 the environment allowlist and the host policy without saving. The response draws under that
 section in the read-only document, or below the editor while it is open
 (`document-section-<n>-response` over `document-response`, with `document-response-status`,

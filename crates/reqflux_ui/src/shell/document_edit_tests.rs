@@ -293,3 +293,80 @@ fn retry_of_a_deleted_section_says_so(cx: &mut TestAppContext) {
         "{toasts:?}"
     );
 }
+
+#[gpui::test]
+fn a_section_typed_above_another_never_sends_as_it(cx: &mut TestAppContext) {
+    let port = serve(Server::Ok);
+    let refused = closed_port();
+    let dir = send_workspace(port, refused);
+    let (shell, cx) = open_send_editor(cx, &dir);
+    let document = section_document(port, refused);
+    set_cursor(cx, &shell, document.find("### List").unwrap_or_default());
+    cx.update(|window, cx| {
+        let input = shell
+            .read(cx)
+            .document_edit
+            .as_ref()
+            .map(|edit| edit.input.clone());
+        if let Some(input) = input {
+            input.update(cx, |state, cx| state.focus(window, cx));
+        }
+    });
+    cx.simulate_input("### New");
+    cx.simulate_keystrokes("enter");
+    cx.simulate_input(&format!("GET http://127.0.0.1:{port}/new"));
+    cx.simulate_keystrokes("enter");
+    let typed = editor_text(cx, &shell).unwrap_or_default();
+    assert!(typed.contains("### New\nGET"), "{typed}");
+
+    set_cursor(cx, &shell, typed.find("### New").unwrap_or_default() + 5);
+    cx.simulate_keystrokes("ctrl-enter");
+    cx.run_until_parked();
+    assert!(
+        !cx.update(|_, cx| shell.read(cx).sends.contains_key(LIST)),
+        "the typed section was not sent as List"
+    );
+
+    set_cursor(cx, &shell, typed.find("### List").unwrap_or_default() + 5);
+    cx.simulate_keystrokes("ctrl-enter");
+    assert_eq!(
+        settle(cx, &shell, LIST).as_deref(),
+        Some("200 OK"),
+        "List still sends as List"
+    );
+}
+
+#[gpui::test]
+fn a_folder_reloaded_under_a_dirty_editor_marks_it_stale(cx: &mut TestAppContext) {
+    let dir = folder_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    show_list_folder(cx);
+    set_document_text(cx, &shell, &edited());
+    write(
+        dir.path(),
+        "collections/api/invoices/list.req.toml",
+        &format!(
+            "id = \"{LIST}\"\nname = \"List\"\nmethod = \"GET\"\n\
+             url = \"https://api.test/v2/invoices\"\n"
+        ),
+    );
+    cx.update(|_, cx| {
+        shell.update(cx, |shell, cx| shell.reload_workspace(cx));
+    });
+    cx.run_until_parked();
+
+    assert_eq!(
+        editor_text(cx, &shell).as_deref(),
+        Some(edited().as_str()),
+        "the unsaved text is kept"
+    );
+    present(cx, "document-stale");
+    click(cx, "document-save");
+    let saved = std::fs::read_to_string(dir.path().join("collections/api/invoices/list.req.toml"))
+        .unwrap_or_default();
+    assert!(
+        saved.contains("v2/invoices") && !saved.contains("page"),
+        "a stale text does not overwrite the folder: {saved}"
+    );
+}

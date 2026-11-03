@@ -2,47 +2,66 @@
 //! the sections of the document under edit are: the byte range each spans, the one a
 //! cursor falls in, and which folder request each one belongs to across unsaved edits.
 //!
-//! A section belongs to a request by identity, not by its `###` name alone: the editor
-//! starts with each section of the seed tied to its request, and every edit carries the ties
-//! over — a section keeps the request of the previous section of the same name, else, when
-//! it sits where a section whose name disappeared sat, that section's request. So renaming
-//! a section in place keeps its request, its Retry and its response block, while moving
-//! sections around still matches them by name.
+//! A section belongs to a request only while it is unambiguously the same section: the
+//! editor starts with each section of the seed tied to its request, and every edit carries
+//! the ties over — a section keeps the request of the previous section of the same name,
+//! else of the seed section of that name; failing both, it keeps the request of the section
+//! it replaces only in a rename in place, where the count of sections is unchanged, every
+//! section that kept its name kept its place, the section kept its request line (method and
+//! URL), and the new name is not two headers glued together (`New### List` while a header
+//! is typed above another). A new, merged or
+//! otherwise ambiguous section belongs to no request, so it can never send as another one.
 
 use std::ops::Range;
 
-use reqflux_core::http_document::DocumentRequest;
+use reqflux_core::http_document::{self, DocumentRequest};
 use reqflux_core::model::{Body, Request};
 
 /// The request each section of the document under edit belongs to, in `parse`'s order,
-/// with the names those sections had.
+/// with the names and request lines those sections had, and the name each request had in
+/// the seed.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(super) struct SectionIds {
     names: Vec<String>,
+    lines: Vec<String>,
     ids: Vec<Option<String>>,
+    seed: Vec<(String, String)>,
 }
 
 impl SectionIds {
-    /// The ties of a document whose sections are `sections`, `(request id, name)` in order.
-    pub(super) fn new<'a>(sections: impl IntoIterator<Item = (&'a str, &'a str)>) -> Self {
-        let (ids, names) = sections
-            .into_iter()
-            .map(|(id, name)| (Some(id.to_owned()), name.to_owned()))
-            .unzip();
-        Self { names, ids }
+    /// The ties of a document whose sections are `sections`, `(request id, section)` in
+    /// order.
+    pub(super) fn new<'a>(
+        sections: impl IntoIterator<Item = (&'a str, &'a DocumentRequest)>,
+    ) -> Self {
+        let mut ties = Self::default();
+        for (id, section) in sections {
+            ties.names.push(section.name.clone());
+            ties.lines.push(request_line(section));
+            ties.ids.push(Some(id.to_owned()));
+            ties.seed.push((id.to_owned(), section.name.clone()));
+        }
+        ties
     }
 
-    /// Carries the ties over to a document whose sections are now named `names`, in order.
-    pub(super) fn track(&mut self, names: Vec<String>) {
-        let mut taken = vec![false; self.ids.len()];
+    /// Carries the ties over to a document whose sections are now `sections`, in order.
+    pub(super) fn track(&mut self, sections: &[DocumentRequest]) {
+        let names: Vec<String> = sections
+            .iter()
+            .map(|section| section.name.clone())
+            .collect();
+        let lines: Vec<String> = sections.iter().map(request_line).collect();
         let mut ids: Vec<Option<String>> = vec![None; names.len()];
+        let mut taken = vec![false; self.ids.len()];
+        let mut in_place = names.len() == self.names.len();
         for (index, name) in names.iter().enumerate() {
-            let found = self
-                .names
-                .iter()
-                .enumerate()
-                .find(|(at, old)| *old == name && !taken.get(*at).copied().unwrap_or(true));
-            if let Some((at, _)) = found {
+            let found = (0..self.names.len()).find(|at| {
+                self.names.get(*at) == Some(name)
+                    && !taken.get(*at).copied().unwrap_or(true)
+                    && self.ids.get(*at).is_some_and(Option::is_some)
+            });
+            if let Some(at) = found {
+                in_place &= at == index;
                 if let Some(slot) = taken.get_mut(at) {
                     *slot = true;
                 }
@@ -51,23 +70,61 @@ impl SectionIds {
                 }
             }
         }
-        for (index, name) in names.iter().enumerate() {
-            let renamed = ids.get(index).is_some_and(Option::is_none)
-                && !taken.get(index).copied().unwrap_or(true)
-                && self
-                    .names
-                    .get(index)
-                    .is_some_and(|old| old != name && !names.contains(old));
-            if renamed {
+        for index in 0..names.len() {
+            if ids.get(index).is_some_and(Option::is_some) {
+                continue;
+            }
+            let Some(name) = names.get(index) else {
+                continue;
+            };
+            let seeded = self
+                .seed
+                .iter()
+                .find(|(id, seed_name)| {
+                    seed_name == name && !ids.iter().flatten().any(|used| used == id)
+                })
+                .map(|(id, _)| id.clone());
+            if let Some(id) = seeded {
+                if let Some(at) = self.ids.iter().position(|old| old.as_ref() == Some(&id))
+                    && let Some(slot) = taken.get_mut(at)
+                {
+                    *slot = true;
+                }
+                if let Some(slot) = ids.get_mut(index) {
+                    *slot = Some(id);
+                }
+            }
+        }
+        if in_place {
+            for (index, name) in names.iter().enumerate() {
+                let renamed = ids.get(index).is_some_and(Option::is_none)
+                    && !taken.get(index).copied().unwrap_or(true)
+                    && !name.contains("###")
+                    && lines.get(index) == self.lines.get(index)
+                    && self
+                        .names
+                        .get(index)
+                        .is_some_and(|old| old != name && !names.contains(old));
+                if !renamed {
+                    continue;
+                }
+                let id = self.ids.get(index).cloned().flatten();
+                if id
+                    .as_ref()
+                    .is_some_and(|id| ids.iter().flatten().any(|used| used == id))
+                {
+                    continue;
+                }
                 if let Some(slot) = taken.get_mut(index) {
                     *slot = true;
                 }
-                if let Some(id) = ids.get_mut(index) {
-                    *id = self.ids.get(index).cloned().flatten();
+                if let Some(slot) = ids.get_mut(index) {
+                    *slot = id;
                 }
             }
         }
         self.names = names;
+        self.lines = lines;
         self.ids = ids;
     }
 
@@ -84,13 +141,26 @@ impl SectionIds {
     }
 }
 
+/// The request line of `section`, its method and URL: what a rename in place leaves alone.
+fn request_line(section: &DocumentRequest) -> String {
+    format!("{} {}", section.method.as_str(), section.url)
+}
+
 /// The section of `text` the cursor `offset` falls in, as its index in `parse`'s order:
 /// the last one that starts before the cursor when it sits between sections; `None`
-/// before the first one.
+/// before the first one, and in a section `parse` skips (a header still without its method
+/// line), which has no index.
 pub(super) fn section_at(text: &str, offset: usize) -> Option<usize> {
-    section_ranges(text)
-        .iter()
-        .rposition(|range| range.start <= offset)
+    let ranges = section_ranges(text);
+    let at = ranges.iter().rposition(|range| range.start <= offset)?;
+    let parsed = |range: &Range<usize>| {
+        text.get(range.clone())
+            .is_some_and(|section| !http_document::parse(section).0.is_empty())
+    };
+    if !ranges.get(at).is_some_and(parsed) {
+        return None;
+    }
+    Some(ranges.iter().take(at).filter(|range| parsed(range)).count())
 }
 
 /// The byte range each section of `text` spans, `parse`'s sections in order: from the
@@ -183,20 +253,39 @@ fn full_url(request: &Request) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::SectionIds;
+    use reqflux_core::http_document::DocumentRequest;
+    use reqflux_core::model::Method;
 
-    fn names(list: &[&str]) -> Vec<String> {
-        list.iter().map(|name| (*name).to_owned()).collect()
+    use super::{SectionIds, section_at};
+
+    /// A section `name` whose request line is `GET /<url>`.
+    fn section(name: &str, url: &str) -> DocumentRequest {
+        DocumentRequest {
+            name: name.to_owned(),
+            method: Method::GET,
+            url: format!("/{url}"),
+            headers: Vec::new(),
+            body: String::new(),
+        }
+    }
+
+    /// Sections named `list`, each keeping the request line of the seed section at its
+    /// place, so only the names change.
+    fn names(list: &[&str]) -> Vec<DocumentRequest> {
+        list.iter()
+            .enumerate()
+            .map(|(index, name)| section(name, &index.to_string()))
+            .collect()
     }
 
     fn ids() -> SectionIds {
-        SectionIds::new([("a", "Create"), ("b", "List")])
+        SectionIds::new([("a", &section("Create", "0")), ("b", &section("List", "1"))])
     }
 
     #[test]
     fn a_rename_in_place_keeps_the_request() {
         let mut tracked = ids();
-        tracked.track(names(&["Create draft", "List"]));
+        tracked.track(&names(&["Create draft", "List"]));
         assert_eq!(tracked.id(0), Some("a"));
         assert_eq!(tracked.id(1), Some("b"));
     }
@@ -204,7 +293,7 @@ mod tests {
     #[test]
     fn moved_sections_match_by_name() {
         let mut tracked = ids();
-        tracked.track(names(&["List", "Create"]));
+        tracked.track(&names(&["List", "Create"]));
         assert_eq!(tracked.id(0), Some("b"));
         assert_eq!(tracked.id(1), Some("a"));
     }
@@ -212,7 +301,7 @@ mod tests {
     #[test]
     fn a_new_section_belongs_to_no_request() {
         let mut tracked = ids();
-        tracked.track(names(&["Health", "Create", "List"]));
+        tracked.track(&names(&["Health", "Create", "List"]));
         assert_eq!(tracked.id(0), None);
         assert_eq!(tracked.index_of("a"), Some(1));
         assert_eq!(tracked.index_of("b"), Some(2));
@@ -221,8 +310,79 @@ mod tests {
     #[test]
     fn a_deleted_section_leaves_its_request_without_one() {
         let mut tracked = ids();
-        tracked.track(names(&["List"]));
+        tracked.track(&names(&["List"]));
         assert_eq!(tracked.index_of("a"), None);
         assert_eq!(tracked.index_of("b"), Some(0));
+    }
+
+    #[test]
+    fn typing_a_section_above_a_header_keeps_the_ties() {
+        let mut tracked = ids();
+        tracked.track(&names(&["Create", "New### List"]));
+        assert_eq!(tracked.id(1), None, "a glued header is ambiguous");
+        tracked.track(&names(&["Create", "New", "List"]));
+        assert_eq!(tracked.id(0), Some("a"));
+        assert_eq!(tracked.id(1), None);
+        assert_eq!(tracked.id(2), Some("b"));
+    }
+
+    #[test]
+    fn typing_a_section_at_the_top_keeps_the_ties() {
+        let mut tracked = ids();
+        tracked.track(&names(&["New### Create", "List"]));
+        assert_eq!(tracked.id(0), None);
+        tracked.track(&names(&["New", "Create", "List"]));
+        assert_eq!(tracked.id(0), None);
+        assert_eq!(tracked.id(1), Some("a"));
+        assert_eq!(tracked.id(2), Some("b"));
+    }
+
+    #[test]
+    fn typing_a_section_after_the_last_keeps_the_ties() {
+        let mut tracked = ids();
+        tracked.track(&names(&["Create", "List", "N"]));
+        tracked.track(&names(&["Create", "List", "New"]));
+        assert_eq!(tracked.id(0), Some("a"));
+        assert_eq!(tracked.id(1), Some("b"));
+        assert_eq!(tracked.id(2), None);
+    }
+
+    #[test]
+    fn two_renames_at_once_keep_their_positions() {
+        let mut tracked = ids();
+        tracked.track(&names(&["Create draft", "List all"]));
+        assert_eq!(tracked.id(0), Some("a"));
+        assert_eq!(tracked.id(1), Some("b"));
+    }
+
+    #[test]
+    fn a_section_merged_from_two_belongs_to_neither() {
+        let mut tracked = ids();
+        tracked.track(&names(&["Crst"]));
+        assert_eq!(tracked.id(0), None);
+        assert_eq!(tracked.index_of("a"), None);
+        assert_eq!(tracked.index_of("b"), None);
+    }
+
+    #[test]
+    fn the_cursor_in_a_section_parse_skips_is_in_no_section() {
+        let text = "### Create\nPOST /a\n\n### New\n### List\nGET /b\n";
+        assert_eq!(section_at(text, 2), Some(0));
+        assert_eq!(
+            section_at(text, text.find("### New").unwrap_or(0) + 2),
+            None
+        );
+        assert_eq!(
+            section_at(text, text.find("### List").unwrap_or(0) + 2),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn a_header_overwritten_by_a_typed_line_is_not_a_rename() {
+        let mut tracked = ids();
+        tracked.track(&[section("Create", "0"), section("New", "### List")]);
+        assert_eq!(tracked.id(1), None);
+        assert_eq!(tracked.index_of("b"), None);
     }
 }

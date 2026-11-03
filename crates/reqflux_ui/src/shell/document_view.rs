@@ -86,8 +86,7 @@ impl DocumentEdit {
         let (parsed, warnings) = http_document::parse(text);
         self.dirty = text != self.seed;
         self.warnings = warnings;
-        self.ids
-            .track(parsed.into_iter().map(|section| section.name).collect());
+        self.ids.track(&parsed);
     }
 }
 
@@ -397,11 +396,7 @@ impl Shell {
             dirty: false,
             warnings: Vec::new(),
             confirm: None,
-            ids: SectionIds::new(
-                sections
-                    .iter()
-                    .map(|(id, section)| (id.as_str(), section.name.as_str())),
-            ),
+            ids: SectionIds::new(sections.iter().map(|(id, section)| (id.as_str(), section))),
             base,
             stale,
             _change: change,
@@ -431,7 +426,7 @@ impl Shell {
     }
 
     /// Re-seeds the open editor when the folder changed underneath and the text is not
-    /// dirty; drops an editor that belongs to another folder, whose dirty text stays
+    /// dirty, and marks a dirty text stale when it did (see `document_drafts`); drops an editor that belongs to another folder, whose dirty text stays
     /// stored for when the folder shows again.
     fn refresh_document_edit(
         &mut self,
@@ -454,15 +449,14 @@ impl Shell {
         if !edit.dirty && edit.seed != seed {
             edit.seed = seed.clone();
             edit.warnings = Vec::new();
-            edit.ids = SectionIds::new(
-                sections
-                    .iter()
-                    .map(|(id, section)| (id.as_str(), section.name.as_str())),
-            );
+            edit.ids = SectionIds::new(sections.iter().map(|(id, section)| (id.as_str(), section)));
             edit.base = base_of(&seed);
             edit.stale = false;
             edit.input
                 .update(cx, |state, cx| state.set_value(seed, window, cx));
+            cx.notify();
+        } else if edit.dirty && !edit.stale && edit.base != base_of(&seed) {
+            edit.stale = true;
             cx.notify();
         }
     }

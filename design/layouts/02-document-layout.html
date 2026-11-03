@@ -501,7 +501,7 @@ POST {{base_url}}/v1/invoices</div>
 </div></div>
 
 <!-- D15: Stale text (document_drafts, document-stale) -->
-<div class="state"><div class="state-head"><h3>The folder changed under a stored text</h3><p>A stored text comes back after a folder switch or a restart. When the folder's saved requests changed since it was edited, the warning banner <span class="m">document-stale</span> shows under the editor and Save is refused, as a conflicted request draft refuses until it is reverted; Discard loads the folder as saved.</p></div>
+<div class="state"><div class="state-head"><h3>The folder changed under a stored text</h3><p>A stored text comes back after a folder switch or a restart. When the folder's saved requests changed since it was edited, on reopening or while the dirty editor stays open and the workspace reloads, the warning banner <span class="m">document-stale</span> shows under the editor and Save is refused, as a conflicted request draft refuses until it is reverted; Discard loads the folder as saved.</p></div>
 <div class="frame" style="width:900px;padding:8px 16px 12px">
   <div class="ban w" role="status"><svg class="ico" style="width:15px;height:15px;color:#FFC23D;margin-top:1px"><use href="#i-alert"/></svg><span style="display:flex;flex-direction:column;gap:4px"><span style="font-weight:600">This folder changed since the text was edited</span><span style="font-size:12px;color:#C6C3CC">Saving is blocked so it cannot overwrite those changes. Discard to load the folder as saved.</span></span></div>
 </div></div>
