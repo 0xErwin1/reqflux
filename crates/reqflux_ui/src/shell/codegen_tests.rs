@@ -102,7 +102,7 @@ fn ctrl_shift_c_opens_the_curl_code_of_the_request_with_its_variables_as_written
     assert!(expected.contains("Bearer {{token}}"), "{expected}");
     assert!(bounds(cx, "codegen-dialog").is_some());
     assert_eq!(
-        tree_label(cx, "codegen-line-1").as_deref(),
+        tree_label(cx, "codegen-code-line-1").as_deref(),
         expected.lines().next()
     );
     assert_eq!(

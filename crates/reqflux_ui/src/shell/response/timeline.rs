@@ -2,19 +2,19 @@
 //! summary bar (`response-timeline-summary`, `<n> hop(s) · <detail>`, and the note
 //! `response-timeline-note`), one group header `response-timeline-hop-<h>` per hop when the
 //! send followed redirects, the phase rows `response-timeline-<h>-<phase>` with their bars
-//! `response-timeline-<h>-<phase>-bar` on one time axis, and the total
+//! `response-timeline-<h>-<phase>-bar` on one time axis (`bolt`'s `TimelineStrip`,
+//! `response-timeline-<h>-<phase>-strip`), and the total
 //! `response-timeline-total`. A send without timings says so in `response-timeline-none`.
 
-use bolt::semantic::ChartColors;
+use std::time::Duration;
+
+use bolt::primitives::{BadgeTone, TimelineBar, TimelineStrip};
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
-use gpui::{
-    AnyElement, App, Div, FontWeight, Hsla, ParentElement, Stateful, Styled, div, prelude::*,
-    relative,
-};
+use gpui::{AnyElement, App, Div, FontWeight, ParentElement, Stateful, Styled, div, prelude::*};
 
 use super::timeline_model::{Hop, NO_TIMINGS, Phase, Row, TLS_NOTE, Timeline};
 use crate::shell::request::{Received, elapsed_text, size_text};
-use crate::shell::rows::{labeled_row, part};
+use crate::shell::rows::labeled_row;
 use crate::shell::{region, text_region};
 use crate::tokens;
 
@@ -41,14 +41,22 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
             .into_any_element();
     };
     let grouped = timeline.hops.len() > 1;
-    let hops = timeline.hops.iter().enumerate().flat_map(|(index, hop)| {
-        let h = index + 1;
-        let header = grouped.then(|| hop_header(h, hop, cx));
-        header
-            .into_iter()
-            .chain(hop.rows.iter().map(move |row| phase_row(h, row, cx)))
-            .collect::<Vec<_>>()
-    });
+    let hops = timeline
+        .hops
+        .iter()
+        .enumerate()
+        .flat_map(move |(index, hop)| {
+            let h = index + 1;
+            let header = grouped.then(|| hop_header(h, hop, cx));
+            header
+                .into_iter()
+                .chain(
+                    hop.rows
+                        .iter()
+                        .map(move |row| phase_row(h, row, timeline.total, cx)),
+                )
+                .collect::<Vec<_>>()
+        });
     pane.child(summary(&timeline, cx))
         .children(hops)
         .child(total(&timeline, received, cx))
@@ -118,14 +126,16 @@ fn hop_header(h: usize, hop: &Hop, cx: &App) -> AnyElement {
     .into_any_element()
 }
 
-/// The row of `row` in hop `h`: the phase name, its bar on the axis and the value.
-fn phase_row(h: usize, row: &Row, cx: &App) -> AnyElement {
+/// The row of `row` in hop `h`: the phase name, its bar on the axis of `span` and the value.
+fn phase_row(h: usize, row: &Row, span: Duration, cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
     let id = format!("response-timeline-{h}-{}", row.phase.key());
     let label = format!("{}: {}", row.phase.name(), row.value);
-    let bar = row
-        .bar
-        .map(|bar| strip_bar(format!("{id}-bar"), bar, phase_color(row.phase, cx)));
+    let strip =
+        TimelineStrip::new(format!("{id}-strip"), span).bars(row.bar.map(|(start, duration)| {
+            TimelineBar::new(format!("{id}-bar"), label.clone(), start, duration)
+                .tone(phase_tone(row.phase))
+        }));
     labeled_row(id, label)
         .flex()
         .items_center()
@@ -151,7 +161,7 @@ fn phase_row(h: usize, row: &Row, cx: &App) -> AnyElement {
                         .map(|words| div().text_color(colors.muted).child(words)),
                 ),
         )
-        .child(strip(bar, cx))
+        .child(strip)
         .child(
             div()
                 .w(GridMetrics::ROW_NUMBER_WIDTH)
@@ -206,41 +216,13 @@ fn total(timeline: &Timeline, received: &Received, cx: &App) -> Stateful<Div> {
         )
 }
 
-/// The color of `phase`'s bar: DNS cyan, connect info, first byte the accent tint,
-/// download success, as the artboard draws them.
-fn phase_color(phase: Phase, cx: &App) -> Hsla {
-    let colors = bolt::colors(cx);
+/// The tone of `phase`'s bar: DNS violet, connect info, first byte the accent, download
+/// success.
+fn phase_tone(phase: Phase) -> BadgeTone {
     match phase {
-        Phase::Dns => ChartColors::for_current(cx).stats_accent,
-        Phase::Connect => colors.info,
-        Phase::FirstByte => bolt::brand::brand(cx).accent_tint,
-        Phase::Download => colors.success,
+        Phase::Dns => BadgeTone::Violet,
+        Phase::Connect => BadgeTone::Info,
+        Phase::FirstByte => BadgeTone::Accent,
+        Phase::Download => BadgeTone::Success,
     }
-}
-
-// bolt gap: a timeline strip, phase bars over one time axis (B1). The two helpers below
-// and their two sizes in `tokens` are the whole stand-in: the track and one bar on it.
-
-/// The track of a phase row, filling the space between the name and the value, holding
-/// `bar` when the phase was measured.
-fn strip(bar: Option<Stateful<Div>>, cx: &App) -> Div {
-    div()
-        .relative()
-        .flex_1()
-        .min_w_0()
-        .h(tokens::TIMELINE_STRIP_HEIGHT)
-        .bg(bolt::colors(cx).background)
-        .children(bar)
-}
-
-/// The bar `id` from `start` over `width` of the track, both from 0 to 1, in `color`.
-fn strip_bar(id: String, (start, width): (f32, f32), color: Hsla) -> Stateful<Div> {
-    part(id)
-        .absolute()
-        .top_0()
-        .bottom_0()
-        .left(relative(start))
-        .w(relative(width))
-        .min_w(tokens::TIMELINE_STRIP_MIN_BAR)
-        .bg(color)
 }

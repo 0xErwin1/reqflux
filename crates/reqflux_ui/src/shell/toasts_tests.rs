@@ -19,7 +19,7 @@ use super::{Kind, Pushed, PushedToast, counted};
 use crate::theme::ConfigReport;
 
 /// The automation tree of the window, read after a fresh frame.
-fn tree(cx: &mut VisualTestContext) -> gpui_mcp::UiTree {
+pub(crate) fn tree(cx: &mut VisualTestContext) -> gpui_mcp::UiTree {
     let automation = gpui_mcp::Automation::isolated();
     cx.update(|window, _| {
         automation.attach(window);

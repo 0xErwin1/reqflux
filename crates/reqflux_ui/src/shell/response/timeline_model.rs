@@ -55,13 +55,13 @@ impl Phase {
     }
 }
 
-/// One phase row: its bar on the send's time axis, as fractions of the total, when it was
-/// measured, and the value at the right.
+/// One phase row: its bar on the send's time axis, when it was measured, and the value at
+/// the right.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Row {
     pub(crate) phase: Phase,
-    /// Start and width, each from 0 to 1.
-    pub(crate) bar: Option<(f32, f32)>,
+    /// Where the phase starts on the axis and how long it took.
+    pub(crate) bar: Option<(Duration, Duration)>,
     pub(crate) value: String,
     /// Whether the value is a measure, not a dash or a reason.
     pub(crate) measured: bool,
@@ -110,7 +110,7 @@ impl Timeline {
                     (false, false) => "redirect".to_owned(),
                     (false, true) => "redirect · reused connection".to_owned(),
                 };
-                let rows = rows(hop, last, &mut at, total);
+                let rows = rows(hop, last, &mut at);
                 Hop {
                     kind,
                     total: hop_total(hop),
@@ -141,9 +141,9 @@ fn hop_total(hop: &HopTimings) -> Duration {
     hop.dns.unwrap_or_default() + hop.connect.unwrap_or_default() + hop.first_byte + hop.download
 }
 
-/// The four rows of `hop`, the last hop's when `last`, starting at `at` on the axis of
-/// `total`; `at` moves past the hop.
-fn rows(hop: &HopTimings, last: bool, at: &mut Duration, total: Duration) -> Vec<Row> {
+/// The four rows of `hop`, the last hop's when `last`, starting at `at` on the axis; `at`
+/// moves past the hop.
+fn rows(hop: &HopTimings, last: bool, at: &mut Duration) -> Vec<Row> {
     let dns_missing = match hop.connect {
         Some(_) => "— IP address",
         None => "—",
@@ -158,7 +158,7 @@ fn rows(hop: &HopTimings, last: bool, at: &mut Duration, total: Duration) -> Vec
         .into_iter()
         .map(|(phase, measured, missing)| match measured {
             Some(time) => {
-                let bar = (fraction(*at, total), fraction(time, total));
+                let bar = (*at, time);
                 *at += time;
                 Row {
                     phase,
@@ -175,14 +175,6 @@ fn rows(hop: &HopTimings, last: bool, at: &mut Duration, total: Duration) -> Vec
             },
         })
         .collect()
-}
-
-/// `part` of `whole`, from 0 to 1; 0 when `whole` is zero.
-fn fraction(part: Duration, whole: Duration) -> f32 {
-    if whole.is_zero() {
-        return 0.0;
-    }
-    (part.as_secs_f64() / whole.as_secs_f64()).clamp(0.0, 1.0) as f32
 }
 
 #[cfg(test)]
@@ -222,7 +214,7 @@ mod tests {
         let hop = &timeline.hops[0];
         assert_eq!(hop.kind, "final response");
         assert_eq!(values(hop), ["4 ms", "43 ms", "129 ms", "8 ms"]);
-        let starts: Vec<f32> = hop
+        let starts: Vec<Duration> = hop
             .rows
             .iter()
             .filter_map(|row| row.bar)
@@ -236,7 +228,7 @@ mod tests {
         let Some((start, width)) = hop.rows[3].bar else {
             panic!("download bar");
         };
-        assert!((start + width - 1.0).abs() < 1e-6, "ends at the total");
+        assert_eq!(start + width, timeline.total, "ends at the total");
     }
 
     #[test]
@@ -279,7 +271,7 @@ mod tests {
         let Some((start, _)) = second.rows[2].bar else {
             panic!("first byte bar");
         };
-        assert!((start - 66.0 / 184.0).abs() < 1e-6, "after the first hop");
+        assert_eq!(start, ms(66), "after the first hop");
     }
 
     #[test]
@@ -301,7 +293,10 @@ mod tests {
             values(&timeline.hops[0]),
             ["— IP address", "1 ms", "9 ms", "2 ms"]
         );
-        assert_eq!(timeline.hops[0].rows[1].bar.map(|bar| bar.0), Some(0.0));
+        assert_eq!(
+            timeline.hops[0].rows[1].bar.map(|bar| bar.0),
+            Some(Duration::ZERO)
+        );
     }
 
     #[test]
@@ -313,7 +308,10 @@ mod tests {
             panic!("a timeline");
         };
         assert_eq!(timeline.detail, "reused connection");
-        assert_eq!(timeline.hops[0].rows[2].bar, Some((0.0, 0.0)));
+        assert_eq!(
+            timeline.hops[0].rows[2].bar,
+            Some((Duration::ZERO, Duration::ZERO))
+        );
     }
 
     #[test]

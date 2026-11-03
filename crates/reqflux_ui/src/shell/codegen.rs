@@ -7,15 +7,17 @@
 //! it has one: every `{{variable}}` stays as written, secret or not, and nothing is read from
 //! the keyring. The language is a segmented control, `codegen-language`, with the segments
 //! `codegen-language-<curl|httpie|python|fetch>`; the code shows read only with line numbers in
-//! `codegen-code`, one `codegen-line-<n>` per line; the note `codegen-secrets` names the secret
+//! `codegen-code` (`bolt`'s `ModalCode`), one `codegen-code-line-<n>` per line; the note `codegen-secrets` names the secret
 //! variables left in it. Copy (`codegen-copy`, Enter) puts the code on the clipboard, closes
 //! the dialog and confirms it in a toast; Close (`codegen-close`), Escape or the backdrop
 //! closes it.
 
+use std::ops::Range;
+
 use bolt::controls::Button;
-use bolt::modals::{Modal, ModalFocus, modal_frame};
+use bolt::modals::{Modal, ModalCode, ModalFocus};
 use bolt::primitives::{BannerBlock, BannerVariant, SegmentedItem, TextVariant};
-use bolt::tokens::{EditorMetrics, GridMetrics, ModalMetrics, Spacing};
+use bolt::tokens::{ModalMetrics, Spacing};
 use gpui::{
     AnyElement, App, ClipboardItem, Context, Div, EventEmitter, FontWeight, IntoElement,
     ParentElement, Point, Role, SharedString, Stateful, Styled, Window, anchored, deferred, div,
@@ -27,8 +29,7 @@ use reqflux_core::model::Item;
 use reqflux_core::model::Request;
 use reqflux_engine::{Engine, ExecuteError, Inspection, Span};
 
-use super::request::{segmented, spans, ui};
-use super::rows::{labeled_row, part};
+use super::request::{segmented, ui};
 use super::sidebar::Sidebar;
 use super::{Shell, region, text_region, toasts, tree_model};
 use crate::tokens::{self, method_hue};
@@ -299,7 +300,7 @@ pub(super) fn render(
         .flex_col()
         .gap(ModalMetrics::BODY_GAP)
         .child(toolbar(dialog, cx))
-        .child(code_block(dialog, cx))
+        .child(code_block(dialog))
         .child(
             region("codegen-secrets")
                 .role(Role::Label)
@@ -452,55 +453,37 @@ fn toolbar(dialog: &Dialog, cx: &mut Context<Shell>) -> Div {
         )
 }
 
-/// The code, read only, one numbered line each, with its references styled.
-// bolt gap: `modal_code` has no line numbers or reference styling; the lines are drawn as
-// the Body pane draws its code, inside `bolt`'s modal frame.
-fn code_block(dialog: &Dialog, cx: &App) -> Div {
-    let colors = bolt::colors(cx);
-    let lines = (1..)
-        .zip(dialog.code.lines())
-        .map(|(n, line): (usize, &str)| {
-            let text: Vec<AnyElement> = match dialog.inspection.as_ref() {
-                Some(inspection) => spans::render(inspection, line, cx),
-                None => vec![line.to_owned().into_any_element()],
-            };
-            labeled_row(format!("codegen-line-{n}"), line.to_owned())
-                .flex()
-                .items_center()
-                .h(EditorMetrics::CODE_LINE_HEIGHT)
-                .child(
-                    div()
-                        .w(GridMetrics::ROW_NUMBER_WIDTH)
-                        .flex_none()
-                        .pr(Spacing::MD)
-                        .text_right()
-                        .text_color(colors.line_2)
-                        .child(n.to_string()),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .whitespace_nowrap()
-                        .text_color(colors.foreground)
-                        .children(text),
-                )
-        })
-        .collect::<Vec<_>>();
-    modal_frame(cx).child(
-        part("codegen-code".to_owned())
-            .role(Role::Label)
-            .aria_label(format!(
-                "Generated {} code",
-                language_label(dialog.language)
-            ))
-            .py(ModalMetrics::CODE_PADDING_Y)
-            .flex()
-            .flex_col()
-            .overflow_hidden()
-            .font_family(bolt::fonts::editor_family(cx))
-            .text_size(EditorMetrics::CODE_FONT)
-            .children(lines),
-    )
+/// The code, read only, one numbered line each, with its `{{name}}` references in bold tint.
+fn code_block(dialog: &Dialog) -> ModalCode {
+    let references = dialog
+        .inspection
+        .as_ref()
+        .map(|inspection| reference_ranges(inspection, &dialog.code))
+        .unwrap_or_default();
+    ModalCode::new("codegen-code", dialog.code.clone())
+        .highlights(references)
+        .line_numbers(true)
+        .aria_label(format!(
+            "Generated {} code",
+            language_label(dialog.language)
+        ))
+}
+
+/// The byte ranges of the `{{name}}` references in `code`.
+fn reference_ranges(inspection: &Inspection, code: &str) -> Vec<Range<usize>> {
+    let mut at = 0;
+    let mut ranges = Vec::new();
+    for span in inspection.spans(code) {
+        let len = match &span {
+            Span::Literal(literal) => literal.len(),
+            Span::Reference { raw, .. } => raw.len(),
+        };
+        if matches!(span, Span::Reference { .. }) {
+            ranges.push(at..at + len);
+        }
+        at += len;
+    }
+    ranges
 }
 
 #[cfg(test)]

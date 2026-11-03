@@ -623,7 +623,11 @@ fn the_timeline_shows_the_phases_of_a_send_to_an_ip_address(cx: &mut TestAppCont
     for phase in ["connect", "first-byte", "download"] {
         let text = label(cx, &format!("response-timeline-1-{phase}"));
         assert!(text.ends_with(" ms"), "{phase}: {text}");
-        present(cx, &format!("response-timeline-1-{phase}-bar"));
+        assert_eq!(
+            label(cx, &format!("response-timeline-1-{phase}-bar")),
+            text,
+            "the bar of {phase} names its phase"
+        );
     }
     assert!(absent(cx, "response-timeline-1-dns-bar"));
     assert!(

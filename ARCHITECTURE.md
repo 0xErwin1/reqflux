@@ -1235,7 +1235,10 @@ installed by the binary as the application's asset source.
 
 The shell chrome draws with DBFlux's `bolt` as DBFlux draws its own: `bolt::colors` roles,
 `ShellMetrics`, `TreeMetrics`, `TabMetrics`, `EditorMetrics` and `NotificationMetrics`, the
-sidebar `Island`, tree rows as `ListRow` with the selection bar, document tabs, `Button`
+sidebar `Island`, tree rows as `TreeNavRow` (the selection bar, a guide per indent level, the
+chevron `tree-row-<id>-chevron`, icon `-icon` and count `-count`; an example's status code
+`tree-status-<id>` and the row actions sit in its trailing slot `-trailing`), document tabs,
+`Button`
 (the new-collection button, the row `…` button, the action strip, the delete dialog),
 `Kbd`, `menu_frame`/`menu_row` for the tree menu and the Move to… list, and `Modal` (danger,
 without a header) for the delete dialog. Its sizes are DBFlux's: title bar 44, rail 46 with
@@ -1267,8 +1270,10 @@ Cancel; Cancel or Escape cancels it through its token, sending again cancels and
 and closing the tab cancels it and drops its response. The response sits under the request:
 the Response tab with the status chip colored by class and the time and size, Tests and
 Console tabs beside it when the scripts produced results, the Body / Headers / Cookies views as
-a segmented control plus Timeline (`Received.timings` per hop on one time axis, TLS inside
-connect, a dash for a phase the engine did not time), a JSONPath filter beside the body search
+a segmented control plus Timeline (`Received.timings` per hop on one time axis, each measured
+phase a `bolt` `TimelineStrip` bar named by its phase and time, TLS inside connect, a dash for a
+phase the engine did not time), a JSONPath filter beside the body search, both open as `bolt`'s
+`SearchField` with its count
 (`reqflux_engine::jsonpath::filter`: the matches replace the shown lines and search, Copy and the
 line count follow; an error shows the engine message in a danger banner over the unfiltered
 body), a bottom bar under the body with the Pretty / Raw / Preview switch and the
@@ -1295,7 +1300,8 @@ column's name (`request-<table>-value-hint`); an open cell is a well with a tint
 The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem tokens, `Button`,
 `Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
 `field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL
-field and Send 30, result rows 28, body-format footer 36. No `// bolt gap:` stand-in remains.
+field and Send 30, result rows 28, body-format footer 36. The closed body search and JSONPath
+triggers are the only `// bolt gap:` stand-ins (`SearchField` has no closed state).
 
 The views and overlays draw with DBFlux's `bolt` too. The MCP approvals view uses
 `ApprovalsMetrics`, DBFlux's own approvals sizes (pending list 380 wide, 52 px detail title,
@@ -1309,7 +1315,7 @@ and footer) with document tabs as scope tabs. The settings page draws `Island`s,
 nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox`, `Badge`
 for `file` and `KEYRING`, and `Button`. The workspace and environment menus are
 `menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. No
-`// bolt gap:` stand-in remains outside the run document and the Generate code dialog (below).
+`// bolt gap:` stand-in remains outside the run grid's column widths (below).
 `reqflux_ui::theme`
 installs `bolt`'s `ModalSeams` as DBFlux's theme does: ReqFlux's modal actions bound in the
 `Modal` key context (Escape cancels, Enter confirms, the arrows, Page Up, Page Down, Home and
@@ -1322,7 +1328,8 @@ the environment for this run only and Stop on first failure; the engine has no d
 requests. Run calls `Engine::run_collection` on a thread of its own with a second connection to
 the app state (`AppState::path`), so every send is recorded in history; its events reach the
 window through a channel the document polls. Stop cancels the run's token. The results grid is
-`bolt`'s grid (its header row and the determinate progress bar are `// bolt gap:` stand-ins);
+`bolt`'s grid, its header cells column headers named by their columns
+(`runner-grid-header-cell-<n>`), under `bolt`'s determinate `Progress`;
 selecting a finished row shows its tests beside the response history recorded for that send
 (the last send when a jump ran it twice), and names the variables that step sent unresolved
 above its tests. The setup's order list heads each folder's requests with the folder and its
@@ -1335,7 +1342,8 @@ send's script writes.
 `Generate code…` open it, a segmented control picks curl, HTTPie, Python requests or JavaScript
 fetch, and Copy (Enter) puts the code on the clipboard. Every `{{variable}}` stays as written.
 For a draft it swaps the draft into a copy of the workspace, so the auth it inherits matches what
-a send would use. Its line numbers are a `// bolt gap:` stand-in (`modal_code` has none).
+a send would use. The code is `bolt`'s `ModalCode` with line numbers (`codegen-code-line-<n>`)
+and its `{{variable}}` references in bold tint.
 `shell/export.rs` draws the Export… dialog (design/export/01-one-export-dialog) on
 `Engine::export_postman`, `Engine::bundle` and `Engine::docs`, the calls the CLI makes. A tree
 row's `Export…`, the workspace menu's `Export workspace…`, an environment's `Export…` and the

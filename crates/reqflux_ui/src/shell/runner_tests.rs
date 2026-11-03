@@ -254,6 +254,19 @@ fn a_run_sends_every_request_records_history_and_persists_script_writes(cx: &mut
     );
     present(cx, "runner-grid");
     present(cx, "runner-run-again");
+    let tree = crate::shell::toasts::tests::tree(cx);
+    let headers: Vec<Option<&str>> = (0..crate::tokens::RUNNER_COLUMNS.len())
+        .map(|column| {
+            tree.nodes
+                .get(&format!("runner-grid-header-cell-{column}"))
+                .and_then(|node| node.label.as_deref())
+        })
+        .collect();
+    let names: Vec<Option<&str>> = crate::tokens::RUNNER_COLUMNS
+        .iter()
+        .map(|(name, _)| Some(*name))
+        .collect();
+    assert_eq!(headers, names, "the header cells name their columns");
     assert_eq!(history_names(&state_path), ["Second", "First"]);
     let current = cx.update(|_, cx| {
         shell
