@@ -1275,6 +1275,26 @@ place (`request-problem`), and a value that references a secret, a password, a t
 any field of an auth type the engine does not support is masked as `••••••••` on screen and
 in the automation tree.
 
+Each `{{name}}` mark in the URL (`request-url-var-<n>`), a Params, Headers or form value cell
+(`request-<table>-value-<row>-var-<n>`) and an auth field opens the variable popover
+(`variable-popover`, design/variable-popover/01; `shell/variable_popover.rs` and
+`request/variable_popover_view.rs`) after a 400 ms hover or on a click; a click on a mark
+opens it instead of editing the field, and a click elsewhere in the field still edits it.
+While the field is edited, F2 or Alt+click on a reference under the caret opens it under the
+field. It shows what `Engine::variable_info` reports: the winning scope's badge, its current
+value in a focused field (`variable-popover-input`), the initial value read-only and the
+single "Overrides" line, with Copy, Reset to initial (`variable-popover-reset`) and Open in
+Environments, which opens the settings page at that scope. Enter saves the field as the
+current value of the winning scope (an empty field clears it); a secret shows its SECRET
+badge and an empty masked field, the eye (`variable-popover-reveal`) reads its keyring value
+in, and Enter writes the keyring. An undefined name offers the quick add: the scope picker
+(`variable-popover-target-<n>`: the active environment, the collection, the globals), the
+value, which becomes the initial value, and the Secret box. With no active environment, a
+name only environments declare lists them to activate, with an "Add to collection or globals
+instead". Escape or a click outside closes it without writing; after a write every open
+request is inspected again, so the marks follow. A cell whose value references a secret stays
+masked and has no marks; F2 while editing it still opens the popover.
+
 Send or Ctrl+Enter sends the active request with the active environment through
 `Engine::execute`. The UI awaits the execution's `JoinHandle` on GPUI's executor with
 `cx.spawn` and never calls `Engine::wait`, which blocks. While it is in flight, Send turns into

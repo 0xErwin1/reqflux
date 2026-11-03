@@ -104,6 +104,9 @@ pub(crate) const WORKSPACE_MENU_WIDTH: Pixels = px(420.0);
 /// The width of the recent list and actions of the empty state.
 pub(crate) const EMPTY_STATE_WIDTH: Pixels = px(420.0);
 
+/// The width of the variable popover (variable-popover/01).
+pub(crate) const VARIABLE_POPOVER_WIDTH: Pixels = px(340.0);
+
 /// The width of the Auth pane type menu.
 pub(crate) const AUTH_MENU_WIDTH: Pixels = px(240.0);
 
@@ -131,6 +134,11 @@ pub(crate) const VARIABLE_WASH: f32 = 0.12;
 /// The wash behind a `{{name}}` reference: the color at `VARIABLE_WASH`.
 pub(crate) fn variable_wash(color: Hsla) -> Hsla {
     wash(color, VARIABLE_WASH)
+}
+
+/// The wash of the mark whose variable popover is open (variable-popover/01 `.var.hot`).
+pub(crate) fn variable_hot_wash(color: Hsla) -> Hsla {
+    wash(color, VARIABLE_WASH * 2.0)
 }
 
 /// The grid columns: key and value; the description fills the rest.

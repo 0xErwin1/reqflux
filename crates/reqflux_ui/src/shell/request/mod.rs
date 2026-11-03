@@ -24,6 +24,7 @@ mod settings;
 pub(super) mod spans;
 pub(super) mod sub_tabs;
 pub(super) mod ui;
+mod variable_popover_view;
 
 pub(crate) use grid::secret;
 #[cfg(test)]

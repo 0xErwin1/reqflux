@@ -20,7 +20,7 @@ use reqflux_core::model::KeyValue;
 use reqflux_engine::Inspection;
 
 use super::grid_model::{has_unresolved, masked_text, placeholder, row_id, row_label, value_hint};
-use super::{code, spans, ui};
+use super::{code, spans, ui, variable_popover_view};
 use crate::shell::Shell;
 use crate::shell::cell_edit::{CellEdit, CellField};
 use crate::shell::rows::{labeled_row, part};
@@ -206,7 +206,7 @@ fn data_row(
     });
 
     let key_cell: AnyElement = match editing.filter(|edit| edit.field == CellField::Key) {
-        Some(edit) => editing_cell(edit, cx).into_any_element(),
+        Some(edit) => editing_cell(edit, shell, cx).into_any_element(),
         None => cell_part(request_id, table, n, CellField::Key, cx)
             .text_color(tone(colors.strong))
             .when(off, |this| this.line_through())
@@ -215,7 +215,7 @@ fn data_row(
     };
 
     let value_cell: AnyElement = match editing.filter(|edit| edit.field == CellField::Value) {
-        Some(edit) => editing_cell(edit, cx).into_any_element(),
+        Some(edit) => editing_cell(edit, shell, cx).into_any_element(),
         None => {
             let value = cell_part(request_id, table, n, CellField::Value, cx)
                 .text_color(tone(colors.foreground))
@@ -233,7 +233,18 @@ fn data_row(
                     .child(text.child(masked_text(&value_spans)))
                     .child(part(format!("request-{table}-secret-{n}")).child(secret()))
             } else {
-                value.child(text.children(spans::render(inspection, &row.value, cx)))
+                let spans = match request_id {
+                    Some(id) => spans::render_marked(
+                        inspection,
+                        &row.value,
+                        id,
+                        &format!("request-{table}-value-{n}"),
+                        shell,
+                        cx,
+                    ),
+                    None => spans::render(inspection, &row.value, cx),
+                };
+                value.child(text.children(spans))
             };
             value.into_any_element()
         }
@@ -392,12 +403,25 @@ fn cell_text(table: &str, n: usize, field: CellField) -> Stateful<Div> {
 /// the cell's own lines, so the text keeps the place it had. Enter commits the text into the
 /// draft and Escape drops what was typed, as the URL field does. A secret value keeps its
 /// badge next to the field, which opens empty with a placeholder.
-fn editing_cell(edit: &CellEdit, cx: &mut Context<Shell>) -> Stateful<Div> {
+fn editing_cell(edit: &CellEdit, shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     let tint = bolt::brand::brand(cx).accent_tint;
-    let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line);
-    cell.relative()
-        .bg(colors.background)
+    let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line).relative();
+    let cell = match edit.field {
+        CellField::Value => {
+            let anchor = format!("request-{}-value-{}", edit.table, edit.n);
+            variable_popover_view::editing_keys(
+                cell,
+                &edit.request_id,
+                &anchor,
+                &edit.input,
+                shell,
+                cx,
+            )
+        }
+        CellField::Key => cell,
+    };
+    cell.bg(colors.background)
         .child(
             div()
                 .absolute()
