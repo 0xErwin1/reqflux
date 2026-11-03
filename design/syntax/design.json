@@ -1,0 +1,14 @@
+{
+  "title": "Syntax highlighting",
+  "brief": "Tree-sitter token colors per surface with bolt's syntax roles plus a new property role for keys: response body, raw body editor, GraphQL, scripts, Generate code, Document layout; dark and light.",
+  "feature": "odd/tasks/v1-close.md",
+  "artboards": [
+    {
+      "file": "01-token-colors.html",
+      "title": "Token colors",
+      "tradeoff": "One role set on every surface, so read and typed JSON match; GraphQL query, Go and .http lines stay plain until their grammars exist",
+      "width": 1440,
+      "height": 3200
+    }
+  ]
+}

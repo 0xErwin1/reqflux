@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Syntax highlighting: token colors per surface — ReqFlux (Bolt)</title>
+<!--
+  Direction 01. Tree-sitter highlighting drawn with bolt's syntax roles (bolt::tokens::SyntaxColors)
+  on every ReqFlux surface that shows or edits code. Feature: odd/tasks/v1-close.md T8a (S7,
+  choices L26, evidence L25). Chrome copied from design/response-views/02, design/request-panes/01,
+  design/codegen/01 and design/layouts/02; only the code area changes. Crops: anything not drawn
+  matches those artboards.
+
+  Rule: one set of roles everywhere. The JSON you read (response body) and the JSON you type (raw
+  body, GraphQL variables, Document bodies) use the same colors.
+
+  Capture name -> role -> color (dark / light). Values from DBFlux crates/bolt/src/tokens.rs
+  SyntaxColors::dark/light; mapping from crates/bolt/src/theme.rs apply_syntax_colors.
+    keyword                                              keyword    #9DB1FF / #2B45B8  bold, brand accent
+                                                                    (accent tint on dark, accent on light;
+                                                                    SyntaxColors::keyword_for_current)
+    string, string.escape, string.regex, string.special,
+    string.special.symbol                                string     #7BE0A0 / #1C7F45
+    number, boolean, constant                            number     #B79CFF / #6B4FD8
+    comment, comment.doc                                 comment    #8E8996 / #6B6572
+    type, constructor, enum, variable.special            type_name  #6EA8FF / #1F5FD1
+    function                                             function   #FFC23D / #B7791F  bold
+    operator, punctuation, punctuation.bracket,
+    punctuation.delimiter, punctuation.special           operator   #C6C3CC / #3B3740
+    variable, primary                                    plain      #F7F4F7 / #141118
+    namespace                                            namespace  #E5A86E / #9A5418
+    field                                                field      #5CCFC9 / #0B7A80
+    property (JSON keys, JS object keys)   NEW ROLE      property   #A9A4B2 / #5C5766
+                                                                    (ReqFlux's current key color,
+                                                                    reqflux_ui tokens.rs SyntaxColors.key)
+    tag (XML/HTML element names)           proposed      type_name  #6EA8FF / #1F5FD1
+    attribute (XML/HTML attribute names)   proposed      property   #A9A4B2 / #5C5766
+
+  Grammars (L26): json, javascript, bash, python (DBFlux's set) plus xml/html. Registered by the
+  bolt grammar seam (T8b), not by ReqFlux reimplementing DBFlux's highlighting.rs.
+
+  Stays plain (plain role, no grammar yet; L26 defers them until their crates are confirmed on
+  tree-sitter 0.26): GraphQL query text, Go codegen, .http request lines in the Document layout.
+  HTTPie codegen is a shell command: it uses bash.
+  Later: JSON bodies inside a Document .http section through an injection. It needs an http
+  grammar to host the injection, or a ReqFlux-side split of each section into a plain head and a
+  json-highlighted body; neither exists, so the body is drawn plain and marked "later".
+
+  {{variables}} keep their resolved (accent tint wash) and unresolved (warning wash, underline)
+  marks; the mark draws over the syntax role of the token that holds it.
+
+  Changes from today's ReqFlux tokenizer (4 roles, reqflux_ui tokens.rs): key stays #A9A4B2 as
+  property; punctuation moves from #8E8996 (punct) to bolt's operator #C6C3CC; light number moves
+  from #7445D6 to bolt's #6B4FD8.
+
+  bolt gaps (T8b): no `property` role (theme.rs maps property to plain today); no tag/attribute
+  mapping; no grammar registration API (DBFlux registers in dbflux_components); no highlighted
+  read-only code view (modal_code and the response body draw plain lines).
+-->
+<style>
+body{margin:0;background:#050507}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+:focus-visible{outline:1.5px solid var(--tint);outline-offset:2px}
+
+/* palettes: bolt Colors::dark/light and SyntaxColors::dark/light, ReqFlux accent */
+.dark{--desk:#050507;--bg:#09090B;--panel:#100F13;--raised:#1A181E;--line:#232128;--line2:#37333D;
+  --strong:#F7F4F7;--fg:#C6C3CC;--muted:#8E8996;--tint:#9DB1FF;--tintw:rgba(157,177,255,.12);
+  --warn:#FFC23D;--warnw:rgba(255,194,61,.12);--ok:#7BE0A0;
+  --kw:#9DB1FF;--str:#7BE0A0;--num:#B79CFF;--com:#8E8996;--typ:#6EA8FF;--fn:#FFC23D;--op:#C6C3CC;
+  --pl:#F7F4F7;--ns:#E5A86E;--fld:#5CCFC9;--prop:#A9A4B2}
+.light{--desk:#E6E1E9;--bg:#F6F4F7;--panel:#FFFFFF;--raised:#EEEAF0;--line:#E3DEE6;--line2:#CBC4D1;
+  --strong:#141118;--fg:#3B3740;--muted:#6B6572;--tint:#2B45B8;--tintw:rgba(43,69,184,.12);
+  --warn:#B7791F;--warnw:rgba(183,121,31,.12);--ok:#1C7F45;
+  --kw:#2B45B8;--str:#1C7F45;--num:#6B4FD8;--com:#6B6572;--typ:#1F5FD1;--fn:#B7791F;--op:#3B3740;
+  --pl:#141118;--ns:#9A5418;--fld:#0B7A80;--prop:#5C5766}
+
+.desk{width:1440px;box-sizing:border-box;padding:40px 48px 56px;background:var(--desk);color:var(--fg);font-family:Archivo,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px}
+.desk h1{margin:0 0 6px;font-size:20px;font-weight:600;color:var(--strong)}
+.desk h2{margin:0 0 6px;font-size:18px;font-weight:600;color:var(--strong)}
+.desk h3{margin:0;white-space:nowrap;font-size:13px;font-weight:600;color:var(--strong)}
+.desk p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
+.state{display:flex;flex-direction:column;gap:10px;margin-top:28px}
+.state-head{display:flex;align-items:baseline;gap:12px}
+.row{display:flex;gap:16px;align-items:flex-start}
+.row>*{flex:1;min-width:0}
+
+/* island and pane chrome (response-views/02, request-panes/01) */
+.isl{background:var(--panel);box-shadow:rgba(255,255,255,.05) 0 0 0 1px inset}
+.light .isl{box-shadow:rgba(20,17,24,.06) 0 0 0 1px inset}
+.ph{display:flex;align-items:center;gap:8px;height:40px;padding:0 12px;border-bottom:1px solid var(--line)}
+.tab{display:flex;align-items:center;height:30px;padding:0 12px;color:var(--muted);font-size:13px;white-space:nowrap}
+.tab.on{background:var(--raised);color:var(--strong);font-weight:600}
+.seg{display:flex;flex-shrink:0;padding:2px;background:var(--bg);box-shadow:var(--line) 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;height:26px;padding:0 10px;color:var(--muted);white-space:nowrap}
+.seg>span.on{background:var(--raised);color:var(--strong)}
+.hint{font-size:12px;color:var(--muted)}
+.lab{font-family:Archivo,system-ui,sans-serif;font-stretch:125%;font-size:11px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.box{background:var(--bg);box-shadow:var(--line) 0 0 0 1px inset}
+.badge{font-size:11px;padding:2px 8px;color:var(--warn);background:var(--warnw)}
+
+/* code: bolt ModalCode rows, 46 px gutter, 20 px rows */
+.code{padding:8px 0;font-size:12.5px}
+.ln{display:flex;align-items:center;height:20px}
+.ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:var(--line2);flex-shrink:0}
+.ln>.tx{white-space:pre;color:var(--pl)}
+.code.nog .ln>.tx{padding-left:14px}
+.ln.cur{background:rgba(255,255,255,.03)}
+.light .ln.cur{background:rgba(20,17,24,.03)}
+.caret{display:inline-block;width:1.5px;height:15px;vertical-align:middle;background:var(--tint)}
+
+/* syntax roles */
+.kw{color:var(--kw);font-weight:700}.str{color:var(--str)}.num{color:var(--num)}.com{color:var(--com)}
+.typ{color:var(--typ)}.fn{color:var(--fn);font-weight:700}.op{color:var(--op)}.pl{color:var(--pl)}
+.ns{color:var(--ns)}.fld{color:var(--fld)}.prop{color:var(--prop)}
+.var{color:var(--tint);background:var(--tintw)}
+.unres{color:var(--warn);background:var(--warnw);box-shadow:inset 0 -1px 0 var(--warn)}
+
+/* legend */
+.legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
+.lg{display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--panel);font-size:12px}
+.sw{width:14px;height:14px;flex-shrink:0}
+.lg code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:11.5px}
+.later{font-size:11px;padding:2px 8px;color:var(--muted);box-shadow:var(--line2) 0 0 0 1px inset}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main>
+<section class="desk dark" aria-labelledby="t-dark">
+  <h1 id="t-dark">Syntax highlighting · token colors · dark</h1>
+  <p>Tree-sitter captures drawn with bolt's syntax roles. One set of roles on every surface: the JSON you read and the JSON you type match.</p>
+
+  <div class="legend" role="list" aria-label="Syntax roles, dark">
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#9DB1FF"></span><span class="kw">keyword</span><code class="hint">#9DB1FF · accent tint</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#7BE0A0"></span><span class="str">string</span><code class="hint">#7BE0A0</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#B79CFF"></span><span class="num">number</span><code class="hint">#B79CFF · bool, null</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#8E8996"></span><span class="com">comment</span><code class="hint">#8E8996</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#6EA8FF"></span><span class="typ">type_name</span><code class="hint">#6EA8FF · tag</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#FFC23D"></span><span class="fn">function</span><code class="hint">#FFC23D</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#C6C3CC"></span><span class="op">operator</span><code class="hint">#C6C3CC · punctuation</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#F7F4F7"></span><span class="pl">plain</span><code class="hint">#F7F4F7</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#E5A86E"></span><span class="ns">namespace</span><code class="hint">#E5A86E</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#5CCFC9"></span><span class="fld">field</span><code class="hint">#5CCFC9</code></div>
+    <div class="lg c6" role="listitem" style="box-shadow:#9DB1FF 3px 0 0 inset"><span class="sw c4" style="background:#A9A4B2"></span><span class="prop">property</span><code class="hint">#A9A4B2 · new · keys</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:rgba(157,177,255,.12);box-shadow:#9DB1FF 0 0 0 1px inset"></span><span class="var">{{variable}}</span><code class="hint">mark over any role</code></div>
+  </div>
+
+  <!-- (1) Response body -->
+  <div class="state">
+    <div class="state-head"><h3>1 · Response body · JSON and XML</h3><p>Read only. Keys are <span class="prop m">property</span>; values by type. XML/HTML: tag names type_name, attributes property.</p></div>
+    <div class="row">
+      <div class="c14 isl" aria-label="Response body, JSON">
+        <div class="ph"><span class="c6 tab on">Body</span><span class="c6 tab">Headers 9</span><span class="c6 tab">Cookies</span><span style="flex-grow:1"></span><div class="c6 seg"><span class="c4 on">Pretty</span><span>Raw</span><span>Preview</span></div></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="op">{</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  <span class="prop">"id"</span><span class="op">:</span> <span class="str">"in_1Q8f2vKzkNRiz8i3"</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  <span class="prop">"customer"</span><span class="op">:</span> <span class="str">"cus_9s6XKzkNRiz8i3"</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  <span class="prop">"amount_due"</span><span class="op">:</span> <span class="num">4900</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">  <span class="prop">"paid"</span><span class="op">:</span> <span class="num">false</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">6</span><span class="tx">  <span class="prop">"voided_at"</span><span class="op">:</span> <span class="num">null</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">7</span><span class="tx">  <span class="prop">"lines"</span><span class="op">: [</span></span></div>
+          <div class="ln"><span class="no">8</span><span class="tx">    <span class="op">{</span> <span class="prop">"price"</span><span class="op">:</span> <span class="str">"price_pro_monthly"</span><span class="op">,</span> <span class="prop">"quantity"</span><span class="op">:</span> <span class="num">1</span> <span class="op">}</span></span></div>
+          <div class="ln"><span class="no">9</span><span class="tx">  <span class="op">]</span></span></div>
+          <div class="ln"><span class="no">10</span><span class="tx"><span class="op">}</span></span></div>
+        </div>
+      </div>
+      <div class="c14 isl" aria-label="Response body, XML">
+        <div class="ph"><span class="c6 tab on">Body</span><span class="c6 tab">Headers 7</span><span style="flex-grow:1"></span><span class="hint m">application/xml</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="op">&lt;?</span><span class="typ">xml</span> <span class="prop">version</span><span class="op">=</span><span class="str">"1.0"</span> <span class="prop">encoding</span><span class="op">=</span><span class="str">"UTF-8"</span><span class="op">?&gt;</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx"><span class="com">&lt;!-- Invoice export, staging --&gt;</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx"><span class="op">&lt;</span><span class="typ">invoice</span> <span class="prop">id</span><span class="op">=</span><span class="str">"in_1Q8f2vKzkNRiz8i3"</span> <span class="prop">currency</span><span class="op">=</span><span class="str">"eur"</span><span class="op">&gt;</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  <span class="op">&lt;</span><span class="typ">customer</span><span class="op">&gt;</span>cus_9s6XKzkNRiz8i3<span class="op">&lt;/</span><span class="typ">customer</span><span class="op">&gt;</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">  <span class="op">&lt;</span><span class="typ">amount_due</span><span class="op">&gt;</span>4900<span class="op">&lt;/</span><span class="typ">amount_due</span><span class="op">&gt;</span></span></div>
+          <div class="ln"><span class="no">6</span><span class="tx">  <span class="op">&lt;</span><span class="typ">line</span> <span class="prop">price</span><span class="op">=</span><span class="str">"price_pro_monthly"</span> <span class="prop">quantity</span><span class="op">=</span><span class="str">"1"</span><span class="op">/&gt;</span></span></div>
+          <div class="ln"><span class="no">7</span><span class="tx"><span class="op">&lt;/</span><span class="typ">invoice</span><span class="op">&gt;</span></span></div>
+        </div>
+        <p style="padding:0 14px 12px">Element text is plain: the xml grammar captures no type for it. HTML (Preview off, Raw) uses the same roles.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- (2) Raw body editor -->
+  <div class="state">
+    <div class="state-head"><h3>2 · Raw body editor · JSON while typing</h3><p>Same roles as the response. Highlighting follows each keystroke; an unfinished string highlights to the end of the line, the error stays a parse state, never a color.</p></div>
+    <div class="c14 isl" aria-label="Raw body editor, JSON" style="max-width:820px">
+      <div class="ph"><span class="c6 tab">Params</span><span class="c6 tab">Headers 3</span><span class="c6 tab">Auth</span><span class="c6 tab on">Body</span><span class="c6 tab">Scripts</span><span style="flex-grow:1"></span><div class="c6 seg"><span>none</span><span class="c4 on">raw</span><span>form</span><span>urlencoded</span><span>GraphQL</span></div><span class="hint m">JSON</span></div>
+      <div class="code m">
+        <div class="ln"><span class="no">1</span><span class="tx"><span class="op">{</span></span></div>
+        <div class="ln"><span class="no">2</span><span class="tx">  <span class="prop">"customer"</span><span class="op">:</span> <span class="str">"<span class="var">{{customer_id}}</span>"</span><span class="op">,</span></span></div>
+        <div class="ln"><span class="no">3</span><span class="tx">  <span class="prop">"currency"</span><span class="op">:</span> <span class="str">"eur"</span><span class="op">,</span></span></div>
+        <div class="ln"><span class="no">4</span><span class="tx">  <span class="prop">"tenant"</span><span class="op">:</span> <span class="str">"<span class="unres">{{tenant_id}}</span>"</span><span class="op">,</span></span></div>
+        <div class="ln cur"><span class="no" style="color:var(--muted)">5</span><span class="tx">  <span class="prop">"lines"</span><span class="op">: [{</span> <span class="prop">"price"</span><span class="op">:</span> <span class="str">"price_pro_mo</span><span class="caret"></span></span></div>
+        <div class="ln"><span class="no">6</span><span class="tx"><span class="op">}</span></span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- (3) GraphQL -->
+  <div class="state">
+    <div class="state-head"><h3>3 · GraphQL · query and variables</h3><p>The query stays plain: no graphql grammar on tree-sitter 0.26 yet (L26). Variables are JSON and match sections 1 and 2.</p></div>
+    <div class="row">
+      <div class="c14 isl" aria-label="GraphQL query, plain">
+        <div class="ph"><span class="lab">Query</span><span style="flex-grow:1"></span><span class="c4 later">plain · no grammar yet</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx">query Invoice($id: ID!, $expand: Boolean = true) {</span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  invoice(id: $id) {</span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">    id</span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">    amountDue</span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">    lines @include(if: $expand) { price quantity }</span></div>
+          <div class="ln"><span class="no">6</span><span class="tx">  }</span></div>
+          <div class="ln"><span class="no">7</span><span class="tx">}</span></div>
+        </div>
+      </div>
+      <div class="c14 isl" aria-label="GraphQL variables, JSON">
+        <div class="ph"><span class="lab">Variables</span><span style="flex-grow:1"></span><span class="hint m">JSON</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="op">{</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  <span class="prop">"id"</span><span class="op">:</span> <span class="str">"in_1Q8f2vKzkNRiz8i3"</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  <span class="prop">"expand"</span><span class="op">:</span> <span class="num">true</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx"><span class="op">}</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- (4) Scripts -->
+  <div class="state">
+    <div class="state-head"><h3>4 · Pre-request and test scripts · JavaScript</h3><p>Object keys are property, as JSON keys. <span class="m">rf</span> and <span class="m">pm</span> are plain variables; method calls are function.</p></div>
+    <div class="row">
+      <div class="c14 isl" aria-label="Pre-request script">
+        <div class="ph"><span class="c6 tab on">Pre-request</span><span class="c6 tab">Tests</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="com">// Sign the body with the tenant secret</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx"><span class="kw">const</span> secret <span class="op">=</span> rf<span class="op">.</span>variables<span class="op">.</span><span class="fn">get</span><span class="op">(</span><span class="str">"signing_secret"</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx"><span class="kw">const</span> stamp <span class="op">=</span> <span class="typ">Math</span><span class="op">.</span><span class="fn">floor</span><span class="op">(</span><span class="typ">Date</span><span class="op">.</span><span class="fn">now</span><span class="op">() /</span> <span class="num">1000</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx"><span class="kw">if</span> <span class="op">(!</span>secret<span class="op">)</span> <span class="kw">throw</span> <span class="kw">new</span> <span class="typ">Error</span><span class="op">(</span><span class="str">`missing secret at ${</span>stamp<span class="str">}`</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">rf<span class="op">.</span>request<span class="op">.</span>headers<span class="op">.</span><span class="fn">set</span><span class="op">({</span> <span class="prop">name</span><span class="op">:</span> <span class="str">"X-Signature-Ts"</span><span class="op">,</span> <span class="prop">value</span><span class="op">:</span> <span class="typ">String</span><span class="op">(</span>stamp<span class="op">) });</span></span></div>
+        </div>
+      </div>
+      <div class="c14 isl" aria-label="Test script">
+        <div class="ph"><span class="c6 tab">Pre-request</span><span class="c6 tab on">Tests</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx">rf<span class="op">.</span><span class="fn">test</span><span class="op">(</span><span class="str">"creates the invoice"</span><span class="op">, () =&gt; {</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  rf<span class="op">.</span><span class="fn">expect</span><span class="op">(</span>rf<span class="op">.</span>response<span class="op">.</span>code<span class="op">).</span><span class="fn">toBe</span><span class="op">(</span><span class="num">201</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  <span class="kw">const</span> body <span class="op">=</span> rf<span class="op">.</span>response<span class="op">.</span><span class="fn">json</span><span class="op">();</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  rf<span class="op">.</span><span class="fn">expect</span><span class="op">(</span>body<span class="op">.</span>paid<span class="op">).</span><span class="fn">toBe</span><span class="op">(</span><span class="num">false</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">  rf<span class="op">.</span>variables<span class="op">.</span><span class="fn">set</span><span class="op">(</span><span class="str">"invoice_id"</span><span class="op">,</span> body<span class="op">.</span>id<span class="op">);</span></span></div>
+          <div class="ln"><span class="no">6</span><span class="tx"><span class="op">});</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- (5) Codegen -->
+  <div class="state">
+    <div class="state-head"><h3>5 · Generate code dialog</h3><p>bolt ModalCode rows: 46 px gutter in line2, 20 px rows. curl and HTTPie are bash, JavaScript fetch is javascript, Python requests is python, Go stays plain.</p></div>
+    <div class="row">
+      <div class="c14 isl" aria-label="Generated curl, bash">
+        <div class="ph"><div class="c6 seg"><span class="c4 on">curl</span><span>HTTPie</span><span>Python</span><span>JavaScript</span><span>Go</span></div></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="fn">curl</span> <span class="str">'<span class="var">{{base_url}}</span>/v1/invoices?expand=lines'</span> <span class="op">\</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  -X POST <span class="op">\</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  -H <span class="str">'Authorization: Bearer <span class="var">{{access_token}}</span>'</span> <span class="op">\</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  -H <span class="str">'X-Tenant-Id: <span class="unres">{{tenant_id}}</span>'</span> <span class="op">\</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">  --data-raw <span class="str">'{"customer": "cus_9s6XKzkNRiz8i3", "currency": "eur"}'</span></span></div>
+        </div>
+        <p style="padding:0 14px 12px">The quoted body is a bash string: no JSON injection inside it.</p>
+      </div>
+      <div class="c14 isl" aria-label="Generated JavaScript fetch">
+        <div class="ph"><div class="c6 seg"><span>curl</span><span>HTTPie</span><span>Python</span><span class="c4 on">JavaScript</span><span>Go</span></div></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="kw">const</span> response <span class="op">=</span> <span class="kw">await</span> <span class="fn">fetch</span><span class="op">(</span><span class="str">"<span class="var">{{base_url}}</span>/v1/invoices"</span><span class="op">, {</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  <span class="prop">method</span><span class="op">:</span> <span class="str">"POST"</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  <span class="prop">headers</span><span class="op">: {</span> <span class="str">"Authorization"</span><span class="op">:</span> <span class="str">"Bearer <span class="var">{{access_token}}</span>"</span> <span class="op">},</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  <span class="prop">body</span><span class="op">:</span> <span class="typ">JSON</span><span class="op">.</span><span class="fn">stringify</span><span class="op">({</span> <span class="prop">customer</span><span class="op">:</span> <span class="str">"cus_9s6XKzkNRiz8i3"</span> <span class="op">}),</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx"><span class="op">});</span></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <div class="c14 isl" aria-label="Generated Python requests">
+        <div class="ph"><div class="c6 seg"><span>curl</span><span>HTTPie</span><span class="c4 on">Python</span><span>JavaScript</span><span>Go</span></div></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="kw">import</span> requests</span></div>
+          <div class="ln"><span class="no">2</span><span class="tx"></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">response <span class="op">=</span> requests<span class="op">.</span><span class="fn">post</span><span class="op">(</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">    <span class="str">"<span class="var">{{base_url}}</span>/v1/invoices"</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">    headers<span class="op">={</span><span class="str">"Authorization"</span><span class="op">:</span> <span class="str">"Bearer <span class="var">{{access_token}}</span>"</span><span class="op">},</span></span></div>
+          <div class="ln"><span class="no">6</span><span class="tx">    json<span class="op">={</span><span class="str">"customer"</span><span class="op">:</span> <span class="str">"cus_9s6XKzkNRiz8i3"</span><span class="op">,</span> <span class="str">"quantity"</span><span class="op">:</span> <span class="num">1</span><span class="op">},</span></span></div>
+          <div class="ln"><span class="no">7</span><span class="tx">    timeout<span class="op">=</span><span class="num">30</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">8</span><span class="tx"><span class="op">)</span></span></div>
+        </div>
+        <p style="padding:0 14px 12px">Dict keys are Python strings, so they stay string, not property.</p>
+      </div>
+      <div class="c14 isl" aria-label="Generated Go, plain">
+        <div class="ph"><div class="c6 seg"><span>curl</span><span>HTTPie</span><span>Python</span><span>JavaScript</span><span class="c4 on">Go</span></div><span style="flex-grow:1"></span><span class="c4 later">plain · no grammar yet</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx">body := strings.NewReader(`{"customer": "cus_9s6XKzkNRiz8i3"}`)</span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">req, err := http.NewRequest("POST", "{{base_url}}/v1/invoices", body)</span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">if err != nil {</span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">	return err</span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">}</span></div>
+          <div class="ln"><span class="no">6</span><span class="tx">req.Header.Set("Authorization", "Bearer {{access_token}}")</span></div>
+        </div>
+        <p style="padding:0 14px 12px">Plain role throughout, variables included: no grammar means no token to hold the mark. Comes with a go grammar on 0.26.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- (6) Document layout -->
+  <div class="state">
+    <div class="state-head"><h3>6 · Document layout · .http sections</h3><p>No http grammar yet, so the whole section is plain today. Highlighting the JSON body through an injection is later.</p></div>
+    <div class="row">
+      <div class="c14 isl" aria-label="Document section, today">
+        <div class="ph"><span class="lab">Today</span><span style="flex-grow:1"></span><span class="c4 later">plain · no http grammar</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx">### Create invoice</span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">POST {{base_url}}/v1/invoices</span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">Content-Type: application/json</span></div>
+          <div class="ln"><span class="no">4</span><span class="tx"></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">{ "customer": "cus_9s6XKzkNRiz8i3", "currency": "eur" }</span></div>
+        </div>
+      </div>
+      <div class="c14 isl" aria-label="Document section, later">
+        <div class="ph"><span class="lab">Later</span><span style="flex-grow:1"></span><span class="c4 badge">later · needs injection</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx">### Create invoice</span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">POST <span class="var">{{base_url}}</span>/v1/invoices</span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">Content-Type: application/json</span></div>
+          <div class="ln"><span class="no">4</span><span class="tx"></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx"><span class="op">{</span> <span class="prop">"customer"</span><span class="op">:</span> <span class="str">"cus_9s6XKzkNRiz8i3"</span><span class="op">,</span> <span class="prop">"currency"</span><span class="op">:</span> <span class="str">"eur"</span> <span class="op">}</span></span></div>
+        </div>
+        <p style="padding:0 14px 12px">Request lines stay plain; only the body after the blank line takes the json roles. Needs an http grammar or a head/body split before highlighting.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Light: one section, same roles -->
+<section class="desk light" aria-labelledby="t-light">
+  <h2 id="t-light">Light · same roles, bolt SyntaxColors::light</h2>
+  <p>Keyword takes the accent (#2B45B8), not the tint. Property #5C5766 is ReqFlux's current light key color.</p>
+  <div class="legend" role="list" aria-label="Syntax roles, light">
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#2B45B8"></span><span class="kw">keyword</span><code class="hint">#2B45B8 · accent</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#1C7F45"></span><span class="str">string</span><code class="hint">#1C7F45</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#6B4FD8"></span><span class="num">number</span><code class="hint">#6B4FD8</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#6B6572"></span><span class="com">comment</span><code class="hint">#6B6572</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#1F5FD1"></span><span class="typ">type_name</span><code class="hint">#1F5FD1</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#B7791F"></span><span class="fn">function</span><code class="hint">#B7791F</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#3B3740"></span><span class="op">operator</span><code class="hint">#3B3740</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#141118"></span><span class="pl">plain</span><code class="hint">#141118</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#9A5418"></span><span class="ns">namespace</span><code class="hint">#9A5418</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:#0B7A80"></span><span class="fld">field</span><code class="hint">#0B7A80</code></div>
+    <div class="lg c6" role="listitem" style="box-shadow:#2B45B8 3px 0 0 inset"><span class="sw c4" style="background:#5C5766"></span><span class="prop">property</span><code class="hint">#5C5766 · new · keys</code></div>
+    <div class="lg c6" role="listitem"><span class="sw c4" style="background:rgba(43,69,184,.12);box-shadow:#2B45B8 0 0 0 1px inset"></span><span class="var">{{variable}}</span><code class="hint">mark over any role</code></div>
+  </div>
+  <div class="state">
+    <div class="state-head"><h3>Response body and pre-request script</h3><p>Sections 1 and 4 on the light panel.</p></div>
+    <div class="row">
+      <div class="c14 isl" aria-label="Response body, JSON, light">
+        <div class="ph"><span class="c6 tab on">Body</span><span class="c6 tab">Headers 9</span><span style="flex-grow:1"></span><div class="c6 seg"><span class="c4 on">Pretty</span><span>Raw</span><span>Preview</span></div></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="op">{</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx">  <span class="prop">"id"</span><span class="op">:</span> <span class="str">"in_1Q8f2vKzkNRiz8i3"</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx">  <span class="prop">"amount_due"</span><span class="op">:</span> <span class="num">4900</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  <span class="prop">"paid"</span><span class="op">:</span> <span class="num">false</span><span class="op">,</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx">  <span class="prop">"voided_at"</span><span class="op">:</span> <span class="num">null</span></span></div>
+          <div class="ln"><span class="no">6</span><span class="tx"><span class="op">}</span></span></div>
+        </div>
+      </div>
+      <div class="c14 isl" aria-label="Pre-request script, light">
+        <div class="ph"><span class="c6 tab on">Pre-request</span><span class="c6 tab">Tests</span></div>
+        <div class="code m">
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="com">// Sign the body with the tenant secret</span></span></div>
+          <div class="ln"><span class="no">2</span><span class="tx"><span class="kw">const</span> secret <span class="op">=</span> rf<span class="op">.</span>variables<span class="op">.</span><span class="fn">get</span><span class="op">(</span><span class="str">"signing_secret"</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">3</span><span class="tx"><span class="kw">const</span> stamp <span class="op">=</span> <span class="typ">Math</span><span class="op">.</span><span class="fn">floor</span><span class="op">(</span><span class="typ">Date</span><span class="op">.</span><span class="fn">now</span><span class="op">() /</span> <span class="num">1000</span><span class="op">);</span></span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">rf<span class="op">.</span>request<span class="op">.</span>headers<span class="op">.</span><span class="fn">set</span><span class="op">({</span> <span class="prop">name</span><span class="op">:</span> <span class="str">"X-Signature-Ts"</span><span class="op">,</span> <span class="prop">value</span><span class="op">:</span> <span class="str">"<span class="var">{{ts}}</span>"</span> <span class="op">});</span></span></div>
+          <div class="ln"><span class="no">5</span><span class="tx"><span class="kw">if</span> <span class="op">(!</span>secret<span class="op">)</span> <span class="kw">throw</span> <span class="kw">new</span> <span class="typ">Error</span><span class="op">(</span><span class="str">"missing secret"</span><span class="op">);</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+</body></html>
