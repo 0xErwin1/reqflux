@@ -151,7 +151,7 @@ impl Shell {
     }
 
     /// Opens the popover of `name` in the request `request_id`, anchored to `anchor`, and
-    /// focuses its value field. A dynamic variable such as `$guid` has none.
+    /// focuses its value field with the value selected, so typing replaces it. A dynamic variable such as `$guid` has none.
     pub(super) fn open_variable_popover(
         &mut self,
         request_id: &str,
@@ -192,6 +192,7 @@ impl Shell {
         input.update(cx, |state, cx| {
             state.set_placeholder(placeholder, window, cx);
             state.set_value(seed, window, cx);
+            state.select_all(window, cx);
         });
         let popover = VariablePopover {
             anchor: anchor.to_owned(),

@@ -43,7 +43,7 @@ pub(crate) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyEl
 /// [`render`], with each reference of the request `request_id` a mark the variable popover
 /// opens from, element id `<prefix>-var-<n>` for the 1-based reference `n`: a click opens it
 /// without reaching the field's own click, and a 400 ms hover opens it too. The open popover
-/// hangs under its mark.
+/// hangs under its mark; the mark's accessible label stays its own text.
 pub(crate) fn render_marked(
     inspection: &Inspection,
     text: &str,
@@ -98,6 +98,7 @@ fn mark(
     let styled = div()
         .id(SharedString::from(anchor.to_owned()))
         .debug_selector(move || selector)
+        .aria_label(raw.to_owned())
         .relative()
         .cursor_pointer();
     let styled = if resolves {

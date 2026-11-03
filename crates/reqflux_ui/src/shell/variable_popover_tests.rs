@@ -362,3 +362,48 @@ fn a_mark_in_a_grid_cell_opens_the_popover_instead_of_editing(cx: &mut TestAppCo
     );
     assert_eq!(popover_value(cx, &shell), "http://h");
 }
+
+#[gpui::test]
+fn typing_in_the_opened_popover_replaces_the_value(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, Some("staging"));
+
+    click(cx, "request-url-var-1");
+    type_text(cx, "http://x");
+
+    assert_eq!(popover_value(cx, &shell), "http://x");
+}
+
+#[gpui::test]
+fn the_mark_keeps_its_own_label_while_its_popover_is_open(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, Some("staging"));
+
+    click(cx, "request-url-var-1");
+    assert!(popover_open(cx));
+
+    assert_eq!(
+        label_of(cx, "request-url-var-1").as_deref(),
+        Some("{{base}}")
+    );
+}
+
+/// The accessible label of element `id`, if it is shown.
+fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
+    bounds(cx, id)?;
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
+}
