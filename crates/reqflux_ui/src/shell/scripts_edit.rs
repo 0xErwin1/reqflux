@@ -1,18 +1,19 @@
 //! The editable Scripts pane: clicking a script, or the empty state's button, swaps it for
-//! the multi-line editor the raw body uses, whose text lands in the draft's scripts as it
+//! the code editor the raw body uses, highlighted as JavaScript, whose text lands in the draft's scripts as it
 //! is typed. Enter inserts a newline, Ctrl+Enter sends and Escape gives the focus back to
 //! the shell, keeping the text, which is already in the draft. The delete button removes
 //! the script; saving then deletes its sidecar. The editor stays open when the focus moves
 //! elsewhere, but its focus ring shows only while it has the focus (S11).
 
-use gpui::{AppContext as _, Context, Entity, Subscription, Window};
-use gpui_component::input::{InputEvent, TextareaState};
+use gpui::{Context, Entity, Subscription, Window};
+use gpui_component::input::{EditorState, InputEvent};
 use reqflux_core::model::Scripts;
 
 use super::Shell;
+use super::code_edit;
 
 /// The rows the script editor shows.
-const EDITOR_ROWS: usize = 12;
+pub(crate) const EDITOR_ROWS: usize = 12;
 
 /// One of a request's two scripts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,7 +65,7 @@ impl ScriptSlot {
 pub(crate) struct ScriptEdit {
     pub(crate) request_id: String,
     pub(crate) slot: ScriptSlot,
-    pub(crate) input: Entity<TextareaState>,
+    pub(crate) input: Entity<EditorState>,
     /// Whether the editor has the focus, which its ring shows.
     pub(crate) focused: bool,
     /// Puts the text into the draft on every change and follows the focus.
@@ -99,11 +100,7 @@ impl Shell {
             return;
         };
         let text = slot.text(&scripts).unwrap_or_default().to_owned();
-        let input = cx.new(|cx| TextareaState::new(window, cx).rows(EDITOR_ROWS));
-        input.update(cx, |state, cx| {
-            state.set_value(text, window, cx);
-            state.focus(window, cx);
-        });
+        let input = code_edit::open("javascript", text, window, cx);
         let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| match event {
             InputEvent::Change => {
                 if let Some((id, slot)) = this

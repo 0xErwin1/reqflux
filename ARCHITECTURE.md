@@ -494,11 +494,18 @@ exists:
   is added or deleted, so typed text never lands in a shifted row.
 - **Body.** The mode row (`request-body-mode`) opens a menu (`body-mode-<none|json|xml|text|
   urlencoded|formdata>`); switching between raw languages keeps the text, any other switch
-  starts empty. Raw text opens a multi-line editor (`request-body-input`) that writes the
-  draft as it is typed: Enter inserts a newline, Ctrl+Enter sends, Escape leaves it. The
+  starts empty. Raw text opens a code editor (`request-body-input`) that writes the
+  draft as it is typed: Enter inserts a newline, Ctrl+Enter sends, Escape leaves it.
+  Highlighting (design/syntax/01): the raw text, its read-only well included, takes the
+  grammar of its language (JSON, XML, HTML, JavaScript; Text is plain), and the open editor
+  follows the language menu. The code editors are gpui-component's `EditorState` through
+  `shell::code_edit`, with line numbers and without auto-closed brackets or smart indent, so a
+  keystroke lands as typed; Tab indents by two spaces. Read-only wells draw `bolt`'s runs
+  through `shell::syntax` with the `{{name}}` marks laid over them. The
   urlencoded and form-data grids edit like Params and Headers (a file part's value is its
   path). The GraphQL query (`request-body-query`) and variables (`request-body-variables`)
-  each open a multi-line editor (`request-body-query-input`, `request-body-variables-input`)
+  each open a code editor (`request-body-query-input`, `request-body-variables-input`); the
+  query is plain (no graphql grammar on tree-sitter 0.26 yet), the variables are JSON,
   that writes the draft as it is typed, one field at a time; the variables are validated as
   JSON on every edit against what the engine sends, the badge
   (`request-body-variables-badge`) shows `VALID JSON` or `NOT VALID JSON`, a failure shows the
@@ -1264,6 +1271,9 @@ number of unresolved ones is shown in the sub-tab bar, or the inspection `proble
 place (`request-problem`), and a value that references a secret, a password, a token, an API key value or
 any field of an auth type the engine does not support is masked as `••••••••` on screen and
 in the automation tree.
+The Scripts pane's pre-request and test scripts, read-only and in their editor, are
+highlighted as JavaScript; the Document layout's `.http` editor stays plain (no http grammar,
+and a JSON body inside a section needs an injection or a head/body split: later).
 
 Send or Ctrl+Enter sends the active request with the active environment through
 `Engine::execute`. The UI awaits the execution's `JoinHandle` on GPUI's executor with

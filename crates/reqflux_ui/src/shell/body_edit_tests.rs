@@ -591,3 +591,72 @@ fn picking_the_stored_graphql_mode_still_creates_no_draft(cx: &mut TestAppContex
         "nothing opened"
     );
 }
+
+/// The grammar the open raw body editor highlights with.
+fn raw_editor_language(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<String> {
+    cx.update(|cx| {
+        shell
+            .read(cx)
+            .body_edit
+            .as_ref()
+            .map(|edit| edit.input.read(cx).language_name().to_string())
+    })
+}
+
+/// The grammar of the open GraphQL editor.
+fn graphql_editor_language(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<String> {
+    cx.update(|cx| {
+        shell
+            .read(cx)
+            .requests
+            .get(POSTED)
+            .and_then(|state| state.graphql_edit.as_ref())
+            .map(|edit| edit.input.read(cx).language_name().to_string())
+    })
+}
+
+#[gpui::test]
+fn the_raw_editor_highlights_with_the_body_language(cx: &mut TestAppContext) {
+    let dir = json_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+
+    click(cx, "request-body-code");
+    assert_eq!(raw_editor_language(cx, &shell).as_deref(), Some("json"));
+
+    pick_language(cx, "xml");
+    assert_eq!(
+        raw_editor_language(cx, &shell).as_deref(),
+        Some("xml"),
+        "the open editor follows the language menu"
+    );
+    pick_language(cx, "text");
+    assert_eq!(raw_editor_language(cx, &shell).as_deref(), Some("text"));
+    assert!(
+        cx.update(|_, cx| bolt::syntax::highlight("text", "{\"a\": 1}", cx))
+            .is_empty(),
+        "text colors nothing"
+    );
+
+    click(cx, "request-body-input");
+    type_text(cx, "{");
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(raw(RawLanguage::Text, "{}{")),
+        "an opening brace types alone"
+    );
+}
+
+#[gpui::test]
+fn the_graphql_query_stays_plain_and_the_variables_are_json(cx: &mut TestAppContext) {
+    let dir = body_workspace("mode = \"graphql\"\nquery = \"query Q { ok }\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+
+    click(cx, "request-body-query");
+    assert_eq!(graphql_editor_language(cx, &shell).as_deref(), Some("text"));
+    click(cx, "request-body-variables");
+    assert_eq!(graphql_editor_language(cx, &shell).as_deref(), Some("json"));
+}

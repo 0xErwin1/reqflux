@@ -460,3 +460,20 @@ fn the_payload_round_trips_the_request_and_its_scripts() {
         }
     }
 }
+
+#[gpui::test]
+fn the_script_editor_highlights_javascript(cx: &mut TestAppContext) {
+    let dir = scripts_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_scripts(cx);
+    write_test(cx, &shell);
+    let language = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .script_edit
+            .as_ref()
+            .map(|edit| edit.input.read(cx).language_name().to_string())
+    });
+    assert_eq!(language.as_deref(), Some("javascript"));
+}

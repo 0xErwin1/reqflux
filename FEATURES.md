@@ -58,6 +58,7 @@ v1.
 | Feature | Level |
 |---------|-------|
 | Body as pretty, raw and preview (HTML and images) | MVP |
+| Syntax highlighting from `bolt`'s Tree-sitter grammars: JSON, XML and HTML responses, the raw body, GraphQL variables, scripts and generated code | v1 |
 | Status, total time and size | MVP |
 | Headers and cookies | MVP |
 | Large responses (several MB) without blocking the UI | MVP |
@@ -143,12 +144,9 @@ One MCP server, `reqflux`, for everything.
 
 Directions, not commitments:
 
-- **Syntax highlighting in every editor, from `bolt`.** `bolt` owns the token colour roles on its
-  palette and the `gpui-component` language-registry seam (`tree-sitter` with the grammars the
-  family uses), so DBFlux and ReqFlux highlight the same way; ReqFlux then uses it in the
-  response body (replacing its JSON-only tokenizer, which today leaves XML and HTML plain), the
-  request body, the GraphQL query and variables, and the scripts. Half of it would look worse
-  than none: the JSON you read and the JSON you type must match.
+- **Syntax highlighting for the rest.** GraphQL queries, Go code and `.http` request lines once
+  their grammars are confirmed on tree-sitter 0.26, and JSON bodies inside a Document section
+  through an injection.
 
 - **Peer-to-peer sync.** A coordination server where peers only discover each other by sharing
   an id, then sync workspaces directly, in the spirit of Tailscale. This is the path to

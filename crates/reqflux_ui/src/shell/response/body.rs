@@ -12,10 +12,10 @@ use gpui::{
 };
 
 use super::search::Hit;
-use super::syntax::pieces;
 use super::views::ViewState;
 use crate::shell::request::{Received, size_text};
 use crate::shell::rows::{labeled_row, part};
+use crate::shell::syntax::{pieces, styled};
 use crate::shell::{region, text_region};
 use crate::tokens;
 
@@ -134,16 +134,7 @@ fn line_row(
                 .into_iter()
                 .filter_map(|piece| {
                     let text = line.get(piece.range.clone())?.to_owned();
-                    let style = piece.style.unwrap_or_default();
-                    let element = div()
-                        .when_some(style.color, |div, color| div.text_color(color))
-                        .when_some(style.font_weight, |div, weight| div.font_weight(weight))
-                        .when_some(style.background_color, |div, color| div.bg(color))
-                        .when_some(style.underline, |div, underline| {
-                            div.border_b(underline.thickness)
-                                .when_some(underline.color, |div, color| div.border_color(color))
-                        })
-                        .child(text);
+                    let element = styled(text, piece.style.unwrap_or_default());
                     // The first piece of a match carries its id; a match a syntax run cuts
                     // continues in the next piece.
                     Some(match piece.hit {

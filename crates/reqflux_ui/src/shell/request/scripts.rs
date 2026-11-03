@@ -10,15 +10,15 @@ use bolt::controls::{Button, InputEnter, InputEscape};
 use bolt::primitives::{Chamfer, Icon, TextVariant};
 use bolt::tokens::{Borders, ChamferCut, EditorMetrics, Fields, HeaderMetrics, Spacing};
 use gpui::{AnyElement, Context, ParentElement, Role, Styled, div, prelude::*};
-use gpui_component::input::Textarea;
 use gpui_kit_assets::IconName;
 use reqflux_engine::Inspection;
 
 use super::body::controls::focus_ring;
 use super::{code, ui};
 use crate::shell::Shell;
+use crate::shell::code_edit;
 use crate::shell::rows::part;
-use crate::shell::scripts_edit::ScriptSlot;
+use crate::shell::scripts_edit::{EDITOR_ROWS, ScriptSlot};
 
 /// The heading, the empty-state title and text, and the empty state's button of `slot`.
 fn copy(slot: ScriptSlot) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -157,14 +157,11 @@ fn editor_box(
                 this.close_script_edit(window, cx);
             }))
             .child(
-                part(format!("request-script-{slot_id}-input")).child(
-                    Textarea::new(&input)
-                        .appearance(false)
-                        .bordered(false)
-                        .text_size(EditorMetrics::CODE_FONT)
-                        .font_family(bolt::fonts::editor_family(cx))
-                        .text_color(colors.foreground),
-                ),
+                part(format!("request-script-{slot_id}-input")).child(code_edit::element(
+                    &input,
+                    EDITOR_ROWS,
+                    cx,
+                )),
             )
             .into_any_element(),
         (None, Some(text)) => {
@@ -180,6 +177,7 @@ fn editor_box(
                     format!("request-script-{slot_id}"),
                     &format!("request-script-{slot_id}-line"),
                     text,
+                    "javascript",
                     cx,
                 ))
                 .into_any_element()

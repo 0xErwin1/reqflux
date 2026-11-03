@@ -1,18 +1,19 @@
 //! The editable Body pane: the mode control switches the body mode, the language menu the
 //! language of a raw body, and clicking the raw text
-//! swaps it for a multi-line editor whose text lands in the draft as it is typed, as the
-//! URL field's does. Enter inserts a newline, Ctrl+Enter sends and Escape gives the focus
+//! swaps it for a code editor highlighted in the body's language (see [`super::code_edit`])
+//! whose text lands in the draft as it is typed, as the URL field's does. Enter inserts a newline, Ctrl+Enter sends and Escape gives the focus
 //! back to the shell, keeping the text, which is already in the draft. The editor stays open
 //! when the focus moves elsewhere; its focus ring shows only while it has the focus (S11).
 //! The urlencoded and
 //! form-data grids edit through the grid cells with the table `body`. GraphQL and binary
 //! bodies stay read-only.
 
-use gpui::{AppContext as _, Context, Entity, Subscription, Window};
-use gpui_component::input::{InputEvent, TextareaState};
+use gpui::{Context, Entity, Subscription, Window};
+use gpui_component::input::{EditorState, InputEvent};
 use reqflux_core::model::{Body, FormPart, RawLanguage};
 
 use super::Shell;
+use super::code_edit;
 
 /// The modes the mode control offers, by their id and name, left to right.
 pub(crate) const BODY_MODES: [(&str, &str); 6] = [
@@ -33,7 +34,7 @@ pub(crate) const RAW_LANGUAGES: [(&str, &str, RawLanguage); 3] = [
 ];
 
 /// The rows the raw text editor shows.
-const EDITOR_ROWS: usize = 12;
+pub(crate) const EDITOR_ROWS: usize = 12;
 
 /// The mode id of `body`.
 pub(crate) fn body_kind(body: &Body) -> &'static str {
@@ -114,7 +115,7 @@ pub(crate) fn body_cell(
 /// The raw text editor of a request: the request it edits and its state.
 pub(crate) struct BodyEdit {
     pub(crate) request_id: String,
-    pub(crate) input: Entity<TextareaState>,
+    pub(crate) input: Entity<EditorState>,
     /// Whether the editor has the focus, which its ring shows.
     pub(crate) focused: bool,
     /// Puts the text into the draft on every change and follows the focus.
@@ -198,10 +199,13 @@ impl Shell {
             },
             cx,
         );
+        if let Some(edit) = self.body_edit.as_ref().filter(|edit| edit.request_id == id) {
+            code_edit::set_language(&edit.input, code_edit::raw_grammar(language), cx);
+        }
     }
 
-    /// Swaps the raw text of the request `id` for a focused multi-line editor seeded with
-    /// it. An open cell field commits first.
+    /// Swaps the raw text of the request `id` for a focused code editor seeded with it, in
+    /// its language. An open cell field commits first.
     pub(super) fn start_body_edit(
         &mut self,
         id: &str,
@@ -212,14 +216,10 @@ impl Shell {
         if self.body_edit_of(id) {
             return;
         }
-        let Some(Body::Raw { text, .. }) = self.displayed_body(id) else {
+        let Some(Body::Raw { text, language }) = self.displayed_body(id) else {
             return;
         };
-        let input = cx.new(|cx| TextareaState::new(window, cx).rows(EDITOR_ROWS));
-        input.update(cx, |state, cx| {
-            state.set_value(text, window, cx);
-            state.focus(window, cx);
-        });
+        let input = code_edit::open(code_edit::raw_grammar(language), text, window, cx);
         let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| match event {
             InputEvent::Change => {
                 if let Some(id) = this.body_edit.as_ref().map(|edit| edit.request_id.clone()) {

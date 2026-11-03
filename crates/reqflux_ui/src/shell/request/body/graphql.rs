@@ -1,6 +1,6 @@
-//! The GraphQL body editing (v1-features S7, design/layouts/01 D6): the query and the
-//! variables are plain text, each edited in a multi-line editor opened from its read-only
-//! well, one at a time per request, like the raw body's. Every keystroke lands in the
+//! The GraphQL body editing (v1-features S7, design/layouts/01 D6): the query, plain text
+//! (no graphql grammar yet), and the variables, highlighted as JSON (design/syntax/01), each
+//! edited in a code editor opened from its read-only well, one at a time per request, like the raw body's. Every keystroke lands in the
 //! draft as it is typed; Enter inserts a newline, Ctrl+Enter sends — and refuses while the
 //! variables are not valid JSON — and Escape closes the editor keeping the text. The
 //! variables are validated on every edit against what the engine sends: a failure shows
@@ -8,18 +8,19 @@
 
 use bolt::controls::{InputEnter, InputEscape};
 use bolt::primitives::{Badge, BadgeTone, Icon, TextVariant};
-use bolt::tokens::{EditorMetrics, Fields, Spacing};
+use bolt::tokens::{Fields, Spacing};
 use gpui::prelude::*;
 use gpui::{
     AnyElement, Context, Entity, InteractiveElement, Role, Styled, Subscription, Window, div,
 };
-use gpui_component::input::{InputEvent, Textarea, TextareaState};
+use gpui_component::input::{EditorState, InputEvent};
 use gpui_kit_assets::IconName;
 use reqflux_core::model::Body;
 use reqflux_engine::Inspection;
 
 use super::super::{code, ui};
 use super::controls::{focus_ring, text_well};
+use crate::shell::code_edit;
 use crate::shell::rows::part;
 use crate::shell::{Shell, region};
 
@@ -46,6 +47,14 @@ impl GraphqlField {
         }
     }
 
+    /// The grammar its editor and well highlight with.
+    pub(crate) fn language(self) -> &'static str {
+        match self {
+            Self::Query => code_edit::PLAIN,
+            Self::Variables => "json",
+        }
+    }
+
     /// The name the column label shows.
     fn label(self) -> &'static str {
         match self {
@@ -58,7 +67,7 @@ impl GraphqlField {
 /// The GraphQL editor of one request: the field it edits and its state.
 pub(crate) struct GraphqlEdit {
     pub(crate) field: GraphqlField,
-    pub(crate) input: Entity<TextareaState>,
+    pub(crate) input: Entity<EditorState>,
     /// Whether the editor has the focus, which its ring shows.
     pub(crate) focused: bool,
     /// Puts the text into the draft on every change and follows the focus.
@@ -194,6 +203,7 @@ fn column(
                 format!("{}-code", field.well_id()),
                 field.well_id(),
                 text,
+                field.language(),
                 cx,
             );
             let well = text_well(field.well_id().to_owned(), cx)
@@ -229,7 +239,6 @@ fn editor(
         .graphql_edit
         .as_ref()
         .filter(|edit| edit.field == field)?;
-    let colors = bolt::colors(cx);
     let request = request_id.to_owned();
     let escape_request = request.clone();
     Some(
@@ -245,14 +254,7 @@ fn editor(
             .on_action(cx.listener(move |this, _: &InputEscape, window, cx| {
                 this.close_graphql_edit(&escape_request, window, cx);
             }))
-            .child(
-                Textarea::new(&edit.input)
-                    .appearance(false)
-                    .bordered(false)
-                    .text_size(EditorMetrics::CODE_FONT)
-                    .font_family(bolt::fonts::editor_family(cx))
-                    .text_color(colors.foreground),
-            )
+            .child(code_edit::element(&edit.input, EDITOR_ROWS, cx))
             .when(edit.focused, |well| {
                 well.child(focus_ring(format!("{}-focus-ring", field.well_id()), cx))
             })
@@ -281,7 +283,7 @@ impl Shell {
         }
     }
 
-    /// Swaps the GraphQL `field` of the request `id` for a focused multi-line editor
+    /// Swaps the GraphQL `field` of the request `id` for a focused code editor
     /// seeded with it. An open cell field commits first; the editor of the other field, if
     /// open, closes for it. Opening the field that is already open changes nothing.
     pub(super) fn start_graphql_edit(
@@ -308,11 +310,7 @@ impl Shell {
             GraphqlField::Query => query,
             GraphqlField::Variables => variables,
         };
-        let input = cx.new(|cx| TextareaState::new(window, cx).rows(EDITOR_ROWS));
-        input.update(cx, |state, cx| {
-            state.set_value(text, window, cx);
-            state.focus(window, cx);
-        });
+        let input = code_edit::open(field.language(), text.clone(), window, cx);
         let request_id = id.to_owned();
         let change = cx.subscribe(
             &input,

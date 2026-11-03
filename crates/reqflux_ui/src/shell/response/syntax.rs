@@ -1,21 +1,17 @@
-//! The syntax colors of the response body (design/syntax/01): `bolt`'s Tree-sitter runs of
-//! the lines a view shows, computed once per lines and palette and split by line, and the
-//! search matches drawn over them.
+//! The syntax runs of the response body (design/syntax/01): `bolt`'s Tree-sitter runs of
+//! the lines a view shows, computed once per lines and palette and split by line.
 
 use std::cell::RefCell;
-use std::ops::Range;
 use std::sync::Arc;
 
-use gpui::{App, HighlightStyle};
+use gpui::App;
 
+use crate::shell::syntax::{LineRuns, highlight_lines};
 use crate::tokens::Palette;
 
 /// The most body text the response highlights: a larger body is drawn plain, so one
 /// response never parses megabytes on the UI thread.
 pub(crate) const HIGHLIGHT_LIMIT: usize = 1024 * 1024;
-
-/// The syntax runs of one line, byte ranges into that line.
-pub(crate) type LineRuns = Vec<(Range<usize>, HighlightStyle)>;
 
 /// The runs last computed and what they were computed from: the lines, by identity, their
 /// language and the palette.
@@ -52,8 +48,7 @@ impl SyntaxCache {
         if size > HIGHLIGHT_LIMIT {
             return None;
         }
-        let text = lines.join("\n");
-        let runs: Arc<[LineRuns]> = by_line(lines, bolt::syntax::highlight(language, &text, cx));
+        let runs: Arc<[LineRuns]> = highlight_lines(lines, language, cx).into();
         *cache = Some(Cached {
             lines: Arc::clone(lines),
             language,
@@ -64,83 +59,9 @@ impl SyntaxCache {
     }
 }
 
-/// `runs` over `lines` joined by `\n`, cut at the line ends and moved to each line's
-/// offsets.
-fn by_line(lines: &[String], runs: Vec<(Range<usize>, HighlightStyle)>) -> Arc<[LineRuns]> {
-    let mut out: Vec<LineRuns> = vec![Vec::new(); lines.len()];
-    let mut starts = Vec::with_capacity(lines.len());
-    let mut offset = 0;
-    for line in lines {
-        starts.push(offset);
-        offset += line.len() + 1;
-    }
-    for (range, style) in runs {
-        let first = starts.partition_point(|start| *start <= range.start);
-        for index in first.saturating_sub(1)..lines.len() {
-            let (Some(start), Some(line), Some(runs)) =
-                (starts.get(index), lines.get(index), out.get_mut(index))
-            else {
-                break;
-            };
-            if *start >= range.end {
-                break;
-            }
-            let from = range.start.max(*start) - start;
-            let to = range.end.min(start + line.len()) - start;
-            if from < to {
-                runs.push((from..to, style));
-            }
-        }
-    }
-    out.into()
-}
-
-/// One stretch of a line as the body draws it: its bytes, its style (`None` draws the
-/// plain text color) and, when a search match starts there, the match's index on the line.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct Piece {
-    pub(crate) range: Range<usize>,
-    pub(crate) style: Option<HighlightStyle>,
-    pub(crate) hit: Option<usize>,
-}
-
-/// The pieces of a line `len` bytes long: the `matches` (in line order) drawn over the
-/// `syntax` runs with `bolt::syntax::overlay`, cut where a match starts so each match
-/// begins a piece.
-pub(crate) fn pieces(
-    len: usize,
-    syntax: &[(Range<usize>, HighlightStyle)],
-    matches: &[(Range<usize>, HighlightStyle)],
-) -> Vec<Piece> {
-    let runs = bolt::syntax::overlay(syntax.iter().cloned(), matches.iter().cloned());
-    let mut cuts: Vec<usize> = runs
-        .iter()
-        .flat_map(|(range, _)| [range.start, range.end])
-        .chain(matches.iter().map(|(range, _)| range.start))
-        .filter(|at| *at < len)
-        .chain([0, len])
-        .collect();
-    cuts.sort_unstable();
-    cuts.dedup();
-    cuts.windows(2)
-        .filter_map(|cut| match cut {
-            [from, to] if from < to => Some(*from..*to),
-            _ => None,
-        })
-        .map(|range| Piece {
-            style: runs
-                .iter()
-                .find(|(run, _)| run.start <= range.start && range.end <= run.end)
-                .map(|(_, style)| *style),
-            hit: matches.iter().position(|(hit, _)| hit.start == range.start),
-            range,
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
-    use gpui::{TestAppContext, hsla};
+    use gpui::{HighlightStyle, TestAppContext};
 
     use super::*;
     use crate::shell::response::BodyText;
@@ -245,68 +166,5 @@ mod tests {
         assert!(cx.update(|cx| cache.runs(&big, Some("json"), cx)).is_none());
         let small: Arc<[String]> = vec!["1".to_owned()].into();
         assert!(cx.update(|cx| cache.runs(&small, None, cx)).is_none());
-    }
-
-    #[test]
-    fn runs_split_at_line_ends() {
-        let lines = ["ab".to_owned(), "cde".to_owned()];
-        let style = HighlightStyle::default();
-        let runs = by_line(&lines, vec![(1..5, style)]);
-        assert_eq!(&*runs, &[vec![(1..2, style)], vec![(0..2, style)]]);
-    }
-
-    #[test]
-    fn a_search_match_draws_over_the_syntax_and_starts_a_piece() {
-        let key = HighlightStyle {
-            color: Some(hsla(0.1, 0.1, 0.1, 1.0)),
-            ..Default::default()
-        };
-        let hit = HighlightStyle {
-            color: Some(hsla(0.5, 0.5, 0.5, 1.0)),
-            background_color: Some(hsla(0.2, 0.2, 0.2, 1.0)),
-            ..Default::default()
-        };
-        // `  "id": 1` with the key styled and the matches `i` and `d` next to each other.
-        let drawn = pieces(9, &[(2..6, key)], &[(3..4, hit), (4..5, hit)]);
-        assert_eq!(
-            drawn,
-            vec![
-                Piece {
-                    range: 0..2,
-                    style: None,
-                    hit: None
-                },
-                Piece {
-                    range: 2..3,
-                    style: Some(key),
-                    hit: None
-                },
-                Piece {
-                    range: 3..4,
-                    style: Some(hit),
-                    hit: Some(0)
-                },
-                Piece {
-                    range: 4..5,
-                    style: Some(hit),
-                    hit: Some(1)
-                },
-                Piece {
-                    range: 5..6,
-                    style: Some(key),
-                    hit: None
-                },
-                Piece {
-                    range: 6..9,
-                    style: None,
-                    hit: None
-                },
-            ]
-        );
-        assert_eq!(
-            pieces(0, &[], &[]),
-            Vec::<Piece>::new(),
-            "an empty line has no pieces"
-        );
     }
 }

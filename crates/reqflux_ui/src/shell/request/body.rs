@@ -12,9 +12,8 @@ pub(super) mod graphql;
 
 use bolt::controls::{InputEnter, InputEscape};
 use bolt::primitives::SegmentedItem;
-use bolt::tokens::{Borders, EditorMetrics, ResultMetrics, Spacing};
+use bolt::tokens::{Borders, ResultMetrics, Spacing};
 use gpui::{AnyElement, Context, ParentElement, SharedString, Styled, Window, div, prelude::*};
-use gpui_component::input::Textarea;
 use gpui_kit_assets::IconName;
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
@@ -24,7 +23,8 @@ use super::pane_model::body_mode;
 use super::segmented::control;
 use super::{body_menu, code, grid, ui};
 use crate::shell::Shell;
-use crate::shell::body_edit::{BODY_MODES, body_hint, body_kind};
+use crate::shell::body_edit::{BODY_MODES, EDITOR_ROWS, body_hint, body_kind};
+use crate::shell::code_edit;
 use crate::shell::rows::part;
 
 /// The icon of the mode `kind` in the mode control.
@@ -148,7 +148,6 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
         .body_edit
         .as_ref()
         .filter(|edit| edit.request_id == request_id)?;
-    let colors = bolt::colors(cx);
     Some(
         text_well("request-body-input".to_owned(), cx)
             .mx(Spacing::MD)
@@ -164,14 +163,7 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
             .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                 this.close_body_edit(window, cx);
             }))
-            .child(
-                Textarea::new(&edit.input)
-                    .appearance(false)
-                    .bordered(false)
-                    .text_size(EditorMetrics::CODE_FONT)
-                    .font_family(bolt::fonts::editor_family(cx))
-                    .text_color(colors.foreground),
-            )
+            .child(code_edit::element(&edit.input, EDITOR_ROWS, cx))
             .when(edit.focused, |well| {
                 well.child(focus_ring("request-body-input-focus-ring".to_owned(), cx))
             })
@@ -190,12 +182,13 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> Vec<AnyElement> {
     let mode = mode_row(request_id, body, shell, window, cx);
-    let code_block = |text: &str, cx: &mut Context<Shell>| {
+    let code_block = |text: &str, language: RawLanguage, cx: &mut Context<Shell>| {
         code::block(
             inspection,
             "request-body-code".to_owned(),
             "request-body-line",
             text,
+            code_edit::raw_grammar(language),
             cx,
         )
     };
@@ -205,11 +198,11 @@ pub(super) fn render(
             IconName::Ban,
             "This request has no body",
         )],
-        Body::Raw { text, .. } => match editor(shell, request_id, cx) {
+        Body::Raw { text, language } => match editor(shell, request_id, cx) {
             Some(editor) => vec![editor],
             None => {
                 let request = request_id.to_owned();
-                let block = code_block(text, cx);
+                let block = code_block(text, *language, cx);
                 vec![
                     text_well("request-body-raw".to_owned(), cx)
                         .mx(Spacing::MD)
