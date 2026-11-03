@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use bolt::components::grid::{GridCellCoord, GridHost, render_rows};
+use bolt::components::grid::{GridCellCoord, GridColors, GridHost, render_rows};
 use bolt::data::{
     CellAlignment, CellTone, CellView, ColumnKind, ColumnView, RowVisualState, StaticRows,
 };
@@ -94,9 +94,7 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
                 GridMetrics::ROW_HEIGHT,
                 GridMetrics::HEADER_ICON,
                 null_color,
-                // bolt gap: `render_rows` takes gpui-component's theme; the grid only hands
-                // it on, no field is read here.
-                cx.global::<gpui_component::theme::Theme>(),
+                &GridColors::of(cx.global::<gpui_component::theme::Theme>()),
             )
         },
     )
