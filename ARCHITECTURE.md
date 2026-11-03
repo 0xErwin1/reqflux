@@ -1427,6 +1427,7 @@ field takes keys first. `[keymap]` in the user's config.toml rebinds any command
 | Send request, Cancel send | Ctrl+Enter, Escape | a request is open |
 | Save request, Revert request | Ctrl+S, Ctrl+Shift+R | the active request has a draft |
 | Generate code | Ctrl+Shift+C | a request is open |
+| Undo curl paste | Ctrl+Alt+Z | a pasted curl command is not undone yet (the paste toast's Undo shows the key) |
 | Run collection… | Ctrl+Alt+R | a collection exists |
 | New request | Ctrl+N | a collection exists (in the selected collection or folder) |
 | New collection, New environment | Ctrl+Shift+N, Ctrl+Shift+E | a workspace is open |

@@ -145,6 +145,7 @@ commands! {
     SaveRequest: SaveRequest, "save-request", "Save request", "ctrl-s", Request, has_draft;
     RevertRequest: RevertRequest, "revert-request", "Revert request", "ctrl-shift-r", Request, has_draft;
     GenerateCode: GenerateCode, "generate-code", "Generate code", "ctrl-shift-c", Request, has_request;
+    UndoPaste: UndoPaste, "undo-paste", "Undo curl paste", "ctrl-alt-z", Request, can_undo_paste;
     RunCollection: RunCollection, "run-collection", "Run collection…", "ctrl-alt-r", Request, has_collection;
     NewRequest: NewRequest, "new-request", "New request", "ctrl-n", Request, has_collection;
     NewCollection: NewCollection, "new-collection", "New collection", "ctrl-shift-n", Request, loaded;
@@ -279,6 +280,15 @@ fn has_tab(shell: &Shell) -> Result<(), &'static str> {
     }
 }
 
+/// Whether a pasted curl command can be taken back: the last paste is not undone yet.
+fn can_undo_paste(shell: &Shell) -> Result<(), &'static str> {
+    if shell.curl_undo.is_some() {
+        Ok(())
+    } else {
+        Err("no curl paste to undo")
+    }
+}
+
 fn has_draft(shell: &Shell) -> Result<(), &'static str> {
     has_request(shell)?;
     if shell
@@ -331,6 +341,7 @@ impl Shell {
                 }
             }
             CommandId::GenerateCode => self.open_codegen_active(window, cx),
+            CommandId::UndoPaste => self.undo_paste_from_key(cx),
             CommandId::RunCollection => self.open_run_for_selection(cx),
             CommandId::NewRequest => self.new_request(window, cx),
             CommandId::NewCollection => {

@@ -52,7 +52,7 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::SendRequest => IconName::Send,
         CommandId::CancelSend | CommandId::CloseWorkspace | CommandId::CloseTab => IconName::Close,
         CommandId::SaveRequest => IconName::Save,
-        CommandId::RevertRequest => IconName::RotateCcw,
+        CommandId::RevertRequest | CommandId::UndoPaste => IconName::RotateCcw,
         CommandId::GenerateCode => IconName::Code,
         CommandId::RunCollection => IconName::Play,
         CommandId::NewRequest | CommandId::NewEnvironment => IconName::Plus,

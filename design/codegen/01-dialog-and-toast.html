@@ -8,7 +8,9 @@
   A pasted curl command replaces the draft at once and reports through a bolt toast with Undo.
   Undo is bolt's toast action button (ToastAction). The generated code is the engine's: every
   {{variable}} stays as written, secret or not; nothing is resolved from the environment.
-  bolt gap: modal_code has no line numbers; ToastAction has no keycap.
+  Undo shows the key of the Undo curl paste command (Ctrl+Alt+Z by default, rebindable in
+  Settings > Keymap) as a keycap inside the button (ToastAction::key_hint); the button keeps
+  "Undo" as its name. bolt gap: modal_code has no line numbers.
 -->
 <style>
 body{margin:0;background:#09090B}
@@ -400,7 +402,7 @@ button{font:inherit;white-space:nowrap}
       <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
     </div>
     <div class="details m">--proxy is not supported and was ignored<br>--cookie with a file is not supported and was ignored</div>
-    <div style="display:flex;justify-content:flex-end"><button class="c6 btn">Undo</button></div>
+    <div style="display:flex;justify-content:flex-end"><button class="c6 btn" style="display:inline-flex;align-items:center;gap:8px" aria-label="Undo">Undo <span class="kc">Ctrl Alt Z</span></button></div>
   </div>
 </div></div>
 
@@ -412,7 +414,7 @@ button{font:inherit;white-space:nowrap}
       <div class="tt"><span class="title">Request replaced from curl</span><span class="sub">Method, URL, 3 headers, form body</span></div>
       <button class="close" aria-label="Dismiss"><svg class="ico" style="width:12px;height:12px"><use href="#i-x"/></svg></button>
     </div>
-    <div style="display:flex;justify-content:flex-end"><button class="c6 btn">Undo</button></div>
+    <div style="display:flex;justify-content:flex-end"><button class="c6 btn" style="display:inline-flex;align-items:center;gap:8px" aria-label="Undo">Undo <span class="kc">Ctrl Alt Z</span></button></div>
   </div>
   <div class="toast ok c12" role="status">
     <div class="head">

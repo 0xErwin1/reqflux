@@ -8,7 +8,9 @@ use super::REPLACED;
 use crate::shell::Shell;
 use crate::shell::draft_tests::{PLAIN, click, draft_workspace, edit_url, render, state_file};
 use crate::shell::send_tests::closed_port;
-use crate::shell::toasts::tests::{click_node, error, pushed, success, warning};
+use crate::shell::toasts::tests::{
+    click_node, error, pushed, shown_toasts, success, tree_label, warning,
+};
 
 const CURL: &str = "curl -X PATCH 'https://api.test/v1/customers/c_1' \\\n  \
                     -H 'Content-Type: application/json' -H 'Accept: application/json' \\\n  \
@@ -132,6 +134,68 @@ fn undo_drops_the_draft_the_paste_made(cx: &mut TestAppContext) {
         toasts.last(),
         Some(&success("Paste undone", "GET Plain is back as it was"))
     );
+}
+
+#[gpui::test]
+fn the_undo_button_shows_the_undo_paste_key(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{PLAIN}"));
+    paste(cx, CURL);
+
+    assert_eq!(
+        tree_label(cx, "toast-action-1-0-key").as_deref(),
+        Some("Ctrl Alt Z")
+    );
+    assert_eq!(
+        tree_label(cx, "toast-action-1-0").as_deref(),
+        Some("Undo"),
+        "the keycap stays out of the button's name"
+    );
+}
+
+#[gpui::test]
+fn the_undo_paste_key_takes_the_paste_back_and_closes_its_toast(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{PLAIN}"));
+    paste(cx, CURL);
+    assert!(draft(cx, &shell).is_some());
+
+    cx.simulate_keystrokes("ctrl-alt-z");
+    cx.run_until_parked();
+
+    assert_eq!(draft(cx, &shell), None, "the request is as saved again");
+    assert_eq!(
+        pushed(cx).last(),
+        Some(&success("Paste undone", "GET Plain is back as it was"))
+    );
+    assert!(
+        !shown_toasts(cx).contains(&"toast-1".to_owned()),
+        "the paste's toast closes with its Undo"
+    );
+}
+
+#[gpui::test]
+fn the_undo_paste_key_does_nothing_without_a_paste(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{PLAIN}"));
+    edit_url(cx, "{{base}}/edited");
+    let before = draft(cx, &shell);
+    let toasts = pushed(cx).len();
+
+    cx.simulate_keystrokes("ctrl-alt-z");
+    cx.run_until_parked();
+
+    assert_eq!(draft(cx, &shell), before);
+    assert_eq!(pushed(cx).len(), toasts, "no toast without a paste to undo");
 }
 
 #[gpui::test]

@@ -14,6 +14,7 @@ use gpui::{Context, Window};
 use reqflux_core::curl::{self, CurlError, Parsed};
 use reqflux_core::model::{Auth, Body, RawLanguage};
 
+use super::commands::{self, CommandId};
 use super::drafts::RequestDraft;
 use super::{Shell, toasts};
 
@@ -26,6 +27,9 @@ pub(crate) struct CurlUndo {
 
 /// The toast title after a paste.
 pub(crate) const REPLACED: &str = "Request replaced from curl";
+
+/// The id of the paste toast's Undo action.
+const UNDO_ACTION: &str = "curl-paste-undo";
 
 /// What `parsed` puts into the request, as the toast lists it: `Method, URL, 2 headers,
 /// JSON body, basic auth`.
@@ -108,7 +112,8 @@ impl Shell {
             )
         };
         let shell = cx.entity().downgrade();
-        let undo = ToastAction::new("curl-paste-undo", "Undo")
+        let undo = ToastAction::new(UNDO_ACTION, "Undo")
+            .key_hint(commands::effective_key(cx, CommandId::UndoPaste))
             .dismisses()
             .on_click(move |cx| {
                 if let Err(error) = shell.update(cx, |this, cx| this.undo_curl_paste(cx)) {
@@ -116,6 +121,27 @@ impl Shell {
                 }
             });
         toasts::undoable(REPLACED, subtitle, details, undo, cx);
+    }
+
+    /// The `undo-paste` key: undoes the paste and closes its toast, as its Undo does. The
+    /// toast is the newest one with the Undo action; it is left alone when another one
+    /// covers it.
+    pub(super) fn undo_paste_from_key(&mut self, cx: &mut Context<Self>) {
+        let host = self.toasts.clone();
+        let toast = host.read(cx).latest_toast_id().filter(|toast| {
+            host.read(cx)
+                .toast_controls(*toast)
+                .is_some_and(|controls| {
+                    controls
+                        .actions
+                        .iter()
+                        .any(|action| action.id.as_ref() == UNDO_ACTION)
+                })
+        });
+        if let Some(toast) = toast {
+            host.update(cx, |host, cx| host.dismiss(toast, cx));
+        }
+        self.undo_curl_paste(cx);
     }
 
     /// Undo: puts the draft the last paste replaced back, or drops the draft when the
