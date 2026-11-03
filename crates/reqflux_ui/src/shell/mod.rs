@@ -350,8 +350,14 @@ impl Shell {
         self.focus.clone()
     }
 
-    /// Opens the request `id` in a tab, inspecting it when it was not open.
+    /// Opens the request `id` in a tab, inspecting it when it was not open. A request the
+    /// tree or the engine does not know opens nothing and says so in an error toast.
     fn open_document(&mut self, id: &str, cx: &mut Context<Self>) {
+        if let Err(detail) = self.inspect_unopened(id) {
+            toasts::failure(CANNOT_OPEN_REQUEST, detail, cx);
+            cx.notify();
+            return;
+        }
         self.leave_approvals(cx);
         self.leave_audit(cx);
         self.leave_history_tab();
@@ -362,23 +368,32 @@ impl Shell {
         self.drop_stale_cell_edit(id);
         self.drop_stale_body_edit(id);
         self.drop_stale_script_edit(id);
-        if !self.requests.contains_key(id)
-            && let OpenedWorkspace::Loaded(engine) = &self.workspace
-        {
-            match engine.inspect_current(id, self.active_environment.as_deref(), &self.current) {
-                Ok(inspection) => {
-                    self.requests
-                        .insert(id.to_owned(), RequestState::new(inspection));
-                }
-                Err(error) => log::warn!("cannot inspect request {id}: {error}"),
-            }
-        }
         // Seed the last recorded send now, so its first frame already shows the response
         // instead of the never-sent layout; the split's own lookup then finds it done.
         if self.split.mark_recorded(id) {
             self.seed_recorded_send(id, cx);
         }
         cx.notify();
+    }
+
+    /// Inspects the request `id` unless it is open already. Fails, with why, when the tree
+    /// the tabs are drawn from does not hold it or the engine cannot inspect it.
+    fn inspect_unopened(&mut self, id: &str) -> Result<(), String> {
+        if documents::locate(&self.roots, id).is_none() {
+            return Err(format!("The request {id} is not in the workspace tree."));
+        }
+        if self.requests.contains_key(id) {
+            return Ok(());
+        }
+        let OpenedWorkspace::Loaded(engine) = &self.workspace else {
+            return Err("No workspace is open.".to_owned());
+        };
+        let inspection = engine
+            .inspect_current(id, self.active_environment.as_deref(), &self.current)
+            .map_err(|error| error.to_string())?;
+        self.requests
+            .insert(id.to_owned(), RequestState::new(inspection));
+        Ok(())
     }
 
     /// Makes `slug` the active environment, remembers it for the workspace and inspects every
@@ -608,6 +623,9 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
         }),
     ]
 }
+
+/// The title of the error toast when a request does not open.
+pub(crate) const CANNOT_OPEN_REQUEST: &str = "Cannot open the request";
 
 /// The paint order of the toast stack: above the palette (3, 4) and the dialogs (3).
 const TOAST_PRIORITY: usize = 5;

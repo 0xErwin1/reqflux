@@ -588,3 +588,7 @@ fn files_section(state: &State, cx: &App) -> Option<impl IntoElement> {
 #[cfg(test)]
 #[path = "import_flow_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "import_open_tests.rs"]
+mod open_tests;

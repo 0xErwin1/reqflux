@@ -1251,7 +1251,9 @@ including the approvals bell (`approvals`, a button named "Approvals") and the H
 state's send hint (`history-empty-action-0`, keycap `history-empty-key-0`), comes from `bolt`.
 
 The document island shows the open requests as tabs, the path bar of the active one
-(collection, folders, request), and the request, editable as "Drafts and saving" describes:
+(collection, folders, request), and the request. A request that the workspace tree does not
+hold or the engine cannot inspect opens no tab: the window logs it and shows the error toast
+`Cannot open the request` with the reason. The request is shown editable as "Drafts and saving" describes:
 an action strip (Save and Revert, live while the request has a draft; Undo, Redo and Split,
 not built yet), the request line (method, URL with the
 enabled params, Send), and the Params, Headers, Body, Auth,

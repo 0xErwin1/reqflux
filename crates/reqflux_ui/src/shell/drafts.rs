@@ -516,6 +516,9 @@ impl Shell {
             Ok(()) => {
                 self.workspace_id = Some(engine.workspace().manifest.id.to_string());
                 let roots = tree_model::engine_nodes(engine);
+                // The tabs and the document are drawn from the shell's roots: a request the
+                // reload added opens only once they hold it too.
+                self.roots.clone_from(&roots);
                 self.sidebar
                     .update(cx, |sidebar, cx| sidebar.set_roots(roots, cx));
                 true
