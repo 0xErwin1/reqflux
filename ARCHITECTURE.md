@@ -624,8 +624,14 @@ measurably demand it, and then by one-way layers.
 - Cookies: each engine has a per-workspace jar (`cookie_store`, RFC 6265 domain, path, Secure,
   HttpOnly and expiry, without the public suffix list) consulted on every hop of every send.
   `Engine::persist_cookies` keeps it in the app state (schema v7, table `cookies`, written
-  through on every change), never in the workspace; `Engine::{cookies, add_cookie,
-  delete_cookie, clear_cookies}` edit it. The jar's `Cookie` header is recorded masked whole like
+  through on every change), never in the workspace; `Engine::{cookies, add_cookie, set_cookie,
+  replace_cookie, delete_cookie, clear_cookies}` edit it. `set_cookie` writes a cookie from its
+  fields (the Cookies page's Add cookie) and `replace_cookie` edits one, a changed domain, path or
+  name moving it. Both refuse an empty name or domain, a path without a leading `/`, a name or
+  value with a separator or control character, an unknown `SameSite` and a past date, with an
+  error text that never holds the value (`CookieError::Invalid`). The page's Add cookie and
+  pencil open a dialog over those fields; a value shown as a secret opens empty and an empty
+  field keeps it. The jar's `Cookie` header is recorded masked whole like
   every `Cookie` header. `reqflux run` keeps a jar for the run only, as Newman does.
 - Timings (`Response.timings`: one `HopTimings` per hop, redirects included, with DNS, connect,
   TLS, first byte and download) come from a timed `getaddrinfo` resolver and a connector layer,

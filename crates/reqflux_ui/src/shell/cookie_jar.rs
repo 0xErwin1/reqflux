@@ -4,6 +4,8 @@
 //! the workspace menu's `Cookies…`, the palette and the response Cookies view's
 //! `Open cookie jar` open it.
 //!
+//! `Add cookie` and a pencil per row open a dialog with the cookie's fields ([`edit`]).
+//!
 //! A cookie shows its value unless it is a secret: a value the workspace's masker changes (it
 //! holds the value of a secret variable) or that already holds the mask shows as dots with the
 //! SECRET badge, the rule the response Cookies view uses ([`cookie_value`]). When some secret
@@ -18,6 +20,10 @@ use super::Section;
 use crate::shell::{Shell, toasts};
 use crate::workspace::OpenedWorkspace;
 
+#[path = "cookie_jar/edit.rs"]
+pub(crate) mod edit;
+#[path = "cookie_jar/edit_view.rs"]
+pub(crate) mod edit_view;
 #[path = "cookie_jar/view.rs"]
 pub(crate) mod view;
 
@@ -153,6 +159,9 @@ pub(crate) struct CookieJarState {
     /// Whether the Clear all confirmation is open.
     pub(crate) confirm: bool,
     pub(crate) focus: ModalFocus,
+    /// The Add cookie / edit dialog while open.
+    pub(crate) edit: Option<edit::CookieEdit>,
+    pub(crate) edit_focus: ModalFocus,
 }
 
 impl CookieJarState {
@@ -163,6 +172,8 @@ impl CookieJarState {
             masker: None,
             confirm: false,
             focus: ModalFocus::new(cx),
+            edit: None,
+            edit_focus: ModalFocus::new(cx),
         }
     }
 
@@ -172,6 +183,7 @@ impl CookieJarState {
         self._filter_change = None;
         self.masker = None;
         self.confirm = false;
+        self.edit = None;
     }
 
     /// The filter text.
