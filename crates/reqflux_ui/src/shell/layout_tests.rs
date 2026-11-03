@@ -142,25 +142,17 @@ fn an_unknown_layout_name_starts_stacked(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn the_tab_row_switcher_switches_and_persists(cx: &mut TestAppContext) {
+fn only_the_action_strip_switches_layouts(cx: &mut TestAppContext) {
     let dir = split_workspace();
     let (_state_dir, state_path) = state_file();
-    let (_config_dir, config_path) = config_file("theme = \"dark\"\n");
     let (_shell, cx) = render(cx, &dir, &state_path);
-    use_config(cx, &_shell, &config_path);
     open_sent(cx);
 
-    click(cx, "segmented-layout-side-by-side");
-    assert!(in_columns(cx), "the tab-row switcher opened the columns");
     assert!(
-        config_text(&config_path).contains("layout = \"side-by-side\""),
-        "the choice is written: {}",
-        config_text(&config_path)
+        bounds(cx, "segmented-layout-stacked").is_none(),
+        "the tab row has no layout switcher"
     );
-
-    click(cx, "segmented-layout-stacked");
-    assert!(!in_columns(cx), "the switcher went back to stacked");
-    assert!(config_text(&config_path).contains("layout = \"stacked\""));
+    assert!(bounds(cx, "layout-strip-stacked").is_some());
 }
 
 #[gpui::test]

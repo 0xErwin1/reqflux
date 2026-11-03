@@ -203,17 +203,12 @@ button{font:inherit;white-space:nowrap}
     <div class="c14 isl-doc" style="display:flex;flex-grow:1;min-width:0;min-height:0;padding:1px;background:rgba(255,255,255,.05)">
       <section style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0;background:#100F13;clip-path:polygon(13.4px 0,100% 0,100% calc(100% - 13.4px),calc(100% - 13.4px) 100%,0 100%,0 13.4px);overflow:hidden">
 
-        <!-- Tab row: the document tab and the layout switcher -->
+        <!-- Tab row: the document tabs; the layout switcher lives in the action strip -->
         <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;flex-shrink:0">
           <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-folder"/></svg>invoices · document<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">4 requests · 1 draft</span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-x"/></svg></span>
           <span class="tab"><span class="mt post" style="width:auto">POST</span>Token</span>
           <span style="display:flex;margin-left:4px;color:#8E8996"><svg class="ico" style="width:14px;height:14px"><use href="#i-plus"/></svg></span>
           <span style="flex-grow:1"></span>
-          <span role="radiogroup" aria-label="Layout" style="display:flex;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px">
-            <span role="radio" aria-checked="false" title="Stacked, the layout in use today (Ctrl+Alt+1)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-rows"/></svg>Stacked</span>
-            <span role="radio" aria-checked="false" title="Side by side (Ctrl+Alt+2)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span>
-            <span role="radio" aria-checked="true" class="c4" title="Document (Ctrl+Alt+3)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;background:#1A181E;color:#F7F4F7"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span>
-          </span>
         </div>
 
         <!-- Path bar -->
@@ -317,7 +312,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 
 <!-- D3: Switcher in document mode + config -->
-<div class="state"><div class="state-head"><h3>The layout switcher, Document side</h3><p>Same three entry points as 01; the control sits at the right of the tab row. The choice persists as <span class="m">layout</span> in config.toml.</p></div>
+<div class="state"><div class="state-head"><h3>The layout switcher, Document side</h3><p>Same two entry points as 01: palette commands and the action strip (the tab-row control was removed, feedback-nov3 S5). The choice persists as <span class="m">layout</span> in config.toml.</p></div>
 <div class="frame" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;background:#050507">
   <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Palette · View</span>
     <div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px">
@@ -417,7 +412,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 
 <!-- D9: Empty document -->
-<div class="state"><div class="state-head"><h3>Empty · a folder with no requests</h3><p>The document tab opens empty and says what to do; the layout control waits in the tab row.</p></div>
+<div class="state"><div class="state-head"><h3>Empty · a folder with no requests</h3><p>The document tab opens empty and says what to do; the layout is switched from the palette until a request brings the action strip.</p></div>
 <div class="frame" style="width:900px;height:220px;display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;border-bottom:1px solid #232128">
     <span class="c6 tab on"><svg class="ico" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-folder"/></svg>webhooks · document<span class="m" style="font-size:10.5px;color:#8E8996">0 requests</span></span>

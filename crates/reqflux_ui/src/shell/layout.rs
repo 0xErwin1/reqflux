@@ -16,8 +16,7 @@
 use std::path::Path;
 
 use bolt::controls::Button;
-use bolt::primitives::{SegmentedControl, SegmentedItem};
-use gpui::{App, Context, ElementId, IntoElement, Role, Stateful, Styled, prelude::*};
+use gpui::{App, Context, ElementId, Role, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 use reqflux_engine::config::{self, LayoutMode};
 
@@ -76,23 +75,6 @@ fn key_hint(mode: LayoutMode, cx: &App) -> String {
     } else {
         format!(" ({})", super::commands::key_label(&key))
     }
-}
-
-/// The tab-row switcher, element id `segmented-layout`: `bolt`'s segmented control with
-/// one segment per mode, at the end of the tab row. A click switches the window's layout.
-pub(super) fn tab_row_switcher(shell: &Shell, cx: &mut Context<Shell>) -> impl IntoElement {
-    let handle = cx.entity();
-    let items = MODES
-        .map(|(mode, icon, label)| SegmentedItem::new(mode.name(), label).icon(ui::icon(icon)))
-        .to_vec();
-    SegmentedControl::new(items, shell.split.mode.name(), move |id, _window, cx| {
-        let Some(mode) = LayoutMode::from_name(id) else {
-            return;
-        };
-        handle.update(cx, |shell, cx| shell.set_layout(mode, cx));
-    })
-    .group("layout")
-    .aria_label("Layout")
 }
 
 /// Adds the layout switcher at the foot of the action `strip` (design/layouts/01): a

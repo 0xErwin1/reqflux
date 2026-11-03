@@ -277,12 +277,6 @@ button{font:inherit;white-space:nowrap}
           <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-folder"/></svg><span style="color:#8E8996">invoices</span>
           <svg class="ico" style="width:10px;height:10px;color:#37333D"><use href="#i-chev"/></svg><span style="color:#C6C3CC">Create invoice</span>
           <span style="flex-grow:1"></span>
-          <!-- Layout switcher, where it belongs in the shell: the tab row, beside the path -->
-          <span role="radiogroup" aria-label="Layout" style="display:flex;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px">
-            <span role="radio" aria-checked="false" title="Stacked, the layout in use today (Ctrl+Alt+1)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-rows"/></svg>Stacked</span>
-            <span role="radio" aria-checked="true" class="c4" title="Side by side (Ctrl+Alt+2)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;background:#1A181E;color:#F7F4F7"><svg class="ico" style="width:13px;height:13px"><use href="#i-cols"/></svg>Side by side</span>
-            <span role="radio" aria-checked="false" title="Document (Ctrl+Alt+3)" style="display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996"><svg class="ico" style="width:13px;height:13px"><use href="#i-file"/></svg>Document</span>
-          </span>
         </div>
 
         <!-- Columns -->
@@ -407,7 +401,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 
 <!-- D2: Layout switcher -->
-<div class="state"><div class="state-head"><h3>The layout switcher</h3><p>Three entry points: palette commands, the tab-row control and the action-strip control. The choice persists as <span class="m">layout</span> in config.toml, written like <span class="m">theme</span>.</p></div>
+<div class="state"><div class="state-head"><h3>The layout switcher</h3><p>Two entry points: palette commands and the action-strip control at the foot of the strip. The tab-row control was removed (feedback-nov3 S5): it duplicated the strip and took too much weight in the tab row. The choice persists as <span class="m">layout</span> in config.toml, written like <span class="m">theme</span>.</p></div>
 <div class="frame" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;background:#050507">
   <div style="display:flex;flex-direction:column;gap:8px"><span class="cap">Palette · View</span>
     <div class="c12" style="background:#100F13;box-shadow:#37333D 0 0 0 1px">
@@ -601,7 +595,7 @@ button{font:inherit;white-space:nowrap}
 </div></div>
 
 <!-- D10: Empty -->
-<div class="state"><div class="state-head"><h3>Empty · nothing open</h3><p>The columns appear with the first send; until then the island holds the empty state and the layout control waits in the tab row.</p></div>
+<div class="state"><div class="state-head"><h3>Empty · nothing open</h3><p>The columns appear with the first send; until then the island holds the empty state and the layout is switched from the palette until a request brings the action strip.</p></div>
 <div class="frame" style="width:900px;height:240px;display:flex;flex-direction:column">
   <div style="display:flex;align-items:center;gap:4px;height:46px;padding:0 10px;border-bottom:1px solid #232128">
     <span style="flex-grow:1"></span>

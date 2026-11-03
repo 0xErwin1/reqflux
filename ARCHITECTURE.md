@@ -146,11 +146,11 @@ billing/                              workspace root
 │   └── billing-api/
 │       ├── collection.toml           id, name, variables, auth, environment allowlist, order
 │       ├── collection.pre.js         optional collection pre-request script
-│       ├── collection.test.js        optional collection test script
+│       ├── collection.test.js        optional collection post-response script
 │       └── invoices/                 folder
 │           ├── folder.toml           id, name, auth, order
 │           ├── list-invoices.req.toml
-│           ├── list-invoices.test.js
+│           ├── list-invoices.test.js     post-response script ("test" is Postman's event name)
 │           └── list-invoices.examples/
 │               ├── ok.example.toml
 │               └── ok.body       optional, a body that is not UTF-8
@@ -432,8 +432,8 @@ as one `.http` document (`document-view`, numbered `document-line-<n>` rows grou
 paragraph below). Collapsing the response shows its bar across the island in both
 split-based modes. The mode is `layout` in the user's config.toml (`"stacked"` by default,
 `"side-by-side"`, `"document"`), read at startup and written by the same format-preserving
-editor as `theme`; a name this build does not know reads as the default. The tab-row switcher
-(`segmented-layout`) and the action-strip switcher (`layout-strip`) change it, as do the
+editor as `theme`; a name this build does not know reads as the default. The action-strip
+switcher (`layout-strip`, at the foot of the request's action strip) changes it, as do the
 `Layout: Stacked`, `Layout: Side by side` and `Layout: Document` commands (Ctrl+Alt+1,
 Ctrl+Alt+2, Ctrl+Alt+3). The keymap is configurable (see `Configuration and policy` for the
 `[keymap]` table).

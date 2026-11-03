@@ -23,7 +23,7 @@ use super::documents::{Location, locate};
 use super::drafts::RequestDraft;
 use super::request::ui;
 use super::rows::part;
-use super::{Shell, examples, history, layout, runner};
+use super::{Shell, examples, history, runner};
 use crate::tokens::{self, DIRTY_DOT, method_hue};
 
 /// The tab row, element id `document-tabs`.
@@ -61,11 +61,9 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         }))
         .children(run_tab)
         .children(example_tab);
-    // The layout switcher (layouts S7) closes the row, after every tab.
+    // The layout switcher lives only at the foot of the action strip (feedback-nov3 S5).
     bar.when(approvals, |row| row.child(approvals_tab(cx)))
         .when(audit, |row| row.child(audit_tab(cx)))
-        .child(div().flex_1())
-        .child(layout::tab_row_switcher(shell, cx))
 }
 
 /// The active `Audit log` tab: the fingerprint icon in the tint, the title and a close
