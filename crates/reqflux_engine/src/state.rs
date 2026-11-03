@@ -2,7 +2,8 @@
 //! see [`history`](self#history)), current values (variables-editor S4) and the recent
 //! workspaces (recent-workspaces S1, see [`AppState::recent_workspaces`]), small settings
 //! (light-theme S4, see [`AppState::setting`]) and the cookie jar of every workspace
-//! (v1-features S5, see [`AppState::cookies`]).
+//! (v1-features S5, see [`AppState::cookies`]) and the unsaved `.http` text of a folder
+//! (v1-close S5b, see [`AppState::document_draft`]).
 //!
 //! The state file lives at `$XDG_STATE_HOME/reqflux/state.sqlite3`, or
 //! `$HOME/.local/state/reqflux/state.sqlite3` when the variable is unset, and never inside
@@ -29,7 +30,9 @@
 //! and the history; version 4 adds the `recent_workspaces` table and keeps everything
 //! before it; version 5 adds the `settings` table and keeps everything before it; version 6
 //! adds the `timings` column to `history`, empty for the entries before it; version 7 adds the
-//! `cookies` table (see [`AppState::cookies`]) and keeps everything before it. A fresh
+//! `cookies` table (see [`AppState::cookies`]) and keeps everything before it; version 8 adds
+//! the `document_drafts` table (see [`AppState::document_draft`]), the unsaved `.http` text
+//! of a folder in the Document layout, apart from the request drafts. A fresh
 //! file is created at the latest version, an older one is upgraded in one transaction, and
 //! a newer one is refused with [`StateError::UnsupportedVersion`].
 //!
@@ -46,6 +49,7 @@ use rusqlite::Connection;
 
 mod cookies;
 mod current;
+mod document_drafts;
 mod history;
 mod recent;
 mod settings;
@@ -58,7 +62,7 @@ pub use history::{
 pub use recent::{RECENT_WORKSPACES_MAX, RecentWorkspace};
 
 /// The schema version this build writes. Raising it is a forward-only migration.
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 
 /// The drafts table of schema version 1.
 const SCHEMA_V1: &str = "
@@ -417,6 +421,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
             cookies::SCHEMA_V7,
+            document_drafts::SCHEMA_V8,
         ]
         .as_slice(),
         1 => [
@@ -426,6 +431,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
             cookies::SCHEMA_V7,
+            document_drafts::SCHEMA_V8,
         ]
         .as_slice(),
         2 => [
@@ -434,6 +440,7 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
             cookies::SCHEMA_V7,
+            document_drafts::SCHEMA_V8,
         ]
         .as_slice(),
         3 => [
@@ -441,11 +448,24 @@ fn migrate(conn: &Connection, path: &Path) -> Result<(), StateError> {
             settings::SCHEMA_V5,
             history::SCHEMA_V6,
             cookies::SCHEMA_V7,
+            document_drafts::SCHEMA_V8,
         ]
         .as_slice(),
-        4 => [settings::SCHEMA_V5, history::SCHEMA_V6, cookies::SCHEMA_V7].as_slice(),
-        5 => [history::SCHEMA_V6, cookies::SCHEMA_V7].as_slice(),
-        6 => [cookies::SCHEMA_V7].as_slice(),
+        4 => [
+            settings::SCHEMA_V5,
+            history::SCHEMA_V6,
+            cookies::SCHEMA_V7,
+            document_drafts::SCHEMA_V8,
+        ]
+        .as_slice(),
+        5 => [
+            history::SCHEMA_V6,
+            cookies::SCHEMA_V7,
+            document_drafts::SCHEMA_V8,
+        ]
+        .as_slice(),
+        6 => [cookies::SCHEMA_V7, document_drafts::SCHEMA_V8].as_slice(),
+        7 => [document_drafts::SCHEMA_V8].as_slice(),
         version if version == SCHEMA_VERSION => return Ok(()),
         version => {
             return Err(StateError::UnsupportedVersion {
