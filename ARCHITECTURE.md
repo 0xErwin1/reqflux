@@ -408,8 +408,9 @@ The window has three built layout modes (v1-features S7, design/layouts/01): Sta
 request above its response across the draggable split; Side by side, the request and its
 response in columns with the splitter standing vertically between them (`bolt`'s
 `SplitAxis::Horizontal`); and Document, which draws no split at all, the active request's folder
-as one read-only `.http` document (`document-view`, numbered `document-line-<n>` rows grouped in
-`document-section-<n>`). Collapsing the response shows its bar across the island in both
+as one `.http` document (`document-view`, numbered `document-line-<n>` rows grouped in
+`document-section-<n>`, editable and synced with the request files; see the `.http` document
+paragraph below). Collapsing the response shows its bar across the island in both
 split-based modes. The mode is `layout` in the user's config.toml (`"stacked"` by default,
 `"side-by-side"`, `"document"`), read at startup and written by the same format-preserving
 editor as `theme`; a name this build does not know reads as the default. The tab-row switcher
@@ -427,7 +428,14 @@ or one directly after body text is body. `reqflux_core::http_document::parse` ne
 == x` and a canonical document round-trips byte for byte; `DocumentRequest::to_request` turns a
 section into a model `Request`. The window shows a folder through `write`: every value as
 written (no resolved secrets, never a draft's resolved value), no body text for the non-raw body
-types yet, and no editing, syncing or running (later S7 units).
+types yet. The document is editable as one text (`document-view`): clicking it opens a `bolt`
+multi-line editor (`document-editor`) seeded from `write` of the folder and refreshed underneath
+while the text is not dirty. Ctrl+S (`save-request`) parses the text and saves through the engine
+— sections update their request (method, URL and params, enabled headers, raw body), new names
+create requests in the folder, and requests whose section disappeared are deleted only after one
+confirmation modal for the whole save (`document-confirm-delete`); parse warnings show in
+`document-warnings` and block the save; Discard drops the edit. Running a section in this mode is
+a later S7 unit.
 
 In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,

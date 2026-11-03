@@ -3,7 +3,7 @@
 //! Ids are stable across rename, move and reorder, so anything a front end keys by id
 //! (tabs, drafts, the active request) keeps resolving after the reload.
 
-use reqflux_core::model::Id;
+use reqflux_core::model::{Id, Request};
 use reqflux_store::{Loaded, StoreError};
 
 use crate::engine::Engine;
@@ -37,6 +37,18 @@ impl Engine {
     /// The store error, or [`TreeError::Reload`] when the workspace no longer loads.
     pub fn create_request(&mut self, parent: Id) -> Result<Id, TreeError> {
         self.apply(|root, loaded| reqflux_store::create_request(root, loaded, parent).map(|p| p.id))
+    }
+
+    /// Creates `request` — its name gives the display name and the file slug — at the end
+    /// of the collection or folder `parent`, and returns its id.
+    ///
+    /// # Errors
+    ///
+    /// The store error (an empty, reserved or taken name), or [`TreeError::Reload`].
+    pub fn create_request_as(&mut self, parent: Id, request: Request) -> Result<Id, TreeError> {
+        self.apply(|root, loaded| {
+            reqflux_store::create_request_as(root, loaded, parent, &request).map(|p| p.id)
+        })
     }
 
     /// Renames the entity `id`, moving its file to the new slug, and returns `id`.

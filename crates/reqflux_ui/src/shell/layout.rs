@@ -1,8 +1,9 @@
 //! The window's layout modes (v1-features S7, design/layouts/01 and 02): Stacked, the
 //! request above its response; Side by side, the request and its response in columns with
 //! `bolt`'s splitter standing vertically between them (`SplitAxis::Horizontal`; see
-//! `split`); and Document, the active request's folder as one read-only `.http` document
-//! (see `document_view`; editing and running there are later S7 units).
+//! `split`); and Document, the active request's folder as one `.http` document kept in
+//! sync with its request files (see `document_view`; running a section there is a later S7
+//! unit).
 //!
 //! The mode is `layout` in the user's config file, read once when the window learns the
 //! file's path and written by the same format-preserving editor that writes `theme`; a

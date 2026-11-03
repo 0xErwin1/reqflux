@@ -286,10 +286,12 @@ fn has_draft(shell: &Shell) -> Result<(), &'static str> {
         .active()
         .is_some_and(|id| shell.drafts.contains_key(id))
     {
-        Ok(())
-    } else {
-        Err("no unsaved changes")
+        return Ok(());
     }
+    if shell.document_dirty() {
+        return Ok(());
+    }
+    Err("no unsaved changes")
 }
 
 impl Shell {
@@ -319,6 +321,9 @@ impl Shell {
             }
             CommandId::SendRequest => self.send_active(window, cx),
             CommandId::CancelSend => self.cancel_active(window, cx),
+            CommandId::SaveRequest if self.document_dirty() => {
+                self.save_document(false, window, cx);
+            }
             CommandId::SaveRequest => self.save_active(window, cx),
             CommandId::RevertRequest => {
                 if let Some(active) = active {

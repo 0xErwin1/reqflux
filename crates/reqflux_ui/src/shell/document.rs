@@ -18,9 +18,13 @@ use super::{
 };
 
 #[path = "document_view.rs"]
-mod document_view;
+pub(crate) mod document_view;
 
-pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> impl IntoElement {
+pub(super) fn render(
+    shell: &mut Shell,
+    window: &mut Window,
+    cx: &mut Context<Shell>,
+) -> impl IntoElement {
     let colors = bolt::colors(cx);
     let active = shell
         .active_request()
@@ -60,7 +64,7 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
                     .min_w_0()
                     .flex()
                     .flex_col()
-                    .child(document_view::render(shell, cx)),
+                    .child(document_view::render(shell, window, cx)),
             ),
         (None, Some(_)) => {
             let content = region("document-content")

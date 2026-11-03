@@ -142,6 +142,35 @@ pub fn create_request(root: &Path, loaded: &Loaded, parent: Id) -> Result<Placed
     })
 }
 
+/// Creates `request` — its name gives the display name and the file slug — at the end of
+/// the collection or folder `parent`, keeping the id the document carries.
+///
+/// # Errors
+///
+/// As [`create_request`], plus [`StoreError::SlugTaken`] when a sibling already holds the
+/// name's slug, or [`StoreError::EmptyName`] for an empty name.
+pub fn create_request_as(
+    root: &Path,
+    loaded: &Loaded,
+    parent: Id,
+    request: &Request,
+) -> Result<Placed, StoreError> {
+    let container = find_container(&loaded.workspace, parent)?;
+    container.validate()?;
+    container.check(root, loaded)?;
+    let (name, slug) = named(&request.name, SlugFor::Request)?;
+    ensure_free(&container.dir(root), &slug, SlugFor::Request)?;
+    let mut document = request.clone();
+    document.name = name;
+    let path = request_file(root, &container.inner, &slug);
+    save_document(&path, &document, None)?;
+    append(root, loaded, &container, slug)?;
+    Ok(Placed {
+        id: document.id,
+        path,
+    })
+}
+
 fn append(
     root: &Path,
     loaded: &Loaded,

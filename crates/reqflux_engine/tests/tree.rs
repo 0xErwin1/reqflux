@@ -136,6 +136,28 @@ fn create_request_is_a_named_get_at_the_end() {
 }
 
 #[test]
+fn create_request_as_writes_the_document_under_its_name() {
+    let dir = temp_dir();
+    workspace(dir.path());
+    let mut engine = open(dir.path());
+    let document = Request::new(id(7), "Create invoice", Method::POST, "https://x.test/v1");
+    let created = ok(engine.create_request_as(id(4), document));
+    assert_eq!(folder_children(&engine), vec![created]);
+    let Some(saved) = request(&engine, created) else {
+        panic!("created request not loaded");
+    };
+    assert_eq!(saved.name, "Create invoice");
+    assert_eq!(saved.method, Method::POST);
+    assert_eq!(saved.url, "https://x.test/v1");
+    assert!(
+        dir.path()
+            .join("collections/c/f/create-invoice.req.toml")
+            .exists(),
+        "the file sits under the name's slug"
+    );
+}
+
+#[test]
 fn create_folder_is_visible_after_reload() {
     let dir = temp_dir();
     workspace(dir.path());

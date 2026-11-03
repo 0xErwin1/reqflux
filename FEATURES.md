@@ -135,7 +135,7 @@ One MCP server, `reqflux`, for everything.
 | Islands layout: sidebar, editor and response as separate rounded panels on a canvas | MVP |
 | Layout mode Stacked: tree, request above, response below (default) | MVP |
 | Layout mode Side by side: activity rail, request and response in columns | v1 |
-| Layout mode Document: no sidebar, request as an `.http`-style document, navigation by palette | v1 |
+| Layout mode Document: no sidebar, the folder as an editable `.http`-style document kept in sync with its requests, navigation by palette | v1 |
 | Configurable keymap | v1 |
 | Split panes and multiple windows | Later |
 

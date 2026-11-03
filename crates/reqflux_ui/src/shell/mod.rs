@@ -174,6 +174,9 @@ pub(crate) struct Shell {
     body_edit: Option<BodyEdit>,
     /// The script editor of the request under edit.
     script_edit: Option<ScriptEdit>,
+    /// The `.http` document editor of the Document layout, while it is under edit (see
+    /// `document_view`).
+    document_edit: Option<document::document_view::DocumentEdit>,
     /// The per-user app state the drafts persist in; `None` when it could not be opened,
     /// which keeps drafts in memory only.
     state: Option<AppState>,
@@ -292,6 +295,7 @@ impl Shell {
             split: split::Split::new(cx.focus_handle()),
             body_edit: None,
             script_edit: None,
+            document_edit: None,
             state,
             config_path: None,
             config_report: crate::theme::ConfigReport::default(),
@@ -547,6 +551,7 @@ impl Render for Shell {
             .children(palette::render(self, window, cx))
             .children(import_flow::render(self, window, cx))
             .children(codegen::render(self, window, cx))
+            .children(document::document_view::render_confirm(self, window, cx))
             .children(examples::render_overlays(self, window, cx))
     }
 }
