@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Variable popover: hover tooltip + side inspector</title>
+<!--
+  Direction 02 (alternative): hover tooltip + side inspector.
+  Hover shows a read-only tooltip (value or mask, winning scope). Click or F2 opens a Variable
+  inspector docked at the right of the request pane, with the full resolution chain.
+  Main difference from 01: hover never edits; editing moves to a docked panel that narrows the
+  pane but shows every scope's value and has room to grow (description, history).
+
+  Saves: same as 01. Enter writes the CURRENT value of the winning scope (app state, this machine);
+  secrets write the OS keyring; quick add writes the INITIAL value of the new variable in the picked
+  scope (keyring when Secret is checked). "Activate <env>" changes the active environment only.
+
+  bolt components used: Tooltip, Panel (cut 8), Field / TextInput, Badge, Button (primary, ghost),
+    IconButton, SegmentedControl (vertical), Checkbox, KeyHint, environment diamond.
+  bolt gaps:
+    - bolt gap: Tooltip anchored to a text range inside an input (same anchor gap as 01).
+    - bolt gap: vertical SegmentedControl.
+    - bolt gap: docked inspector slot in the request pane (a Splitter side panel with close).
+-->
+<style>
+body{margin:0;background:#050507;color:#C6C3CC;font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:13px}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.ico{display:inline-block;flex-shrink:0;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap;cursor:pointer}
+:focus-visible{outline:2px solid #9DB1FF;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+header.top{padding:24px 32px 8px}
+h1{margin:0;font-size:20px;font-weight:700;color:#F7F4F7}
+.lead{margin:6px 0 0;color:#8E8996;max-width:980px;line-height:1.5}
+main{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:16px 8px 8px}
+section.st{background:#100F13;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);padding:16px 20px 24px;min-height:330px}
+.cap{font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
+.note{margin:0 0 14px;font-size:12px;color:#8E8996;line-height:1.5}
+.urlbar{display:flex;align-items:center;gap:8px}
+.meth{display:flex;align-items:center;height:30px;padding:0 10px;background:#1A181E;color:#7BE0A0;font-size:11px;font-weight:700}
+.url{flex:1;display:flex;align-items:center;height:30px;padding:0 10px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#C6C3CC;white-space:nowrap;overflow:visible}
+.url.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
+.send{height:30px;padding:0 14px;border:0;background:#2B45B8;color:#FFF;font-weight:700}
+.var{color:#9DB1FF;background:rgba(157,177,255,.12)}
+.var.hot{background:rgba(157,177,255,.24)}
+.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+.caret{display:inline-block;width:1.5px;height:15px;background:#9DB1FF;vertical-align:middle;margin:0 -1px}
+.anchor{position:relative}
+.pop{position:absolute;top:36px;width:340px;background:#1A181E;box-shadow:inset 0 0 0 1px #37333D;padding:12px 14px 12px;z-index:2}
+.ph{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ph .nm{color:#F7F4F7;font-size:12.5px;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;background:#09090B;color:#C6C3CC;font-size:11px;font-weight:600;white-space:nowrap}
+.dia{width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.sec{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;background:#09090B;color:#8E8996;font-size:10px;font-weight:700;letter-spacing:.08em}
+.lbl{display:block;font-size:11px;color:#8E8996;margin:8px 0 4px}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#F7F4F7}
+.field.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
+.field .grow{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ro{font-size:12.5px;color:#8E8996;padding:2px 0}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;background:transparent;color:#8E8996}
+.foot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #232128;font-size:11.5px;color:#8E8996}
+.kc{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;padding:1px 5px;background:#100F13;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.link{margin-left:auto;display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#9DB1FF;font-size:11.5px;padding:0}
+.ov{color:#8E8996;font-size:11.5px;margin-top:6px}
+.ov s{color:#8E8996}
+.seg{display:flex;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:11.5px}
+.seg>span{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7;box-shadow:inset 0 0 0 1px #37333D}
+.btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border:0;background:#100F13;color:#C6C3CC;font-size:12px}
+.btn.p{background:#2B45B8;color:#FFF;font-weight:700}
+.cb{display:inline-flex;width:14px;height:14px;box-shadow:#37333D 0 0 0 1.5px inset}
+.wrn{display:flex;align-items:center;gap:6px;color:#FFC23D;font-size:12px}
+.grid{background:#09090B;box-shadow:#232128 0 0 0 1px inset}
+.gh,.gr{display:flex;align-items:center;font-size:12.5px}
+.gh{height:32px;color:#F7F4F7;font-weight:600;border-bottom:1px solid #232128}
+.gr{height:29px;border-bottom:1px solid #18161B}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:visible}
+.k1{width:180px}.k2{flex:1}
+.gr.cur{background:rgba(157,177,255,.07)}
+.typing{position:absolute;top:36px;left:0;font-size:11.5px;color:#8E8996;display:flex;gap:8px;align-items:center}
+</style>
+<style>
+.tip{position:absolute;top:36px;background:#1A181E;box-shadow:inset 0 0 0 1px #37333D;padding:8px 10px;font-size:12px;white-space:nowrap;z-index:2;display:flex;flex-direction:column;gap:4px}
+.tip .r{display:flex;align-items:center;gap:8px}
+.wrap{display:flex;gap:8px;align-items:flex-start}
+.wrap>.ctx{flex:1;min-width:0}
+.side{width:300px;flex-shrink:0;background:#09090B;box-shadow:inset 0 0 0 1px #232128;padding:12px 14px}
+.side .hd{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.chain{margin-top:10px;border-top:1px solid #232128;padding-top:8px}
+.chain .cr{display:flex;align-items:center;gap:8px;height:24px;font-size:12px}
+.chain .cr .v{margin-left:auto;color:#8E8996}
+.chain .cr.win{color:#F7F4F7}
+.chain .cr.win .v{color:#9DB1FF}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+</svg>
+<header class="top">
+  <h1>Variable popover: hover tooltip + side inspector (alternative)</h1>
+  <p class="lead">Hover shows a read-only tooltip (value and winning scope). Click a mark, or <span class="kc">F2</span> with the caret on it, opens a Variable inspector docked at the right of the request pane, with the full scope chain. <span class="kc">Enter</span> saves the current value of the winning scope, <span class="kc">Esc</span> closes the inspector and returns focus to the field.</p>
+</header>
+<main>
+
+<section class="st c14" aria-labelledby="a-h">
+  <div class="cap">State a</div>
+  <h2 id="a-h">Resolved variable in the URL</h2>
+  <p class="note">Top: hover tooltip only. Bottom: after a click, the inspector edits the current value; the URL stays visible and the mark highlighted.</p>
+  <div class="urlbar" style="margin-bottom:64px">
+    <span class="meth c6 m">GET</span>
+    <div class="url c8 m"><span class="anchor"><span class="var hot">{{base_url}}</span>
+      <div class="tip c8" style="left:0" role="tooltip"><div class="r"><span class="m" style="color:#F7F4F7">https://api.staging.acme.dev</span></div><div class="r" style="color:#8E8996"><span class="dia" style="background:#FFC23D"></span>Staging · click to edit</div></div></span>/v2/invoices</div>
+  </div>
+  <div class="wrap">
+    <div class="ctx"><div class="url c8 m"><span class="var hot">{{base_url}}</span>/v2/invoices</div></div>
+    <aside class="side c8" aria-label="Variable inspector">
+      <div class="hd"><span class="nm m" style="color:#F7F4F7;font-weight:600">base_url</span><button class="ib" style="margin-left:auto" aria-label="Close"><svg class="ico"><use href="#i-x"/></svg></button></div>
+      <label class="lbl" for="a2-cur">Current value · Staging · this machine</label>
+      <div class="field foc c8 m" id="a2-cur"><span class="grow">https://api.staging.acme.dev<span class="caret"></span></span></div>
+      <span class="lbl">Initial value · workspace file</span>
+      <div class="ro m">https://api.staging.acme.dev</div>
+      <div class="chain"><div class="cap" style="margin-bottom:4px">Resolution</div>
+        <div class="cr win m"><span class="dia" style="background:#FFC23D"></span>Staging<span class="v">api.staging.acme.dev</span></div>
+        <div class="cr m"><s>Collection · Billing</s><span class="v">localhost:8080</span></div>
+        <div class="cr m"><s>Globals</s><span class="v">not set</span></div></div>
+      <div class="foot"><span class="kc">Enter</span> save<button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+    </aside>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="b-h">
+  <div class="cap">State b</div>
+  <h2 id="b-h">Inside a grid cell (Headers)</h2>
+  <p class="note">The grid narrows by 308 px while the inspector is open; the row stays selected.</p>
+  <div class="wrap">
+    <div class="ctx grid">
+      <div class="gh m"><span class="k1" style="width:120px">Key</span><span class="k2">Value</span></div>
+      <div class="gr m"><span class="k1" style="width:120px">Accept</span><span class="k2">application/json</span></div>
+      <div class="gr m cur"><span class="k1" style="width:120px">X-Customer</span><span class="k2"><span class="var hot">{{customer_id}}</span></span></div>
+      <div class="gr m"><span class="k1" style="width:120px">X-Trace</span><span class="k2">on</span></div>
+    </div>
+    <aside class="side c8" aria-label="Variable inspector">
+      <div class="hd"><span class="m" style="color:#F7F4F7;font-weight:600">customer_id</span><button class="ib" style="margin-left:auto" aria-label="Close"><svg class="ico"><use href="#i-x"/></svg></button></div>
+      <label class="lbl" for="b2-cur">Current value · Collection Billing</label>
+      <div class="field foc c8 m" id="b2-cur"><span class="grow">cus_4821<span class="caret"></span></span></div>
+      <span class="lbl">Initial value · workspace file</span>
+      <div class="ro m">cus_1000</div>
+      <div class="foot"><span class="kc">Enter</span> save<button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+    </aside>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="c-h">
+  <div class="cap">State c</div>
+  <h2 id="c-h">Secret variable</h2>
+  <p class="note">The tooltip never shows the value, only the SECRET badge. The inspector keeps it masked with a reveal; Enter writes the keyring.</p>
+  <div class="wrap">
+    <div class="ctx"><div class="url c8 m" style="overflow:visible">…/me?key=<span class="anchor"><span class="var hot">{{api_token}}</span>
+      <div class="tip c8" style="left:0" role="tooltip"><div class="r"><span class="sec c4"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="dots">••••••••</span></div><div class="r" style="color:#8E8996">Staging · OS keyring</div></div></span></div></div>
+    <aside class="side c8" aria-label="Variable inspector">
+      <div class="hd"><span class="m" style="color:#F7F4F7;font-weight:600">api_token</span><span class="sec c4">SECRET</span><button class="ib" style="margin-left:auto" aria-label="Close"><svg class="ico"><use href="#i-x"/></svg></button></div>
+      <label class="lbl" for="c2-val">Value · Staging · OS keyring</label>
+      <div class="field c8 m" id="c2-val"><span class="grow" style="letter-spacing:.1em;color:#8E8996">••••••••••••</span><button class="ib" aria-label="Reveal value"><svg class="ico"><use href="#i-eye"/></svg></button></div>
+      <div class="ov">No current value: a secret has a single value, kept in the keyring.</div>
+      <div class="foot"><span class="kc">Enter</span> save to keyring</div>
+    </aside>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="d-h">
+  <div class="cap">State d</div>
+  <h2 id="d-h">Unresolved variable: quick add</h2>
+  <p class="note">Tooltip: "Not defined · click to add". The inspector shows the add form with the scope as a vertical list, room for a description later.</p>
+  <div class="wrap">
+    <div class="ctx"><div class="url c8 m" style="overflow:visible">…/tenants/<span class="anchor"><span class="unres">{{tenant_id}}</span>
+      <div class="tip c8" style="left:0" role="tooltip"><div class="r wrn"><svg class="ico"><use href="#i-alert"/></svg>Not defined</div><div class="r" style="color:#8E8996">Click to add</div></div></span></div></div>
+    <aside class="side c8" aria-label="Add variable">
+      <div class="hd"><span class="m" style="color:#F7F4F7;font-weight:600">tenant_id</span><span class="wrn">Not defined</span></div>
+      <span class="lbl">Add to</span>
+      <div class="seg c6" style="flex-direction:column;align-items:stretch" role="radiogroup" aria-label="Scope"><span class="on" role="radio" aria-checked="true"><span class="dia" style="background:#FFC23D"></span>Environment · Staging</span><span role="radio" aria-checked="false">Collection · Billing</span><span role="radio" aria-checked="false">Globals</span></div>
+      <label class="lbl" for="d2-val">Initial value</label>
+      <div class="field foc c8 m" id="d2-val"><span class="grow">tnt_7f2a<span class="caret"></span></span></div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px"><span class="cb c4" role="checkbox" aria-checked="false"></span>Secret (store in OS keyring)</div>
+      <div class="foot"><span style="margin-left:auto;display:flex;gap:6px"><button class="btn c4">Cancel</button><button class="btn p c4">Add variable</button></span></div>
+    </aside>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="e-h">
+  <div class="cap">State e</div>
+  <h2 id="e-h">No active environment, variable is environment-only</h2>
+  <p class="note">The inspector lists the environments that define it with their values, and activating one resolves the mark.</p>
+  <div class="wrap">
+    <div class="ctx"><div class="url c8 m"><span class="unres">{{base_url}}</span>/v2/invoices</div></div>
+    <aside class="side c8" aria-label="Variable inspector">
+      <div class="hd"><span class="m" style="color:#F7F4F7;font-weight:600">base_url</span><span class="wrn">No active environment</span></div>
+      <div class="chain" style="border:0;margin:0;padding:0">
+        <div class="cr m"><span class="dia" style="background:#FF6B5E"></span>Production<span class="v">api.acme.dev</span></div>
+        <div class="cr m"><span class="dia" style="background:#FFC23D"></span>Staging<span class="v">api.staging.acme.dev</span></div>
+        <div class="cr m"><span class="dia" style="background:#6EA8FF"></span>Development<span class="v">api.dev.acme.dev</span></div></div>
+      <div style="display:flex;gap:6px;margin-top:10px"><button class="btn p c4">Activate Staging</button><button class="btn c4">Add to collection</button></div>
+      <div class="foot"><button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+    </aside>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="f-h">
+  <div class="cap">State f</div>
+  <h2 id="f-h">Editing the field: marks kept, no tooltip</h2>
+  <p class="note">Typing suppresses the tooltip; marks keep their colors (T11). An open inspector stays open and follows the mark under the caret, read-only until focused.</p>
+  <div class="urlbar">
+    <span class="meth c6 m">GET</span>
+    <div class="url foc c8 m"><span class="var">{{base_url}}</span>/v2/invoices?customer=<span class="var">{{customer_id}}</span>&amp;tenant=<span class="unres">{{tena</span><span class="caret"></span></div>
+  </div>
+</section>
+
+</main>
+</body></html>

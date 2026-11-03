@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Variable popover: inline edit popover</title>
+<!--
+  Direction 01 (recommended): inline edit popover.
+  Hovering a {{variable}} for 400 ms, or clicking it, opens a popover anchored under the mark.
+  The popover edits the value in place: name, winning scope badge, current value field,
+  initial value read-only, "Open in Environments". Enter saves, Escape closes.
+  Main difference from 02: the edit happens inside the popover, at the mark, with no layout change.
+
+  Saves:
+    - Enter in the value field writes the CURRENT value of the winning scope (this machine only,
+      app state). The initial value (workspace file, shared) is never written from the popover;
+      "Open in Environments" is the place to change it.
+    - Secret: Enter writes the value to the OS keyring entry of the winning scope. No current row.
+    - Quick add (unresolved): creates the variable in the picked scope with the typed value as its
+      INITIAL value (a new variable must exist in the workspace file); secret checkbox sends the
+      value to the keyring instead and the file holds only the key.
+
+  bolt components used: Popover (overlay, cut 12), Field / TextInput (30 px), Badge (scope, SECRET),
+    Button (primary, ghost), IconButton (reveal, copy), SegmentedControl (scope picker),
+    Checkbox, KeyHint (keycap), Link-style ghost button, environment diamond.
+  bolt gaps:
+    - bolt gap: Popover anchored to a text range inside an input (needs the anchor rect of a
+      token span, not of an element). Stand-in in reqflux_ui computes the bounds from the
+      input's text layout.
+    - bolt gap: hover-intent delay on Popover (open after 400 ms, keep open while the pointer
+      travels into it).
+-->
+<style>
+body{margin:0;background:#050507;color:#C6C3CC;font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:13px}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.ico{display:inline-block;flex-shrink:0;width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap;cursor:pointer}
+:focus-visible{outline:2px solid #9DB1FF;outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+header.top{padding:24px 32px 8px}
+h1{margin:0;font-size:20px;font-weight:700;color:#F7F4F7}
+.lead{margin:6px 0 0;color:#8E8996;max-width:980px;line-height:1.5}
+main{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:16px 8px 8px}
+section.st{background:#100F13;box-shadow:inset 0 0 0 1px rgba(255,255,255,.05);padding:16px 20px 24px;min-height:330px}
+.cap{font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#8E8996}
+h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
+.note{margin:0 0 14px;font-size:12px;color:#8E8996;line-height:1.5}
+.urlbar{display:flex;align-items:center;gap:8px}
+.meth{display:flex;align-items:center;height:30px;padding:0 10px;background:#1A181E;color:#7BE0A0;font-size:11px;font-weight:700}
+.url{flex:1;display:flex;align-items:center;height:30px;padding:0 10px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#C6C3CC;white-space:nowrap;overflow:visible}
+.url.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
+.send{height:30px;padding:0 14px;border:0;background:#2B45B8;color:#FFF;font-weight:700}
+.var{color:#9DB1FF;background:rgba(157,177,255,.12)}
+.var.hot{background:rgba(157,177,255,.24)}
+.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+.caret{display:inline-block;width:1.5px;height:15px;background:#9DB1FF;vertical-align:middle;margin:0 -1px}
+.anchor{position:relative}
+.pop{position:absolute;top:36px;width:340px;background:#1A181E;box-shadow:inset 0 0 0 1px #37333D;padding:12px 14px 12px;z-index:2}
+.ph{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.ph .nm{color:#F7F4F7;font-size:12.5px;font-weight:600}
+.badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;background:#09090B;color:#C6C3CC;font-size:11px;font-weight:600;white-space:nowrap}
+.dia{width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.sec{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;background:#09090B;color:#8E8996;font-size:10px;font-weight:700;letter-spacing:.08em}
+.lbl{display:block;font-size:11px;color:#8E8996;margin:8px 0 4px}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px;color:#F7F4F7}
+.field.foc{box-shadow:#9DB1FF 0 0 0 1.5px inset}
+.field .grow{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ro{font-size:12.5px;color:#8E8996;padding:2px 0}
+.ib{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;background:transparent;color:#8E8996}
+.foot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #232128;font-size:11.5px;color:#8E8996}
+.kc{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;padding:1px 5px;background:#100F13;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.link{margin-left:auto;display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#9DB1FF;font-size:11.5px;padding:0}
+.ov{color:#8E8996;font-size:11.5px;margin-top:6px}
+.ov s{color:#8E8996}
+.seg{display:flex;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:11.5px}
+.seg>span{display:flex;align-items:center;gap:6px;height:24px;padding:0 8px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7;box-shadow:inset 0 0 0 1px #37333D}
+.btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border:0;background:#100F13;color:#C6C3CC;font-size:12px}
+.btn.p{background:#2B45B8;color:#FFF;font-weight:700}
+.cb{display:inline-flex;width:14px;height:14px;box-shadow:#37333D 0 0 0 1.5px inset}
+.wrn{display:flex;align-items:center;gap:6px;color:#FFC23D;font-size:12px}
+.grid{background:#09090B;box-shadow:#232128 0 0 0 1px inset}
+.gh,.gr{display:flex;align-items:center;font-size:12.5px}
+.gh{height:32px;color:#F7F4F7;font-weight:600;border-bottom:1px solid #232128}
+.gr{height:29px;border-bottom:1px solid #18161B}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:visible}
+.k1{width:180px}.k2{flex:1}
+.gr.cur{background:rgba(157,177,255,.07)}
+.typing{position:absolute;top:36px;left:0;font-size:11.5px;color:#8E8996;display:flex;gap:8px;align-items:center}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-revert" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
+</svg>
+<header class="top">
+  <h1>Variable popover: inline edit (recommended)</h1>
+  <p class="lead">Hover a <span class="m var">{{variable}}</span> for 400 ms or click it: a popover opens under the mark and edits the value in place. <span class="kc">Enter</span> saves the current value of the winning scope, <span class="kc">Esc</span> closes without saving. The initial value is shown read-only; it changes in Environments.</p>
+</header>
+<main>
+
+<section class="st c14" aria-labelledby="a-h">
+  <div class="cap">State a</div>
+  <h2 id="a-h">Resolved variable in the URL</h2>
+  <p class="note">Winner is the active environment Staging; the collection value it overrides is listed below the field. The field is focused on open so typing replaces the current value right away.</p>
+  <div class="urlbar">
+    <span class="meth c6 m">GET</span>
+    <div class="url c8 m"><span class="anchor"><span class="var hot">{{base_url}}</span>
+      <div class="pop c12" style="left:0" role="dialog" aria-label="Variable base_url">
+        <div class="ph"><span class="nm m">base_url</span><span class="badge c4"><span class="dia" style="background:#FFC23D"></span>Staging</span><button class="ib" style="margin-left:auto" aria-label="Copy value"><svg class="ico"><use href="#i-copy"/></svg></button></div>
+        <label class="lbl" for="a-cur">Current value · this machine</label>
+        <div class="field foc c8 m" id="a-cur"><span class="grow">https://api.staging.acme.dev<span class="caret"></span></span><button class="ib" aria-label="Reset to initial"><svg class="ico"><use href="#i-revert"/></svg></button></div>
+        <span class="lbl">Initial value · workspace file</span>
+        <div class="ro m">https://api.staging.acme.dev</div>
+        <div class="ov">Overrides collection Billing: <span class="m"><s>http://localhost:8080</s></span></div>
+        <div class="foot"><span class="kc">Enter</span> save <span class="kc">Esc</span> close<button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+      </div></span>/v2/invoices?customer=<span class="var">{{customer_id}}</span></div>
+    <button class="send c6">Send</button>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="b-h">
+  <div class="cap">State b</div>
+  <h2 id="b-h">Inside a grid cell (Headers)</h2>
+  <p class="note">Same popover anchored to the mark in the cell; the row stays highlighted. Works the same in Params, form bodies, auth fields and raw bodies.</p>
+  <div class="grid">
+    <div class="gh m"><span class="k1">Key</span><span class="k2">Value</span></div>
+    <div class="gr m"><span class="k1">Accept</span><span class="k2">application/json</span></div>
+    <div class="gr m cur"><span class="k1">X-Customer</span><span class="k2" style="overflow:visible"><span class="anchor"><span class="var hot">{{customer_id}}</span>
+      <div class="pop c12" style="left:-12px;top:30px" role="dialog" aria-label="Variable customer_id">
+        <div class="ph"><span class="nm m">customer_id</span><span class="badge c4">Collection · Billing</span></div>
+        <label class="lbl" for="b-cur">Current value · this machine</label>
+        <div class="field foc c8 m" id="b-cur"><span class="grow">cus_4821<span class="caret"></span></span></div>
+        <span class="lbl">Initial value · workspace file</span>
+        <div class="ro m">cus_1000</div>
+        <div class="foot"><span class="kc">Enter</span> save <span class="kc">Esc</span> close<button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+      </div></span></span></div>
+    <div class="gr m"><span class="k1">X-Trace</span><span class="k2">on</span></div>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="c-h">
+  <div class="cap">State c</div>
+  <h2 id="c-h">Secret variable</h2>
+  <p class="note">Masked by default; the eye reveals until the popover closes. No current-value row: a secret has one value and it lives in the OS keyring. Enter writes the keyring entry of the winning scope.</p>
+  <div class="urlbar">
+    <span class="meth c6 m">GET</span>
+    <div class="url c8 m">https://api.acme.dev/v2/me?key=<span class="anchor"><span class="var hot">{{api_token}}</span>
+      <div class="pop c12" style="left:-120px" role="dialog" aria-label="Variable api_token">
+        <div class="ph"><span class="nm m">api_token</span><span class="badge c4"><span class="dia" style="background:#FFC23D"></span>Staging</span><span class="sec c4"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+        <label class="lbl" for="c-val">Value · OS keyring</label>
+        <div class="field c8 m" id="c-val"><span class="grow" style="letter-spacing:.1em;color:#8E8996">••••••••••••</span><button class="ib" aria-label="Reveal value"><svg class="ico"><use href="#i-eye"/></svg></button></div>
+        <div class="ov">Never written to the workspace file, logs or MCP responses.</div>
+        <div class="foot"><span class="kc">Enter</span> save to keyring <span class="kc">Esc</span> close<button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+      </div></span></div>
+    <button class="send c6">Send</button>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="d-h">
+  <div class="cap">State d</div>
+  <h2 id="d-h">Unresolved variable: quick add</h2>
+  <p class="note">"Not defined" with an inline add. Scope defaults to the active environment. The value becomes the initial value of the new variable; "Secret" sends it to the keyring instead.</p>
+  <div class="urlbar">
+    <span class="meth c6 m" style="color:#FFC23D">POST</span>
+    <div class="url c8 m">https://api.staging.acme.dev/v2/tenants/<span class="anchor"><span class="unres">{{tenant_id}}</span>
+      <div class="pop c12" style="left:-150px" role="dialog" aria-label="Variable tenant_id, not defined">
+        <div class="ph"><span class="nm m">tenant_id</span><span class="wrn" style="margin-left:auto"><svg class="ico"><use href="#i-alert"/></svg>Not defined</span></div>
+        <span class="lbl">Add to</span>
+        <div class="seg c6" role="radiogroup" aria-label="Scope"><span class="on" role="radio" aria-checked="true"><span class="dia" style="background:#FFC23D"></span>Staging</span><span role="radio" aria-checked="false">Collection · Billing</span><span role="radio" aria-checked="false">Globals</span></div>
+        <label class="lbl" for="d-val">Value</label>
+        <div class="field foc c8 m" id="d-val"><span class="grow">tnt_7f2a<span class="caret"></span></span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px"><span class="cb c4" role="checkbox" aria-checked="false"></span>Secret (store in OS keyring)</div>
+        <div class="foot"><span class="kc">Enter</span> add <span class="kc">Esc</span> close<span style="margin-left:auto;display:flex;gap:6px"><button class="btn c4">Cancel</button><button class="btn p c4">Add variable</button></span></div>
+      </div></span></div>
+    <button class="send c6">Send</button>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="e-h">
+  <div class="cap">State e</div>
+  <h2 id="e-h">No active environment, variable is environment-only</h2>
+  <p class="note">The mark is unresolved. The popover says where it is defined and offers to activate an environment instead of a value field; quick add stays available for collection or globals.</p>
+  <div class="urlbar">
+    <span class="meth c6 m">GET</span>
+    <div class="url c8 m"><span class="anchor"><span class="unres">{{base_url}}</span>
+      <div class="pop c12" style="left:0" role="dialog" aria-label="Variable base_url, no active environment">
+        <div class="ph"><span class="nm m">base_url</span><span class="wrn" style="margin-left:auto"><svg class="ico"><use href="#i-alert"/></svg>No active environment</span></div>
+        <div class="ov" style="margin:0 0 8px;color:#C6C3CC">Defined only in environments:</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn c4"><span class="dia" style="background:#FF6B5E"></span>Production</button>
+          <button class="btn c4"><span class="dia" style="background:#FFC23D"></span>Staging</button>
+          <button class="btn c4"><span class="dia" style="background:#6EA8FF"></span>Development</button>
+        </div>
+        <div class="ov">Pick one to activate it for this workspace.</div>
+        <div class="foot"><button class="link" style="margin-left:0">Add to collection or globals instead</button><button class="link">Open in Environments <svg class="ico" style="width:12px;height:12px"><use href="#i-external"/></svg></button></div>
+      </div></span>/v2/invoices</div>
+    <button class="send c6">Send</button>
+  </div>
+</section>
+
+<section class="st c14" aria-labelledby="f-h">
+  <div class="cap">State f</div>
+  <h2 id="f-h">Editing the field: marks kept, no popover</h2>
+  <p class="note">While the caret is in the field and keys are arriving, hover does not open the popover; marks keep their colors (T11) and update as you type. Clicking a mark while focused moves the caret; <span class="kc">Alt</span>+click or <span class="kc">F2</span> on a mark opens the popover.</p>
+  <div class="urlbar">
+    <span class="meth c6 m">GET</span>
+    <div class="url foc c8 m"><span class="anchor"><span class="var">{{base_url}}</span>/v2/invoices?customer=<span class="var">{{customer_id}}</span>&amp;tenant=<span class="unres">{{tena</span><span class="caret"></span>
+      <div class="typing" style="top:36px">Popover suppressed while typing · reopens 400 ms after the last key on hover</div></span></div>
+    <button class="send c6">Send</button>
+  </div>
+</section>
+
+</main>
+</body></html>

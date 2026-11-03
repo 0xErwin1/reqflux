@@ -1,0 +1,9 @@
+{
+  "title": "Variable popover",
+  "brief": "Edit a {{variable}} from the input where it is used (Postman-style): hover or click a mark in the URL, grids, auth fields or bodies to see and edit its value, with secrets, unresolved quick add, no active environment and typing states.",
+  "feature": "odd/tasks/v1-close.md",
+  "artboards": [
+    { "file": "01-inline-popover.html", "title": "Inline edit popover", "tradeoff": "Fastest: edit at the mark with no layout change; one scope shown, the chain is a single 'overrides' line", "width": 1440, "height": 1100 },
+    { "file": "02-side-inspector.html", "title": "Hover tooltip + side inspector", "tradeoff": "Hover is read-only and safe; editing in a docked panel shows the full scope chain but costs a click and 308 px of pane", "width": 1440, "height": 1100 }
+  ]
+}
