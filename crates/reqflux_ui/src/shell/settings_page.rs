@@ -86,6 +86,9 @@ pub(crate) struct SettingsPage {
     /// Where the open menu sits, in window coordinates: the click on the `…` button.
     pub(crate) menu_at: Point<Pixels>,
     pub(crate) menu_focus: FocusHandle,
+    /// The 1-based variables row whose `stored in` menu is open.
+    pub(crate) stored_menu: Option<usize>,
+    pub(crate) stored_focus: FocusHandle,
     pub(crate) rename: Option<Rename>,
     /// The environment whose delete waits for a confirmation.
     pub(crate) confirm: Option<Id>,
@@ -111,6 +114,8 @@ impl SettingsPage {
             menu: None,
             menu_at: Point::default(),
             menu_focus: cx.focus_handle(),
+            stored_menu: None,
+            stored_focus: cx.focus_handle(),
             rename: None,
             confirm: None,
             error: None,
@@ -129,6 +134,7 @@ impl SettingsPage {
             self.section = Section::Globals;
         }
         self.menu = None;
+        self.stored_menu = None;
         self.rename = None;
         self.confirm = None;
         self.error = None;
@@ -210,14 +216,16 @@ impl Shell {
         self.restore_focus(window, cx);
     }
 
-    /// Escape on the page: closes the environment menu, the delete confirmation or the
-    /// page. Returns whether it did something.
+    /// Escape on the page: closes the environment menu, the `stored in` menu, the delete
+    /// confirmation or the page. Returns whether it did something.
     pub(crate) fn dismiss_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         if !self.settings_open(cx) {
             return false;
         }
         if self.settings.menu.is_some() {
             self.close_settings_menu(window, cx);
+        } else if self.settings.stored_menu.is_some() {
+            self.close_stored_menu(window, cx);
         } else if self.settings.confirm.take().is_some() {
             cx.notify();
         } else {

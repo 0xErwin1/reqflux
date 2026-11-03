@@ -230,13 +230,14 @@ fn a_secret_never_shows_and_the_keyring_note_names_its_entry(cx: &mut TestAppCon
     click(cx, "variables-scope-globals");
     assert_eq!(
         label(&automation, "variables-stored-1").as_deref(),
-        Some("file")
+        Some("File")
     );
 
     click(cx, "variables-secret-1");
+    click(cx, "variables-stored-keyring-1");
     assert_eq!(
         label(&automation, "variables-stored-1").as_deref(),
-        Some("KEYRING")
+        Some("Keyring")
     );
     assert_eq!(
         label(&automation, "variables-value-1").as_deref(),

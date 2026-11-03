@@ -9,6 +9,7 @@ use reqflux_engine::{MASK, SecretKey, SecretScope};
 use super::Shell;
 use super::draft_tests::{bounds, click, present, render, state_file};
 use super::send_tests::{Server, closed_port, serve};
+use super::variables_document::{STORED_FILE, STORED_KEYRING};
 use super::variables_tests::{USE, enter, read, send_use, type_text, variables_workspace};
 use crate::workspace::OpenedWorkspace;
 
@@ -17,6 +18,26 @@ const MANIFEST: &str = "reqflux.toml";
 fn open_globals(cx: &mut VisualTestContext) {
     click(cx, "rail-environments");
     click(cx, "variables-scope-globals");
+}
+
+fn automation(cx: &mut VisualTestContext) -> gpui_mcp::Automation {
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    automation
+}
+
+fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
+}
+
+/// Picks `choice` (`file` or `keyring`) in the `stored in` menu of the 1-based row `n`.
+fn store_in(cx: &mut VisualTestContext, n: usize, choice: &str) {
+    click(cx, &format!("variables-secret-{n}"));
+    click(cx, &format!("variables-stored-{choice}-{n}"));
 }
 
 /// Opens the cell `selector`, replaces its text with `text` and commits.
@@ -189,7 +210,7 @@ fn marking_a_variable_secret_moves_its_value_to_the_secret_store(cx: &mut TestAp
     open_globals(cx);
     assert!(bounds(cx, "variables-masked-1").is_none());
 
-    click(cx, "variables-secret-1");
+    store_in(cx, 1, "keyring");
     assert!(!read(dir.path(), MANIFEST).contains("hello"));
     assert!(read(dir.path(), MANIFEST).contains("secret = true"));
     assert_eq!(
@@ -223,7 +244,7 @@ fn marking_a_variable_secret_moves_its_value_to_the_secret_store(cx: &mut TestAp
 
     open_globals(cx);
     assert!(bounds(cx, "variables-warning").is_none());
-    click(cx, "variables-secret-1");
+    store_in(cx, 1, "file");
     present(cx, "variables-warning");
     assert!(!read(dir.path(), MANIFEST).contains("secret = true"));
     assert!(!read(dir.path(), MANIFEST).contains("hidden"));
@@ -283,4 +304,143 @@ fn an_undeclared_current_value_shows_and_can_be_cleared(cx: &mut TestAppContext)
             .map(str::to_owned)
     });
     assert_eq!(left, None);
+}
+
+fn current_of(cx: &mut VisualTestContext, shell: &Entity<Shell>, key: &str) -> Option<String> {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .current
+            .get(SecretScope::Global, key)
+            .map(str::to_owned)
+    })
+}
+
+#[gpui::test]
+fn renaming_a_key_from_its_cell_writes_the_file_and_keeps_its_current_value(
+    cx: &mut TestAppContext,
+) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    commit(cx, "variables-current-1", "mine");
+
+    // Escape leaves the key as it was.
+    click(cx, "variables-key-1");
+    assert_eq!(editing(cx, &shell), Some(("variables-key".to_owned(), 1)));
+    type_text(cx, "dropped");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(read(dir.path(), MANIFEST).contains("key = \"greeting\""));
+
+    commit(cx, "variables-key-1", "salute");
+    let manifest = read(dir.path(), MANIFEST);
+    assert!(manifest.contains("key = \"salute\""), "{manifest}");
+    assert!(!manifest.contains("greeting"));
+    assert_eq!(current_of(cx, &shell, "salute").as_deref(), Some("mine"));
+    assert_eq!(current_of(cx, &shell, "greeting"), None);
+    assert!(bounds(cx, "variables-undeclared-1").is_none());
+    let stored = match AppState::open(&state_path) {
+        Ok(state) => state.current_values("01J00000000000000000000900"),
+        Err(error) => panic!("open state: {error}"),
+    };
+    match stored {
+        Ok(values) => {
+            assert_eq!(values.get(SecretScope::Global, "salute"), Some("mine"));
+            assert_eq!(values.get(SecretScope::Global, "greeting"), None);
+        }
+        Err(error) => panic!("current values: {error}"),
+    }
+}
+
+#[gpui::test]
+fn an_empty_key_shows_the_error_and_leaves_the_file(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    let before = read(dir.path(), MANIFEST);
+    commit(cx, "variables-key-1", "");
+    present(cx, "variables-error");
+    assert_eq!(read(dir.path(), MANIFEST), before);
+}
+
+#[gpui::test]
+fn renaming_a_secret_keeps_its_value_in_the_secret_store(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    store_in(cx, 1, "keyring");
+    assert_eq!(
+        stored_secret(cx, &shell, "greeting").as_deref(),
+        Some("hello")
+    );
+
+    commit(cx, "variables-key-1", "salute");
+    let manifest = read(dir.path(), MANIFEST);
+    assert!(manifest.contains("key = \"salute\""));
+    assert!(manifest.contains("secret = true"));
+    assert_eq!(
+        stored_secret(cx, &shell, "salute").as_deref(),
+        Some("hello")
+    );
+    assert_eq!(stored_secret(cx, &shell, "greeting"), None);
+    present(cx, "variables-masked-1");
+}
+
+#[gpui::test]
+fn the_stored_in_menu_explains_both_places_and_moves_the_value(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    let automation = automation(cx);
+    assert_eq!(
+        label(&automation, "variables-stored-1").as_deref(),
+        Some("File")
+    );
+
+    // The trigger opens the menu; each option says what it does. Escape closes it.
+    click(cx, "variables-secret-1");
+    present(cx, "variables-stored-menu");
+    assert_eq!(
+        label(&automation, "variables-stored-file-1").as_deref(),
+        Some(STORED_FILE)
+    );
+    assert_eq!(
+        label(&automation, "variables-stored-keyring-1").as_deref(),
+        Some(STORED_KEYRING)
+    );
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(bounds(cx, "variables-stored-menu").is_none());
+
+    // Picking where the value already is changes nothing.
+    let before = read(dir.path(), MANIFEST);
+    store_in(cx, 1, "file");
+    assert!(bounds(cx, "variables-stored-menu").is_none());
+    assert_eq!(read(dir.path(), MANIFEST), before);
+
+    store_in(cx, 1, "keyring");
+    assert!(bounds(cx, "variables-stored-menu").is_none());
+    let manifest = read(dir.path(), MANIFEST);
+    assert!(manifest.contains("secret = true"));
+    assert!(!manifest.contains("hello"));
+    assert_eq!(
+        stored_secret(cx, &shell, "greeting").as_deref(),
+        Some("hello")
+    );
+    present(cx, "variables-masked-1");
+    assert_eq!(
+        label(&automation, "variables-stored-1").as_deref(),
+        Some("Keyring")
+    );
+
+    store_in(cx, 1, "file");
+    assert!(!read(dir.path(), MANIFEST).contains("secret = true"));
+    assert_eq!(stored_secret(cx, &shell, "greeting"), None);
+    assert!(bounds(cx, "variables-masked-1").is_none());
+    present(cx, "variables-warning");
 }

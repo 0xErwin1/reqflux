@@ -5,21 +5,26 @@
 //! The heading `variables-title` carries the count of empty variables (`variables-empty`) and
 //! `Reset current values` (`variables-reset-current`). Each row `variables-row-<n>` has its
 //! number, enable box, key, initial value (in the file), current value (on this machine),
-//! where the value is stored (`file` or `KEYRING`, a toggle), description and delete control;
+//! where the value is stored (`File` or `Keyring`, a select whose menu says what each does),
+//! description and delete control;
 //! the ghost row `variables-add` appends one. A secret has no initial value in the file and
 //! shows its current value as `••••••••`. The undeclared rows `variables-undeclared-<n>`
 //! show a key a script set, its editable current value, `Declare` and a discard control.
 //!
 //! It draws with DBFlux's `bolt`: the grid sizes of `GridMetrics` (header 40, rows 31),
-//! `Checkbox`, `Badge`, `Button`, and the section labels of `HeaderMetrics`.
+//! `Checkbox`, `SelectTrigger` with the menu frame and rows, `Button`, and the section labels
+//! of `HeaderMetrics`.
 
 use bolt::Colors;
-use bolt::controls::{Button, Checkbox, Input, InputEnter as Enter, InputEscape as Escape};
-use bolt::primitives::{Badge, BadgeTone, Icon, TextVariant};
+use bolt::composites::{MenuItem, menu_frame, menu_row};
+use bolt::controls::{
+    Button, Checkbox, Input, InputEnter as Enter, InputEscape as Escape, SelectTrigger,
+};
+use bolt::primitives::{Icon, TextVariant};
 use bolt::tokens::{Borders, FontSizes, GridMetrics, HeaderMetrics, ResultMetrics, Spacing};
 use gpui::{
-    AnyElement, Context, Div, FontWeight, Hsla, ParentElement, Pixels, Role, Stateful, Styled,
-    Toggled, div, prelude::*,
+    AnyElement, Context, Div, FontWeight, Hsla, KeyDownEvent, MouseButton, ParentElement, Pixels,
+    Point, Role, Stateful, Styled, Toggled, Window, anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_core::model::Variable;
@@ -38,12 +43,21 @@ const MASK: &str = "••••••••";
 /// What a secret's initial value shows.
 const NOT_IN_FILE: &str = "not in the file";
 
+/// The `stored in` option that keeps the initial value in the workspace file.
+pub(super) const STORED_FILE: &str =
+    "File: Saved in the workspace file, shared with whoever has the workspace (e.g. through git)";
+
+/// The `stored in` option that makes the variable a secret.
+pub(super) const STORED_KEYRING: &str =
+    "Keyring: A secret, kept in this machine's OS keyring, never in the file, and shown masked";
+
 /// The variables column of `scope`, named `name`, whose file is `file`.
 pub(super) fn render(
     shell: &Shell,
     scope: SecretScope,
     name: &str,
     file: &str,
+    window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let variables = shell.variables_of(scope);
@@ -51,7 +65,7 @@ pub(super) fn render(
     let rows: Vec<_> = variables
         .iter()
         .enumerate()
-        .map(|(index, variable)| declared_row(shell, scope, index + 1, variable, cx))
+        .map(|(index, variable)| declared_row(shell, scope, index + 1, variable, window, cx))
         .collect();
     let extra_rows: Vec<_> = extra
         .iter()
@@ -220,6 +234,7 @@ fn declared_row(
     scope: SecretScope,
     n: usize,
     variable: &Variable,
+    window: &Window,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let current_value = shell.current.get(scope, &variable.key).map(str::to_owned);
@@ -245,7 +260,9 @@ fn declared_row(
         cx,
     ))
     .text_color(strong)
-    .child(variable.key.clone())
+    .when(!shell.is_editing(scope, Column::Key, n), |cell| {
+        cell.child(variable.key.clone())
+    })
     .into_any_element();
     let initial = variable.value.clone().unwrap_or_default();
     let value = if variable.secret {
@@ -275,7 +292,9 @@ fn declared_row(
             &initial,
             cx,
         ));
-        if initial.is_empty() && !shell.is_editing(scope, Column::Value, n) {
+        if shell.is_editing(scope, Column::Value, n) {
+            cell.into_any_element()
+        } else if initial.is_empty() {
             cell.child(empty_tag(warning)).into_any_element()
         } else {
             cell.child(initial.clone()).into_any_element()
@@ -324,7 +343,7 @@ fn declared_row(
             cell.child(shown).into_any_element()
         }
     };
-    let stored = stored_toggle(scope, n, variable, cx);
+    let stored = stored_select(shell, scope, n, variable, window, cx);
     let description_text = variable.description.clone().unwrap_or_default();
     let description = cell(
         shell,
@@ -339,7 +358,9 @@ fn declared_row(
     .font_family(ui_family)
     .text_size(FontSizes::XS)
     .text_color(if empty { warning } else { muted })
-    .child(description_text.clone())
+    .when(!shell.is_editing(scope, Column::Description, n), |cell| {
+        cell.child(description_text.clone())
+    })
     .into_any_element();
     let delete = delete_control(scope, n, &variable.key, cx);
     let number_color = if empty { colors.warning } else { colors.line_2 };
@@ -432,7 +453,9 @@ fn undeclared_row(
         value,
         cx,
     )
-    .child(value.to_owned())
+    .when(!shell.is_editing(scope, Column::Undeclared, n), |cell| {
+        cell.child(value.to_owned())
+    })
     .into_any_element();
     let declare = Button::new(format!("variables-declare-{n}"), "Declare")
         .secondary()
@@ -646,6 +669,7 @@ fn cell(
             .child(
                 Input::new(&edit.input)
                     .id("variables-cell-input")
+                    .w_full()
                     .appearance(false)
                     .font_weight(FontWeight::NORMAL)
                     .padding(Pixels::ZERO, Pixels::ZERO)
@@ -701,40 +725,113 @@ fn enable_box(scope: SecretScope, n: usize, variable: &Variable, cx: &mut Contex
         )
 }
 
-/// The `stored in` toggle `variables-secret-<n>`: the `file` badge, or the `KEYRING` badge
-/// while the variable is secret, as `variables-stored-<n>`. A click moves the value between
-/// them.
-fn stored_toggle(
+/// The `stored in` cell `variables-stored-<n>`, labeled `File` or `Keyring`: `bolt`'s select
+/// trigger `variables-secret-<n>`, which opens the menu `variables-stored-menu` of the two
+/// places with what each does (`variables-stored-file-<n>`, `variables-stored-keyring-<n>`).
+/// Picking one moves the value there.
+fn stored_select(
+    shell: &Shell,
     scope: SecretScope,
     n: usize,
     variable: &Variable,
+    window: &Window,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
     let (label, icon_name) = if variable.secret {
-        ("KEYRING", IconName::KeyRound)
+        ("Keyring", IconName::KeyRound)
     } else {
-        ("file", IconName::File)
+        ("File", IconName::File)
     };
-    let pill = Badge::new(label, BadgeTone::Neutral)
-        .icon(ui::icon(icon_name))
-        .id(gpui::ElementId::Name(
-            format!("variables-stored-{n}").into(),
-        ));
-    part(format!("variables-secret-{n}"))
-        .role(Role::CheckBox)
-        .aria_label(format!("Keep {} in the keyring", variable.key))
-        .aria_toggled(toggled(variable.secret))
-        .cursor_pointer()
+    let open = shell.settings.stored_menu == Some(n);
+    let trigger = SelectTrigger::new(
+        gpui::ElementId::Name(format!("variables-secret-{n}").into()),
+        label,
+    )
+    .aria_label(format!("Where {} is stored: {label}", variable.key))
+    .leading_icon(ui::icon(icon_name))
+    .focused(open, cx)
+    .on_click(cx.listener(move |this, _event, window, cx| {
+        this.toggle_stored_menu(n, window, cx);
+    }));
+    labeled_row(format!("variables-stored-{n}"), label.to_owned())
+        .relative()
         .flex_none()
         .w(tokens::VARIABLES_STORED_COLUMN)
         .h_full()
         .flex()
         .items_center()
         .pl(GridMetrics::CELL_PADDING_X)
-        .child(pill)
-        .on_click(cx.listener(move |this, _event, window, cx| {
-            this.toggle_variable_secret(scope, n, window, cx);
-        }))
+        .pr(GridMetrics::CELL_PADDING_X)
+        .child(trigger)
+        .when(open, |cell| {
+            cell.child(stored_menu(shell, scope, n, variable.secret, window, cx))
+        })
+}
+
+/// The open `stored in` menu of the 1-based row `n`, anchored under its trigger over a
+/// backdrop that closes it; Escape closes it too.
+fn stored_menu(
+    shell: &Shell,
+    scope: SecretScope,
+    n: usize,
+    secret: bool,
+    window: &Window,
+    cx: &mut Context<Shell>,
+) -> AnyElement {
+    let option =
+        |choice: &'static str, keyring: bool, text: &'static str, cx: &mut Context<Shell>| {
+            let (name, detail) = text.split_once(": ").unwrap_or((text, ""));
+            let icon_name = if keyring {
+                IconName::KeyRound
+            } else {
+                IconName::File
+            };
+            let item = MenuItem::new(name.to_owned())
+                .icon(ui::icon(icon_name))
+                .detail(detail.to_owned())
+                .checked(secret == keyring);
+            let id = format!("variables-stored-{choice}-{n}");
+            let selector = id.clone();
+            menu_row(id, &item, secret == keyring, cx)
+                .debug_selector(move || selector)
+                .role(Role::MenuItemRadio)
+                .aria_label(text)
+                .aria_toggled(toggled(secret == keyring))
+                .on_click(cx.listener(move |this, _event, window, cx| {
+                    this.set_variable_secret(scope, n, keyring, window, cx);
+                }))
+        };
+    let file = option("file", false, STORED_FILE, cx);
+    let keyring = option("keyring", true, STORED_KEYRING, cx);
+    let menu = menu_frame(cx)
+        .id("variables-stored-menu")
+        .debug_selector(|| "variables-stored-menu".to_owned())
+        .role(Role::Menu)
+        .track_focus(&shell.settings.stored_focus)
+        .occlude()
+        .w(tokens::VARIABLES_STORED_MENU_WIDTH)
+        .child(file)
+        .child(keyring)
+        .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
+            if event.keystroke.key == "escape" {
+                this.close_stored_menu(window, cx);
+            }
+        }));
+    let backdrop = part("variables-stored-backdrop".to_owned())
+        .occlude()
+        .w(window.viewport_size().width)
+        .h(window.viewport_size().height)
+        .on_mouse_down(
+            MouseButton::Left,
+            cx.listener(|this, _event, window, cx| this.close_stored_menu(window, cx)),
+        );
+    div()
+        .absolute()
+        .top_full()
+        .left_0()
+        .child(deferred(anchored().position(Point::default()).child(backdrop)).with_priority(1))
+        .child(deferred(anchored().child(menu)).with_priority(2))
+        .into_any_element()
 }
 
 fn delete_control(scope: SecretScope, n: usize, key: &str, cx: &mut Context<Shell>) -> Div {

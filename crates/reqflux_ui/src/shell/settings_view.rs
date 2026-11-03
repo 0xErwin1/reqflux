@@ -393,7 +393,7 @@ fn content(
         Some(scope) => {
             let name = scope_name(workspace, scope).unwrap_or_default();
             let file = scope_file(workspace, scope).unwrap_or_default();
-            variables_document::render(shell, scope, &name, &file, cx)
+            variables_document::render(shell, scope, &name, &file, window, cx)
         }
         None => ui::role(
             text_region("variables-no-environment"),

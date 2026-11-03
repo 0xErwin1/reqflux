@@ -164,7 +164,9 @@ pub(crate) const VARIABLES_ON_COLUMN: Pixels = px(34.0);
 pub(crate) const VARIABLES_KEY_COLUMN: Pixels = px(140.0);
 pub(crate) const VARIABLES_VALUE_COLUMN: Pixels = px(220.0);
 pub(crate) const VARIABLES_CURRENT_COLUMN: Pixels = px(150.0);
-pub(crate) const VARIABLES_STORED_COLUMN: Pixels = px(92.0);
+pub(crate) const VARIABLES_STORED_COLUMN: Pixels = px(120.0);
+/// The width of the `stored in` menu, which fits each option's one-line explanation.
+pub(crate) const VARIABLES_STORED_MENU_WIDTH: Pixels = px(480.0);
 /// The width of the `Set by` column of an undeclared row, which the page leaves empty.
 pub(crate) const VARIABLES_UNDECLARED_NOTE: Pixels = px(118.0);
 /// The padding of a narrow grid cell (the enable box column).
