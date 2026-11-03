@@ -320,7 +320,7 @@ fn a_write_that_fails_shows_why_and_try_again_reopens_the_dialog(cx: &mut TestAp
 }
 
 #[gpui::test]
-fn an_existing_file_is_not_replaced(cx: &mut TestAppContext) {
+fn a_file_chosen_in_the_save_dialog_replaces_the_one_there(cx: &mut TestAppContext) {
     let mut f = fixture(cx);
     let path = f.save_to("billing.json");
     if let Err(failure) = fs::write(&path, "keep") {
@@ -328,11 +328,15 @@ fn an_existing_file_is_not_replaced(cx: &mut TestAppContext) {
     }
     f.export_row(COLLECTION);
     click(f.cx, "export-confirm");
-    assert_eq!(read(&path), "keep");
-    let toasts = pushed(f.cx);
+    let expected = postman_text(&mut f, COLLECTION, false);
     assert_eq!(
-        toasts.first().map(|toast| toast.text.clone()),
-        Some(format!("{} already exists", path.display()))
+        read(&path),
+        expected,
+        "the OS dialog already asked to replace it"
+    );
+    assert_eq!(
+        pushed(f.cx).first().map(|toast| toast.title.clone()),
+        Some("Exported to Postman".to_owned())
     );
 }
 

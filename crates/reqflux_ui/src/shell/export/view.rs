@@ -279,7 +279,6 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
                 ("export-passphrase", "export-passphrase-error"),
                 "Passphrase",
                 first,
-                dialog.reveal,
                 first_error.map(super::PassphraseError::message),
                 cx,
             )
@@ -293,7 +292,6 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
                 ),
                 "Confirm passphrase",
                 second,
-                dialog.reveal,
                 second_error.map(super::PassphraseError::message),
                 cx,
             )
@@ -326,20 +324,21 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
     options
 }
 
-/// A masked passphrase field `id` under `label`, its error under it as `error_id`.
+/// A masked passphrase field `id` under `label`, its error under it as `error_id`. It stays a
+/// secret field while Show draws its text, so the passphrase never reaches the automation
+/// tree.
 // bolt gap: `Input` has no inline error slot; the error is a caption in the danger color.
 fn passphrase_field(
     (id, error_id): (&'static str, &'static str),
     label: &'static str,
     input: &Entity<InputState>,
-    reveal: bool,
     error: Option<&'static str>,
     cx: &App,
 ) -> Div {
     let field = region(id)
         .role(Role::TextInput)
         .aria_label(label)
-        .child(Input::new(input).secret(!reveal));
+        .child(Input::new(input).secret(true));
     let mut column = div()
         .flex()
         .flex_col()

@@ -1325,8 +1325,10 @@ plaintext warning; a bundle leaves secrets out by default and lists them, or enc
 passphrase typed twice in masked fields (empty and mismatched are refused under the field before
 the save dialog; the passphrase never reaches a log, a toast or an error). The primary button
 closes the dialog and asks the `ExportHost` seam (the OS save or folder dialog; tests answer it)
-where to write. Files go through `write_export_file` (never over an existing file; 0600 with
-secrets in clear); API docs that exist ask `Replace API docs?` once and Replace files writes with
+where to write. Files go through `write_export_file` with force, since the OS save dialog has
+already asked before replacing a file (the CLI still refuses without `--force`); a file with
+secrets in clear is 0600, a replaced one included. The passphrase fields stay secret inputs
+while Show draws their text, so it never reaches the automation tree either. API docs that exist ask `Replace API docs?` once and Replace files writes with
 force. The success toast carries the path and Show in folder (`App::reveal_path`; Open
 index.html for docs, `App::open_with_system`); a failure keeps the error and offers Try again….
 Its `// bolt gap:` stand-ins: a segmented item cannot be disabled with a tooltip (formats the

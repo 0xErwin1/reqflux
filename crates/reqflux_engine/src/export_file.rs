@@ -69,6 +69,14 @@ pub fn write_export_file(
             write(error)
         }
     })?;
+    // `mode` applies only to a file the open creates; a replaced file keeps its own mode,
+    // so a private one is narrowed before any secret is written into it.
+    #[cfg(unix)]
+    if private {
+        use std::os::unix::fs::PermissionsExt as _;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))
+            .map_err(write)?;
+    }
     file.write_all(text.as_bytes())
         .and_then(|()| file.flush())
         .map_err(write)

@@ -78,3 +78,27 @@ fn a_file_with_secrets_is_readable_by_its_owner_only() {
     };
     assert_eq!(mode, 0o600);
 }
+
+#[cfg(unix)]
+#[test]
+fn a_forced_file_with_secrets_over_a_readable_one_becomes_owner_only() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let dir = temp_dir();
+    let file = dir.path().join("secrets.json");
+    if let Err(error) = fs::write(&file, "old") {
+        panic!("write: {error}");
+    }
+    if let Err(error) = fs::set_permissions(&file, fs::Permissions::from_mode(0o644)) {
+        panic!("chmod: {error}");
+    }
+    if let Err(error) = write_export_file(&file, "{}\n", true, true) {
+        panic!("write: {error}");
+    }
+    let mode = match fs::metadata(&file) {
+        Ok(metadata) => metadata.permissions().mode() & 0o777,
+        Err(error) => panic!("metadata: {error}"),
+    };
+    assert_eq!(mode, 0o600);
+    assert_eq!(fs::read_to_string(&file).ok().as_deref(), Some("{}\n"));
+}

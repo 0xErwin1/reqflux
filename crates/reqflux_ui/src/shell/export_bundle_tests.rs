@@ -173,3 +173,59 @@ fn api_docs_refuse_to_overwrite_until_replace_files(cx: &mut TestAppContext) {
     click_node(f.cx, "toast-action-1-0");
     assert_eq!(f.host.opened.borrow().as_slice(), [docs.join("index.html")]);
 }
+
+/// The window's automation tree as text, read after a fresh frame.
+fn automation_dump(cx: &mut gpui::VisualTestContext) -> String {
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    format!("{:?}", automation.snapshot())
+}
+
+#[gpui::test]
+fn the_passphrase_never_reaches_the_automation_tree_even_revealed(cx: &mut TestAppContext) {
+    let mut f = fixture(cx);
+    f.export_row(COLLECTION);
+    click(f.cx, "export-format-bundle");
+    click(f.cx, "export-secrets-encrypt");
+    type_into(f.cx, "export-passphrase", "zebra-pass-77");
+    type_into(f.cx, "export-passphrase-confirm", "zebra-pass-77");
+    assert!(!automation_dump(f.cx).contains("zebra-pass-77"));
+    click(f.cx, "export-passphrase-reveal");
+    assert!(
+        !automation_dump(f.cx).contains("zebra-pass-77"),
+        "a revealed passphrase stays out of the automation tree"
+    );
+}
+
+#[gpui::test]
+fn cancel_drops_the_passphrase(cx: &mut TestAppContext) {
+    let mut f = fixture(cx);
+    f.export_row(COLLECTION);
+    click(f.cx, "export-format-bundle");
+    click(f.cx, "export-secrets-encrypt");
+    type_into(f.cx, "export-passphrase", "zebra-pass-77");
+    click(f.cx, "export-cancel");
+    f.export_row(COLLECTION);
+    click(f.cx, "export-format-bundle");
+    click(f.cx, "export-secrets-encrypt");
+    let shell = f.shell.clone();
+    let held = f.cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .export
+            .dialog
+            .as_ref()
+            .and_then(|dialog| dialog.passphrase.as_ref())
+            .map(|[first, second]| {
+                (
+                    first.read(cx).value().to_string(),
+                    second.read(cx).value().to_string(),
+                )
+            })
+    });
+    assert_eq!(held, Some((String::new(), String::new())));
+}

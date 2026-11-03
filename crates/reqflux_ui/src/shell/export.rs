@@ -10,14 +10,16 @@
 //!   both shown under their field), makes the document, closes the dialog and asks the
 //!   [`ExportHost`] for a file or, for API docs, a folder. A dismissed OS dialog writes
 //!   nothing.
-//! - A file is written by [`reqflux_engine::write_export_file`]: never over an existing one,
-//!   and owner-only when Postman carries secret values in clear. API docs that exist ask once
+//! - A file is written by [`reqflux_engine::write_export_file`] with force: the OS save
+//!   dialog has already asked before replacing a file. It is owner-only when Postman carries
+//!   secret values in clear. API docs that exist ask once
 //!   (`export-replace-dialog`); Replace files writes with force.
 //! - The success toast names the path and offers Show in folder (Open index.html for docs);
 //!   a failure keeps the error and offers Try again….
 //!
 //! The passphrase lives in the dialog's two masked inputs and in the call that encrypts; it
-//! never reaches a log, a toast or an error, and closing the dialog drops it.
+//! never reaches a log, a toast, an error or the automation tree (the fields stay secret while
+//! Show draws their text), and closing the dialog drops it.
 
 mod model;
 mod view;
@@ -431,7 +433,7 @@ impl Shell {
                 private,
                 done,
                 ..
-            } => match write_export_file(path, &text, false, private) {
+            } => match write_export_file(path, &text, true, private) {
                 Ok(()) => self.exported(done, path, cx),
                 Err(error) => self.export_failed(error.to_string(), cx),
             },
