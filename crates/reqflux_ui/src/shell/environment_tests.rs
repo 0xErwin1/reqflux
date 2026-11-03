@@ -170,3 +170,67 @@ fn an_environment_named_none_keeps_its_own_row(cx: &mut TestAppContext) {
     click(cx, "environment-option-none");
     assert_eq!(active(cx, &shell).as_deref(), Some("none"));
 }
+
+/// Opens `environment_workspace` and keeps its directory, so actions that write files work.
+fn render_kept(cx: &mut TestAppContext) -> (TempDir, Entity<Shell>, &mut VisualTestContext) {
+    let dir = environment_workspace();
+    cx.update(|cx| crate::theme::install(crate::theme::PaletteMode::Dark, cx));
+    cx.update(super::bind_keys);
+    let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
+    let (shell, cx) = cx.add_window_view(|_, cx| Shell::new(workspace, cx));
+    cx.run_until_parked();
+    (dir, shell, cx)
+}
+
+fn section(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> super::settings_page::Section {
+    cx.update(|_, cx| shell.read(cx).settings_section())
+}
+
+#[gpui::test]
+fn the_menu_ends_with_new_and_manage_with_their_keys(cx: &mut TestAppContext) {
+    let (_shell, cx) = render(cx);
+    click(cx, "environment-selector");
+    let last = present(cx, "environment-option-prod");
+    let new = present(cx, "environment-new");
+    let manage = present(cx, "environment-manage");
+    assert!(last.bottom() <= new.top() && new.bottom() <= manage.top());
+    present(cx, "environment-new-keycap");
+    present(cx, "environment-manage-keycap");
+}
+
+#[gpui::test]
+fn new_environment_from_the_menu_creates_one_and_opens_it(cx: &mut TestAppContext) {
+    let (dir, shell, cx) = render_kept(cx);
+    let before = std::fs::read_dir(dir.path().join("environments"))
+        .map(|entries| entries.count())
+        .unwrap_or_default();
+    click(cx, "environment-selector");
+    click(cx, "environment-new");
+
+    assert!(bounds(cx, "environment-menu").is_none(), "the menu closes");
+    let after = std::fs::read_dir(dir.path().join("environments"))
+        .map(|entries| entries.count())
+        .unwrap_or_default();
+    assert_eq!(after, before + 1, "a new environment file is written");
+    assert!(
+        matches!(
+            section(cx, &shell),
+            super::settings_page::Section::Environments(Some(_))
+        ),
+        "the settings page opens on the new environment"
+    );
+}
+
+#[gpui::test]
+fn manage_environments_opens_the_environments_page(cx: &mut TestAppContext) {
+    let (shell, cx) = render(cx);
+    click(cx, "environment-selector");
+    click(cx, "environment-manage");
+
+    assert!(bounds(cx, "environment-menu").is_none(), "the menu closes");
+    assert!(matches!(
+        section(cx, &shell),
+        super::settings_page::Section::Environments(_)
+    ));
+    cx.update(|_, cx| assert!(shell.read(cx).settings_open(cx)));
+}

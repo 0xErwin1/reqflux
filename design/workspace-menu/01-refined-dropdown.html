@@ -238,4 +238,18 @@ button{font:inherit;white-space:nowrap}
     <span class="c6 chip"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#7BE0A0"><use href="#i-check"/></svg><span class="m" style="color:#C6C3CC">POST /v1/invoices · 201 · 184 ms</span></span>
   </footer>
 </main>
+
+<!-- Environment menu (v1-close): the title bar environment button opens the same bolt menu frame; under the environments, a separator and the two actions with their keys: New environment… creates one and opens Settings > Environments on it, Manage environments… opens Settings > Environments. Only while a workspace is loaded. -->
+<div style="position:relative;width:1440px;height:300px;background:#09090B;border-top:1px solid #37333D">
+  <div class="c12" role="menu" aria-label="Environments" style="position:absolute;top:24px;left:67px;width:300px;padding:1px;background:#37333D;box-shadow:0 12px 32px rgba(0,0,0,.55)">
+    <div style="background:#1A181E;clip-path:polygon(11.4px 0,100% 0,100% calc(100% - 11.4px),calc(100% - 11.4px) 100%,0 100%,0 11.4px);padding:6px 0">
+      <div style="display:flex;align-items:center;padding:8px 14px 6px"><span class="cap">Environments</span></div>
+      <div role="menuitemradio" aria-checked="true" class="mi" style="background:rgba(157,177,255,.12);box-shadow:inset 2px 0 0 #9DB1FF"><span style="flex-grow:1">No environment</span></div>
+      <div role="menuitemradio" aria-checked="false" class="mi"><span style="flex-grow:1">Urutec Dev</span></div>
+      <div class="sep"></div>
+      <div role="menuitem" class="mi"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-plus"/></svg><span style="flex-grow:1">New environment…</span><span style="display:flex;gap:3px"><span class="c4 kc">Ctrl Shift E</span></span></div>
+      <div role="menuitem" class="mi"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-gear"/></svg><span style="flex-grow:1">Manage environments…</span><span style="display:flex;gap:3px"><span class="c4 kc">Ctrl 3</span></span></div>
+    </div>
+  </div>
+</div>
 </body></html>
