@@ -184,7 +184,8 @@ fn progress(run: &RunTab) -> Div {
     let fraction = done as f32 / total as f32;
     div()
         .flex_none()
-        .px(HeaderMetrics::SECTION_PADDING_X)
+        .pl(HeaderMetrics::SECTION_PADDING_X)
+        .pr(HeaderMetrics::SECTION_PADDING_X)
         .pb(Spacing::MD)
         .child(
             Progress::new("runner-progress", fraction).label(format!("{done} of {total} requests")),
