@@ -7,7 +7,10 @@
 //! it has one: every `{{variable}}` stays as written, secret or not, and nothing is read from
 //! the keyring. The language is a segmented control, `codegen-language`, with the segments
 //! `codegen-language-<curl|httpie|python|fetch>`; the code shows read only with line numbers in
-//! `codegen-code` (`bolt`'s `ModalCode`), one `codegen-code-line-<n>` per line; the note `codegen-secrets` names the secret
+//! `codegen-code` (`bolt`'s `ModalCode`), one `codegen-code-line-<n>` per line, colored by
+//! the language's grammar (design/syntax/01: curl and HTTPie bash, Python python, fetch
+//! javascript) with the references that resolve in bold tint and the others in bold
+//! warning; the note `codegen-secrets` names the secret
 //! variables left in it. Copy (`codegen-copy`, Enter) puts the code on the clipboard, closes
 //! the dialog and confirms it in a toast; Close (`codegen-close`), Escape or the backdrop
 //! closes it.
@@ -16,7 +19,7 @@ use std::ops::Range;
 
 use bolt::controls::Button;
 use bolt::modals::{Modal, ModalCode, ModalFocus};
-use bolt::primitives::{BannerBlock, BannerVariant, SegmentedItem, TextVariant};
+use bolt::primitives::{BadgeTone, BannerBlock, BannerVariant, SegmentedItem, TextVariant};
 use bolt::tokens::{ModalMetrics, Spacing};
 use gpui::{
     AnyElement, App, ClipboardItem, Context, Div, EventEmitter, FontWeight, IntoElement,
@@ -276,6 +279,13 @@ impl Shell {
         cx.notify();
     }
 
+    /// The references of the code the open dialog shows, for tests.
+    #[cfg(test)]
+    pub(super) fn codegen_references(&self) -> Option<References> {
+        let dialog = self.codegen.open.as_ref()?;
+        Some(reference_ranges(dialog.inspection.as_ref()?, &dialog.code))
+    }
+
     /// The code the open dialog shows, for tests.
     #[cfg(test)]
     pub(super) fn codegen_code(&self) -> Option<(Language, String)> {
@@ -453,15 +463,33 @@ fn toolbar(dialog: &Dialog, cx: &mut Context<Shell>) -> Div {
         )
 }
 
-/// The code, read only, one numbered line each, with its `{{name}}` references in bold tint.
+/// The tone of a reference that does not resolve, as the URL bar marks it.
+pub(super) const UNRESOLVED_TONE: BadgeTone = BadgeTone::Warning;
+
+/// The grammar registered for `language`'s code: the shell commands are bash.
+pub(super) fn code_language(language: Language) -> &'static str {
+    match language {
+        Language::Curl | Language::Httpie => "bash",
+        Language::Python => "python",
+        Language::Fetch => "javascript",
+    }
+}
+
+/// The code, read only, one numbered line each, colored by its language, with its
+/// `{{name}}` references in bold tint, or in bold warning when they do not resolve.
 fn code_block(dialog: &Dialog) -> ModalCode {
-    let references = dialog
+    let References {
+        resolved,
+        unresolved,
+    } = dialog
         .inspection
         .as_ref()
         .map(|inspection| reference_ranges(inspection, &dialog.code))
         .unwrap_or_default();
     ModalCode::new("codegen-code", dialog.code.clone())
-        .highlights(references)
+        .language(code_language(dialog.language))
+        .highlights(resolved)
+        .highlights_with_tone(unresolved, UNRESOLVED_TONE)
         .line_numbers(true)
         .aria_label(format!(
             "Generated {} code",
@@ -469,21 +497,30 @@ fn code_block(dialog: &Dialog) -> ModalCode {
         ))
 }
 
-/// The byte ranges of the `{{name}}` references in `code`.
-fn reference_ranges(inspection: &Inspection, code: &str) -> Vec<Range<usize>> {
+/// The byte ranges of the `{{name}}` references in a code, split by whether they resolve.
+#[derive(Debug, Default)]
+pub(super) struct References {
+    pub(super) resolved: Vec<Range<usize>>,
+    pub(super) unresolved: Vec<Range<usize>>,
+}
+
+/// The `{{name}}` references in `code`.
+fn reference_ranges(inspection: &Inspection, code: &str) -> References {
     let mut at = 0;
-    let mut ranges = Vec::new();
+    let mut found = References::default();
     for span in inspection.spans(code) {
         let len = match &span {
             Span::Literal(literal) => literal.len(),
             Span::Reference { raw, .. } => raw.len(),
         };
-        if matches!(span, Span::Reference { .. }) {
-            ranges.push(at..at + len);
+        match span {
+            Span::Reference { resolves: true, .. } => found.resolved.push(at..at + len),
+            Span::Reference { .. } => found.unresolved.push(at..at + len),
+            Span::Literal(_) => {}
         }
         at += len;
     }
-    ranges
+    found
 }
 
 #[cfg(test)]

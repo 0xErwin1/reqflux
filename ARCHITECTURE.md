@@ -1349,8 +1349,10 @@ send's script writes.
 `Generate code…` open it, a segmented control picks curl, HTTPie, Python requests or JavaScript
 fetch, and Copy (Enter) puts the code on the clipboard. Every `{{variable}}` stays as written.
 For a draft it swaps the draft into a copy of the workspace, so the auth it inherits matches what
-a send would use. The code is `bolt`'s `ModalCode` with line numbers (`codegen-code-line-<n>`)
-and its `{{variable}}` references in bold tint.
+a send would use. The code is `bolt`'s `ModalCode` with line numbers (`codegen-code-line-<n>`),
+colored by `ModalCode::language` (curl and HTTPie `bash`, Python requests `python`, JavaScript
+fetch `javascript`), with its `{{variable}}` references in bold tint when they resolve and in
+bold warning (`highlights_with_tone`, `BadgeTone::Warning`) when they do not.
 `shell/export.rs` draws the Export… dialog (design/export/01-one-export-dialog) on
 `Engine::export_postman`, `Engine::bundle` and `Engine::docs`, the calls the CLI makes. A tree
 row's `Export…`, the workspace menu's `Export workspace…`, an environment's `Export…` and the

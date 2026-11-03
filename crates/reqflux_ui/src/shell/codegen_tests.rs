@@ -232,3 +232,65 @@ fn the_send_button_still_sends_beside_the_new_button(cx: &mut TestAppContext) {
     );
     assert_eq!(code.center().y, send.center().y);
 }
+
+#[test]
+fn each_language_colors_with_its_grammar() {
+    assert_eq!(super::code_language(Language::Curl), "bash");
+    assert_eq!(super::code_language(Language::Httpie), "bash");
+    assert_eq!(super::code_language(Language::Python), "python");
+    assert_eq!(super::code_language(Language::Fetch), "javascript");
+}
+
+#[gpui::test]
+fn the_curl_command_takes_the_bash_roles(cx: &mut TestAppContext) {
+    let (_dir, _state, shell, cx) = open(cx);
+    click(cx, "codegen-open");
+    let Some((language, code)) = shown_code(cx, &shell) else {
+        panic!("the dialog is closed");
+    };
+    let runs =
+        cx.update(|_, cx| bolt::syntax::highlight(super::code_language(language), &code, cx));
+    let color_at = |at: usize| {
+        runs.iter()
+            .find(|(range, _)| range.contains(&at))
+            .and_then(|(_, style)| style.color)
+            .map(crate::tokens::tests::rgb_of)
+    };
+    assert_eq!(color_at(0), Some(0xFFC23D), "the command: function");
+    let Some(quote) = code.find('\'') else {
+        panic!("no quoted argument: {code}");
+    };
+    assert_eq!(
+        color_at(quote + 1),
+        Some(0x7BE0A0),
+        "a quoted argument: string"
+    );
+}
+
+#[gpui::test]
+fn unresolved_references_take_the_warning_tone(cx: &mut TestAppContext) {
+    let (_dir, _state, shell, cx) = open(cx);
+    edit_url(cx, "{{base}}/v1/{{missing}}");
+    click(cx, "codegen-open");
+    let Some((_, code)) = shown_code(cx, &shell) else {
+        panic!("the dialog is closed");
+    };
+    let Some(references) = cx.update(|_, cx| shell.read(cx).codegen_references()) else {
+        panic!("no references");
+    };
+    let text = |ranges: &[std::ops::Range<usize>]| -> Vec<String> {
+        ranges
+            .iter()
+            .filter_map(|range| code.get(range.clone()))
+            .map(str::to_owned)
+            .collect()
+    };
+    // `token` is a secret with no value set, so it does not resolve either.
+    assert_eq!(text(&references.unresolved), ["{{missing}}", "{{token}}"]);
+    assert!(
+        text(&references.resolved).contains(&"{{base}}".to_owned()),
+        "{:?}",
+        text(&references.resolved)
+    );
+    assert_eq!(super::UNRESOLVED_TONE, bolt::primitives::BadgeTone::Warning);
+}

@@ -10,8 +10,11 @@
   {{variable}} stays as written, secret or not; nothing is resolved from the environment.
   Undo shows the key of the Undo curl paste command (Ctrl+Alt+Z by default, rebindable in
   Settings > Keymap) as a keycap inside the button (ToastAction::key_hint); the button keeps
-  "Undo" as its name. The code is bolt's ModalCode with its line-number gutter; the
-  {{variable}} references are its highlights, bold tint, resolving or not.
+  "Undo" as its name. The code is bolt's ModalCode with its line-number gutter, colored by its
+  language's grammar as design/syntax/01 draws it (curl and HTTPie bash, so the command is the
+  function role; Python python; fetch javascript); the {{variable}} references are its
+  highlights, bold tint when they resolve and bold warning (highlights_with_tone, Warning)
+  when they do not. ModalCode's tones color the text only: no wash or underline in the code.
 -->
 <style>
 body{margin:0;background:#09090B}
@@ -65,6 +68,7 @@ button{font:inherit;white-space:nowrap}
 .ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:#37333D}
 .ln>.tx{white-space:pre;color:#C6C3CC}
 .k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}.b{color:#FFC23D}
+.fn{color:#FFC23D;font-weight:700}.unres-code{color:#FFC23D;font-weight:700}
 .c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
 .hint{font-size:12px;color:#8E8996}
 </style>
@@ -271,10 +275,10 @@ button{font:inherit;white-space:nowrap}
           <span class="hint">Read only · from the current draft</span>
         </div>
         <div class="c8 box m" aria-label="Generated curl command" style="padding:8px 0;font-size:12.5px">
-          <div class="ln"><span class="no">1</span><span class="tx"><span class="k">curl</span> <span class="s">'<span class="var">{{base_url}}</span>/v1/invoices?expand=lines'</span> \</span></div>
+          <div class="ln"><span class="no">1</span><span class="tx"><span class="fn">curl</span> <span class="s">'<span class="var">{{base_url}}</span>/v1/invoices?expand=lines'</span> \</span></div>
           <div class="ln"><span class="no">2</span><span class="tx">  -H <span class="s">'Content-Type: application/json'</span> \</span></div>
           <div class="ln"><span class="no">3</span><span class="tx">  -H <span class="s">'Authorization: Bearer <span class="var">{{access_token}}</span>'</span> \</span></div>
-          <div class="ln"><span class="no">4</span><span class="tx">  -H <span class="s">'X-Tenant-Id: <span class="unres">{{tenant_id}}</span>'</span> \</span></div>
+          <div class="ln"><span class="no">4</span><span class="tx">  -H <span class="s">'X-Tenant-Id: <span class="unres-code">{{tenant_id}}</span>'</span> \</span></div>
           <div class="ln"><span class="no">5</span><span class="tx">  -H <span class="s">'Idempotency-Key: 0c6f9a52-1d2e-4b7a-9f13-5e8c2a4d7b10'</span> \</span></div>
           <div class="ln"><span class="no">6</span><span class="tx">  --data-raw <span class="s">'{</span></span></div>
           <div class="ln"><span class="no">7</span><span class="tx"><span class="s">  "customer": "cus_9s6XKzkNRiz8i3",</span></span></div>
