@@ -174,7 +174,7 @@ fn dropping_a_folder_into_its_own_child_shows_the_error(cx: &mut TestAppContext)
     );
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
-    click(cx, &format!("tree-chevron-{USERS}"));
+    click(cx, &format!("tree-row-{USERS}-chevron"));
     let before = read(dir.path(), "collections/api/collection.toml");
 
     drag(cx, USERS, &format!("tree-name-{INNER}"));

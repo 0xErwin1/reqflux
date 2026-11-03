@@ -140,7 +140,7 @@ fn the_path_bar_shows_the_active_request(cx: &mut TestAppContext) {
         "empty without a tab"
     );
 
-    click(cx, &format!("tree-chevron-{USERS}"));
+    click(cx, &format!("tree-row-{USERS}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
     let path = bounds(cx, "document-path");
     let segments: Vec<_> = ["path-collection", "path-folder-0", "path-request"]

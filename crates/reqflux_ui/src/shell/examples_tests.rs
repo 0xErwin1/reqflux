@@ -121,7 +121,7 @@ fn names(root: &Path) -> Vec<String> {
 
 /// Expands `GET Health` so its example shows.
 fn expand_health(cx: &mut VisualTestContext) {
-    click(cx, &format!("tree-chevron-{HEALTH}"));
+    click(cx, &format!("tree-row-{HEALTH}-chevron"));
 }
 
 #[gpui::test]
@@ -130,21 +130,34 @@ fn a_request_with_examples_gets_a_chevron_and_leaves_with_their_status(cx: &mut 
     write_example(dir.path(), "collections/api/health", "ok", OK_EXAMPLE);
     let (_shell, cx) = render(cx, dir.path());
 
-    assert!(present(cx, &format!("tree-chevron-{HEALTH}")));
-    assert!(present(cx, &format!("tree-count-{HEALTH}")));
+    assert!(present(cx, &format!("tree-row-{HEALTH}-chevron")));
+    assert!(present(cx, &format!("tree-row-{HEALTH}-count")));
     assert!(
         !present(cx, &format!("tree-row-{}", node())),
         "collapsed at first"
     );
     assert!(
-        !present(cx, &format!("tree-chevron-{TOKEN}")),
+        !present(cx, &format!("tree-row-{TOKEN}-chevron")),
         "no examples, no chevron"
     );
 
     expand_health(cx);
     assert!(present(cx, &format!("tree-row-{}", node())));
-    assert!(present(cx, &format!("tree-status-{}", node())));
-    assert!(present(cx, &format!("tree-icon-{}", node())));
+    assert!(present(cx, &format!("tree-row-{}-icon", node())));
+    let Some(trailing) = cx.debug_bounds(Box::leak(
+        format!("tree-row-{}-trailing", node()).into_boxed_str(),
+    )) else {
+        panic!("the example row has a trailing slot");
+    };
+    let Some(status) = cx.debug_bounds(Box::leak(
+        format!("tree-status-{}", node()).into_boxed_str(),
+    )) else {
+        panic!("the example row shows its status");
+    };
+    assert!(
+        trailing.contains(&status.origin),
+        "the status sits in the trailing slot: {status:?} in {trailing:?}"
+    );
 }
 
 #[gpui::test]
@@ -284,7 +297,7 @@ fn delete_asks_first_and_keeps_the_request(cx: &mut TestAppContext) {
     );
     assert!(!present(cx, &format!("tree-row-{}", node())));
     assert!(
-        !present(cx, &format!("tree-chevron-{HEALTH}")),
+        !present(cx, &format!("tree-row-{HEALTH}-chevron")),
         "no examples left"
     );
 }

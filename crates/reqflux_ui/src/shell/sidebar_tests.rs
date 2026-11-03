@@ -151,26 +151,27 @@ fn sidebar_shows_header_filter_rows_and_footer(cx: &mut TestAppContext) {
 
     for (id, icon) in [(API, "box"), (USERS, "folder"), (AUTH, "box")] {
         assert!(
-            present(cx, &format!("tree-icon-{id}")),
+            present(cx, &format!("tree-row-{id}-icon")),
             "{icon} icon of {id}"
         );
-        assert!(present(cx, &format!("tree-count-{id}")), "count of {id}");
+        assert!(
+            present(cx, &format!("tree-row-{id}-count")),
+            "count of {id}"
+        );
     }
     for id in [HEALTH, TOKEN] {
         assert!(present(cx, &format!("tree-method-{id}")), "method of {id}");
         assert!(
-            !present(cx, &format!("tree-count-{id}")),
+            !present(cx, &format!("tree-row-{id}-count")),
             "no count on {id}"
         );
     }
-    assert!(
-        present(cx, &format!("tree-guide-{USERS}-0")),
-        "one guide at depth 1"
-    );
-    assert!(!present(cx, &format!("tree-guide-{USERS}-1")));
-    assert!(
-        !present(cx, &format!("tree-guide-{API}-0")),
-        "no guide at depth 0"
+    let root = bounds_of(cx, &format!("tree-row-{API}-chevron"));
+    let child = bounds_of(cx, &format!("tree-row-{USERS}-chevron"));
+    assert_eq!(
+        child.origin.x - root.origin.x,
+        px(14.0),
+        "one indent per depth level"
     );
 
     let order: Vec<_> = [API, USERS, HEALTH, AUTH, TOKEN]

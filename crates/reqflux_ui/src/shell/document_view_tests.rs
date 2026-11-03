@@ -41,7 +41,7 @@ pub(super) fn open_editor<'a>(
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, dir, &state_path);
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
     cx.simulate_keystrokes("ctrl-alt-3");
     cx.run_until_parked();
@@ -175,7 +175,7 @@ pub(super) fn open_send_editor<'a>(
 ) -> (Entity<Shell>, &'a mut VisualTestContext) {
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, dir, &state_path);
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
     cx.simulate_keystrokes("ctrl-alt-3");
     cx.run_until_parked();
@@ -284,7 +284,7 @@ fn stacked_still_sends_the_open_request_with_ctrl_enter(cx: &mut TestAppContext)
     let dir = send_workspace(port, closed_port());
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
 
     cx.simulate_keystrokes("ctrl-enter");
@@ -327,7 +327,7 @@ fn a_folder_shows_its_requests_in_tree_order(cx: &mut TestAppContext) {
     let dir = folder_workspace();
     let (_state_dir, state_path) = state_file();
     let (_shell, cx) = render(cx, &dir, &state_path);
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
 
     cx.simulate_keystrokes("ctrl-alt-3");
@@ -609,7 +609,7 @@ fn stacked_and_side_by_side_never_show_the_document_editor(cx: &mut TestAppConte
     let dir = folder_workspace();
     let (_state_dir, state_path) = state_file();
     let (_shell, cx) = render(cx, &dir, &state_path);
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
 
     present(cx, "request-area");

@@ -38,7 +38,7 @@ fn two_folder_workspace() -> TempDir {
 
 /// Shows the folder of `LIST` in the Document layout and opens its editor.
 fn show_list_folder(cx: &mut VisualTestContext) {
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{LIST}"));
     cx.simulate_keystrokes("ctrl-alt-3");
     cx.run_until_parked();
@@ -189,7 +189,7 @@ fn stacked_escape_still_cancels_only_the_active_requests_send(cx: &mut TestAppCo
     let dir = send_workspace(closed_port(), silent);
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
-    click(cx, &format!("tree-chevron-{FOLDER}"));
+    click(cx, &format!("tree-row-{FOLDER}-chevron"));
     click(cx, &format!("tree-row-{CREATE}"));
     click(cx, "request-send");
     cx.run_until_parked();
