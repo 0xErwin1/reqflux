@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use gpui::{Context, Window};
-use reqflux_core::model::{Request, Scripts};
+use reqflux_core::model::{Auth, Body, Request, Scripts};
 use reqflux_engine::SaveError;
 use reqflux_engine::state::Draft;
 
@@ -33,6 +33,33 @@ pub(crate) struct RequestDraft {
     pub(crate) conflicted: bool,
     /// The edited scripts, `None` while the scripts are as saved.
     pub(crate) scripts: Option<ScriptDraft>,
+    /// The bodies and auths of the modes the draft switched away from, which switching back
+    /// restores. Kept in memory only: the file and the stored draft hold the current mode.
+    pub(crate) stash: ModeStash,
+}
+
+/// What a draft keeps of the modes it switched away from, by mode.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub(crate) struct ModeStash {
+    pub(crate) bodies: HashMap<String, Body>,
+    pub(crate) auths: HashMap<String, Auth>,
+}
+
+#[cfg(test)]
+impl RequestDraft {
+    /// A draft of an empty request, for the history tests.
+    pub(super) fn test_default() -> Self {
+        let id = "01J00000000000000000000099"
+            .parse()
+            .unwrap_or_else(|error| panic!("invalid test id: {error}"));
+        Self {
+            request: Request::new(id, "t", reqflux_core::model::Method::GET, ""),
+            base_hash: None,
+            conflicted: false,
+            scripts: None,
+            stash: ModeStash::default(),
+        }
+    }
 }
 
 /// The edited sidecar scripts of a draft and the content hashes, as text, of the sidecars
@@ -134,6 +161,7 @@ impl Shell {
                     base_hash: stored.base_hash,
                     conflicted,
                     scripts,
+                    stash: ModeStash::default(),
                 },
             );
         }
@@ -258,12 +286,24 @@ impl Shell {
         edit: impl FnOnce(&mut Request),
         cx: &mut Context<Self>,
     ) {
+        self.edit_whole_draft(id, |draft| edit(&mut draft.request), cx);
+    }
+
+    /// Edits the whole draft of the request `id` with `edit`, as [`Self::edit_draft`] does,
+    /// and records the step in the draft's undo history.
+    pub(super) fn edit_whole_draft(
+        &mut self,
+        id: &str,
+        edit: impl FnOnce(&mut RequestDraft),
+        cx: &mut Context<Self>,
+    ) {
+        let existed = self.drafts.contains_key(id);
         let Some(draft) = self.draft_mut(id) else {
             return;
         };
-        edit(&mut draft.request);
-        self.store_draft(id);
-        cx.notify();
+        let before = draft.clone();
+        edit(draft);
+        self.finish_edit(id, existed, before, cx);
     }
 
     /// Edits the scripts of the draft of the request `id` with `edit`, creating the draft
@@ -283,16 +323,82 @@ impl Shell {
         let (Some(saved), Some((pre_request_base, test_base))) = (saved, bases) else {
             return;
         };
+        let existed = self.drafts.contains_key(id);
         let Some(draft) = self.draft_mut(id) else {
             return;
         };
+        let before = draft.clone();
         let scripts = draft.scripts.get_or_insert(ScriptDraft {
             scripts: saved,
             pre_request_base,
             test_base,
         });
         edit(&mut scripts.scripts);
+        self.finish_edit(id, existed, before, cx);
+    }
+
+    /// Persists the draft of `id` after an edit and, when the edit changed it, records the
+    /// draft as it was before in the undo history (`None` when it did not exist).
+    fn finish_edit(
+        &mut self,
+        id: &str,
+        existed: bool,
+        before: RequestDraft,
+        cx: &mut Context<Self>,
+    ) {
+        let slot = self
+            .drafts
+            .get(id)
+            .filter(|draft| **draft != before)
+            .map(|draft| Slot::of(&before, draft));
         self.store_draft(id);
+        if let Some(slot) = slot {
+            cx.default_global::<DraftHistories>().record(
+                id,
+                existed.then_some(before),
+                slot,
+                draft_history::now(),
+            );
+        }
+        cx.notify();
+    }
+
+    /// Undoes the last step of the draft of the request `id`.
+    pub(super) fn undo_draft(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.step_draft(id, true, window, cx);
+    }
+
+    /// Redoes the last undone step of the draft of the request `id`.
+    pub(super) fn redo_draft(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.step_draft(id, false, window, cx);
+    }
+
+    /// Moves the draft of `id` one step through its history, dropping the open fields,
+    /// which show text the draft no longer has. Nothing to step changes nothing.
+    fn step_draft(&mut self, id: &str, undo: bool, window: &mut Window, cx: &mut Context<Self>) {
+        let current = self.drafts.get(id).cloned();
+        let Some(target) = cx
+            .default_global::<DraftHistories>()
+            .step(id, undo, current)
+        else {
+            return;
+        };
+        self.drop_url_edit_of(id);
+        self.drop_cell_edit_of(id);
+        self.drop_body_edit_of(id);
+        self.drop_script_edit_of(id);
+        match target {
+            Some(draft) => {
+                self.drafts.insert(id.to_owned(), draft);
+                self.store_draft(id);
+            }
+            None => {
+                self.drafts.remove(id);
+                self.save_errors.remove(id);
+                self.delete_stored_draft(id);
+            }
+        }
+        self.focus.focus(window, cx);
         cx.notify();
     }
 
@@ -319,6 +425,7 @@ impl Shell {
                     base_hash,
                     conflicted: false,
                     scripts: None,
+                    stash: ModeStash::default(),
                 },
             );
         }
@@ -445,6 +552,7 @@ impl Shell {
         match engine.save_draft(id, request, current, scripts) {
             Ok(()) => {
                 self.drafts.remove(id);
+                cx.default_global::<DraftHistories>().forget(id);
                 self.save_errors.remove(id);
                 self.delete_stored_draft(id);
                 if !self.reload_workspace(cx) {
@@ -477,14 +585,20 @@ impl Shell {
         cx.notify();
     }
 
-    /// Reverts the draft of the request `id`: the view goes back to the saved file, which
-    /// the workspace is reloaded for.
+    /// Discards the draft of the request `id`: the view goes back to the saved file, which
+    /// the workspace is reloaded for. One undo restores the discarded draft.
     pub(super) fn revert(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.drop_url_edit_of(id);
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
-        if self.drafts.remove(id).is_some() {
+        if let Some(discarded) = self.drafts.remove(id) {
+            cx.default_global::<DraftHistories>().record(
+                id,
+                Some(discarded),
+                Slot::Structural,
+                draft_history::now(),
+            );
             self.save_errors.remove(id);
             self.delete_stored_draft(id);
             self.reload_workspace(cx);
@@ -549,6 +663,11 @@ pub(super) fn grid_cell<'a>(
     let row = rows.get_mut(n.checked_sub(1)?)?;
     Some((&mut row.key, &mut row.value, &mut row.enabled))
 }
+
+#[path = "draft_history.rs"]
+pub(super) mod draft_history;
+
+use self::draft_history::{DraftHistories, Slot};
 
 /// The map of drafts the shell keeps, by request id.
 pub(crate) type Drafts = HashMap<String, RequestDraft>;

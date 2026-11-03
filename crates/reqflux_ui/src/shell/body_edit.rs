@@ -150,7 +150,9 @@ impl Shell {
         self.restore_focus(window, cx);
     }
 
-    /// Switches the body of the request `id` to an empty body of the mode `kind`. Picking
+    /// Switches the body of the request `id` to the body of the mode `kind` the draft last
+    /// had, else an empty one. The body switched away from stays in the draft's stash, so
+    /// switching back restores it; it reaches the file only if that mode is saved. Picking
     /// the mode it already has changes nothing. An open field commits first.
     pub(super) fn set_body_mode(
         &mut self,
@@ -167,9 +169,21 @@ impl Shell {
             return;
         }
         self.drop_body_edit_of(id);
-        if let Some(body) = empty_body(kind) {
-            self.edit_draft(id, |request| request.body = body, cx);
-        }
+        let Some(empty) = empty_body(kind) else {
+            return;
+        };
+        self.edit_whole_draft(
+            id,
+            |draft| {
+                let body = draft.stash.bodies.remove(kind).unwrap_or(empty);
+                let left = std::mem::replace(&mut draft.request.body, body);
+                let left_kind = body_kind(&left);
+                if empty_body(left_kind).as_ref() != Some(&left) {
+                    draft.stash.bodies.insert(left_kind.to_owned(), left);
+                }
+            },
+            cx,
+        );
     }
 
     /// Switches the raw body of the request `id` to `language`, keeping its text. Picking

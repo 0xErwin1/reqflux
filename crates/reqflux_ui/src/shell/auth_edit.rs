@@ -232,8 +232,11 @@ impl Shell {
         self.restore_focus(window, cx);
     }
 
-    /// Switches the auth of the request `id` to the on-disk type `kind`, with empty fields.
-    /// Picking the type it already has changes nothing. An open field commits first.
+    /// Switches the auth of the request `id` to the on-disk type `kind`, with the fields the
+    /// draft last had for it, else empty ones. The auth switched away from stays in the
+    /// draft's stash, so switching back restores it; it reaches the file only if that type
+    /// is saved. Picking the type it already has changes nothing. An open field commits
+    /// first.
     pub(super) fn set_auth_type(
         &mut self,
         id: &str,
@@ -252,7 +255,18 @@ impl Shell {
         let Some(auth) = empty_auth(kind) else {
             return;
         };
-        self.edit_draft(id, |request| request.auth = auth, cx);
+        self.edit_whole_draft(
+            id,
+            |draft| {
+                let auth = draft.stash.auths.remove(kind).unwrap_or(auth);
+                let left = std::mem::replace(&mut draft.request.auth, auth);
+                let left_kind = left.kind().to_owned();
+                if empty_auth(&left_kind).as_ref() != Some(&left) {
+                    draft.stash.auths.insert(left_kind, left);
+                }
+            },
+            cx,
+        );
     }
 
     /// Makes the request `id` inherit its parent's auth, or, when `inherit` is false and it
