@@ -30,11 +30,11 @@ fn copy(slot: ScriptSlot) -> (&'static str, &'static str, &'static str, &'static
             "Write a script",
         ),
         ScriptSlot::Test => (
-            "TESTS",
-            "No test script",
-            "Tests run after the response arrives and show up in the Tests tab of the \
-             response.",
-            "Write a test",
+            "POST-RESPONSE",
+            "No post-response script",
+            "A post-response script runs after the response arrives; its pm.test results \
+             show up in the Tests tab of the response.",
+            "Write a script",
         ),
     }
 }
@@ -233,4 +233,17 @@ fn empty_state(id: &str, slot: ScriptSlot, cx: &mut Context<Shell>) -> AnyElemen
                 .primary_action(button),
         )
         .into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_second_slot_reads_as_post_response() {
+        let (heading, title, _, button) = copy(ScriptSlot::Test);
+        assert_eq!(heading, "POST-RESPONSE");
+        assert_eq!(title, "No post-response script");
+        assert_eq!(button, "Write a script");
+    }
 }

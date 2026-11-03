@@ -80,7 +80,7 @@ pub(crate) fn sub_tab_badge(
             match (has(&scripts.pre_request), has(&scripts.test)) {
                 (true, true) => Some("2".to_owned()),
                 (true, false) => Some("pre".to_owned()),
-                (false, true) => Some("test".to_owned()),
+                (false, true) => Some("post".to_owned()),
                 (false, false) => None,
             }
         }

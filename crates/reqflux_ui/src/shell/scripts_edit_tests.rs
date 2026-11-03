@@ -62,7 +62,7 @@ fn has_draft(cx: &mut TestAppContext, shell: &Entity<Shell>) -> bool {
     cx.update(|cx| shell.read(cx).drafts.contains_key(SCRIPTED))
 }
 
-/// What the empty state's `Write a test` button does. The response pane may cover the
+/// What the empty state's `Write a script` button does. The response pane may cover the
 /// button while the split is short, so the test calls it rather than clicking.
 fn write_test(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
     cx.update(|window, cx| {
@@ -363,7 +363,7 @@ fn the_scripts_and_settings_tabs_badge_what_the_shown_request_has(cx: &mut TestA
             cx,
         );
     });
-    assert_eq!(badge(cx, SubTab::Scripts).as_deref(), Some("test"));
+    assert_eq!(badge(cx, SubTab::Scripts).as_deref(), Some("post"));
     shell.update(cx, |shell, cx| {
         shell.edit_draft_scripts(SCRIPTED, |scripts| scripts.test = None, cx);
     });
