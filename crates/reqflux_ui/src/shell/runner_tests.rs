@@ -75,14 +75,18 @@ fn phase(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<Phase> {
     cx.update(|_, cx| shell.read(cx).run.as_ref().map(|run| run.model.phase))
 }
 
-/// Waits until the run ends, advancing the clock the document polls its events on.
+/// Waits until the run ends, advancing the clock the document polls its events on. Only
+/// `Finished` is terminal: the start click is handled on a later tick, so a helper that
+/// stopped at "not running" would return while the run is still on its setup form and the
+/// assertions after it would race the machine's load.
 fn settle_run(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.executor().advance_clock(Duration::from_millis(50));
         cx.run_until_parked();
-        if phase(cx, shell) != Some(Phase::Running) {
-            return;
+        match phase(cx, shell) {
+            Some(Phase::Setup | Phase::Running) => {}
+            Some(Phase::Finished) | None => return,
         }
         assert!(Instant::now() < deadline, "the run never ended");
         thread::sleep(Duration::from_millis(10));
