@@ -24,6 +24,7 @@ mod drafts;
 mod empty_state;
 mod environment_menu;
 mod examples;
+mod export;
 mod history;
 mod import_flow;
 pub(crate) mod keymap;
@@ -163,6 +164,8 @@ pub(crate) struct Shell {
     url_edit: Option<UrlEdit>,
     /// The Generate code dialog, while open, and its focus.
     codegen: codegen::Codegen,
+    /// The Export… dialog, its OS dialogs and the Replace API docs question.
+    export: export::Export,
     /// The draft a curl paste replaced, until Undo or the next paste.
     curl_undo: Option<curl_paste::CurlUndo>,
     /// The cell field of the Params or Headers grid, the Settings timeout field or an Auth
@@ -290,6 +293,7 @@ impl Shell {
             save_errors: HashMap::new(),
             url_edit: None,
             codegen: codegen::Codegen::new(cx),
+            export: export::Export::new(cx),
             curl_undo: None,
             cell_edit: None,
             split: split::Split::new(cx.focus_handle()),
@@ -551,6 +555,7 @@ impl Render for Shell {
             .children(palette::render(self, window, cx))
             .children(import_flow::render(self, window, cx))
             .children(codegen::render(self, window, cx))
+            .children(export::render(self, window, cx))
             .children(document::document_view::render_confirm(self, window, cx))
             .children(examples::render_overlays(self, window, cx))
     }
@@ -565,6 +570,9 @@ fn subscribe_sidebar(sidebar: &Entity<Sidebar>, cx: &mut Context<Shell>) -> Vec<
         }),
         cx.subscribe(sidebar, |this, _, codegen::GenerateCodeFor(id), cx| {
             this.request_codegen(id, cx);
+        }),
+        cx.subscribe(sidebar, |this, _, export::ExportFor(id), cx| {
+            this.open_export_for(id, cx);
         }),
         cx.subscribe(sidebar, |this, _, runner::RunRequested(id), cx| {
             this.open_run(id, cx);

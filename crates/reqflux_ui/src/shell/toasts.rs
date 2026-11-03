@@ -60,6 +60,50 @@ pub(super) fn undoable(
     toast.subtitle(subtitle).action(action).push(cx);
 }
 
+/// A finished export with `action` (Show in folder): `title`, with `subtitle` over
+/// `details`, the path and what the user should know. A warning when `warn`, else a
+/// confirmation.
+pub(super) fn with_action(
+    title: impl Into<String>,
+    subtitle: impl Into<String>,
+    details: impl Into<String>,
+    warn: bool,
+    action: ToastAction,
+    cx: &mut App,
+) {
+    let (title, subtitle, details) = (title.into(), subtitle.into(), details.into());
+    #[cfg(test)]
+    {
+        let kind = if warn { Kind::Warning } else { Kind::Success };
+        record(kind, &title, &format!("{subtitle}\n{details}"), cx);
+    }
+    let toast = if warn {
+        Toast::warning(title)
+    } else {
+        Toast::success(title)
+    };
+    toast
+        .subtitle(subtitle)
+        .details(details)
+        .not_collapsible()
+        .action(action)
+        .push(cx);
+}
+
+/// A failure with `action` (Try again…): `title`, with `details` behind its toggle.
+pub(super) fn failure_with_action(
+    title: impl Into<String>,
+    details: impl Into<String>,
+    action: ToastAction,
+    cx: &mut App,
+) {
+    let (title, details) = (title.into(), details.into());
+    log::warn!("{title}: {details}");
+    #[cfg(test)]
+    record(Kind::Error, &title, &details, cx);
+    Toast::error(title).details(details).action(action).push(cx);
+}
+
 /// A save or an import wrote its files but the workspace did not reload. Fixed text: the
 /// reload error can quote a workspace file, so it reaches only the log.
 pub(super) fn reload_failed(done: &str, cx: &mut App) {

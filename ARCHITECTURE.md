@@ -1159,7 +1159,8 @@ missing or empty directory), `Open folder…` (`workspace-open`, the OS folder d
 what the import would write through `reqflux_engine::postman_preview` (the counts
 `import-count-<kind>`, the files `import-file-<n>`) or why it cannot import (`import-error`), and
 `import-confirm` writes it into the open workspace with `reqflux_engine::postman` and reloads
-it; Cancel or Escape writes nothing),
+it; Cancel or Escape writes nothing), `Export workspace…` (`workspace-export`, the Export…
+dialog on the whole workspace, bundle only),
 `Workspace settings…` (`workspace-settings`, the settings page at Globals) and
 `Close workspace` (`workspace-close`). Switching cancels sends in flight, closes every tab,
 restores the new workspace's remembered environment and loads its drafts and current values;
@@ -1313,6 +1314,24 @@ send's script writes.
 fetch, and Copy (Enter) puts the code on the clipboard. Every `{{variable}}` stays as written.
 For a draft it swaps the draft into a copy of the workspace, so the auth it inherits matches what
 a send would use. Its line numbers are a `// bolt gap:` stand-in (`modal_code` has none).
+`shell/export.rs` draws the Export… dialog (design/export/01-one-export-dialog) on
+`Engine::export_postman`, `Engine::bundle` and `Engine::docs`, the calls the CLI makes. A tree
+row's `Export…`, the workspace menu's `Export workspace…`, an environment's `Export…` and the
+palette (`export`: the selected tree row, else the active request; `export-workspace`) open it,
+and the title names the scope. The format control offers what the scope takes: Postman v2.1,
+ReqFlux bundle and API docs for a collection, no API docs for a folder or request, only the
+bundle for the workspace and only Postman for an environment. Include secret values shows the
+plaintext warning; a bundle leaves secrets out by default and lists them, or encrypts them with a
+passphrase typed twice in masked fields (empty and mismatched are refused under the field before
+the save dialog; the passphrase never reaches a log, a toast or an error). The primary button
+closes the dialog and asks the `ExportHost` seam (the OS save or folder dialog; tests answer it)
+where to write. Files go through `write_export_file` (never over an existing file; 0600 with
+secrets in clear); API docs that exist ask `Replace API docs?` once and Replace files writes with
+force. The success toast carries the path and Show in folder (`App::reveal_path`; Open
+index.html for docs, `App::open_with_system`); a failure keeps the error and offers Try again….
+Its `// bolt gap:` stand-ins: a segmented item cannot be disabled with a tooltip (formats the
+scope cannot take are left out), there is no radio group (two checkboxes act as one) and `Input`
+has no inline error slot (a danger caption).
 `shell/curl_paste.rs` catches the URL field's Paste action: a curl command goes through
 `reqflux_core::curl::parse` and `Parsed::apply` onto the draft, a toast lists what was imported
 and the options that were ignored, and its Undo action restores the previous draft. Any other
@@ -1432,11 +1451,13 @@ field takes keys first. `[keymap]` in the user's config.toml rebinds any command
 | Generate code | Ctrl+Shift+C | a request is open |
 | Undo curl paste | Ctrl+Alt+Z | a pasted curl command is not undone yet (the paste toast's Undo shows the key) |
 | Run collection… | Ctrl+Alt+R | a collection exists |
+| Export… | Ctrl+Shift+X | a collection exists (the selected tree row, else the active request) |
 | New request | Ctrl+N | a collection exists (in the selected collection or folder) |
 | New collection, New environment | Ctrl+Shift+N, Ctrl+Shift+E | a workspace is open |
 | Switch environment, Show Environments | Ctrl+E, Ctrl+3 | a workspace is open |
 | Open workspace, New workspace | Ctrl+O, Ctrl+Shift+O | always |
 | Close workspace, Workspace settings | Ctrl+Shift+W, Ctrl+, | a workspace is open |
+| Export workspace… | Ctrl+Alt+X | a workspace is open |
 | Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request, the history tab or the run document is open (Next and Previous skip the run document) |
 | Show Collections, History | Ctrl+1, Ctrl+2 | a workspace is open |
 | Toggle theme | Ctrl+Shift+T | always |

@@ -55,6 +55,7 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::RevertRequest | CommandId::UndoPaste => IconName::RotateCcw,
         CommandId::GenerateCode => IconName::Code,
         CommandId::RunCollection => IconName::Play,
+        CommandId::Export | CommandId::ExportWorkspace => IconName::Upload,
         CommandId::NewRequest | CommandId::NewEnvironment => IconName::Plus,
         CommandId::NewCollection | CommandId::ShowCollections => IconName::Box,
         CommandId::SwitchEnvironment | CommandId::ShowEnvironments => IconName::Layers,

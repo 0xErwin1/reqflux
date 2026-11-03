@@ -52,6 +52,9 @@ pub(crate) const NEW_WORKSPACE_IN_FOLDER: &str = "New workspace in folder…";
 /// `Import Postman collection…`: opens the import dialog over the open workspace.
 pub(crate) const IMPORT_POSTMAN: &str = "Import Postman collection…";
 
+/// `Export workspace…`: opens the Export… dialog on the whole workspace.
+pub(crate) const EXPORT_WORKSPACE: &str = "Export workspace…";
+
 /// `Close workspace`.
 pub(crate) const CLOSE_WORKSPACE: &str = "Close workspace";
 
@@ -93,6 +96,7 @@ pub(super) enum Action {
     New,
     NewInFolder,
     Import,
+    Export,
     Settings,
     Cookies,
     Close,
@@ -106,6 +110,10 @@ impl Action {
             Self::New => shell.start_new_workspace(window, cx),
             Self::NewInFolder => shell.pick_new(window, cx),
             Self::Import => shell.open_import(window, cx),
+            Self::Export => {
+                shell.restore_focus(window, cx);
+                shell.open_export_workspace(cx);
+            }
             Self::Settings => {
                 shell.open_settings(super::settings_page::Section::Globals, cx);
                 shell.restore_focus(window, cx);
@@ -490,6 +498,14 @@ pub(super) fn render(shell: &Shell, window: &Window, cx: &mut Context<Shell>) ->
             IMPORT_POSTMAN,
             Action::Import,
             None,
+            cx,
+        ));
+        menu = menu.child(menu_action(
+            "workspace-export",
+            IconName::Upload,
+            EXPORT_WORKSPACE,
+            Action::Export,
+            Some(CommandId::ExportWorkspace),
             cx,
         ));
         menu = menu.child(separator(cx)).child(menu_action(

@@ -416,6 +416,10 @@ impl Sidebar {
                 self.close_menu(window, cx);
                 cx.emit(crate::shell::codegen::GenerateCodeFor(id.to_owned()));
             }
+            (MenuItem::Export, _) => {
+                self.close_menu(window, cx);
+                cx.emit(crate::shell::export::ExportFor(id.to_owned()));
+            }
             (MenuItem::Delete, _) => self.prompt_delete(id, window, cx),
         }
     }
