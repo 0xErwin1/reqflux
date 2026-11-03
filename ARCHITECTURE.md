@@ -85,6 +85,16 @@ fields and certificate paths. Dynamic variables (`{{$guid}}`, `{{$timestamp}}`,
 `{{$randomInt}}` and the rest of Postman's list) resolve at the same point. An unresolved
 variable stays literal and is reported in the response view, as Postman does.
 
+`Engine::variable_info(request, environment, current, name)` answers what a front end shows
+about one `{{name}}` (`reqflux_engine/src/variable_info.rs`): the scope that wins with its
+current and initial values, the next scope down it overrides, whether it is secret (never
+its value; `Engine::reveal_variable` reads that on an explicit reveal), the environments that
+declare it when none is active, and the scopes a quick add can target (the active
+environment, the request's collection, the globals). `Engine::set_variable_value` writes a
+current value (a secret's value goes to the keyring instead), `Engine::reset_variable_value`
+clears it, and `Engine::quick_add_variable` adds the variable with the value as its initial
+value (a secret keeps only its key in the file).
+
 ### Execution pipeline
 
 ```text
