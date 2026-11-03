@@ -246,3 +246,15 @@ fn the_drawn_theme_is_dbflux_palette_with_the_reqflux_accent(
         "after a switch"
     );
 }
+
+#[gpui::test]
+fn installing_registers_the_bundled_grammars(cx: &mut TestAppContext) {
+    cx.update(|cx| install(PaletteMode::Dark, cx));
+
+    for language in ["json", "javascript", "bash", "python", "xml", "html"] {
+        assert!(
+            bolt::syntax::is_registered(language),
+            "{language} is not registered"
+        );
+    }
+}

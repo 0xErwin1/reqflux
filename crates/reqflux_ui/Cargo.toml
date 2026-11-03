@@ -13,7 +13,16 @@ workspace = true
 
 [dependencies]
 anyhow.workspace = true
-bolt.workspace = true
+# The Tree-sitter grammars ReqFlux highlights with (design/syntax/01): JSON, XML and
+# HTML bodies, JavaScript scripts, and bash/JavaScript/Python generated code.
+bolt = { workspace = true, features = [
+    "syntax-json",
+    "syntax-javascript",
+    "syntax-bash",
+    "syntax-python",
+    "syntax-xml",
+    "syntax-html",
+] }
 chrono.workspace = true
 gpui.workspace = true
 gpui-component.workspace = true

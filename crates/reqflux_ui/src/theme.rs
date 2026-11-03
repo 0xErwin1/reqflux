@@ -196,7 +196,8 @@ pub(crate) fn next(mode: PaletteMode) -> PaletteMode {
 /// Installs `bolt`, DBFlux's design system, with ReqFlux's brand in `mode`: the bundled
 /// fonts at the default interface size, where a rem is 16 px as in DBFlux, the default
 /// density, DBFlux's palette drawn with ReqFlux's accent on gpui-component's `Theme`, and
-/// ReqFlux's answers to `bolt`'s texts ([`crate::strings`]).
+/// ReqFlux's answers to `bolt`'s texts ([`crate::strings`]), and the Tree-sitter grammars
+/// `bolt` bundles (json, javascript, bash, python, xml, html), registered once.
 /// [`set_font_size`] then applies the config file's interface size.
 pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
     if !cx.has_global::<gpui_component::theme::Theme>() {
@@ -214,11 +215,19 @@ pub(crate) fn install(mode: PaletteMode, cx: &mut App) {
     );
     install_modal_seams(cx);
     crate::strings::install(cx);
+    register_grammars();
     cx.set_global(bolt::composites::ShellIcons {
         search: bolt::icon::IconSource::Svg(IconName::Search.path()),
         bell: bolt::icon::IconSource::Svg(IconName::Bell.path()),
     });
     cx.set_global(toast_icons());
+}
+
+/// Registers `bolt`'s bundled grammars the first time it runs; a theme switch installs
+/// again and must not rebuild their queries.
+fn register_grammars() {
+    static REGISTERED: std::sync::Once = std::sync::Once::new();
+    REGISTERED.call_once(bolt::syntax::register_bundled);
 }
 
 /// The glyphs `bolt`'s toasts draw (design/toasts/01): the Lucide icons gpui-kit-assets

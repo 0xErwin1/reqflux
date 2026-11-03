@@ -963,7 +963,7 @@ dependencies = [
 [[package]]
 name = "bolt"
 version = "0.10.0-dev.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "bolt_keys",
  "chrono",
@@ -974,12 +974,19 @@ dependencies = [
  "log",
  "serde",
  "serde_json",
+ "tree-sitter",
+ "tree-sitter-bash",
+ "tree-sitter-html",
+ "tree-sitter-javascript",
+ "tree-sitter-json",
+ "tree-sitter-python",
+ "tree-sitter-xml",
 ]
 
 [[package]]
 name = "bolt_keys"
 version = "0.10.0-dev.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "log",
 ]
@@ -2966,7 +2973,7 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.7.3"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3006,7 +3013,7 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.7.3"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3082,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp"
 version = "0.1.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "async-channel",
  "gpui-mcp-protocol",
@@ -3103,7 +3110,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp-protocol"
 version = "0.1.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "directories",
  "schemars",
@@ -3115,7 +3122,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre"
 version = "0.3.9"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -3266,7 +3273,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre-linux"
 version = "0.3.9"
-source = "git+https://github.com/0xErwin1/dbflux?rev=3330bd63c997cc12c0b60cec5f66a1cb6125d082#3330bd63c997cc12c0b60cec5f66a1cb6125d082"
+source = "git+https://github.com/0xErwin1/dbflux?rev=1004522aecb3cd967f7f894ce739ca3fc829acbd#1004522aecb3cd967f7f894ce739ca3fc829acbd"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -8701,6 +8708,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "tree-sitter-bash"
+version = "0.23.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "329a4d48623ac337d42b1df84e81a1c9dbb2946907c102ca72db158c1964a52e"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-html"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "261b708e5d92061ede329babaaa427b819329a9d427a1d710abb0f67bbef63ee"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-javascript"
+version = "0.23.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf40bf599e0416c16c125c3cec10ee5ddc7d1bb8b0c60fa5c4de249ad34dc1b1"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
 name = "tree-sitter-json"
 version = "0.24.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8715,6 +8752,26 @@ name = "tree-sitter-language"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0af592be68c579aa78a16846bd19422978c3c52e438523d45ff5d1bff1f9d4a"
+
+[[package]]
+name = "tree-sitter-python"
+version = "0.23.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d065aaa27f3aaceaf60c1f0e0ac09e1cb9eb8ed28e7bcdaa52129cffc7f4b04"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
+
+[[package]]
+name = "tree-sitter-xml"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e670041f591d994f54d597ddcd8f4ebc930e282c4c76a42268743b71f0c8b6b3"
+dependencies = [
+ "cc",
+ "tree-sitter-language",
+]
 
 [[package]]
 name = "triomphe"
