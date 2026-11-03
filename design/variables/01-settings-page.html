@@ -71,6 +71,10 @@ button{font:inherit;white-space:nowrap}
 .mi .ico{width:14px;height:14px;color:#8E8996}
 .mi.hv{background:rgba(255,255,255,.04)}
 .mi.dg,.mi.dg .ico{color:#FF6B5E}
+.sel{width:100%;color:#C6C3CC;font-family:Archivo,system-ui,sans-serif;cursor:pointer}
+.mi.md{height:auto;min-height:44px;padding:6px 14px;align-items:center;white-space:normal}
+.mt{display:flex;flex-direction:column;gap:2px;flex-grow:1;min-width:0}
+.mdt{font-size:11.5px;color:#8E8996;line-height:1.35;white-space:nowrap}
 .sep{height:1px;background:#232128;margin:6px 0}
 .ds{color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:12px}
 .btn.p{background:#2B45B8;color:#FFF;font-weight:700}
@@ -195,44 +199,50 @@ button{font:inherit;white-space:nowrap}
               <div style="display:flex;align-items:center;gap:8px;padding:18px 0 6px;border-bottom:1px solid #232128;margin-bottom:6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-variable"/></svg><h2 class="cap" style="margin:0">Variables in staging</h2><span style="flex-grow:1"></span><span class="wrn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-alert"/></svg>1 empty variable</span>
                 <button class="c6 btn" style="height:24px;margin-left:8px"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-revert"/></svg>Reset current values</button></div>
               <div role="table" aria-label="Variables in staging">
-                <div class="gh" role="row"><span style="width:24px"></span><span style="width:34px;padding:0 6px">on</span><span style="width:140px">key</span><span style="width:220px">initial value<span class="tp">in file</span></span><span style="width:150px">current<span class="tp">this machine</span></span><span style="width:92px">stored in</span><span style="flex-grow:1">description</span></div>
+                <div class="gh" role="row"><span style="width:24px"></span><span style="width:34px;padding:0 6px">on</span><span style="width:140px">key</span><span style="width:220px">initial value<span class="tp">in file</span></span><span style="width:150px">current<span class="tp">this machine</span></span><span style="width:120px">stored in</span><span style="flex-grow:1">description</span></div>
                 <div class="gr" role="row" style="">
       <span class="rn" style="width:24px">1</span>
       <span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb on" role="checkbox" aria-checked="true"><svg class="ico" aria-hidden="true" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
       <span style="width:140px;color:#F7F4F7;display:flex;align-items:center;gap:6px">base_url</span>
       <span style="width:220px">https://api.staging.billing.dev</span>
       <span style="width:150px"><span style="color:#8E8996;font-family:Archivo,system-ui,sans-serif;font-size:12px">= initial</span></span>
-      <span style="width:92px;display:flex"><span class="c4 pill"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-file"/></svg>file</span></span>
+      <span style="width:120px;display:flex;padding:0 6px;box-sizing:border-box"><span class="c6 field sel" role="button" aria-haspopup="menu" title="Where the value is stored"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-file"/></svg>File<span style="flex-grow:1"></span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></span></span>
       <span class="ds" style="flex-grow:1;min-width:0">API root</span></div><div class="gr" role="row" style="">
       <span class="rn" style="width:24px">2</span>
       <span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb on" role="checkbox" aria-checked="true"><svg class="ico" aria-hidden="true" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
       <span style="width:140px;color:#F7F4F7;display:flex;align-items:center;gap:6px">access_token</span>
       <span style="width:220px"><span class="ds" style="display:flex;align-items:center;gap:6px"><svg class="ico" aria-hidden="true" style="width:12px;height:12px"><use href="#i-lock"/></svg>not in the file</span></span>
       <span style="width:150px"><span class="dots">••••••••</span></span>
-      <span style="width:92px;display:flex"><span class="c4 sec" title="Stored in the OS keyring"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-key"/></svg>KEYRING</span></span>
+      <span style="width:120px;display:flex;padding:0 6px;box-sizing:border-box"><span class="c6 field sel" role="button" aria-haspopup="menu" title="Where the value is stored"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-key"/></svg>Keyring<span style="flex-grow:1"></span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></span></span>
       <span class="ds" style="flex-grow:1;min-width:0">Set by Auth › Token</span></div><div class="gr" role="row" style="background:rgba(255,194,61,.05);">
       <span class="rn" style="width:24px;color:#FFC23D">3</span>
       <span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb on" role="checkbox" aria-checked="true"><svg class="ico" aria-hidden="true" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
       <span style="width:140px;color:#F7F4F7;display:flex;align-items:center;gap:6px">tenant_id</span>
       <span style="width:220px"><span class="unres">empty</span></span>
       <span style="width:150px"><span class="unres">empty</span></span>
-      <span style="width:92px;display:flex"><span class="c4 pill"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-file"/></svg>file</span></span>
+      <span style="width:120px;display:flex;padding:0 6px;box-sizing:border-box"><span class="c6 field sel" role="button" aria-haspopup="menu" title="Where the value is stored"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-file"/></svg>File<span style="flex-grow:1"></span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></span></span>
       <span class="ds" style="flex-grow:1;min-width:0;color:#FFC23D">Needed by X-Tenant-Id</span></div><div class="gr" role="row" style="">
       <span class="rn" style="width:24px">4</span>
       <span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb on" role="checkbox" aria-checked="true"><svg class="ico" aria-hidden="true" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
       <span style="width:140px;color:#F7F4F7;display:flex;align-items:center;gap:6px">timeout_ms</span>
       <span style="width:220px"><span style="color:#B79CFF">30000</span></span>
       <span style="width:150px"><span style="color:#B79CFF">10000</span></span>
-      <span style="width:92px;display:flex"><span class="c4 pill"><svg class="ico" aria-hidden="true" style="width:11px;height:11px"><use href="#i-file"/></svg>file</span></span>
+      <span style="position:relative;width:120px;display:flex;padding:0 6px;box-sizing:border-box"><span class="c6 field sel" role="button" aria-haspopup="menu" aria-expanded="true" title="Where the value is stored" style="box-shadow:#9DB1FF 0 0 0 1.5px inset"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-file"/></svg>File<span style="flex-grow:1"></span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></span>
+  <div class="c12" role="menu" aria-label="Where timeout_ms is stored" style="position:absolute;top:32px;left:6px;width:480px;padding:1px;background:#37333D;z-index:10;box-shadow:0 12px 32px rgba(0,0,0,.55)">
+    <div style="background:#1A181E;clip-path:polygon(11.4px 0,100% 0,100% calc(100% - 11.4px),calc(100% - 11.4px) 100%,0 100%,0 11.4px);padding:6px 0">
+      <div class="mi md hv" role="menuitemradio" aria-checked="true"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-file"/></svg><span class="mt"><span>File</span><span class="mdt">Saved in the workspace file, shared with whoever has the workspace (e.g. through git)</span></span><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#9DB1FF"><use href="#i-check"/></svg></div>
+      <div class="mi md" role="menuitemradio" aria-checked="false"><svg class="ico" aria-hidden="true" style="width:14px;height:14px"><use href="#i-key"/></svg><span class="mt"><span>Keyring</span><span class="mdt">A secret, kept in this machine's OS keyring, never in the file, and shown masked</span></span></div>
+    </div>
+  </div></span>
       <span class="ds" style="flex-grow:1;min-width:0">Current overrides initial here</span></div><div class="gr" role="row" style="">
       <span class="rn" style="width:24px">5</span>
       <span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb" role="checkbox" aria-checked="false"></span></span>
       <span style="opacity:.55;width:140px;color:#F7F4F7;display:flex;align-items:center;gap:6px">webhook_secret</span>
       <span style="opacity:.55;width:220px"><span class="ds" style="display:flex;align-items:center;gap:6px"><svg class="ico" aria-hidden="true" style="width:12px;height:12px"><use href="#i-lock"/></svg>not in the file</span></span>
       <span style="opacity:.55;width:150px"><span class="dots">••••••••</span></span>
-      <span style="width:92px;display:flex"><span class="c4 sec" title="Stored in the OS keyring"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-key"/></svg>KEYRING</span></span>
+      <span style="width:120px;display:flex;padding:0 6px;box-sizing:border-box"><span class="c6 field sel" role="button" aria-haspopup="menu" title="Where the value is stored"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#8E8996"><use href="#i-key"/></svg>Keyring<span style="flex-grow:1"></span><svg class="ico" aria-hidden="true" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></span></span>
       <span class="ds" style="flex-grow:1;min-width:0">Disabled: requests see it as undefined</span></div>
-                <div class="gr" role="row" style="border-bottom:0"><span class="rn" style="width:24px">6</span><span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb" role="checkbox" aria-checked="false"></span></span><span style="width:140px;color:#37333D">Variable</span><span style="width:220px;color:#37333D">Initial value</span><span style="width:150px;color:#37333D">Current value</span><span style="width:92px"></span><span></span></div>
+                <div class="gr" role="row" style="border-bottom:0"><span class="rn" style="width:24px">6</span><span style="width:34px;padding:0 6px;display:flex"><span class="c4 cb" role="checkbox" aria-checked="false"></span></span><span style="width:140px;color:#37333D">Variable</span><span style="width:220px;color:#37333D">Initial value</span><span style="width:150px;color:#37333D">Current value</span><span style="width:120px"></span><span></span></div>
               </div>
               <div style="display:flex;align-items:center;gap:8px;padding:22px 0 6px;border-bottom:1px solid #232128;margin-bottom:6px"><svg class="ico" aria-hidden="true" style="width:15px;height:15px;color:#9DB1FF"><use href="#i-info"/></svg><h2 class="cap" style="margin:0">Only on this machine</h2><span class="ds" style="margin-left:8px">Current values set by scripts with no declared variable. Not sent to the file.</span></div>
               <div role="table" aria-label="Undeclared current values">

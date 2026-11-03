@@ -111,21 +111,49 @@ impl Shell {
         self.edit_variable(scope, n, VariableEdit::Enabled(!enabled), None, cx);
     }
 
-    /// The `stored in` toggle of the 1-based row `n`, between the file and the keyring.
-    /// Moving a secret back to the file warns that the value was not copied there.
-    pub(super) fn toggle_variable_secret(
+    /// Opens the `stored in` menu of the 1-based row `n`, or closes it when it is open.
+    pub(super) fn toggle_stored_menu(
         &mut self,
-        scope: SecretScope,
         n: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.commit_cell_edit(window, cx);
-        let Some(secret) = self.variable(scope, n).map(|variable| variable.secret) else {
+        if self.settings.stored_menu == Some(n) {
+            self.close_stored_menu(window, cx);
+            return;
+        }
+        self.settings.stored_menu = Some(n);
+        self.settings.stored_focus.focus(window, cx);
+        cx.notify();
+    }
+
+    pub(super) fn close_stored_menu(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.settings.stored_menu = None;
+        self.focus.focus(window, cx);
+        cx.notify();
+    }
+
+    /// Picks where the value of the 1-based row `n` is stored: the keyring when `secret`,
+    /// else the file. Moving a secret back to the file warns that the value was not copied
+    /// there; picking where it already is only closes the menu.
+    pub(super) fn set_variable_secret(
+        &mut self,
+        scope: SecretScope,
+        n: usize,
+        secret: bool,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.close_stored_menu(window, cx);
+        let Some(was) = self.variable(scope, n).map(|variable| variable.secret) else {
             return;
         };
-        let warning = secret.then(|| UNMARKED.to_owned());
-        self.edit_variable(scope, n, VariableEdit::Secret(!secret), warning, cx);
+        if was == secret {
+            return;
+        }
+        let warning = was.then(|| UNMARKED.to_owned());
+        self.edit_variable(scope, n, VariableEdit::Secret(secret), warning, cx);
     }
 
     /// The delete control of the 1-based row `n`.

@@ -1319,8 +1319,9 @@ banner DBFlux's 34 px editor banner, its grid `GridMetrics` (header 40, rows 31)
 panel uses the tree's `ShellMetrics` and `TreeMetrics` (header and footer 46, rows 26) and
 `EmptyState`. The command palette is DBFlux's (`PaletteMetrics`: 56 px query row, 38 px rows
 and footer) with document tabs as scope tabs. The settings page draws `Island`s, `ListRow`
-nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox`, `Badge`
-for `file` and `KEYRING`, and `Button`. The workspace and environment menus are
+nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox`,
+`SelectTrigger` with `menu_frame`/`menu_row` (a `MenuItem::detail` line per option) for
+`stored in`, and `Button`. The workspace and environment menus are
 `menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. No
 `// bolt gap:` stand-in remains outside the run grid's column widths (below).
 `reqflux_ui::theme`
@@ -1453,8 +1454,12 @@ environment selects No environment). The variables column (`variables-document`)
 variables that resolve to nothing (`variables-empty`) and `Reset current values`
 (`variables-reset-current`, clears the current values of the declared keys); then the grid,
 row `variables-row-<n>`: number, enable box, key, initial value (in the file), current value
-(this machine; `= initial` when unset, `empty` when both are), stored in (`variables-secret-<n>`,
-the `file` pill or the `KEYRING` badge `variables-stored-<n>`, a toggle), description and
+(this machine; `= initial` when unset, `empty` when both are), stored in (the cell
+`variables-stored-<n>`, labeled `File` or `Keyring`, holds the select `variables-secret-<n>`; its
+menu `variables-stored-menu` offers `variables-stored-file-<n>`, saved in the workspace file and
+shared with whoever has the workspace, and `variables-stored-keyring-<n>`, a secret kept in this
+machine's OS keyring, never in the file and shown masked; picking one moves the value there,
+picking the current one only closes the menu, and Escape or a click outside closes it), description and
 delete, plus the ghost row `variables-add` (key `new_variable`). Variables are not drafts:
 every commit writes the file (or the keyring, or the app state for a current value) at once
 and re-inspects open requests. A secret's initial value reads `not in the file`; its current
