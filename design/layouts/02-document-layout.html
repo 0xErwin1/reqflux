@@ -13,8 +13,13 @@
   response block with its own rule; Send (Ctrl+Enter) always sends the section at the cursor.
 
   Notes the code must settle at build:
-  - The document is a read of the saved requests plus drafts; editing happens in place, and a
-    section with a draft carries the unsaved-draft diamond on its separator line.
+  - The document is a read of the saved requests plus drafts, and a section with a draft carries
+    the unsaved-draft diamond on its separator line. Clicking it opens the in-place editor
+    (states D11-D14): one plain text editor over the whole folder with a toolbar (dirty dot,
+    Send, Discard, Save); Ctrl+S saves, parse warnings block the save in a danger banner,
+    removed sections ask "Delete removed requests?" once, and Ctrl+Enter sends the section at
+    the cursor with the unsaved text, its response under the editor. The editor draws plain
+    text: no line numbers or method colours while editing (bolt gap: no code editor).
   - Binary bodies use the .http convention `< <path>`; GraphQL bodies show the query as the
     section body and a `Variables` block beside it (see states D4/D5). The exact document
     syntax for these two is a build decision this artboard proposes.
@@ -429,6 +434,65 @@ button{font:inherit;white-space:nowrap}
     <span style="color:#9DB1FF">sending…</span>
     <span style="flex-grow:1"></span>
     <button class="c6 btn sm">Cancel<span class="c4 kc" style="margin-left:2px">Esc</span></button>
+  </div>
+</div></div>
+
+<!-- D11: Editing in place (shell/document_view.rs: edited_document, document_toolbar, document_editor) -->
+<div class="state"><div class="state-head"><h3>Editing in place</h3><p>Clicking the document swaps it for one plain multi-line editor (<span class="m">document-editor</span>) over the folder's whole text, seeded from the saved requests. A toolbar opens above it: the dirty dot (<span class="m">document-dirty</span>) while the text differs from the seed, then Send, Discard and Save. Ctrl+S saves; Discard drops the edit.</p></div>
+<div class="frame" style="width:900px;padding-bottom:8px">
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 16px">
+    <span role="img" aria-label="Unsaved changes" style="width:5px;height:5px;border-radius:50%;background:#9DB1FF"></span>
+    <button class="c6 btn"><svg class="ico" style="width:13px;height:13px"><use href="#i-send"/></svg>Send</button>
+    <button class="c6 btn">Discard</button>
+    <button class="c6 btn pri">Save</button>
+  </div>
+  <div class="c6 m" style="margin:0 16px;padding:8px 12px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px;line-height:22px;white-space:pre;color:#F7F4F7">### List invoices
+GET {{base_url}}/v1/invoices
+
+### Create invoice
+POST {{base_url}}/v1/invoices
+Content-Type: application/json
+
+{"customer_id": "cus_8841", "amount": 12900, "currency": "EUR"<span style="display:inline-block;width:1px;height:14px;vertical-align:-2px;background:#F7F4F7"></span>}</div>
+</div></div>
+
+<!-- D12: Parse warnings (edited_document, document-warnings; reqflux_core http_document::parse) -->
+<div class="state"><div class="state-head"><h3>Warnings block the save</h3><p>Save parses the text first; any warning keeps the edit open and the danger banner <span class="m">document-warnings</span> lists them under the editor, one per line. Typing re-parses, so the banner clears once the text is fixed.</p></div>
+<div class="frame" style="width:900px;padding:8px 16px 12px">
+  <div class="ban d" role="alert"><svg class="ico" style="width:15px;height:15px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><span style="display:flex;flex-direction:column;gap:4px"><span style="font-weight:600">This document has warnings</span><span class="m" style="font-size:12px;color:#C6C3CC">section `Create invoice` (line 6): `Idempotency-Key abc-123` is not a `Key: value` header; line ignored<br>section `Void invoice` (line 12): no method or URL line; section skipped</span></span></div>
+</div></div>
+
+<!-- D13: Delete confirmation (render_confirm, document-confirm-delete) -->
+<div class="state"><div class="state-head"><h3>Saving deletes removed sections</h3><p>When the text no longer names a request of the folder, Save asks once for the whole save. Cancel closes the modal and keeps the edit; Save deletes them along with the rest.</p></div>
+<div class="frame" style="width:900px;height:260px">
+  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(5,5,7,.62)">
+    <div class="c8" role="dialog" aria-label="Saving deletes: Void invoice, Refund invoice" style="width:440px;background:#100F13;box-shadow:#FF6B5E 0 0 0 1px inset;display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;gap:8px;padding:14px 16px 8px;color:#F7F4F7;font-size:14px;font-weight:600"><svg class="ico" style="width:15px;height:15px;color:#FF6B5E"><use href="#i-alert"/></svg>Delete removed requests?</div>
+      <p style="padding:0 16px 14px;color:#C6C3CC">These requests are no longer in the document and saving deletes them: Void invoice, Refund invoice.</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid #232128">
+        <button class="c6 btn">Cancel</button>
+        <button class="c6 btn pri">Save</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<!-- D14: Ctrl+Enter in the editor (send_document_section, section_at, edited_response) -->
+<div class="state"><div class="state-head"><h3>Ctrl+Enter sends the section at the cursor</h3><p>In the editor, Ctrl+Enter (or Send) sends the section the cursor is in, the last one starting before it, with the unsaved text; saving is not required. Its response block shows under the editor while the cursor stays in that section.</p></div>
+<div class="frame" style="width:900px;padding-bottom:12px">
+  <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 16px">
+    <span role="img" aria-label="Unsaved changes" style="width:5px;height:5px;border-radius:50%;background:#9DB1FF"></span>
+    <button class="c6 btn"><svg class="ico" style="width:13px;height:13px"><use href="#i-send"/></svg>Send</button>
+    <button class="c6 btn">Discard</button>
+    <button class="c6 btn pri">Save</button>
+  </div>
+  <div class="c6 m" style="margin:0 16px;padding:8px 12px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px;line-height:22px;white-space:pre;color:#F7F4F7">### List invoices
+GET {{base_url}}/v1/invoices?status=open<span style="display:inline-block;width:1px;height:14px;vertical-align:-2px;background:#F7F4F7"></span>
+
+### Create invoice
+POST {{base_url}}/v1/invoices</div>
+  <div class="m" style="display:flex;align-items:center;gap:12px;height:40px;margin:8px 16px 0;padding:0 12px;box-shadow:#232128 0 0 0 1px inset;background:#09090B;font-size:12px">
+    <span class="cap">Response · List invoices</span><span style="color:#7BE0A0;font-weight:700">200</span><span style="color:#C6C3CC">OK</span><span style="color:#8E8996">· 96 ms · 3.4 KB</span>
   </div>
 </div></div>
 </section>
