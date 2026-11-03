@@ -63,15 +63,15 @@ impl Shell {
         edit: VariableEdit,
         warning: Option<String>,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         let Some(index) = n.checked_sub(1) else {
-            return;
+            return false;
         };
         self.write_variables(
             |engine| engine.edit_variable(scope, index, edit).map_err(message),
             warning,
             cx,
-        );
+        )
     }
 
     /// The `Add` row: appends an enabled variable named [`new_key`] to `scope` and opens
@@ -326,7 +326,16 @@ impl Shell {
         };
         let optional = |value: String| (!value.is_empty()).then_some(value);
         let edit = match column {
-            Column::Key if value != variable.key => VariableEdit::Key(value),
+            Column::Key if value != variable.key => {
+                let current = self.current.get(scope, &variable.key).map(str::to_owned);
+                if self.edit_variable(scope, n, VariableEdit::Key(value.clone()), None, cx)
+                    && let Some(current) = current
+                {
+                    self.set_current_value(scope, &value, current, cx);
+                    self.set_current_value(scope, &variable.key, String::new(), cx);
+                }
+                return;
+            }
             Column::Current if secret => match optional(value) {
                 Some(value) => VariableEdit::Value(Some(value)),
                 None => return,

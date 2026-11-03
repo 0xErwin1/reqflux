@@ -284,3 +284,87 @@ fn an_undeclared_current_value_shows_and_can_be_cleared(cx: &mut TestAppContext)
     });
     assert_eq!(left, None);
 }
+
+fn current_of(cx: &mut VisualTestContext, shell: &Entity<Shell>, key: &str) -> Option<String> {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .current
+            .get(SecretScope::Global, key)
+            .map(str::to_owned)
+    })
+}
+
+#[gpui::test]
+fn renaming_a_key_from_its_cell_writes_the_file_and_keeps_its_current_value(
+    cx: &mut TestAppContext,
+) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    commit(cx, "variables-current-1", "mine");
+
+    // Escape leaves the key as it was.
+    click(cx, "variables-key-1");
+    assert_eq!(editing(cx, &shell), Some(("variables-key".to_owned(), 1)));
+    type_text(cx, "dropped");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(read(dir.path(), MANIFEST).contains("key = \"greeting\""));
+
+    commit(cx, "variables-key-1", "salute");
+    let manifest = read(dir.path(), MANIFEST);
+    assert!(manifest.contains("key = \"salute\""), "{manifest}");
+    assert!(!manifest.contains("greeting"));
+    assert_eq!(current_of(cx, &shell, "salute").as_deref(), Some("mine"));
+    assert_eq!(current_of(cx, &shell, "greeting"), None);
+    assert!(bounds(cx, "variables-undeclared-1").is_none());
+    let stored = match AppState::open(&state_path) {
+        Ok(state) => state.current_values("01J00000000000000000000900"),
+        Err(error) => panic!("open state: {error}"),
+    };
+    match stored {
+        Ok(values) => {
+            assert_eq!(values.get(SecretScope::Global, "salute"), Some("mine"));
+            assert_eq!(values.get(SecretScope::Global, "greeting"), None);
+        }
+        Err(error) => panic!("current values: {error}"),
+    }
+}
+
+#[gpui::test]
+fn an_empty_key_shows_the_error_and_leaves_the_file(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    let before = read(dir.path(), MANIFEST);
+    commit(cx, "variables-key-1", "");
+    present(cx, "variables-error");
+    assert_eq!(read(dir.path(), MANIFEST), before);
+}
+
+#[gpui::test]
+fn renaming_a_secret_keeps_its_value_in_the_secret_store(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    click(cx, "variables-secret-1");
+    assert_eq!(
+        stored_secret(cx, &shell, "greeting").as_deref(),
+        Some("hello")
+    );
+
+    commit(cx, "variables-key-1", "salute");
+    let manifest = read(dir.path(), MANIFEST);
+    assert!(manifest.contains("key = \"salute\""));
+    assert!(manifest.contains("secret = true"));
+    assert_eq!(
+        stored_secret(cx, &shell, "salute").as_deref(),
+        Some("hello")
+    );
+    assert_eq!(stored_secret(cx, &shell, "greeting"), None);
+    present(cx, "variables-masked-1");
+}

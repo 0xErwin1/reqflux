@@ -1464,8 +1464,11 @@ the page says so (`variables-warning`). Current values a script wrote for a key 
 not declare show under `ONLY ON THIS MACHINE` as `variables-undeclared-<n>` rows: the current
 value edits (an empty commit clears it), `Declare` (`variables-declare-<n>`,
 `Engine::declare_variable`) adds the key to the scope's file with no initial value and keeps the
-current value local, and the discard control (`variables-discard-<n>`) clears it; renaming a
-key leaves its current value on the old key, where it shows as such a row. Notes name the
+current value local, and the discard control (`variables-discard-<n>`) clears it. Every cell
+but the enable box and stored in edits in place: a click opens a field seeded with the cell's
+text over the whole cell, Enter or a click away commits and Escape cancels. Committing the key
+renames the variable (`VariableEdit::Key`): a secret's keyring entry and the key's current value
+move with it, and an empty or taken key is refused. Notes name the
 keyring entry of the first secret (`variables-keyring-note`) and what Declare does
 (`variables-declare-note`). A refused write shows its reason in `variables-error` and changes
 nothing.

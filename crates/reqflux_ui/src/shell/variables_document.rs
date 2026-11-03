@@ -245,7 +245,9 @@ fn declared_row(
         cx,
     ))
     .text_color(strong)
-    .child(variable.key.clone())
+    .when(!shell.is_editing(scope, Column::Key, n), |cell| {
+        cell.child(variable.key.clone())
+    })
     .into_any_element();
     let initial = variable.value.clone().unwrap_or_default();
     let value = if variable.secret {
@@ -275,7 +277,9 @@ fn declared_row(
             &initial,
             cx,
         ));
-        if initial.is_empty() && !shell.is_editing(scope, Column::Value, n) {
+        if shell.is_editing(scope, Column::Value, n) {
+            cell.into_any_element()
+        } else if initial.is_empty() {
             cell.child(empty_tag(warning)).into_any_element()
         } else {
             cell.child(initial.clone()).into_any_element()
@@ -339,7 +343,9 @@ fn declared_row(
     .font_family(ui_family)
     .text_size(FontSizes::XS)
     .text_color(if empty { warning } else { muted })
-    .child(description_text.clone())
+    .when(!shell.is_editing(scope, Column::Description, n), |cell| {
+        cell.child(description_text.clone())
+    })
     .into_any_element();
     let delete = delete_control(scope, n, &variable.key, cx);
     let number_color = if empty { colors.warning } else { colors.line_2 };
@@ -432,7 +438,9 @@ fn undeclared_row(
         value,
         cx,
     )
-    .child(value.to_owned())
+    .when(!shell.is_editing(scope, Column::Undeclared, n), |cell| {
+        cell.child(value.to_owned())
+    })
     .into_any_element();
     let declare = Button::new(format!("variables-declare-{n}"), "Declare")
         .secondary()
@@ -646,6 +654,7 @@ fn cell(
             .child(
                 Input::new(&edit.input)
                     .id("variables-cell-input")
+                    .w_full()
                     .appearance(false)
                     .font_weight(FontWeight::NORMAL)
                     .padding(Pixels::ZERO, Pixels::ZERO)
