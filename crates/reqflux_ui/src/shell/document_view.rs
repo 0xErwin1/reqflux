@@ -5,18 +5,21 @@
 //! line; a section's method line takes the method colour the request line uses and its
 //! `###` line is muted. Clicking the document swaps it for the multi-line editor the raw
 //! body uses (`document-editor`), seeded from `write` of the folder and refreshed
-//! underneath while the text is not dirty; Ctrl+S or `document-save` parses the text and
-//! saves it through the engine (see `save_document`), `document-discard` drops the edit,
-//! and `document-warnings` shows what a broken section blocks. Without an open request
-//! the view shows an empty state.
+//! underneath while the text is not dirty. Ctrl+Enter or `document-send` sends the
+//! section the cursor is in through the engine, its response under that section
+//! (`document-section-<n>-response`, see `response::document_block`); Ctrl+S or
+//! `document-save` parses the text and saves it through the engine (see
+//! `save_document`), `document-discard` drops the edit, and `document-warnings` shows what
+//! a broken section blocks. Without an open request the view shows an empty state.
 // bolt gap: `bolt` has no read-only code view with line numbers and no plain field well
 // outside the request module; the lines are drawn as the Body pane draws its code and the
 // wells as its `text_well`.
 
+use std::ops::Range;
 use std::str::FromStr;
 use std::sync::Arc;
 
-use bolt::controls::Button;
+use bolt::controls::{Button, InputEnter};
 use bolt::primitives::{BannerBlock, BannerVariant, Chamfer};
 use bolt::tokens::{ChamferCut, EditorMetrics, GridMetrics, Spacing};
 use gpui::{
@@ -32,7 +35,9 @@ use reqflux_engine::config::LayoutMode;
 use crate::shell::{
     Shell, history, region,
     request::ui,
+    response,
     rows::{labeled_row, part},
+    send::RequestSend,
     toasts, tree_model,
     tree_model::{Node, NodeKind},
 };
@@ -80,14 +85,19 @@ pub(crate) fn render(
     }
     shell.refresh_document_edit(&folder, &sections, window, cx);
     if shell.document_edit.is_some() {
-        return view.children(edited_document(shell, cx));
+        let mut items = edited_document(shell, cx);
+        if let Some(block) = edited_response(shell, cx) {
+            items.push(block);
+        }
+        return view.children(items);
     }
-    let text = http_document::write(&sections);
+    let text = http_document::write(&plain(&sections));
+    let shown = shown_response(shell, &sections, cx);
     view.child(
         document_well("document-text", cx)
             .cursor_text()
             .on_click(cx.listener(|this, _event, window, cx| this.start_document_edit(window, cx)))
-            .children(section_groups(&sections, &text, cx)),
+            .children(section_groups(&sections, &text, shown, cx)),
     )
 }
 
@@ -173,6 +183,13 @@ fn document_toolbar(dirty: bool, cx: &mut Context<Shell>) -> Stateful<Div> {
             )
         })
         .child(
+            Button::new("document-send", "Send")
+                .icon(ui::icon(IconName::Send))
+                .on_click(cx.listener(|this, _event, window, cx| {
+                    this.send_document_section(window, cx);
+                })),
+        )
+        .child(
             Button::new("document-discard", "Discard")
                 .on_click(cx.listener(|this, _event, _window, cx| this.discard_document(cx))),
         )
@@ -192,14 +209,23 @@ fn document_editor(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         return part("document-editor".to_owned());
     };
     let input = edit.input.clone();
-    document_well("document-editor", cx).child(
-        Textarea::new(&input)
-            .appearance(false)
-            .bordered(false)
-            .text_size(EditorMetrics::CODE_FONT)
-            .font_family(bolt::fonts::editor_family(cx))
-            .text_color(bolt::colors(cx).foreground),
-    )
+    document_well("document-editor", cx)
+        // Ctrl+Enter sends the section the cursor is in; the editor would otherwise
+        // consume the secondary Enter as its own, as the GraphQL editor's does.
+        .capture_action(cx.listener(|this, action: &InputEnter, window, cx| {
+            if action.secondary {
+                cx.stop_propagation();
+                this.send_document_section(window, cx);
+            }
+        }))
+        .child(
+            Textarea::new(&input)
+                .appearance(false)
+                .bordered(false)
+                .text_size(EditorMetrics::CODE_FONT)
+                .font_family(bolt::fonts::editor_family(cx))
+                .text_color(bolt::colors(cx).foreground),
+        )
 }
 
 /// The deletion confirmation, `document-confirm-delete`, over the window: the requests no
@@ -286,7 +312,7 @@ impl Shell {
         let Some((folder, sections)) = document_sections(self) else {
             return;
         };
-        let seed = http_document::write(&sections);
+        let seed = http_document::write(&plain(&sections));
         let input = cx.new(|cx| TextareaState::new(window, cx).rows(EDITOR_ROWS));
         input.update(cx, |state, cx| state.set_value(seed.clone(), window, cx));
         let change = cx.subscribe(&input, |this, input, event: &InputEvent, cx| {
@@ -316,7 +342,7 @@ impl Shell {
     fn refresh_document_edit(
         &mut self,
         folder: &str,
-        sections: &[DocumentRequest],
+        sections: &[(String, DocumentRequest)],
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -330,7 +356,7 @@ impl Shell {
         let Some(edit) = self.document_edit.as_mut() else {
             return;
         };
-        let seed = http_document::write(sections);
+        let seed = http_document::write(&plain(sections));
         if !edit.dirty && edit.seed != seed {
             edit.seed = seed.clone();
             edit.warnings = Vec::new();
@@ -357,6 +383,97 @@ impl Shell {
         edit.dirty = text != edit.seed;
         edit.warnings = http_document::parse(text).1;
         cx.notify();
+    }
+
+    /// Ctrl+Enter (`document-send`) in the Document layout: sends the section the cursor
+    /// is in — the last one that starts before it when it sits between sections. The send
+    /// goes through the engine like any send, with the unsaved document text in place of
+    /// the saved request, so it records history and honours the environment allowlist and
+    /// the host policy. Saving is not required.
+    pub(in crate::shell) fn send_document_section(
+        &mut self,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some((id, section)) = self.section_at_cursor(cx) else {
+            return;
+        };
+        self.send_folder_section(&id, section, window, cx);
+    }
+
+    /// The response block's Retry: sends the section of the request `id` again, from the
+    /// document as it shows now.
+    pub(in crate::shell) fn resend_document_section(
+        &mut self,
+        id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(text) = document_text(self, cx) else {
+            return;
+        };
+        let section = http_document::parse(&text)
+            .0
+            .into_iter()
+            .find(|section| request_of_name(self, &section.name).as_deref() == Some(id));
+        if let Some(section) = section {
+            self.send_folder_section(id, section, window, cx);
+        }
+    }
+
+    /// The request the section the cursor is in sends as: its id in the folder and the
+    /// section itself. `None` while the editor is closed (no cursor) or the section has
+    /// no request in the folder.
+    fn section_at_cursor(&self, cx: &App) -> Option<(String, DocumentRequest)> {
+        let edit = self.document_edit.as_ref()?;
+        let text = edit.input.read(cx).value().to_string();
+        let index = section_at(&text, edit.input.read(cx).cursor())?;
+        let section = http_document::parse(&text).0.into_iter().nth(index)?;
+        let id = request_of_name(self, &section.name)?;
+        Some((id, section))
+    }
+
+    /// Sends `section` as the request `id`: the request the section saves to (its auth,
+    /// settings and extensions kept, its non-raw body the document cannot show), through
+    /// the engine like any send.
+    fn send_folder_section(
+        &mut self,
+        id: &str,
+        section: DocumentRequest,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let saved = match &self.workspace {
+            OpenedWorkspace::Loaded(engine) => {
+                history::find_request(engine.workspace(), id).map(|(_, request)| request.clone())
+            }
+            _ => None,
+        };
+        let Some(saved) = saved else {
+            return;
+        };
+        let request = updated_request(&saved, &section);
+        self.send_document(id, Some(request), window, cx);
+    }
+
+    /// Puts the document cursor `offset` bytes into the open editor, the way clicking
+    /// there does. Tests use it to select the section a Ctrl+Enter sends.
+    #[cfg(test)]
+    pub(in crate::shell) fn set_document_cursor(
+        &mut self,
+        offset: usize,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(edit) = self.document_edit.as_ref() else {
+            return;
+        };
+        let input = edit.input.clone();
+        input.update(cx, |state, cx| {
+            let offset = offset.min(state.text().len());
+            let position = gpui_component::input::RopeExt::offset_to_position(state.text(), offset);
+            state.set_cursor_position(position, window, cx);
+        });
     }
 
     /// Drops the document edit: the view goes back to the read-only document of the saved
@@ -521,19 +638,151 @@ fn active_folder(shell: &Shell) -> Option<(String, Vec<String>)> {
 }
 
 /// The `.http` sections of the active request's container's requests, in tree order, the
-/// draft's text when a request has one; `None` when no request is open.
-fn document_sections(shell: &Shell) -> Option<(String, Vec<DocumentRequest>)> {
+/// draft's text when a request has one, each with its request id; `None` when no request
+/// is open.
+fn document_sections(shell: &Shell) -> Option<(String, Vec<(String, DocumentRequest)>)> {
     let (folder, ids) = active_folder(shell)?;
     let mut shown = Vec::new();
     if let OpenedWorkspace::Loaded(engine) = &shell.workspace {
         let workspace = engine.workspace();
         for id in ids {
             if let Some((_, saved)) = history::find_request(workspace, &id) {
-                shown.push(document_section(shell.displayed_request(&id, saved)));
+                let section = document_section(shell.displayed_request(&id, saved));
+                shown.push((id, section));
             }
         }
     }
     Some((folder, shown))
+}
+
+/// The sections `write` and `refresh_document_edit` consume, without their request ids.
+fn plain(sections: &[(String, DocumentRequest)]) -> Vec<DocumentRequest> {
+    sections
+        .iter()
+        .map(|(_, section)| section.clone())
+        .collect()
+}
+
+/// The text the document shows: the editor's while it is open, else the canonical
+/// document of the saved sections.
+fn document_text(shell: &Shell, cx: &App) -> Option<String> {
+    match shell.document_edit.as_ref() {
+        Some(edit) => Some(edit.input.read(cx).value().to_string()),
+        None => {
+            document_sections(shell).map(|(_, sections)| http_document::write(&plain(&sections)))
+        }
+    }
+}
+
+/// The id of the folder request a section of `name` belongs to, the match a save makes.
+fn request_of_name(shell: &Shell, name: &str) -> Option<String> {
+    let (_, ids) = active_folder(shell)?;
+    ids.into_iter()
+        .find(|id| tree_model::find(&shell.roots, id).is_some_and(|node| node.name == name))
+}
+
+/// The response block the read-only document shows, at its section: the request the
+/// window sent last, or the active request when that one has no section here; `None`
+/// while neither was sent.
+fn shown_response(
+    shell: &Shell,
+    sections: &[(String, DocumentRequest)],
+    cx: &mut Context<Shell>,
+) -> Option<(usize, AnyElement)> {
+    let target = shell
+        .last_send
+        .as_ref()
+        .map(|send| send.id.as_str())
+        .filter(|id| sections.iter().any(|(section_id, _)| section_id == id))
+        .or_else(|| shell.documents.active())?;
+    let (index, (id, section)) = sections
+        .iter()
+        .enumerate()
+        .find(|(_, (section_id, _))| section_id == target)?;
+    let send = shell.sends.get(id)?;
+    Some((index, section_block(index, id, &section.name, send, cx)))
+}
+
+/// The response block under the editor: the section the cursor is in, when its request
+/// was sent.
+fn edited_response(shell: &Shell, cx: &mut Context<Shell>) -> Option<AnyElement> {
+    let text = document_text(shell, cx)?;
+    let index = section_at(&text, shell.document_edit.as_ref()?.input.read(cx).cursor())?;
+    let section = http_document::parse(&text).0.into_iter().nth(index)?;
+    let id = request_of_name(shell, &section.name)?;
+    let send = shell.sends.get(&id)?;
+    Some(section_block(index, &id, &section.name, send, cx))
+}
+
+/// The response block of the section `index`: `document-section-<n>-response` over the
+/// response module's `document-response`.
+fn section_block(
+    index: usize,
+    id: &str,
+    name: &str,
+    send: &RequestSend,
+    cx: &mut Context<Shell>,
+) -> AnyElement {
+    part(format!("document-section-{}-response", index + 1))
+        .flex_none()
+        .child(response::document_block(id, name, send, cx))
+        .into_any_element()
+}
+
+/// The section of `text` the cursor `offset` falls in, as its index in `parse`'s order:
+/// the last one that starts before the cursor when it sits between sections; `None`
+/// before the first one.
+fn section_at(text: &str, offset: usize) -> Option<usize> {
+    section_ranges(text)
+        .iter()
+        .rposition(|range| range.start <= offset)
+}
+
+/// The byte range each section of `text` spans, `parse`'s sections in order: from the
+/// separator, or the first content line of the unnamed first section, to where the next
+/// section starts — the end of the text for the last one. A `###` line opens a section
+/// under the same rule `parse` applies.
+fn section_ranges(text: &str) -> Vec<Range<usize>> {
+    let mut ranges: Vec<Range<usize>> = Vec::new();
+    let mut start: Option<usize> = None;
+    let mut in_body = false;
+    let mut previous_blank = false;
+    let mut offset = 0_usize;
+    for line in text.split_inclusive('\n') {
+        let line_start = offset;
+        offset += line.len();
+        let content = line.trim_end();
+        let blank = content.trim().is_empty();
+        if content.starts_with("###") && (!in_body || previous_blank) {
+            if let Some(from) = start.take() {
+                ranges.push(from..line_start);
+            }
+            start = Some(line_start);
+            in_body = false;
+            previous_blank = false;
+            continue;
+        }
+        match start {
+            None => {
+                if !blank && !is_head_comment(content) {
+                    start = Some(line_start);
+                }
+            }
+            Some(_) if blank && !in_body => in_body = true,
+            Some(_) => {}
+        }
+        previous_blank = blank;
+    }
+    if let Some(from) = start {
+        ranges.push(from..offset);
+    }
+    ranges
+}
+
+/// A head comment line, the ones `parse` ignores: a trimmed `#` or `//` line.
+fn is_head_comment(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with('#') || trimmed.starts_with("//")
 }
 
 /// The container that directly holds the request `id`: the collection or folder whose
@@ -605,8 +854,14 @@ enum LineKind {
 }
 
 /// The sections of `text`, `write`'s output for `sections`, as one
-/// `document-section-<n>` each, its lines numbered across the whole document.
-fn section_groups(sections: &[DocumentRequest], text: &str, cx: &App) -> Vec<AnyElement> {
+/// `document-section-<n>` each, its lines numbered across the whole document, and the
+/// response `block` under the section it belongs to.
+fn section_groups(
+    sections: &[(String, DocumentRequest)],
+    text: &str,
+    block: Option<(usize, AnyElement)>,
+    cx: &App,
+) -> Vec<AnyElement> {
     let mut groups: Vec<Vec<(String, LineKind)>> = Vec::new();
     let mut after_section = false;
     for line in text.lines() {
@@ -627,9 +882,10 @@ fn section_groups(sections: &[DocumentRequest], text: &str, cx: &App) -> Vec<Any
     }
     let mut rows = Vec::new();
     let mut number = 0usize;
-    for (index, (section, group)) in sections.iter().zip(groups).enumerate() {
+    let mut block = block;
+    for (index, ((_, section), group)) in sections.iter().zip(groups).enumerate() {
         let method = section.method.as_str().to_owned();
-        let section_view = part(format!("document-section-{}", index + 1))
+        let mut section_view = part(format!("document-section-{}", index + 1))
             .flex_none()
             .flex()
             .flex_col()
@@ -637,6 +893,11 @@ fn section_groups(sections: &[DocumentRequest], text: &str, cx: &App) -> Vec<Any
                 number += 1;
                 line_row(number, &text, kind, &method, cx).into_any_element()
             }));
+        if block.as_ref().is_some_and(|(at, _)| *at == index)
+            && let Some((_, block)) = block.take()
+        {
+            section_view = section_view.child(block);
+        }
         rows.push(section_view.into_any_element());
     }
     rows

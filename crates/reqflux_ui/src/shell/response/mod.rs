@@ -7,6 +7,9 @@
 //! Console panes, or the error banner of a failure. A response reopened from history carries
 //! the `From history` bar with Resend under the tab row. Clicking the content gives the
 //! response the keyboard focus, where Ctrl F opens the search (see [`views`]).
+//!
+//! The Document layout draws the same views, not in a split, under the section the cursor
+//! is in: [`document_block`] is that block, with its own status chip and Retry.
 
 mod body;
 mod cookies;
@@ -37,14 +40,17 @@ pub(crate) use preview_model::{PreviewKind, preview_kind};
 pub(crate) use views::{ViewState, bind_keys};
 
 use bolt::composites::{EmptyState, EmptyStateAction};
-use bolt::tokens::{Borders, Spacing};
+use bolt::controls::Button;
+use bolt::primitives::{Badge, BadgeTone, BannerBlock, BannerVariant};
+use bolt::tokens::{Borders, EditorMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Context, Div, MouseButton, ParentElement, Stateful, Styled, div, prelude::*,
+    AnyElement, App, Context, Div, MouseButton, ParentElement, Role, Stateful, Styled, div,
+    prelude::*,
 };
 use gpui_kit_assets::IconName;
 
 use super::request::ui;
-use super::request::{Completed, SendState};
+use super::request::{Completed, SendState, StatusClass, elapsed_text, size_text};
 use super::send::RequestSend;
 use super::{Shell, region, text_region};
 use crate::tokens;
@@ -98,7 +104,12 @@ pub(super) fn render(
 
 /// A finished send: the unresolved line, then the body or headers of a response or the
 /// error banner of a failure.
-fn completed(id: &str, send: &RequestSend, outcome: &Completed, cx: &mut Context<Shell>) -> Div {
+pub(in crate::shell) fn completed(
+    id: &str,
+    send: &RequestSend,
+    outcome: &Completed,
+    cx: &mut Context<Shell>,
+) -> Div {
     let unresolved = match outcome {
         Completed::Response(received) => &received.unresolved,
         Completed::Failure(failure) => &failure.unresolved,
@@ -181,6 +192,156 @@ fn unresolved_line(text: String, cx: &App) -> Stateful<Div> {
         .text_size(bolt::density::font_xs(cx))
         .text_color(bolt::colors(cx).warning)
         .child(text)
+}
+
+/// The height of the block's views: the tab row, the footer and a few body lines, so the
+/// block stays a block under the section instead of taking the island over.
+fn block_height() -> gpui::Pixels {
+    EditorMetrics::CODE_LINE_HEIGHT * 8.0
+}
+
+/// The response block the Document layout draws under a section (v1-features S7,
+/// design/layouts/02): the status chip with the time and size, then what the response pane
+/// draws, reused — the progress bar over the previous outcome dimmed while a send runs,
+/// the Body, Headers, Cookies, Timeline, Tests and Console views of a response, or the
+/// error banner with Retry of a failure. The caller wraps it in
+/// `document-section-<n>-response` under the section it belongs to.
+pub(in crate::shell) fn document_block(
+    id: &str,
+    name: &str,
+    send: &RequestSend,
+    cx: &mut Context<Shell>,
+) -> Stateful<Div> {
+    let (label, tone, meta) = status_meta(&send.state);
+    let content: Vec<AnyElement> = match &send.state {
+        SendState::Sending { previous, .. } => {
+            let mut parts = vec![tab_row::progress(cx).into_any_element()];
+            parts.extend(previous.as_ref().map(|previous| {
+                div()
+                    .h(block_height())
+                    .flex_none()
+                    .flex()
+                    .flex_col()
+                    .opacity(tokens::RESPONSE_DIMMED)
+                    .child(completed(id, send, previous, cx))
+                    .into_any_element()
+            }));
+            parts
+        }
+        SendState::Done(outcome @ Completed::Response(_)) => {
+            vec![
+                region("document-response-body")
+                    .h(block_height())
+                    .flex_none()
+                    .flex()
+                    .flex_col()
+                    .child(completed(id, send, outcome, cx))
+                    .into_any_element(),
+            ]
+        }
+        SendState::Done(Completed::Failure(failure)) => {
+            vec![
+                region("document-response-error")
+                    .role(Role::Alert)
+                    .aria_label(format!("Request failed. {}", failure.error))
+                    .flex_none()
+                    .child(
+                        BannerBlock::new(BannerVariant::Danger, "Request failed.")
+                            .default_icon(ui::icon(IconName::TriangleAlert))
+                            .with_body(failure.error.clone())
+                            .with_actions(retry(id, cx)),
+                    )
+                    .into_any_element(),
+            ]
+        }
+        SendState::Idle => Vec::new(),
+    };
+    region("document-response")
+        .flex_none()
+        .flex()
+        .flex_col()
+        .mx(Spacing::MD)
+        .my(Spacing::SM)
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(Spacing::SM)
+                .pl(Spacing::MD)
+                .pr(Spacing::MD)
+                .pt(Spacing::SM)
+                .pb(Spacing::SM)
+                .child(
+                    div()
+                        .text_size(bolt::density::font_xs(cx))
+                        .text_color(bolt::colors(cx).muted)
+                        .child(format!("Response · {name}")),
+                )
+                .child(
+                    text_region("document-response-status")
+                        .aria_label(label.clone())
+                        .flex_none()
+                        .child(Badge::new(label, tone)),
+                )
+                .children(meta.map(|meta| {
+                    text_region("document-response-meta")
+                        .aria_label(meta.clone())
+                        .flex_none()
+                        .font_family(bolt::fonts::editor_family(cx))
+                        .text_color(bolt::colors(cx).muted)
+                        .child(meta)
+                })),
+        )
+        .children(content)
+}
+
+/// The Retry of the block's error banner, `document-response-retry`, which sends the
+/// section again, from the document as it shows now.
+fn retry(id: &str, cx: &mut Context<Shell>) -> Button {
+    let id = id.to_owned();
+    Button::new("document-response-retry", "Retry")
+        .primary()
+        .icon(ui::icon(IconName::RotateCcw))
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            this.resend_document_section(&id, window, cx);
+        }))
+}
+
+/// The label, tone and `time · size` meta of the block's status chip.
+fn status_meta(state: &SendState) -> (String, BadgeTone, Option<String>) {
+    match state {
+        SendState::Idle | SendState::Sending { .. } => {
+            ("Sending".to_owned(), BadgeTone::Accent, None)
+        }
+        SendState::Done(Completed::Response(received)) => (
+            received.status_text(),
+            tone_of(received.status),
+            Some(format!(
+                "{} · {}",
+                elapsed_text(received.elapsed),
+                size_text(received.size())
+            )),
+        ),
+        SendState::Done(Completed::Failure(failure)) => (
+            "Failed".to_owned(),
+            BadgeTone::Danger,
+            Some(format!(
+                "{} · {}",
+                elapsed_text(failure.elapsed),
+                size_text(0)
+            )),
+        ),
+    }
+}
+
+/// The badge tone of a status, the one the response tab row colors it with.
+fn tone_of(status: u16) -> BadgeTone {
+    match StatusClass::of(status) {
+        StatusClass::Success => BadgeTone::Success,
+        StatusClass::Info => BadgeTone::Info,
+        StatusClass::Warning => BadgeTone::Warning,
+        StatusClass::Danger => BadgeTone::Danger,
+    }
 }
 
 /// The empty state before the first send, element id `response-empty`.

@@ -4,17 +4,19 @@
 //! The active request shows the action strip at its left and the request beside it, with
 //! its response under it across the draggable split (see `split`). While the layout is
 //! Document (see `layout`), the island draws the active request's folder as a read-only
-//! `.http` document instead (`document_view`), and the response is not shown. While the history tab is active, the island shows its read-only
+//! `.http` document instead (`document_view`), and Ctrl+Enter sends the section the cursor
+//! is in, its response under that section rather than in a split. While the history tab is active, the island shows its read-only
 //! document, `history-readonly`, instead (see `history::render_tab`).
 
 use bolt::composites::Island;
 use bolt::tokens::Borders;
-use gpui::{Context, IntoElement, ParentElement, Styled, Window};
+use gpui::{Context, InteractiveElement as _, IntoElement, ParentElement, Styled, Window};
 use reqflux_engine::config::LayoutMode;
 
 use super::documents::locate;
 use super::{
-    Shell, action_strip, empty_state, history, layout, path_bar, region, request, split, tabs,
+    Shell, action_strip, commands, empty_state, history, layout, path_bar, region, request, split,
+    tabs,
 };
 
 #[path = "document_view.rs"]
@@ -64,6 +66,11 @@ pub(super) fn render(
                     .min_w_0()
                     .flex()
                     .flex_col()
+                    // Ctrl+Enter sends the section the cursor is in while the focus is in
+                    // the document, before the send-request command reaches the shell.
+                    .on_action(cx.listener(|this, _: &commands::SendRequest, window, cx| {
+                        this.send_document_section(window, cx);
+                    }))
                     .child(document_view::render(shell, window, cx)),
             ),
         (None, Some(_)) => {

@@ -434,8 +434,18 @@ while the text is not dirty. Ctrl+S (`save-request`) parses the text and saves t
 — sections update their request (method, URL and params, enabled headers, raw body), new names
 create requests in the folder, and requests whose section disappeared are deleted only after one
 confirmation modal for the whole save (`document-confirm-delete`); parse warnings show in
-`document-warnings` and block the save; Discard drops the edit. Running a section in this mode is
-a later S7 unit.
+`document-warnings` and block the save; Discard drops the edit. Running a section there is
+Ctrl+Enter (`send-request`, intercepted while the focus is in the document; the `.http` editor
+consumes a secondary Enter, so the document captures it like the GraphQL editor does) or the
+editor's Send (`document-send`): the section the cursor is in — the last one that starts before it
+when the cursor sits between sections — maps to its folder request by name, the way a save matches
+sections, and sends through the same draft path as a request tab, so it records history and honours
+the environment allowlist and the host policy without saving. The response draws under that
+section in the read-only document, or below the editor while it is open
+(`document-section-<n>-response` over `document-response`, with `document-response-status`,
+`document-response-body`, `document-response-error` and its `document-response-retry`), reusing the
+response pane's views; the read-only document shows the response of the request the window sent
+last, else the active request's.
 
 In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
