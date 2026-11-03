@@ -1,0 +1,21 @@
+{
+  "title": "Export",
+  "brief": "Window export UI: Postman v2.1 (collection, folder, request, environment; include secrets or not), ReqFlux bundle (workspace or collection/folder/request; secrets omitted or encrypted with a passphrase) and API docs (collection, README.md and index.html into a folder), from the tree, workspace and environment menus and the command palette, through the OS save and folder dialogs.",
+  "feature": "odd/tasks/v1-close.md",
+  "artboards": [
+    {
+      "file": "01-one-export-dialog.html",
+      "title": "One export dialog",
+      "tradeoff": "One menu item and one dialog with a format switch; every export costs a dialog step, even Postman without secrets",
+      "width": 1440,
+      "height": 4911
+    },
+    {
+      "file": "02-item-per-format.html",
+      "title": "One item per format",
+      "tradeoff": "Fewer steps (Postman and docs go straight to the OS dialog); four new items crowd the tree menu, and bolt has no submenu to fold them",
+      "width": 1440,
+      "height": 3903
+    }
+  ]
+}
