@@ -347,3 +347,53 @@ fn clear_and_reset_return_the_defaults(cx: &mut TestAppContext) {
         "ctrl-s"
     );
 }
+
+/// Whether the key capture of the Keymap page (bolt's `KeyCapture`) is listening.
+fn field_capturing(cx: &mut VisualTestContext, shell: &gpui::Entity<Shell>) -> bool {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .settings
+            .keymap
+            .field
+            .as_ref()
+            .is_some_and(|field| field.read(cx).is_capturing())
+    })
+}
+
+#[gpui::test]
+fn the_key_cell_captures_through_bolts_key_capture(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let mine = "theme = \"dark\"\n";
+    write(&config_path, mine);
+    let (shell, cx) = render_app(cx, &dir, &state_path, &config_path);
+    open_keymap(cx, &shell);
+
+    click(cx, "keymap-key-save-request");
+    present(cx, "keymap-capture-hint");
+    assert!(field_capturing(cx, &shell), "the click starts the capture");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!field_capturing(cx, &shell), "escape ends the capture");
+    assert!(bounds(cx, "keymap-capture-hint").is_none());
+    assert_eq!(read(&config_path), mine, "a cancel changes nothing");
+
+    click(cx, "keymap-key-save-request");
+    assert!(field_capturing(cx, &shell));
+    // A bare letter is typing, not a chord: the capture keeps listening.
+    cx.simulate_keystrokes("a");
+    cx.run_until_parked();
+    assert!(field_capturing(cx, &shell), "a bare letter keeps listening");
+    cx.simulate_keystrokes("ctrl-alt-s");
+    cx.run_until_parked();
+    assert!(!field_capturing(cx, &shell));
+    assert_eq!(
+        read(&config_path),
+        "theme = \"dark\"\n\n[keymap]\nsave-request = \"ctrl-alt-s\"\n"
+    );
+    present(cx, "keymap-key-save-request");
+    let row = cx.update(|_, cx| effective_key(cx, id_of("save-request")));
+    assert_eq!(row, "ctrl-alt-s", "the row shows the new key");
+}

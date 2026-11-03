@@ -9,8 +9,8 @@
 //! command and the old one stops firing. An unknown slug, a chord that cannot be bound
 //! and a chord two commands claim are warnings in the Problems panel that never block
 //! startup. The App > Keymap section of the settings page (see `keymap/view`) shows every
-//! command with its effective key, captures the next chord on a click (Escape cancels,
-//! Delete or Backspace returns the default), reports a conflict with the command that
+//! command with its effective key, captures the next chord on a click through bolt's
+//! `KeyCapture` (Escape cancels, Delete or Backspace returns the default), reports a conflict with the command that
 //! holds it — Keep mine takes the chord away from the other command — and `Reset to
 //! defaults` removes the whole table. Every change writes config.toml at once through the
 //! engine's format-preserving editors.
@@ -18,7 +18,13 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use gpui::{App, Context, Global, KeyBinding, KeystrokeEvent, Modifiers, Unbind, WeakEntity};
+use std::rc::Rc;
+
+use bolt::controls::{KeyCapture, KeyCaptureHandler};
+use gpui::{
+    App, AppContext as _, Context, Entity, Global, KeyBinding, Keystroke, Modifiers, Subscription,
+    Unbind,
+};
 use reqflux_engine::config::{self, KeymapConfig};
 
 use super::Shell;
@@ -26,8 +32,10 @@ use super::commands::{self, CommandId};
 
 pub(super) mod view;
 
-/// The key that cancels a capture without changing anything.
-const CANCEL_KEY: &str = "escape";
+/// The hint the key capture draws while it listens.
+const CAPTURE_HINT: &str = "listening\u{2026} press the new keys, Esc cancels";
+/// The id of the key capture, which the UI automation tree and the tests find.
+const CAPTURE_ID: &str = "keymap-capture-hint";
 /// The keys that return the captured command to its default key.
 const CLEAR_KEYS: [&str; 2] = ["delete", "backspace"];
 
@@ -38,19 +46,6 @@ const CLEAR_KEYS: [&str; 2] = ["delete", "backspace"];
 struct Effective(BTreeMap<&'static str, Option<String>>);
 
 impl Global for Effective {}
-
-/// A capture in progress: the command waiting for its new chord and the shell that
-/// started it, which the app-wide keystroke interceptor brings the chord back to.
-struct Capturing {
-    id: CommandId,
-    shell: WeakEntity<Shell>,
-}
-
-/// The capture the keystroke interceptor serves; empty while no capture runs.
-#[derive(Default)]
-struct Capture(Option<Capturing>);
-
-impl Global for Capture {}
 
 /// One command's key after `[keymap]` is resolved.
 pub(crate) struct Resolved {
@@ -231,11 +226,9 @@ pub(crate) fn apply_file(path: &Path, cx: &mut App) -> Vec<String> {
 }
 
 /// Reads `[keymap]` at startup, before the window opens: applies it over the bindings
-/// [`super::bind_keys`] installed and installs the keystroke interceptor that serves the
-/// settings page's captures. Returns the table's warnings for the Problems panel. Without
+/// [`super::bind_keys`] installed. Returns the table's warnings for the Problems panel. Without
 /// a config path nothing is read and the defaults stand.
 pub(crate) fn apply_startup(path: Option<&Path>, cx: &mut App) -> Vec<String> {
-    install_capture_interceptor(cx);
     match path {
         Some(path) => apply_file(path, cx),
         None => Vec::new(),
@@ -259,38 +252,6 @@ pub(crate) fn holder_of(chord: &str, id: CommandId, cx: &App) -> Option<CommandI
         .map(|command| command.id)
 }
 
-/// Installs the keystroke interceptor that serves a capture, once per process: while no
-/// capture runs it does nothing, and a capture sees every chord before the keymap
-/// dispatches it, so a chord that belongs to another command is captured instead of run.
-fn install_capture_interceptor(cx: &mut App) {
-    cx.intercept_keystrokes(|event: &KeystrokeEvent, window, cx| {
-        let Some((id, shell)) = cx.try_global::<Capture>().and_then(|capture| {
-            capture
-                .0
-                .as_ref()
-                .map(|capture| (capture.id, capture.shell.clone()))
-        }) else {
-            return;
-        };
-        // A bare printable key is typing, not a chord; the capture keeps listening.
-        if event.keystroke.modifiers == Modifiers::none()
-            && event.keystroke.key.chars().count() == 1
-        {
-            return;
-        }
-        cx.stop_propagation();
-        let chord = event.keystroke.unparse();
-        let outcome = shell.update(cx, |shell, cx| {
-            shell.captured_keymap_chord(id, chord, window, cx)
-        });
-        if let Err(error) = outcome {
-            log::debug!("the shell of a keymap capture is gone: {error}");
-            cx.set_global(Capture(None));
-        }
-    })
-    .detach();
-}
-
 /// The chord a capture caught while another command holds it, and the two commands: Keep
 /// mine rebinds anyway and takes the chord away from the other, Cancel changes nothing.
 pub(crate) struct Conflict {
@@ -309,6 +270,15 @@ pub(crate) struct KeymapState {
     pub(crate) capture: Option<CommandId>,
     /// The conflict the last capture caught, while its banner shows.
     pub(crate) conflict: Option<Conflict>,
+    /// bolt's key capture the capturing row draws, made on the first capture.
+    pub(crate) field: Option<Entity<KeyCapture>>,
+    /// Ends the page's capture when the field stops on its own (a bare Escape).
+    watch: Option<Subscription>,
+}
+
+/// Whether `keystroke` is a bare printable key: typing, not a chord.
+fn is_typing(keystroke: &Keystroke) -> bool {
+    keystroke.modifiers == Modifiers::none() && keystroke.key.chars().count() == 1
 }
 
 impl Shell {
@@ -318,38 +288,53 @@ impl Shell {
     pub(crate) fn start_keymap_capture(
         &mut self,
         id: CommandId,
-        _window: &mut gpui::Window,
+        window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
         if !self.settings.app.editable() {
             return;
         }
-        let shell = cx.entity().downgrade();
+        let field = self.keymap_field(window, cx);
         self.settings.keymap.capture = Some(id);
         self.settings.keymap.conflict = None;
-        cx.set_global(Capture(Some(Capturing { id, shell })));
+        listen(&field, id, cx.entity().downgrade(), cx);
         cx.notify();
     }
 
-    /// The next chord of the capture of `id`, from the app-wide interceptor: Escape
-    /// cancels, Delete or Backspace returns the default, and any other chord rebinds the
+    /// bolt's key capture of the page, made on the first capture with the watch that
+    /// ends the page's capture when a bare Escape stops the field.
+    fn keymap_field(
+        &mut self,
+        window: &mut gpui::Window,
+        cx: &mut Context<Self>,
+    ) -> Entity<KeyCapture> {
+        if let Some(field) = &self.settings.keymap.field {
+            return field.clone();
+        }
+        let field = cx.new(|_| KeyCapture::new(CAPTURE_ID, ""));
+        let watch = cx.observe_in(&field, window, |this, field, window, cx| {
+            if this.settings.keymap.capture.is_some() && !field.read(cx).is_capturing() {
+                this.cancel_keymap_capture(window, cx);
+            }
+        });
+        self.settings.keymap.field = Some(field.clone());
+        self.settings.keymap.watch = Some(watch);
+        field
+    }
+
+    /// The next chord of the capture of `id`, from bolt's key capture (which cancels a
+    /// bare Escape itself): Delete or Backspace returns the default, and any other chord rebinds the
     /// command — with the conflict banner first when another command holds the chord.
     pub(crate) fn captured_keymap_chord(
         &mut self,
         id: CommandId,
         chord: String,
-        window: &mut gpui::Window,
         cx: &mut Context<Self>,
     ) {
         if self.settings.keymap.capture != Some(id) {
             return;
         }
         self.end_keymap_capture(cx);
-        if chord == CANCEL_KEY {
-            self.restore_focus(window, cx);
-            cx.notify();
-            return;
-        }
         if CLEAR_KEYS.contains(&chord.as_str()) {
             self.clear_keymap_binding(id, cx);
             return;
@@ -407,10 +392,12 @@ impl Shell {
         }
     }
 
-    /// Ends the capture: the interceptor stands down.
+    /// Ends the capture: the key capture stops listening.
     fn end_keymap_capture(&mut self, cx: &mut Context<Self>) {
         self.settings.keymap.capture = None;
-        cx.set_global(Capture(None));
+        if let Some(field) = &self.settings.keymap.field {
+            field.update(cx, |field, cx| field.stop(cx));
+        }
     }
 
     /// Rebinds `id` to `chord`: writes config.toml at once and reapplies the table.
@@ -431,4 +418,24 @@ impl Shell {
         }
         cx.notify();
     }
+}
+
+/// Opens `field` for the capture of `id`: the next chord goes back to `shell`, and a bare printable key, which is typing rather than a chord, keeps it listening.
+fn listen(field: &Entity<KeyCapture>, id: CommandId, shell: gpui::WeakEntity<Shell>, cx: &mut App) {
+    let target = field.downgrade();
+    let handler: KeyCaptureHandler = Rc::new(move |keystroke, chord, cx| {
+        if is_typing(keystroke) {
+            if let Some(field) = target.upgrade() {
+                listen(&field, id, shell.clone(), cx);
+            }
+            return;
+        }
+        let outcome = shell.update(cx, |shell, cx| {
+            shell.captured_keymap_chord(id, chord.to_string(), cx);
+        });
+        if let Err(error) = outcome {
+            log::debug!("the shell of a keymap capture is gone: {error}");
+        }
+    });
+    field.update(cx, |field, cx| field.start(CAPTURE_HINT, handler, cx));
 }

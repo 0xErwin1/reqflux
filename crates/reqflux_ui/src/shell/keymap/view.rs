@@ -1,10 +1,8 @@
 //! The App > Keymap section of the settings page (v1-features S7,
 //! design/layouts/01 D3): every command of the registry with its effective key and its
 //! context, a click on a key capturing the next chord, the conflict banner, `Reset to
-//! defaults` and the read-only `[keymap]` block of config.toml.
-//!
-//! bolt gap: no bolt key-capture field exists for "press the new keys" while rebinding;
-//! the capturing row draws the capture as a hint in the key column instead.
+//! defaults` and the read-only `[keymap]` block of config.toml. The capturing row draws
+//! bolt's `KeyCapture` in its key column.
 
 use bolt::controls::Button;
 use bolt::primitives::{Badge, BadgeTone, BannerBlock, BannerVariant, Kbd, TextVariant};
@@ -17,7 +15,7 @@ use gpui_kit_assets::IconName;
 
 use super::super::commands::{self, effective_key, key_label};
 use super::super::request::ui;
-use super::super::{Shell, region, text_region};
+use super::super::{Shell, region};
 use super::Conflict;
 use super::holder_of;
 use crate::tokens::KEYMAP_KEY_WIDTH as KEY_COLUMN;
@@ -104,11 +102,9 @@ fn keymap_row(
         .config()
         .is_some_and(|config| config.keymap.get(slug).is_some());
     let key = effective_key(cx, command.id);
-    let key_cell: AnyElement = if capturing {
-        ui::role(text_region("keymap-capture-hint"), TextVariant::Caption, cx)
-            .text_color(tint)
-            .child("listening… press the new keys, Esc cancels")
-            .into_any_element()
+    let field = shell.settings.keymap.field.clone().filter(|_| capturing);
+    let key_cell: AnyElement = if let Some(field) = field {
+        field.into_any_element()
     } else if key.is_empty() {
         ui::role(
             div().id(ElementId::Name(format!("keymap-key-{slug}").into())),

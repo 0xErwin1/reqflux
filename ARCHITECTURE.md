@@ -942,7 +942,8 @@ kept) rebinds the window's commands (the registry in `shell/commands.rs`): the w
 startup and after every edit, an unknown slug or a chord it cannot bind is a warning in the
 Problems panel, and when two entries claim one chord the first command in registry order wins.
 The App > Keymap section of the settings page shows the registry, captures a new chord on a click
-(Escape cancels, Delete or Clear returns the default, Reset to defaults removes the table) and
+through bolt's `KeyCapture` (the chord never reaches the keymap; a bare letter keeps it
+listening; Escape cancels, Delete or Clear returns the default, Reset to defaults removes the table) and
 writes the file at once with `set_keymap_binding`, `remove_keymap_binding` and `clear_keymap`.
 A missing file is the defaults; a file that does not parse is reported (path, line and
 column, never the source line) as an error in the window's Problems panel and by `reqflux mcp`,
