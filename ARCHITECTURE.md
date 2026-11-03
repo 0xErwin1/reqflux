@@ -398,7 +398,21 @@ microseconds); rows recorded before it read as no timings. `PreparedRequest`'s `
   engine entry points are `Engine::save_request`, which writes the request document back
   and returns the new file hash, and `Engine::request_base_hash`, which reports the hash
   the file had when the workspace was loaded.
-- **Reverting** discards the draft.
+- **Discarding** (the command `revert-request`, labelled "Discard changes") drops the draft
+  and reloads the saved file.
+- **Undo and redo** walk a per-request history of draft snapshots, taken on every
+  `edit_draft` and `edit_draft_scripts` and kept in `shell/draft_history.rs`. A burst of
+  edits to one slot of the request (typing in the URL, a body, a cell) within 800 ms is one
+  step; a mode switch or a discard is a step of its own; the history keeps the last 100
+  steps. Discarding is a step too, so one undo restores the discarded draft. A snapshot is
+  the whole draft or "no draft", the history lives in memory only (not across restarts) and
+  saving forgets it. `Ctrl+Z`, `Ctrl+Shift+Z` and `Ctrl+Y` run the `undo-draft` and
+  `redo-draft` commands while no text editor has the focus; a focused editor keeps its own
+  `Ctrl+Z`.
+- **Mode switches keep data.** Switching the body mode or the auth type leaves the data of
+  the mode switched away from in the draft's in-memory stash and restores it when the user
+  switches back. The stash is never written: the file and the stored draft hold only the
+  current mode.
 - When the file changes underneath a draft (a `git pull`, an agent's write tool, another
   editor), the draft is kept and its tab shows that the saved version moved. Saving then
   fails with a conflict until the user picks a side. ReqFlux has no live file watcher yet: the
@@ -486,9 +500,9 @@ cell of the same draft, Escape drops what was typed, and clicking another cell c
 open field first, like a spreadsheet. A value that references a secret is never seeded: the
 field opens empty with a `Secret value` placeholder and an empty commit keeps the stored
 reference. The row counts next to the Params and Headers sub-tabs read the draft, so a
-toggle moves them. A drafted tab carries a tint dot, Save and Revert
+toggle moves them. A drafted tab carries a tint dot, Save and Discard changes
 wake up, `Ctrl+S` saves and reloads the workspace so the tree and later sends see the file,
-and a moved file shows `File changed on disk` with the draft kept until Revert. Sending a
+and a moved file shows `File changed on disk` with the draft kept until Discard changes. Sending a
 drafted request goes through `Engine::execute_draft`.
 
 Every other part of a request edits the same draft, and every pane shows the draft while one
@@ -1271,8 +1285,9 @@ The document island shows the open requests as tabs, the path bar of the active 
 (collection, folders, request), and the request. A request that the workspace tree does not
 hold or the engine cannot inspect opens no tab: the window logs it and shows the error toast
 `Cannot open the request` with the reason. The request is shown editable as "Drafts and saving" describes:
-an action strip (Save and Revert, live while the request has a draft; Undo, Redo and Split,
-not built yet), the request line (method, URL with the
+an action strip (Save and Discard changes, live while the request has a draft; Undo and
+Redo, live while its history has a step that way; Split, not built yet; every tooltip names the
+action and its key), the request line (method, URL with the
 enabled params, Send), and the Params, Headers, Body, Auth,
 Scripts and Settings sub-tabs. What it shows comes from `Engine::inspect` with the window's
 active environment, which lives in memory, starts as none and re-inspects every open request
@@ -1545,7 +1560,8 @@ field takes keys first. `[keymap]` in the user's config.toml rebinds any command
 |---|---|---|
 | Open palette | Ctrl+K, Ctrl+P | always |
 | Send request, Cancel send | Ctrl+Enter, Escape | a request is open |
-| Save request, Revert request | Ctrl+S, Ctrl+Shift+R | the active request has a draft |
+| Save request, Discard changes | Ctrl+S, Ctrl+Shift+R | the active request has a draft |
+| Undo edit, Redo edit | Ctrl+Z, Ctrl+Shift+Z (Redo also Ctrl+Y) | a request is open and no text editor has the focus |
 | Generate code | Ctrl+Shift+C | a request is open |
 | Undo curl paste | Ctrl+Alt+Z | a pasted curl command is not undone yet (the paste toast's Undo shows the key) |
 | Run collection… | Ctrl+Alt+R | a collection exists |

@@ -143,7 +143,9 @@ commands! {
     SendRequest: SendRequest, "send-request", "Send request", "ctrl-enter", Request, can_send;
     CancelSend: CancelRequest, "cancel-send", "Cancel send", "escape", Request, has_request;
     SaveRequest: SaveRequest, "save-request", "Save request", "ctrl-s", Request, has_draft;
-    RevertRequest: RevertRequest, "revert-request", "Revert request", "ctrl-shift-r", Request, has_draft;
+    RevertRequest: RevertRequest, "revert-request", "Discard changes", "ctrl-shift-r", Request, has_draft;
+    UndoDraft: UndoDraft, "undo-draft", "Undo edit", "ctrl-z", Request, has_request;
+    RedoDraft: RedoDraft, "redo-draft", "Redo edit", "ctrl-shift-z", Request, has_request;
     GenerateCode: GenerateCode, "generate-code", "Generate code", "ctrl-shift-c", Request, has_request;
     UndoPaste: UndoPaste, "undo-paste", "Undo curl paste", "ctrl-alt-z", Request, can_undo_paste;
     RunCollection: RunCollection, "run-collection", "Run collection…", "ctrl-alt-r", Request, has_collection;
@@ -182,9 +184,15 @@ actions!(
 /// The keys that open the palette, bound in [`SHELL_CONTEXT`].
 pub(crate) const PALETTE_KEYS: [&str; 2] = ["ctrl-k", "ctrl-p"];
 
-/// Binds every command's key and the palette keys.
+/// The extra keys that redo a draft edit, beside the redo command's own key.
+pub(crate) const REDO_KEYS: [&str; 1] = ["ctrl-y"];
+
+/// Binds every command's key, the palette keys and the extra redo keys. Focused text
+/// editors bind Ctrl+Z themselves in a deeper key context, so the draft keys only reach
+/// the shell while no editor has the focus.
 pub(super) fn bind_keys(cx: &mut App) {
     bind_commands(cx);
+    cx.bind_keys(REDO_KEYS.map(|key| KeyBinding::new(key, RedoDraft, Some(SHELL_CONTEXT))));
     cx.bind_keys(PALETTE_KEYS.map(|key| KeyBinding::new(key, OpenPalette, Some(SHELL_CONTEXT))));
 }
 
@@ -340,6 +348,16 @@ impl Shell {
             CommandId::RevertRequest => {
                 if let Some(active) = active {
                     self.revert(&active, window, cx);
+                }
+            }
+            CommandId::UndoDraft => {
+                if let Some(active) = active {
+                    self.undo_draft(&active, window, cx);
+                }
+            }
+            CommandId::RedoDraft => {
+                if let Some(active) = active {
+                    self.redo_draft(&active, window, cx);
                 }
             }
             CommandId::GenerateCode => self.open_codegen_active(window, cx),
