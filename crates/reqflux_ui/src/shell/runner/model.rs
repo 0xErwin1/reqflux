@@ -436,7 +436,10 @@ impl RunModel {
         };
         [
             (requests, Tone::Muted),
-            (format!("{passed} tests passed"), Tone::Success),
+            (
+                format!("{} passed", super::super::toasts::counted(passed, "test")),
+                Tone::Success,
+            ),
             (format!("{failed} failed"), failed_tone),
             (format!("{:.1} s", self.elapsed.as_secs_f64()), Tone::Muted),
         ]

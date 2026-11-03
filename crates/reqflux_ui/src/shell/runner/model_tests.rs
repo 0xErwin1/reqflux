@@ -246,7 +246,7 @@ fn a_live_run_marks_the_request_in_flight_and_queues_the_rest() {
     assert_eq!(model.badge(), Some(("RUNNING", Tone::Accent)));
     let [requests, passed, failed, _] = model.totals();
     assert_eq!(requests.0, "1 of 3");
-    assert_eq!(passed.0, "1 tests passed");
+    assert_eq!(passed.0, "1 test passed");
     assert_eq!(failed, ("0 failed".to_owned(), Tone::Muted));
 }
 
