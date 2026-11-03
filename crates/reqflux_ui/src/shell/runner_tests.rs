@@ -349,6 +349,7 @@ fn stop_cancels_the_send_in_flight_and_sends_nothing_more(cx: &mut TestAppContex
     click(cx, "runner-start");
     settle_sending(cx, &shell);
     present(cx, "runner-progress");
+    present(cx, "runner-progress-fill");
     click(cx, "runner-stop");
     settle_run(cx, &shell);
 

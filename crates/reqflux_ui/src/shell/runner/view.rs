@@ -4,11 +4,11 @@
 
 use bolt::composites::{document_tab, document_tab_title};
 use bolt::controls::Button;
-use bolt::primitives::{Badge, BadgeTone, Icon, TextVariant, status_diamond};
+use bolt::primitives::{Badge, BadgeTone, Icon, Progress, TextVariant, status_diamond};
 use bolt::tokens::{Borders, DocumentMetrics, Feedback, HeaderMetrics, Spacing, TabMetrics};
 use gpui::{
     AnyElement, App, Context, Div, FontWeight, Hsla, IntoElement, ParentElement, Role, Stateful,
-    Styled, Window, div, prelude::*, relative,
+    Styled, Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 
@@ -17,7 +17,6 @@ use super::{RunTab, grid, result, setup};
 use crate::shell::request::ui;
 use crate::shell::rows::part;
 use crate::shell::{Shell, region, text_region};
-use crate::tokens;
 
 /// The run document, element id `runner`: the setup, or the header over the results grid
 /// and the selected step's result.
@@ -50,7 +49,7 @@ pub(in crate::shell) fn render(
     };
     document
         .child(header(run, cx))
-        .children((run.model.phase == Phase::Running).then(|| progress(run, cx).into_any_element()))
+        .children((run.model.phase == Phase::Running).then(|| progress(run).into_any_element()))
         .child(grid::render(run, cx))
         .child(lower)
         .into_any_element()
@@ -176,24 +175,19 @@ fn header(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         .children(actions)
 }
 
-/// How far the run is, `runner-progress`: the finished requests of the planned ones.
-// bolt gap: no determinate progress bar; DBFlux draws its own inline in the tasks panel.
-fn progress(run: &RunTab, cx: &App) -> Stateful<Div> {
+/// How far the run is, `runner-progress`: `bolt`'s bar for the finished requests of the
+/// planned ones, under the run header (runner/01).
+fn progress(run: &RunTab) -> Div {
     let total = run.model.plan.len().max(1);
     let done = run.model.results.len().min(total);
     #[expect(clippy::cast_precision_loss, reason = "a fraction of a short bar")]
     let fraction = done as f32 / total as f32;
-    region("runner-progress")
-        .role(Role::ProgressIndicator)
-        .aria_label(format!("{done} of {total} requests"))
+    div()
         .flex_none()
-        .h(tokens::RESPONSE_PROGRESS)
-        .bg(bolt::colors(cx).background)
+        .px(HeaderMetrics::SECTION_PADDING_X)
+        .pb(Spacing::MD)
         .child(
-            div()
-                .h_full()
-                .w(relative(fraction))
-                .bg(bolt::brand::brand(cx).accent),
+            Progress::new("runner-progress", fraction).label(format!("{done} of {total} requests")),
         )
 }
 
