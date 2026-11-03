@@ -14,7 +14,7 @@ next to the code it calls, where collections diff, merge and review cleanly in g
 
 ## Install
 
-Linux only for now.
+Linux, plus nightly macOS disk images.
 
 - **Nix, prebuilt nightly** (nothing compiles): `nix run github:0xErwin1/reqflux/nightly#reqflux-nightly`.
   Use the `nightly` ref, not `main`: only that ref holds the hash of the published tarball. The
@@ -31,7 +31,9 @@ Linux only for now.
   `nix build .#reqflux-source`.
 - **Nightly**: once a day, when `main` has new commits, a prerelease under the single tag
   `nightly` is replaced with a fresh `reqflux-linux-amd64.tar.gz` (binary, desktop entry and
-  icons); see the [releases page](https://github.com/0xErwin1/reqflux/releases).
+  icons) and `reqflux-macos-amd64.dmg` / `reqflux-macos-arm64.dmg` ("ReqFlux Nightly.app");
+  see the [releases page](https://github.com/0xErwin1/reqflux/releases). The disk images are
+  not notarised: open the app the first time with right-click > Open.
 - **Local build**: from the dev shell (`nix develop`), `cargo build --release -p reqflux`
   puts the binary in `target/release/reqflux`.
 

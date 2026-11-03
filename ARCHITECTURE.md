@@ -1661,7 +1661,14 @@ build compiles `reqflux` on `ubuntu-latest`, clears the assets of the `nightly` 
 uploads `reqflux-linux-amd64.tar.gz` there with the commits since the previous nightly in the
 release body, and only then moves the single `nightly` tag to the built commit, so a run that
 fails partway leaves the tag where it was and the next scheduled run retries. There is only ever one nightly tag; the dated `nightly-*` tags and releases of
-the earlier scheme are deleted by the first run. The nightly version is the workspace version
+the earlier scheme are deleted by the first run. A `build-macos` job, modeled on DBFlux's,
+builds `reqflux-macos-arm64.dmg` and `reqflux-macos-amd64.dmg` on `macos-15` (amd64 cross-built
+from the Apple Silicon runner, without link-time optimization to fit the runner's memory): an
+`.app` from `resources/macos/Info.plist` and `packaging/icons/reqflux.icns`, signed with
+`MACOS_CERTIFICATE_P12` when that secret is set (ad-hoc otherwise, so keychain grants do not
+survive an update) and not notarised. The release waits for both builds, so a failed macOS build
+holds the Linux tarball and the nix pin back until the next run. On macOS the in-window MCP
+approvals are off: they need `$XDG_RUNTIME_DIR`, which macOS does not set. The nightly version is the workspace version
 with its pre-release suffix stripped (`0.1.0-dev.0` → `0.1.0`) plus the short commit as
 semver build metadata, e.g. `0.1.0-nightly+928b3d5`.
 
