@@ -32,7 +32,7 @@ mod network;
 pub use crate::keymap::KeymapConfig;
 pub use edit::{
     McpList, add_list_entry, clear_keymap, remove_keymap_binding, remove_list_entry, set_font_size,
-    set_keymap_binding, set_proxy_mode, set_proxy_url, set_rule,
+    set_keymap_binding, set_proxy_mode, set_proxy_url, set_proxy_url_with_secret, set_rule,
 };
 pub use network::{
     CertificateConfig, NetworkConfig, ProxyConfig, ProxyMode, WorkspaceNetworkConfig,
@@ -241,6 +241,17 @@ pub enum ConfigError {
         /// What the key must be: `a table` or `an array`.
         expected: &'static str,
     },
+    /// A proxy URL carries a password, which never goes into the file. Never quotes the URL.
+    #[error(
+        "the proxy URL for {path} carries a password; it belongs in the OS keyring, not in the file"
+    )]
+    PasswordInUrl {
+        /// The config file.
+        path: PathBuf,
+    },
+    /// The keyring refused the proxy password, so nothing was written. Never quotes it.
+    #[error("cannot save the proxy password to the OS keyring: {0}")]
+    Keyring(#[source] crate::secrets::SecretError),
     /// The file or its directory could not be written.
     #[error("cannot write the config file {path}: {source}")]
     Write {

@@ -10,7 +10,9 @@ use std::path::Path;
 use toml_edit::{DocumentMut, Item, TableLike, Value};
 
 use super::{ConfigError, ProxyMode, Rule, clamp_font_size, parse_document, read_text, write_text};
+use crate::network::NetworkSecret;
 use crate::policy::ToolClass;
+use crate::secrets::SecretStore;
 
 /// A list of `[mcp]`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,9 +105,47 @@ pub fn set_proxy_mode(path: &Path, mode: ProxyMode) -> Result<(), ConfigError> {
 }
 
 /// Sets `url` of `[network.proxy]` to `url`, trimmed; a blank `url` removes the key. The
-/// proxy password is never here: it lives in the keyring.
+/// proxy password is never here: it lives in the keyring, so a `url` that carries one is
+/// refused with [`ConfigError::PasswordInUrl`] and nothing is written. See
+/// [`set_proxy_url_with_secret`] for the caller that takes the password out first.
 pub fn set_proxy_url(path: &Path, url: &str) -> Result<(), ConfigError> {
     let url = url.trim();
+    if split_url(url).password.is_some() {
+        return Err(ConfigError::PasswordInUrl {
+            path: path.to_owned(),
+        });
+    }
+    write_proxy_url(path, url, None)
+}
+
+/// Like [`set_proxy_url`], but a `url` with a password is split: the password goes to
+/// `secrets` under [`NetworkSecret::ProxyPassword`] and the file gets the URL without it,
+/// plus the user name as `username` (the engine sends the keyring password with a user
+/// name). The keyring is written first and the file is checked before that, so a keyring
+/// failure writes nothing; no error carries the password.
+pub fn set_proxy_url_with_secret(
+    path: &Path,
+    url: &str,
+    secrets: &dyn SecretStore,
+) -> Result<(), ConfigError> {
+    let url = url.trim();
+    let parts = split_url(url);
+    let Some(password) = parts.password else {
+        return write_proxy_url(path, url, None);
+    };
+    let text = read_text(path)?.unwrap_or_default();
+    parse_document(path, &text)?;
+    if !password.is_empty() {
+        let account = NetworkSecret::ProxyPassword { workspace: None }.account();
+        secrets
+            .set_account(&account, &password)
+            .map_err(ConfigError::Keyring)?;
+    }
+    write_proxy_url(path, &parts.without_password, parts.username.as_deref())
+}
+
+/// Writes `url` (blank removes the key) and, when given, `username` into `[network.proxy]`.
+fn write_proxy_url(path: &Path, url: &str, username: Option<&str>) -> Result<(), ConfigError> {
     edit(path, |document| {
         if url.is_empty() {
             let proxy = document
@@ -120,8 +160,77 @@ pub fn set_proxy_url(path: &Path, url: &str) -> Result<(), ConfigError> {
         }
         let proxy = proxy_table(path, document)?;
         set_value(proxy, "url", Value::from(url));
+        if let Some(username) = username.filter(|name| !name.is_empty()) {
+            set_value(proxy, "username", Value::from(username));
+        }
         Ok(())
     })
+}
+
+/// A proxy URL taken apart at its userinfo.
+struct UrlParts {
+    /// The URL with the `:password` of its userinfo removed; the text is otherwise as typed.
+    without_password: String,
+    /// The user name, percent-decoded.
+    username: Option<String>,
+    /// The password, percent-decoded; `Some("")` for `user:@host`.
+    password: Option<String>,
+}
+
+/// Takes `url` apart at the password of its userinfo. A text that is not `scheme://…` has
+/// none.
+fn split_url(url: &str) -> UrlParts {
+    let plain = || UrlParts {
+        without_password: url.to_owned(),
+        username: None,
+        password: None,
+    };
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return plain();
+    };
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let Some((authority, tail)) = rest.split_at_checked(end) else {
+        return plain();
+    };
+    let Some((userinfo, host)) = authority.rsplit_once('@') else {
+        return plain();
+    };
+    let decode = percent_decode;
+    match userinfo.split_once(':') {
+        Some((user, password)) => UrlParts {
+            without_password: format!("{scheme}://{user}@{host}{tail}"),
+            username: Some(decode(user)),
+            password: Some(decode(password)),
+        },
+        None => UrlParts {
+            username: Some(decode(userinfo)),
+            ..plain()
+        },
+    }
+}
+
+/// `text` percent-decoded (a `+` stays a plus, as in a URL's userinfo).
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        let hex = bytes
+            .get(index + 1..index + 3)
+            .and_then(|pair| std::str::from_utf8(pair).ok())
+            .and_then(|pair| u8::from_str_radix(pair, 16).ok());
+        match (byte, hex) {
+            (b'%', Some(value)) => {
+                out.push(value);
+                index += 3;
+            }
+            _ => {
+                out.push(byte);
+                index += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 /// Appends `entry`, trimmed, to the `[mcp]` list `list`, creating the list (and `[mcp]`)
