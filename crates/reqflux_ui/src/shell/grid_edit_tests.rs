@@ -20,7 +20,7 @@ const WORKSPACE: &str = "01J00000000000000000000900";
 /// A workspace whose collection `API` declares `base` and the valueless secret `token`,
 /// holding `GET Grid` with two params and two headers, the first of which has a description and
 /// the second of which references the secret.
-fn grid_workspace() -> TempDir {
+pub(super) fn grid_workspace() -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -47,7 +47,7 @@ fn grid_workspace() -> TempDir {
 }
 
 /// Opens `GET Grid` in a tab, which lands on the Headers sub-tab.
-fn open_grid(cx: &mut VisualTestContext) {
+pub(super) fn open_grid(cx: &mut VisualTestContext) {
     click(cx, &format!("tree-row-{GRID}"));
 }
 

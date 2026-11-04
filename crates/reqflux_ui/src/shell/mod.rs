@@ -26,6 +26,7 @@ mod empty_state;
 mod environment_menu;
 mod examples;
 mod export;
+mod grid_widths;
 mod history;
 mod import_flow;
 mod input_marks;
@@ -179,6 +180,10 @@ pub(crate) struct Shell {
     /// The cell field of the Params or Headers grid, the Settings timeout field or an Auth
     /// field, under edit, while it has focus.
     cell_edit: Option<CellEdit>,
+    /// The widths of the resizable request grid columns, per grid kind, for the session.
+    grid_widths: HashMap<grid_widths::GridKind, grid_widths::GridWidths>,
+    /// The column drag in progress in a request grid, shared by its header handles and root.
+    grid_resize: bolt::components::grid::ColumnResizeDrag,
     /// The input of the open cell field the shell listens to for its blur, with the
     /// subscription (see `cell_edit::watch_cell_blur`).
     cell_blur: Option<(Entity<gpui_component::input::InputState>, Subscription)>,
@@ -312,6 +317,8 @@ impl Shell {
             export: export::Export::new(cx),
             curl_undo: None,
             cell_edit: None,
+            grid_widths: HashMap::new(),
+            grid_resize: bolt::components::grid::ColumnResizeDrag::new(),
             cell_blur: None,
             split: split::Split::new(cx.focus_handle()),
             body_edit: None,
@@ -682,6 +689,8 @@ mod environment_tests;
 mod failure_toasts_tests;
 #[cfg(test)]
 mod grid_edit_tests;
+#[cfg(test)]
+mod grid_resize_tests;
 #[cfg(test)]
 mod history_tests;
 #[cfg(test)]

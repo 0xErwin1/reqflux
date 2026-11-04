@@ -9,6 +9,7 @@
 //! empty state. Rows and the header take the heights and the face of `bolt`'s data
 //! grid.
 
+use bolt::components::grid::{ColumnResizeDrag, column_resize_handle, track_column_resize};
 use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter, InputEscape};
 use bolt::primitives::{Badge, BadgeTone, Icon};
 use bolt::tokens::{Borders, Fields, FontSizes, GridMetrics, Spacing, TabMetrics};
@@ -24,10 +25,12 @@ use super::grid_model::{has_unresolved, masked_text, placeholder, row_id, row_la
 use super::{code, spans, ui, variable_popover_view};
 use crate::shell::Shell;
 use crate::shell::cell_edit::{CellEdit, CellField};
+use crate::shell::grid_widths::{self, GridKind, GridWidths};
 use crate::shell::rows::{labeled_row, part};
 use crate::tokens;
 
-/// A grid column: fixed width, or the value column, which fills the rest.
+/// A grid column: fixed width (the key and description widths are the user's, see
+/// `GridWidths`), or the value column, which fills the rest.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Column {
     Enable,
@@ -39,14 +42,14 @@ enum Column {
 
 impl Column {
     /// A cell of this column.
-    fn cell(self, line: Hsla) -> Div {
-        self.shape(div(), line)
+    fn cell(self, line: Hsla, widths: GridWidths) -> Div {
+        self.shape(div(), line, widths)
     }
 
     /// `element` shaped as a cell of this column: the row's full height, its width, the line
     /// under it and the line on its right for every column but the last; the neighbors draw
     /// the other two sides.
-    fn shape<E: Styled>(self, element: E, line: Hsla) -> E {
+    fn shape<E: Styled>(self, element: E, line: Hsla, widths: GridWidths) -> E {
         let cell = element
             .h_full()
             .flex()
@@ -59,9 +62,9 @@ impl Column {
                 .w(tokens::GRID_ENABLE_COLUMN)
                 .flex_none()
                 .justify_center(),
-            Column::Key => cell.w(tokens::GRID_CELL_KEY_COLUMN).flex_none(),
+            Column::Key => cell.w(widths.key()).flex_none(),
             Column::Value => cell.flex_1(),
-            Column::Description => cell.w(tokens::GRID_DESCRIPTION_COLUMN).flex_none(),
+            Column::Description => cell.w(widths.description()).flex_none(),
             Column::Actions => cell
                 .w(tokens::GRID_ACTIONS_COLUMN)
                 .flex_none()
@@ -105,7 +108,9 @@ pub(super) fn render(
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
-    let add = request_id.map(|id| add_row(id, table, kind, cx));
+    let grid_kind = GridKind::of(table, kind);
+    let widths = shell.grid_widths(grid_kind);
+    let add = request_id.map(|id| add_row(id, table, kind, widths, cx));
     // An editable grid shows its columns and the add row even when empty, so a row is one
     // click away; only a read-only grid has nothing to add and shows the empty state.
     if rows.is_empty() && request_id.is_none() {
@@ -117,32 +122,47 @@ pub(super) fn render(
         return div().flex().flex_col().child(empty).into_any_element();
     }
     let hint = value_hint(shell.environment_name().as_deref());
-    let header = header(table, kind, hint, cx);
-    div()
-        .flex()
-        .flex_col()
-        .child(header)
-        .children(rows.iter().enumerate().map(|(index, row)| {
-            let file = files.get(index).copied().unwrap_or(false);
-            data_row(
-                inspection,
-                table,
-                request_id,
-                index + 1,
-                row,
-                file,
-                shell,
-                cx,
-            )
-        }))
-        .children(add)
-        .into_any_element()
+    let header = header(table, kind, hint, widths, &shell.grid_resize, cx);
+    let root = div().flex().flex_col();
+    // The drag follows the pointer over the whole grid; each move stores the width it asks
+    // for in the shell, which every grid of this kind reads.
+    let shell_entity = cx.entity();
+    track_column_resize(root, &shell.grid_resize, move |resize, _window, app| {
+        shell_entity.update(app, |this, cx| {
+            this.resize_grid_column(grid_kind, resize, cx)
+        });
+    })
+    .child(header)
+    .children(rows.iter().enumerate().map(|(index, row)| {
+        let file = files.get(index).copied().unwrap_or(false);
+        data_row(
+            inspection,
+            table,
+            request_id,
+            index + 1,
+            row,
+            file,
+            widths,
+            shell,
+            cx,
+        )
+    }))
+    .children(add)
+    .into_any_element()
 }
 
 /// The header row, element id `request-<table>-header`: the column names, the key's `kind`
 /// and, when an environment is active, the value's `resolved in <environment>` as
-/// `request-<table>-value-hint`.
-fn header(table: &str, kind: &'static str, value_hint: Option<String>, cx: &App) -> Stateful<Div> {
+/// `request-<table>-value-hint`. The key and description cells (`request-<table>-header-key`
+/// and `-description`, beside `-enable`) carry `bolt`'s resize handle on their right edge.
+fn header(
+    table: &str,
+    kind: &'static str,
+    value_hint: Option<String>,
+    widths: GridWidths,
+    drag: &ColumnResizeDrag,
+    cx: &App,
+) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     let note = |text: String| {
         div()
@@ -153,6 +173,8 @@ fn header(table: &str, kind: &'static str, value_hint: Option<String>, cx: &App)
             .child(text)
     };
     let line = colors.line_2;
+    // The hover wash of the resize handle, as DBFlux's data table draws it.
+    let handle = bolt::brand::brand(cx).accent_tint.opacity(0.3);
     grid_text(part(format!("request-{table}-header")), cx)
         .flex()
         .items_center()
@@ -162,18 +184,40 @@ fn header(table: &str, kind: &'static str, value_hint: Option<String>, cx: &App)
         .text_size(FontSizes::XS)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
-        .child(Column::Enable.cell(line))
+        .child(Column::Enable.shape(part(format!("request-{table}-header-enable")), line, widths))
         .child(
             Column::Key
-                .cell(line)
+                .shape(part(format!("request-{table}-header-key")), line, widths)
+                .relative()
                 .child("key")
-                .child(note(kind.to_owned())),
+                .child(note(kind.to_owned()))
+                .child(column_resize_handle(
+                    grid_widths::KEY,
+                    widths.get(grid_widths::KEY),
+                    drag,
+                    handle,
+                )),
         )
-        .child(Column::Value.cell(line).child("value").children(
+        .child(Column::Value.cell(line, widths).child("value").children(
             value_hint.map(|hint| part(format!("request-{table}-value-hint")).child(note(hint))),
         ))
-        .child(Column::Description.cell(line).child("description"))
-        .child(Column::Actions.cell(line))
+        .child(
+            Column::Description
+                .shape(
+                    part(format!("request-{table}-header-description")),
+                    line,
+                    widths,
+                )
+                .relative()
+                .child("description")
+                .child(column_resize_handle(
+                    grid_widths::DESCRIPTION,
+                    widths.get(grid_widths::DESCRIPTION),
+                    drag,
+                    handle,
+                )),
+        )
+        .child(Column::Actions.cell(line, widths))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -184,13 +228,14 @@ fn data_row(
     n: usize,
     row: &KeyValue,
     file: bool,
+    widths: GridWidths,
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     // The box first: it takes the context mutably for its click listener, before the row
     // borrows it for the colors.
     let enable = request_id.map(|id| enable_box(id, table, n, &row.key, row.enabled, cx));
-    let delete = request_id.map(|id| delete_control(id, table, n, &row.key, cx));
+    let delete = request_id.map(|id| delete_control(id, table, n, &row.key, widths, cx));
     let value_spans = inspection.spans(&row.value);
     let unresolved = has_unresolved(&value_spans) || has_unresolved(&inspection.spans(&row.key));
     let secret_value = inspection.references_secret(&row.value);
@@ -204,8 +249,8 @@ fn data_row(
     });
 
     let key_cell: AnyElement = match editing.filter(|edit| edit.field == CellField::Key) {
-        Some(edit) => editing_cell(edit, shell, cx).into_any_element(),
-        None => cell_part(request_id, table, n, CellField::Key, cx)
+        Some(edit) => editing_cell(edit, widths, shell, cx).into_any_element(),
+        None => cell_part(request_id, table, n, CellField::Key, widths, cx)
             .text_color(tone(colors.strong))
             .when(off, |this| this.line_through())
             .child(cell_text(table, n, CellField::Key).child(row.key.clone()))
@@ -213,9 +258,9 @@ fn data_row(
     };
 
     let value_cell: AnyElement = match editing.filter(|edit| edit.field == CellField::Value) {
-        Some(edit) => editing_cell(edit, shell, cx).into_any_element(),
+        Some(edit) => editing_cell(edit, widths, shell, cx).into_any_element(),
         None => {
-            let value = cell_part(request_id, table, n, CellField::Value, cx)
+            let value = cell_part(request_id, table, n, CellField::Value, widths, cx)
                 .text_color(tone(colors.foreground))
                 .when(off, |this| this.line_through())
                 .when(file, |this| {
@@ -250,8 +295,8 @@ fn data_row(
 
     let description: AnyElement = match editing.filter(|edit| edit.field == CellField::Description)
     {
-        Some(edit) => editing_cell(edit, shell, cx).into_any_element(),
-        None => cell_part(request_id, table, n, CellField::Description, cx)
+        Some(edit) => editing_cell(edit, widths, shell, cx).into_any_element(),
+        None => cell_part(request_id, table, n, CellField::Description, widths, cx)
             .font_family(bolt::fonts::ui_family(cx))
             .text_color(colors.muted)
             .when(off, |this| this.line_through())
@@ -277,13 +322,13 @@ fn data_row(
     .when(unresolved, |this| {
         this.bg(tokens::unresolved_wash(colors.danger))
     })
-    .child(Column::Enable.cell(line).children(enable))
+    .child(Column::Enable.cell(line, widths).children(enable))
     .child(key_cell)
     .child(value_cell)
     .child(description)
     .child(match delete {
         Some(delete) => delete.into_any_element(),
-        None => Column::Actions.cell(line).into_any_element(),
+        None => Column::Actions.cell(line, widths).into_any_element(),
     })
     .into_any_element()
 }
@@ -296,13 +341,14 @@ fn delete_control(
     table: &str,
     n: usize,
     key: &str,
+    widths: GridWidths,
     cx: &mut Context<Shell>,
 ) -> Div {
     let line = bolt::colors(cx).line;
     let request = request_id.to_owned();
     let table = table.to_owned();
     let id = format!("request-{table}-delete-{n}");
-    Column::Actions.cell(line).child(
+    Column::Actions.cell(line, widths).child(
         Button::new(id, "")
             .ghost()
             .inline()
@@ -319,7 +365,13 @@ fn delete_control(
 /// a plus in the enable cell and the placeholders of a new `kind` entry, which lights up
 /// under the pointer so it reads as the place to type. Clicking it appends
 /// an empty enabled row to the request's draft and opens its key cell.
-fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
+fn add_row(
+    request_id: &str,
+    table: &str,
+    kind: &str,
+    widths: GridWidths,
+    cx: &mut Context<Shell>,
+) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     let line = colors.line;
     let request = request_id.to_owned();
@@ -335,21 +387,21 @@ fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -
         .text_color(colors.muted)
         .hover(|style| style.bg(colors.hover).text_color(colors.foreground))
         .child(
-            Column::Enable.cell(line).child(
+            Column::Enable.cell(line, widths).child(
                 Icon::new(ui::icon(IconName::Plus))
                     .size(Fields::CHECK_MARK)
                     .color(colors.muted),
             ),
         )
-        .child(Column::Key.cell(line).child(placeholder(kind)))
-        .child(Column::Value.cell(line).child("Value"))
+        .child(Column::Key.cell(line, widths).child(placeholder(kind)))
+        .child(Column::Value.cell(line, widths).child("Value"))
         .child(
             Column::Description
-                .cell(line)
+                .cell(line, widths)
                 .font_family(bolt::fonts::ui_family(cx))
                 .child("Description"),
         )
-        .child(Column::Actions.cell(line))
+        .child(Column::Actions.cell(line, widths))
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.add_grid_row(&request, &table, window, cx);
         }))
@@ -363,9 +415,10 @@ fn cell_part(
     table: &str,
     n: usize,
     field: CellField,
+    widths: GridWidths,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
-    let cell = cell_shell(table, n, field, bolt::colors(cx).line);
+    let cell = cell_shell(table, n, field, bolt::colors(cx).line, widths);
     match request_id {
         Some(request) => {
             let request = request.to_owned();
@@ -381,13 +434,19 @@ fn cell_part(
 
 /// The key, value or description cell of row `n` of `table`, with its element id; the cell
 /// fills the row's height, so an empty one still has a place to click.
-fn cell_shell(table: &str, n: usize, field: CellField, line: Hsla) -> Stateful<Div> {
+fn cell_shell(
+    table: &str,
+    n: usize,
+    field: CellField,
+    line: Hsla,
+    widths: GridWidths,
+) -> Stateful<Div> {
     let (name, column) = match field {
         CellField::Key => ("key", Column::Key),
         CellField::Value => ("value", Column::Value),
         CellField::Description => ("description", Column::Description),
     };
-    column.shape(part(format!("request-{table}-{name}-{n}")), line)
+    column.shape(part(format!("request-{table}-{name}-{n}")), line, widths)
 }
 
 /// The text of the key, value or description cell of row `n` of `table`, element id
@@ -412,10 +471,15 @@ fn cell_text(table: &str, n: usize, field: CellField) -> Stateful<Div> {
 /// the cell's own lines, so the text keeps the place it had. Enter commits the text into the
 /// draft and Escape drops what was typed, as the URL field does. A secret value keeps its
 /// badge next to the field, which opens empty with a placeholder.
-fn editing_cell(edit: &CellEdit, shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
+fn editing_cell(
+    edit: &CellEdit,
+    widths: GridWidths,
+    shell: &Shell,
+    cx: &mut Context<Shell>,
+) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     let tint = bolt::brand::brand(cx).accent_tint;
-    let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line).relative();
+    let cell = cell_shell(&edit.table, edit.n, edit.field, colors.line, widths).relative();
     let cell = match edit.field {
         CellField::Value => {
             let anchor = format!("request-{}-value-{}", edit.table, edit.n);

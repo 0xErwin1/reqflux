@@ -1443,6 +1443,12 @@ The Params, Headers and body grids are spreadsheet cells: enable, key, value (fi
 rest), description and delete columns with a line on every side of every cell, the key
 column's kind and, with an active environment, `resolved in <environment>` beside the value
 column's name (`request-<table>-value-hint`); an open cell is a well with a tint focus ring.
+The key and description columns resize: their header cells (`request-<table>-header-key`,
+`request-<table>-header-description`) carry `bolt`'s `column_resize_handle` on the right edge,
+the grid root follows the drag with `track_column_resize`, and the widths (`shell::grid_widths`)
+are kept in the shell per grid kind (Params, Headers, urlencoded, form data), so every request
+shares them for the session; they are not persisted. `bolt` clamps a width to 50 px; the value
+column keeps filling the rest.
 The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem tokens, `Button`,
 `Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
 `field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL
