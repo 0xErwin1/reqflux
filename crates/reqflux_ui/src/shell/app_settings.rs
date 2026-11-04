@@ -80,13 +80,20 @@ impl AppSettings {
 impl Shell {
     /// The rail's Settings: opens the page at App > General and reads `config.toml`.
     pub(crate) fn open_app_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.ensure_app_controls(window, cx);
-        self.read_app_config(cx);
+        self.prepare_app_section(window, cx);
         self.open_settings(Section::App(AppSection::General), cx);
     }
 
+    /// Makes the section's controls the first time it shows and reads `config.toml` into
+    /// them: every way into an App section goes through here, so the controls never show
+    /// before the file was read (they would be dimmed with no font size selected).
+    pub(crate) fn prepare_app_section(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.ensure_app_controls(window, cx);
+        self.read_app_config(cx);
+    }
+
     /// Makes the section's controls the first time it shows.
-    pub(crate) fn ensure_app_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    fn ensure_app_controls(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.settings.app.controls.is_none() {
             self.settings.app.controls = Some(controls(window, cx));
         }
@@ -125,11 +132,12 @@ impl Shell {
         };
         self.apply_config_layout(self.config_path.clone().as_deref());
         self.apply_network_config();
+        self.sync_proxy_url(window, cx);
         cx.notify();
     }
 
     /// Reads `config.toml` into the section and shows its font size in the select.
-    fn read_app_config(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn read_app_config(&mut self, cx: &mut Context<Self>) {
         let loaded = match self.config_path.as_deref() {
             Some(path) => config::load(path),
             None => Err(ConfigError::NoConfigDirectory),

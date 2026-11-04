@@ -43,11 +43,8 @@ use crate::tokens::{
     APP_SETTINGS_LABEL_WIDTH as GENERAL_LABEL_WIDTH,
     APP_SETTINGS_OVERRIDE_RULE as OVERRIDE_RULE_WIDTH,
     APP_SETTINGS_OVERRIDE_WORKSPACE as OVERRIDE_WORKSPACE_WIDTH,
-    APP_SETTINGS_RULE_LABEL_WIDTH as RULE_LABEL_WIDTH,
+    APP_SETTINGS_RULE_LABEL_WIDTH as RULE_LABEL_WIDTH, READ_ONLY_OPACITY,
 };
-/// What the dimmed controls of a file that does not parse are drawn at
-/// (bolt gap: `SegmentedControl` has no disabled state).
-const READ_ONLY_OPACITY: f32 = 0.45;
 
 /// The rules in the order the page draws them, with their labels and built-in defaults.
 const RULES: [(ToolClass, &str, Rule); 4] = [
@@ -232,7 +229,7 @@ fn nav_entry(
             if target == AppSection::Network {
                 this.open_network_settings(window, cx);
             } else {
-                this.ensure_app_controls(window, cx);
+                this.prepare_app_section(window, cx);
                 this.select_settings_section(super::Section::App(target), window, cx);
             }
         }))
@@ -251,9 +248,11 @@ pub(super) fn content(
         return network_settings::view::content(shell, window, cx);
     }
     let (heading, description) = match section {
-        AppSection::General | AppSection::Network => {
-            ("General", "How ReqFlux looks on this machine.")
-        }
+        AppSection::General | AppSection::Network => (
+            "General",
+            "How ReqFlux looks on this machine. Changes save to config.toml at once; \
+             comments and key order stay.",
+        ),
         AppSection::McpPolicy => (
             "MCP policy",
             "What agents may do through reqflux mcp. Changes save to config.toml at once; \

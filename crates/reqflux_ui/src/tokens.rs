@@ -197,6 +197,9 @@ pub(crate) const APP_SETTINGS_LABEL_WIDTH: Pixels = px(240.0);
 pub(crate) const APP_SETTINGS_RULE_LABEL_WIDTH: Pixels = px(150.0);
 /// The width of the interface font size select.
 pub(crate) const APP_SETTINGS_FONT_SIZE_WIDTH: Pixels = px(120.0);
+/// What a control that does not write is drawn at while `config.toml` does not parse
+/// (bolt gap: `SegmentedControl` has no disabled state).
+pub(crate) const READ_ONLY_OPACITY: f32 = 0.45;
 /// The gap between the two columns of MCP policy.
 pub(crate) const APP_SETTINGS_COLUMN_GAP: Pixels = px(36.0);
 /// The workspace column of the policy overrides table.

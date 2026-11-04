@@ -436,3 +436,103 @@ fn dragging_an_overrides_header_edge_resizes_only_that_column(cx: &mut TestAppCo
         "a resize never writes the config"
     );
 }
+
+/// Opens the page the way the workspace menu does, at a workspace section, so the App
+/// section has not read `config.toml` yet.
+fn open_workspace_section(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+    cx.update(|_, cx| {
+        shell.update(cx, |shell, cx| {
+            shell.open_settings(crate::shell::settings_page::Section::Globals, cx);
+        });
+    });
+    cx.run_until_parked();
+}
+
+/// What the font size select shows.
+fn shown_size(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
+    cx.update(|_, cx| {
+        let dropdown = shell.read(cx).settings.app.font_size_control().cloned()?;
+        dropdown
+            .read(cx)
+            .selected_label()
+            .map(|label| label.to_string())
+    })
+}
+
+#[gpui::test]
+fn the_app_controls_work_when_the_page_opened_at_a_workspace_section(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    write(&config_path, "layout = \"stacked\"\n");
+    let (shell, cx, _) = render_app(cx, &dir, &state_path, &config_path);
+    open_workspace_section(cx, &shell);
+
+    click(cx, "nav-general");
+    assert_eq!(shown_size(cx, &shell).as_deref(), Some("13 px"));
+    assert!(shell.read_with(cx, |shell, _| shell.settings.app.editable()));
+    click(cx, "theme-light");
+    assert_eq!(
+        read(&config_path),
+        "layout = \"stacked\"\ntheme = \"light\"\n"
+    );
+    click(cx, "nav-mcp-policy");
+    click(cx, "rule-read-deny");
+    assert_eq!(loaded(&config_path).mcp.read, Some(Rule::Deny));
+}
+
+#[gpui::test]
+fn the_app_controls_work_after_visiting_network(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx, _) = render_app(cx, &dir, &state_path, &config_path);
+    cx.update(|window, cx| {
+        shell.update(cx, |shell, cx| shell.open_network_settings(window, cx));
+    });
+    cx.run_until_parked();
+
+    click(cx, "nav-general");
+    assert_eq!(shown_size(cx, &shell).as_deref(), Some("13 px"));
+    click(cx, "theme-system");
+    assert_eq!(loaded(&config_path).theme, Some(config::ThemeMode::System));
+}
+
+#[gpui::test]
+fn the_controls_write_over_a_file_with_newer_sections(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let text = "layout = \"side-by-side\"\n\n[network.proxy]\nmode = \"system\"\n\n\
+                [keymap]\nsend = \"ctrl-enter\"\n";
+    write(&config_path, text);
+    let (shell, cx, _) = render_app(cx, &dir, &state_path, &config_path);
+    open_workspace_section(cx, &shell);
+
+    click(cx, "nav-general");
+    click(cx, "theme-dark");
+    let written = read(&config_path);
+    assert!(written.contains("theme = \"dark\""), "{written}");
+    assert!(written.contains("[network.proxy]\nmode = \"system\""));
+    assert!(written.contains("[keymap]\nsend = \"ctrl-enter\""));
+}
+
+#[gpui::test]
+fn the_font_size_select_shows_a_size_between_the_whole_ones(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    write(&config_path, "font_size = 14.5\n");
+    let (shell, cx, _) = render_app(cx, &dir, &state_path, &config_path);
+    open_workspace_section(cx, &shell);
+
+    click(cx, "nav-general");
+    assert_eq!(shown_size(cx, &shell).as_deref(), Some("14.5 px"));
+    assert_eq!(
+        super::font_sizes(14.5)
+            .iter()
+            .filter(|size| **size == 14.5)
+            .count(),
+        1
+    );
+}
