@@ -1671,6 +1671,9 @@ The section headers of Network and Cookies wrap their buttons under the title in
 window (the text column keeps `SETTINGS_HEADER_TEXT_MIN`, 240 px), and the two Network columns
 stack below `NETWORK_COLUMN_MIN` (340 px) in a vertically scrolling body (`network-scroll`); at an
 800 px window every control stays inside the page (`toolbar_narrow_tests`).
+Header text never hard-cuts: the Cookies count wraps with its filter row, the audit and approvals
+subtitles and the history banner (a minimum height) wrap instead of clipping, and
+`assert_not_cut` in `toolbar_narrow_tests` checks a text is as wide as in a wide window or taller.
 App > Network writes the proxy beside the keyring: `network-proxy-mode` (System, None, Manual)
 writes `mode` of `[network.proxy]` and applies it to the open engine; Manual shows the field
 `network-proxy-url`, which writes `url` on Enter and when it loses focus (a password typed in it

@@ -135,6 +135,7 @@ pub(crate) fn content(
                 div()
                     .flex_none()
                     .flex()
+                    .flex_wrap()
                     .items_center()
                     .gap(Spacing::MD)
                     .py(Spacing::MD)

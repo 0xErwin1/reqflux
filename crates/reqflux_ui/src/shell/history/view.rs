@@ -145,10 +145,12 @@ fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     });
     region("history-banner")
         .flex_none()
-        .h(EditorMetrics::BANNER_HEIGHT)
+        .min_h(EditorMetrics::BANNER_HEIGHT)
         .flex()
+        .flex_wrap()
         .items_center()
         .gap(EditorMetrics::BANNER_GAP)
+        .py(Spacing::XS)
         .pl(EditorMetrics::BANNER_PADDING_X)
         .pr(EditorMetrics::BANNER_PADDING_X)
         .bg(color.opacity(EditorMetrics::BANNER_FILL_ALPHA))
@@ -171,8 +173,6 @@ fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
                 .aria_label(meta.clone())
                 .text_size(EditorMetrics::FILE_FONT)
                 .text_color(colors.muted)
-                .whitespace_nowrap()
-                .overflow_hidden()
                 .child(meta),
         )
         .child(div().flex_1())

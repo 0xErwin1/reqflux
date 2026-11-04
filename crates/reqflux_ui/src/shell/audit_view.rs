@@ -117,10 +117,11 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
     let tint = bolt::brand::brand(cx).accent_tint;
     div()
         .flex_none()
-        .h(DocumentMetrics::HEADER_HEIGHT)
+        .min_h(DocumentMetrics::HEADER_HEIGHT)
         .flex()
         .items_center()
         .gap(DocumentMetrics::GAP)
+        .py(Spacing::SM)
         .pl(DocumentMetrics::PADDING_X)
         .pr(DocumentMetrics::PADDING_X)
         .border_t(Borders::THIN)
@@ -143,8 +144,7 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
             ui::role(text_region("audit-subtitle"), TextVariant::Body, cx)
                 .aria_label(SUBTITLE)
                 .text_color(colors.muted)
-                .whitespace_nowrap()
-                .overflow_hidden()
+                .min_w_0()
                 .child(SUBTITLE),
         )
         .child(div().flex_1())
