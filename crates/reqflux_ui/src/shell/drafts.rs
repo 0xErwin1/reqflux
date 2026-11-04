@@ -387,6 +387,7 @@ impl Shell {
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
+        self.drop_docs_edit_of(id);
         match target {
             Some(draft) => {
                 self.drafts.insert(id.to_owned(), draft);
@@ -506,6 +507,7 @@ impl Shell {
         self.drop_url_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
+        self.drop_docs_edit_of(id);
         // A cell field shows text the draft does not have yet: commit it, so saving never
         // silently drops what was typed.
         self.commit_cell_edit(window, cx);
@@ -592,6 +594,7 @@ impl Shell {
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
+        self.drop_docs_edit_of(id);
         if let Some(discarded) = self.drafts.remove(id) {
             cx.default_global::<DraftHistories>().record(
                 id,

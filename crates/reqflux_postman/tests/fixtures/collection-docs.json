@@ -1,0 +1,40 @@
+{
+  "info": {
+    "_postman_id": "docs-0001",
+    "name": "Documented",
+    "description": "# Documented API\n\nStart with the **Users** folder.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Users",
+      "description": {
+        "content": "Everything about users.\n\n- list\n- create",
+        "type": "text/markdown"
+      },
+      "item": [
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "url": "https://api.test/users",
+            "description": "Lists users, paged."
+          }
+        },
+        {
+          "name": "Item description",
+          "description": "Described on the item, not the request.",
+          "request": { "method": "GET", "url": "https://api.test/item" }
+        }
+      ]
+    },
+    {
+      "name": "Undocumented",
+      "request": { "method": "GET", "url": "https://api.test/none" }
+    },
+    {
+      "name": "Blank",
+      "request": { "method": "GET", "url": "https://api.test/blank", "description": "" }
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-//! The sub-tab bar: Params, Headers, Body, Auth, Scripts and Settings, with the row counts of
+//! The sub-tab bar: Docs, Params, Headers, Body, Auth, Scripts and Settings, with the row counts of
 //! Params and Headers, the scripts the request has and its overridden settings (artboard
 //! request-panes/01), and at the right the problem of the inspection or else the unresolved
 //! variables notice.
@@ -124,6 +124,7 @@ fn notice(id: &'static str, label: String, color: Hsla, cx: &App) -> Stateful<Di
 
 fn icon_of(tab: SubTab) -> IconName {
     match tab {
+        SubTab::Docs => IconName::FileText,
         SubTab::Params => IconName::Hash,
         SubTab::Headers => IconName::List,
         SubTab::Body => IconName::Braces,

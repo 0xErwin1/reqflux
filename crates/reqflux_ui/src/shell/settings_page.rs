@@ -28,6 +28,8 @@ use crate::workspace::OpenedWorkspace;
 pub(crate) mod app_settings;
 #[path = "cookie_jar.rs"]
 pub(crate) mod cookie_jar;
+#[path = "docs.rs"]
+pub(crate) mod docs;
 #[path = "network_settings.rs"]
 pub(crate) mod network_settings;
 
@@ -111,6 +113,8 @@ pub(crate) struct SettingsPage {
     /// App > Keymap: the filter, the context select and the folded groups, made the first
     /// time the page shows (feedback-nov3 S15).
     pub(crate) keymap_list: Option<super::keymap::view::list::ListState>,
+    /// The open description editor of the collection section.
+    pub(crate) docs: Option<docs::CollectionDocsEdit>,
 }
 
 impl SettingsPage {
@@ -132,6 +136,7 @@ impl SettingsPage {
             cookies: cookie_jar::CookieJarState::new(cx),
             copy: super::variables_ops::copy::CopyState::new(cx),
             keymap_list: None,
+            docs: None,
         }
     }
 
@@ -150,6 +155,7 @@ impl SettingsPage {
         self.keymap = super::keymap::KeymapState::default();
         self.cookies.reset();
         self.copy.reset();
+        self.docs = None;
     }
 }
 
@@ -219,6 +225,7 @@ impl Shell {
         self.settings.menu = None;
         self.settings.confirm = None;
         self.settings.rename = None;
+        self.settings.docs = None;
         cx.notify();
     }
 

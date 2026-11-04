@@ -152,7 +152,12 @@ fn extensions_keep_the_original_json() {
         panic!("first child is a request");
     };
     let kept = postman_text(&get_token.request.extensions);
-    assert!(kept.contains("\"description\":\"Fetches a token.\""));
+    // The description is read into the document, not kept as text.
+    assert!(!kept.contains("description"));
+    assert_eq!(
+        get_token.request.description.as_deref(),
+        Some("Fetches a token.")
+    );
     assert!(kept.contains("\"response\":[]"));
 }
 

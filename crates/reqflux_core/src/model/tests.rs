@@ -180,6 +180,7 @@ fn strip_secret_values_drops_values_and_reports_keys() {
 #[test]
 fn collection_serializes_minimal_with_defaults_omitted() {
     let collection = Collection {
+        description: None,
         id: id(ID_A),
         name: "Billing API".to_owned(),
         environments: Vec::new(),
@@ -204,6 +205,7 @@ fn collection_round_trips_with_allowlist_order_auth_and_variables() {
 #[test]
 fn folder_serializes_and_round_trips() {
     let folder = Folder {
+        description: None,
         id: id(ID_A),
         name: "Invoices".to_owned(),
         order: vec!["list".to_owned(), "create".to_owned()],
@@ -233,6 +235,7 @@ fn request_serializes_minimal_with_defaults_omitted() {
 #[test]
 fn request_serializes_full_document_in_fixed_order() {
     let request = Request {
+        description: None,
         id: id(ID_A),
         name: "Create".to_owned(),
         method: Method::POST,
@@ -414,6 +417,7 @@ fn tree_holds_nested_folders_and_requests_with_scripts() {
     let folder = FolderNode {
         slug: "ops".to_owned(),
         folder: Folder {
+            description: None,
             id: id(ID_A),
             name: "Ops".to_owned(),
             order: Vec::new(),

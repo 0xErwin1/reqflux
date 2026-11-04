@@ -52,6 +52,7 @@ v1.
 | Body: `binary`, `graphql` | v1 |
 | Auth: `digest`, `oauth2` (with token acquisition flows), `awsv4` | v1 |
 | Saved examples (request and response pairs), including Postman `response[]` on import | v1 |
+| Documentation: markdown `description` on collections, folders and requests, imported from and exported to Postman, a Docs tab on the request and a section on the collection settings | v1 |
 | Generate code (curl and other languages) | v1 |
 | Paste a curl command into the URL bar to import it | v1 |
 | Auth: `oauth1`, `hawk`, `ntlm`, `jwt`, `edgegrid`, `asap` | Later |

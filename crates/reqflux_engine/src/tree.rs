@@ -116,6 +116,18 @@ impl Engine {
         })
     }
 
+    /// Sets the markdown description of the collection, folder or request `id`; blank text
+    /// clears it. A description an earlier Postman import kept in `extensions.postman` is
+    /// dropped by the same write. An open request's draft is the front end's to keep: it
+    /// saves the description with the rest of the request.
+    ///
+    /// # Errors
+    ///
+    /// The store error (an unknown id, a conflict), or [`TreeError::Reload`].
+    pub fn set_description(&mut self, id: Id, text: &str) -> Result<(), TreeError> {
+        self.apply(|root, loaded| reqflux_store::set_description(root, loaded, id, text))
+    }
+
     /// Runs a store operation against the loaded workspace and reloads after it succeeds.
     pub(crate) fn apply<T>(
         &mut self,

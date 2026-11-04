@@ -245,6 +245,7 @@ enabled = false
 ```toml
 id = "01JB7X3K9Q0000000000000003"
 name = "Billing API"
+description = "Start with the invoices folder."   # markdown, optional; a folder has one too
 environments = ["01JB7X3K9Q0000000000000002"]   # allowlist; absent means all
 order = ["invoices", "health"]
 
@@ -262,6 +263,7 @@ value = "v1"
 ```toml
 id = "01JB7X3K9Q0000000000000004"
 name = "Create invoice"
+description = "Creates a draft invoice."   # markdown, optional
 method = "POST"                     # any verb, stored uppercase
 url = "{{base_url}}/v1/invoices"     # never holds the query string
 
@@ -297,6 +299,14 @@ The other shapes:
 | `[auth]` | `type = "inherit"` (default, not written), `"none"`, `"basic"` (`username`, `password`), `"bearer"` (`token`), `"apikey"` (`key`, `value`, `location`), `"digest"` (`username`, `password`, `algorithm` `"MD5"`\|`"SHA-256"`), `"awsv4"` (`access_key`, `secret_key`, `session_token`?, `region`, `service`), `"oauth2"` (`grant_type` `client_credentials`\|`password`\|`authorization_code`\|`refresh_token`, `token_url`, `auth_url`?, `client_id`, `client_secret`?, `scope`?, `username`?, `password`?, `refresh_token`?, `client_auth` `body`\|`header`, `token_location` `header`\|`query`, `header_prefix`?, `query_param`?; Postman's key spellings are read too; credentials belong in `{{secret}}` variables), or any other type name with its fields kept as they are |
 | `[body]` | `mode = "none"`, `"raw"` (`language`: `json`, `xml`, `text`, `html`, `javascript`; `text`), `"urlencoded"` (`[[body.fields]]` key and value rows), `"formdata"` (`[[body.parts]]` with `kind = "text"` and `value`, or `kind = "file"` and `path`), `"binary"` (`path`), `"graphql"` (`query`, `variables`) |
 | key and value rows | `key`, `value`, optional `description`, `enabled = false` when disabled |
+
+`description` on a collection, folder or request is markdown for the Docs tab and the generated
+API docs. It is omitted when absent or blank, so a file without one reads and writes the same
+bytes, and a description with several lines is a TOML multi-line string. A collection imported
+from Postman before the field existed keeps the text under `extensions.postman`; reading falls
+back to it (`description_text()`), a load never rewrites the file, and setting a description
+(`Engine::set_description`, or the Docs editor's save) writes the field and drops that copy in
+the same write, so clearing the text cannot bring the old one back.
 
 ## Drafts and saving
 
@@ -881,6 +891,10 @@ later: `require()` of the bundled libraries.
 - Collection v2.1 and environment JSON, import and export.
 - Fields ReqFlux does not model yet are kept in an `extensions` table on the entity and written
   back on export, so a round trip loses nothing.
+- Descriptions map to `description`: `info.description` of the collection, `description` of a
+  folder item, and `request.description` or the item's `description` of a request (the request's
+  wins), each a string or `{content}`. Export writes them back to `info`, the folder item and the
+  `request`. A blank or non-text description stays in the kept Postman text.
 - Import maps Postman items to the on-disk layout: folders to directories, request names to
   slugged file names (with a numeric suffix on collision), scripts to sidecar files.
 - The engine writes the import: `reqflux_engine::import::postman` maps the documents and writes the
@@ -1316,8 +1330,17 @@ hold or the engine cannot inspect opens no tab: the window logs it and shows the
 an action strip (Save and Discard changes, live while the request has a draft; Undo and
 Redo, live while its history has a step that way; Split, not built yet; every tooltip names the
 action and its key), the request line (method, URL with the
-enabled params, Send), and the Params, Headers, Body, Auth,
-Scripts and Settings sub-tabs. What it shows comes from `Engine::inspect` with the window's
+enabled params, Send), and the Docs, Params, Headers, Body, Auth,
+Scripts and Settings sub-tabs. Docs (`request-tab-docs`, first, like Postman; a request still opens
+on Headers) shows the request's markdown description rendered (`request-docs-view`, selectable)
+with Edit, or the empty state `No documentation` with `Add documentation`; the editor
+(`request-docs-input`) puts every keystroke into the draft, Done closes it and Ctrl+S saves the
+description with the request (design/docs/01, `shell/docs.rs`). The collection's settings section
+carries the same Documentation block (`collection-docs-*`) between the Environments block and the
+variables; it has no draft, so Save writes `collection.toml` through `Engine::set_description` and
+Cancel or Escape drops the text. A folder has no settings page yet: its description is edited
+through the engine and the Postman import only. Its `// bolt gap:` stand-in is the markdown view,
+gpui-component's `TextView`, since `bolt` has none. What it shows comes from `Engine::inspect` with the window's
 active environment, which lives in memory, starts as none and re-inspects every open request
 when it changes, keeping its sub-tab: variables are styled as resolved or unresolved, the
 number of unresolved ones is shown in the sub-tab bar, or the inspection `problem` in its
