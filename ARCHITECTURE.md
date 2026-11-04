@@ -1629,7 +1629,7 @@ size and the bottom bar's buttons follow. The tabs (`response-tabs-scroll`) and 
 control (`response-views-scroll`) never cut a chip: each is a viewport at most as wide as the
 pane that scrolls sideways (wheel or trackpad, no scrollbar), `bolt::composites::scroll_strip`;
 the selected chip is scrolled into view when the selection or the pane's width changes
-(`StripReveal`: the tab row by child index, the views row and the format switch by segment through `response::segment_reveal`,
+(`StripReveal`: the tab row by child index, the views row and the format switch by segment id,
 measured through `SegmentedControl::segment_bounds`, so the selected segment is revealed
 exactly), so every tab and view down to Timeline is reachable at 120 px. A viewport is inside
 the pane and a chip's drawn part is inside the viewport. The bottom bar's Pretty / Raw / Preview switch is

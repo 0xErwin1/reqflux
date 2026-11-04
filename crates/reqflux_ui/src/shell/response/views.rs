@@ -25,7 +25,6 @@ use super::filters::{ConsoleFilter, TestsFilter};
 use super::jsonpath_model::{Filtered, JSONPATH_PLACEHOLDER};
 use super::model::{BodyText, BodyView, ResponseTab};
 use super::search::{self, Hit};
-use super::segment_reveal::SegmentReveal;
 use super::sub_tabs::effective_view;
 use crate::shell::Shell;
 use crate::shell::request::{Completed, Received, SendState};
@@ -82,10 +81,10 @@ pub(crate) struct ViewState {
     pub(crate) tabs_scroll: ScrollHandle,
     pub(crate) tabs_revealed: StripReveal,
     pub(crate) views_scroll: ScrollHandle,
-    pub(crate) views_revealed: SegmentReveal,
+    pub(crate) views_revealed: bolt::composites::StripReveal,
     pub(crate) views_segments: SegmentBounds,
     pub(crate) format_scroll: ScrollHandle,
-    pub(crate) format_revealed: SegmentReveal,
+    pub(crate) format_revealed: bolt::composites::StripReveal,
     pub(crate) format_segments: SegmentBounds,
     /// The syntax runs of the body lines last shown, so a render does not parse them again.
     pub(crate) syntax: super::syntax::SyntaxCache,

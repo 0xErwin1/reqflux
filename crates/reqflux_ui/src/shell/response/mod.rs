@@ -26,7 +26,6 @@ mod preview_model;
 mod results;
 mod search;
 mod search_field;
-mod segment_reveal;
 mod sub_tabs;
 mod syntax;
 mod tab_row;
