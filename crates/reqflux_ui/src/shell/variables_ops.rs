@@ -19,6 +19,10 @@ use super::cell_edit::{CellEdit, CellField};
 use super::variables_model::{Column, current_keys, new_key, scope_variables, undeclared};
 use crate::workspace::OpenedWorkspace;
 
+// Declared here until `shell/mod.rs` takes `mod variables_copy;`.
+#[path = "variables_copy.rs"]
+pub(super) mod copy;
+
 /// The warning shown after a variable stops being secret.
 pub(crate) const UNMARKED: &str =
     "The secret value was not copied to the file; set a shared value if one is needed";

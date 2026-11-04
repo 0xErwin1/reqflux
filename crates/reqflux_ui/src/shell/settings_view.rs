@@ -38,6 +38,7 @@ use super::settings_page::cookie_jar;
 use super::variables_model::{
     ScopeEntry, collections, environments, scope_file, scope_name, variable_count,
 };
+use super::variables_ops::copy;
 use super::{Shell, region, text_region, variables_document};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
@@ -442,6 +443,7 @@ fn content(
                 .children(list)
                 .child(variables),
         )
+        .children(copy::dialog(shell, window, cx))
 }
 
 /// The error of the last failed write, `variables-error`, in the danger tone, or the warning

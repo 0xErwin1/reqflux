@@ -5,6 +5,7 @@
   "artboards": [
     { "file": "01-settings-page.html", "title": "Workspace settings page", "tradeoff": "Refines bolt-v2/03: full table with room for initial, current, storage and description, collection scopes in the settings nav; editing is modal, so the request is hidden while you change a value", "width": 1440, "height": 900 },
     { "file": "02-sidebar-panel.html", "title": "Sidebar panel", "tradeoff": "Edit next to the open request (rail entry, all scopes in one list, inline delete confirmation); 300 px forces two-line rows and one expanded editor at a time, no room for descriptions", "width": 1440, "height": 900 },
-    { "file": "03-scope-matrix.html", "title": "Scope matrix document", "tradeoff": "Variables as a document tab: keys by scopes shows overrides and what staging resolves to at a glance, with an inspector for the selected cell; gets wide past five or six environments and hides descriptions", "width": 1440, "height": 900 }
+    { "file": "03-scope-matrix.html", "title": "Scope matrix document", "tradeoff": "Variables as a document tab: keys by scopes shows overrides and what staging resolves to at a glance, with an inspector for the selected cell; gets wide past five or six environments and hides descriptions", "width": 1440, "height": 900 },
+    { "file": "04-copy-to-environment.html", "title": "Copy variables to an environment", "tradeoff": "Selection boxes on the Globals and collection grids and one dialog (environment select, skip or overwrite) keep the grid as it is; copying one key at a time from a row menu would be quicker for one variable but slower for a set, and an environment's own page does not copy", "width": 1440, "height": 4700 }
   ]
 }

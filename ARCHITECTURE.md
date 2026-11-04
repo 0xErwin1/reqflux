@@ -93,7 +93,13 @@ declare it when none is active, and the scopes a quick add can target (the activ
 environment, the request's collection, the globals). `Engine::set_variable_value` writes a
 current value (a secret's value goes to the keyring instead), `Engine::reset_variable_value`
 clears it, and `Engine::quick_add_variable` adds the variable with the value as its initial
-value (a secret keeps only its key in the file).
+value (a secret keeps only its key in the file). `Engine::copy_variables(from, keys, to, policy)`
+(`reqflux_engine/src/variables_copy.rs`) copies the declared variables `keys` of one scope into
+another: initial values, descriptions and enabled flags, and for a secret the keyring value into
+the destination's own entry. A key the destination already declares is skipped
+(`CopyPolicy::Skip`, the default) or replaced in place (`CopyPolicy::Overwrite`). A keyring
+that cannot be read or written skips that key (`SkipReason::Keyring`); a secret is never copied
+without its value. The `CopyReport` names keys, never a value.
 
 ### Execution pipeline
 
@@ -1011,7 +1017,14 @@ workspace file; see below). `reqflux_engine::config` edits `font_size`, the `[mc
 kept) rebinds the window's commands (the registry in `shell/commands.rs`): the window reads it at
 startup and after every edit, an unknown slug or a chord it cannot bind is a warning in the
 Problems panel, and when two entries claim one chord the first command in registry order wins.
-The App > Keymap section of the settings page shows the registry, captures a new chord on a click
+The App > Keymap section of the settings page follows DBFlux's Keyboard shortcuts page: a filter
+(`keymap-filter`; it matches the label, the slug or the key as printed) and a context select
+(`keymap-context`) above the registry, grouped by context under a header that folds
+(`keymap-group-<context>`; a filter or a context opens every group), each row with its chord as
+one keycap per part (`keymap-chord-<slug>`) and a pencil (`keymap-record-<slug>`); the
+`[keymap]` block of config.toml is a collapsed, read-only section at the foot
+(`keymap-config-toggle`) that opens into a block bounded at five grid rows (`keymap-config`). The page
+captures a new chord on a click of the pencil or the keycaps
 through bolt's `KeyCapture` (the chord never reaches the keymap; a bare letter keeps it
 listening; Escape cancels, Delete or Clear returns the default, Reset to defaults removes the table) and
 writes the file at once with `set_keymap_binding`, `remove_keymap_binding` and `clear_keymap`.
@@ -1539,7 +1552,7 @@ environment selects No environment). The variables column (`variables-document`)
 (`variables-title`, `VARIABLES IN <NAME>` or `GLOBAL VARIABLES`) with the count of enabled
 variables that resolve to nothing (`variables-empty`) and `Reset current values`
 (`variables-reset-current`, clears the current values of the declared keys); then the grid,
-row `variables-row-<n>`: number, enable box, key, initial value (in the file), current value
+row `variables-row-<n>`: selection box, number, enable box, key, initial value (in the file), current value
 (this machine; `= initial` when unset, `empty` when both are), stored in (the cell
 `variables-stored-<n>`, labeled `File` or `Keyring`, holds the select `variables-secret-<n>`; its
 menu `variables-stored-menu` offers `variables-stored-file-<n>`, saved in the workspace file and
@@ -1559,7 +1572,15 @@ current value local, and the discard control (`variables-discard-<n>`) clears it
 but the enable box and stored in edits in place: a click opens a field seeded with the cell's
 text over the whole cell, Enter or a click away commits and Escape cancels. Committing the key
 renames the variable (`VariableEdit::Key`): a secret's keyring entry and the key's current value
-move with it, and an empty or taken key is refused. Notes name the
+move with it, and an empty or taken key is refused. Empty values (the heading count,
+the `empty` tags, the row wash and number) read in the danger tone. Globals and a collection also
+copy variables into an environment: each row has a selection box (`variables-select-<n>`) and the
+header one (`variables-select-all`), and `Copy to environment…` (`variables-copy`, disabled until a
+row is selected) opens `variables-copy-dialog` with an environment select (`variables-copy-env`,
+the active environment preselected), the policy box `variables-copy-overwrite` (off: keys the
+environment already has are skipped) and, in a workspace with no environment,
+`variables-copy-new-env`. The result (copied, and skipped with the reason) is the page's
+`variables-warning` line. Notes name the
 keyring entry of the first secret (`variables-keyring-note`) and what Declare does
 (`variables-declare-note`). A refused write shows its reason in `variables-error` and changes
 nothing.

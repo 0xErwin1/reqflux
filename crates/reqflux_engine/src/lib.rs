@@ -104,6 +104,7 @@ pub mod state;
 mod tree;
 mod variable_info;
 mod variables;
+mod variables_copy;
 
 pub use auth::{Browser, OAuthBrowser, OAuthFetch, OAuthTokenState, SystemBrowser};
 pub use bundle::{Bundle, BundleImport, BundleKind, BundleSecrets, BundleSummary, import_bundle};
@@ -157,3 +158,4 @@ pub use sent::{MASK, Masker, SentBody, SentRequest, is_credential_header};
 pub use tokio_util::sync::CancellationToken;
 pub use variable_info::{EnvironmentChoice, ScopedValue, VariableInfo, VariableScopeRef};
 pub use variables::VariableEdit;
+pub use variables_copy::{CopyPolicy, CopyReport, SkipReason, SkippedVariable};

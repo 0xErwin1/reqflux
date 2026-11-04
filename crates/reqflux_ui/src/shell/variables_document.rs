@@ -33,6 +33,7 @@ use reqflux_engine::{SecretKey, SecretScope};
 use super::request::ui;
 use super::rows::{labeled_row, part};
 use super::variables_model::{Column, current_keys, empty_count, is_empty, undeclared};
+use super::variables_ops::copy;
 use super::{Shell, region};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
@@ -98,7 +99,7 @@ pub(super) fn render(
                 .flex_none()
                 .flex()
                 .flex_col()
-                .child(header(&colors, cx))
+                .child(header(shell, scope, &colors, cx))
                 .children(rows)
                 .child(add),
         );
@@ -130,7 +131,7 @@ fn heading(
     let resettable = !current_keys(&shell.current, scope, variables).is_empty();
     let colors = bolt::colors(cx);
     let tint = bolt::brand::brand(cx).accent_tint;
-    let warning = colors.warning;
+    let danger = colors.danger;
     let line = colors.line;
     let empty_label = (empty > 0).then(|| {
         let text = if empty == 1 {
@@ -143,12 +144,12 @@ fn heading(
             .items_center()
             .gap(ResultMetrics::FOOTER_ITEM_GAP)
             .text_size(FontSizes::XS)
-            .text_color(warning)
+            .text_color(danger)
             .whitespace_nowrap()
             .child(
                 Icon::new(ui::icon(IconName::TriangleAlert))
                     .size(ResultMetrics::FOOTER_ICON)
-                    .color(warning),
+                    .color(danger),
             )
             .child(text)
     });
@@ -187,10 +188,11 @@ fn heading(
         )
         .child(div().flex_1())
         .children(empty_label)
+        .children(copy::copy_button(shell, scope, cx))
         .children(reset)
 }
 
-fn header(colors: &Colors, cx: &Context<Shell>) -> Div {
+fn header(shell: &Shell, scope: SecretScope, colors: &Colors, cx: &mut Context<Shell>) -> Div {
     let muted = colors.muted;
     let hint = move |text: &'static str| {
         div()
@@ -210,6 +212,7 @@ fn header(colors: &Colors, cx: &Context<Shell>) -> Div {
         .text_size(GridMetrics::FONT)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
+        .child(copy::select_all_box(shell, scope, cx))
         .child(column(tokens::VARIABLES_NUMBER_COLUMN))
         .child(narrow(tokens::VARIABLES_ON_COLUMN).child("on"))
         .child(column(tokens::VARIABLES_KEY_COLUMN).child("key"))
@@ -241,7 +244,7 @@ fn declared_row(
     let empty = is_empty(variable, current_value.as_deref());
     let colors = bolt::colors(cx);
     let ui_family = bolt::fonts::ui_family(cx);
-    let (muted, strong, warning) = (colors.muted, colors.strong, colors.warning);
+    let (muted, strong, danger) = (colors.muted, colors.strong, colors.danger);
     let dim = |cell: Stateful<Div>| {
         if variable.enabled {
             cell
@@ -295,7 +298,7 @@ fn declared_row(
         if shell.is_editing(scope, Column::Value, n) {
             cell.into_any_element()
         } else if initial.is_empty() {
-            cell.child(empty_tag(warning)).into_any_element()
+            cell.child(empty_tag(danger)).into_any_element()
         } else {
             cell.child(initial.clone()).into_any_element()
         }
@@ -332,7 +335,7 @@ fn declared_row(
         if shell.is_editing(scope, Column::Current, n) {
             cell.into_any_element()
         } else if empty {
-            cell.child(empty_tag(warning)).into_any_element()
+            cell.child(empty_tag(danger)).into_any_element()
         } else if current_value.is_none() {
             cell.font_family(ui_family.clone())
                 .text_size(FontSizes::XS)
@@ -357,13 +360,13 @@ fn declared_row(
     .flex_1()
     .font_family(ui_family)
     .text_size(FontSizes::XS)
-    .text_color(if empty { warning } else { muted })
+    .text_color(if empty { danger } else { muted })
     .when(!shell.is_editing(scope, Column::Description, n), |cell| {
         cell.child(description_text.clone())
     })
     .into_any_element();
     let delete = delete_control(scope, n, &variable.key, cx);
-    let number_color = if empty { colors.warning } else { colors.line_2 };
+    let number_color = if empty { colors.danger } else { colors.line_2 };
     row(
         format!("variables-row-{n}"),
         variable.key.clone(),
@@ -371,7 +374,8 @@ fn declared_row(
         cx,
     )
     .text_color(colors.foreground)
-    .when(empty, |row| row.bg(tokens::unresolved_wash(colors.warning)))
+    .when(empty, |row| row.bg(tokens::unresolved_wash(colors.danger)))
+    .child(copy::select_box(shell, scope, n, &variable.key, cx))
     .child(number(n, number_color))
     .child(enable)
     .child(key)
@@ -384,14 +388,14 @@ fn declared_row(
 }
 
 /// The `empty` tag of a value that resolves to nothing.
-fn empty_tag(warning: Hsla) -> Div {
+fn empty_tag(danger: Hsla) -> Div {
     div()
         .pl(Spacing::XS)
         .pr(Spacing::XS)
-        .bg(tokens::variable_wash(warning))
+        .bg(tokens::variable_wash(danger))
         .border_b(Borders::THIN)
-        .border_color(warning)
-        .text_color(warning)
+        .border_color(danger)
+        .text_color(danger)
         .child("empty")
 }
 
@@ -483,11 +487,9 @@ fn undeclared_row(
         cx,
     )
     .text_color(colors.foreground)
-    .child(
-        div()
-            .flex_none()
-            .w(tokens::VARIABLES_NUMBER_COLUMN + tokens::VARIABLES_ON_COLUMN),
-    )
+    .child(div().flex_none().w(tokens::VARIABLES_NUMBER_COLUMN
+        + tokens::VARIABLES_ON_COLUMN
+        + tokens::VARIABLES_ON_COLUMN))
     .child(
         static_cell(
             format!("variables-undeclared-key-{n}"),
@@ -865,6 +867,7 @@ fn add_row(scope: SecretScope, cx: &mut Context<Shell>) -> Stateful<Div> {
         .text_size(GridMetrics::FONT)
         .text_color(ghost)
         .hover(|style| style.bg(colors.hover))
+        .child(copy::spacer())
         .child(
             div()
                 .flex_none()

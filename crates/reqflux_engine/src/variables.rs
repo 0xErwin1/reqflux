@@ -208,7 +208,7 @@ impl Engine {
         )?)
     }
 
-    fn secret_key(&self, scope: SecretScope, key: &str) -> SecretKey {
+    pub(crate) fn secret_key(&self, scope: SecretScope, key: &str) -> SecretKey {
         SecretKey {
             workspace_id: self.loaded.workspace.manifest.id,
             scope,
@@ -248,7 +248,7 @@ impl Engine {
     }
 }
 
-fn scope_file(scope: SecretScope) -> ScopeFile {
+pub(crate) fn scope_file(scope: SecretScope) -> ScopeFile {
     match scope {
         SecretScope::Global => ScopeFile::Globals,
         SecretScope::Collection(id) => ScopeFile::Collection(id),
