@@ -10,7 +10,7 @@ use reqflux_engine::{MASK, StoredCookie};
 use tempfile::TempDir;
 
 use crate::shell::Shell;
-use crate::shell::draft_tests::{click, present, render, state_file};
+use crate::shell::draft_tests::{bounds, click, present, render, state_file};
 use crate::shell::send_tests::closed_port;
 use crate::shell::settings_page::cookie_jar::{
     self, CookieValue, JarRow, count_text, expires_text,
@@ -175,4 +175,195 @@ fn clear_all_asks_first_and_empties_the_jar(cx: &mut TestAppContext) {
     click(cx, "cookies-clear-confirm");
     assert!(shell.read_with(cx, |shell, _| shell.jar_cookies().is_empty()));
     present(cx, "cookies-empty");
+}
+
+fn fields() -> cookie_jar::edit::Fields {
+    cookie_jar::edit::Fields {
+        name: " theme ".to_owned(),
+        value: "dark".to_owned(),
+        domain: "example.test".to_owned(),
+        path: "/".to_owned(),
+        session: true,
+        expires: String::new(),
+        secure: true,
+        http_only: false,
+        subdomains: false,
+        same_site: "Lax".to_owned(),
+    }
+}
+
+#[test]
+fn the_fields_become_a_cookie_with_a_session_or_a_utc_date() {
+    let session = cookie_jar::edit::cookie_from(&fields()).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(session.name, "theme");
+    assert!(session.host_only && session.secure && !session.http_only);
+    assert_eq!(session.expires, None);
+    assert_eq!(session.same_site.as_deref(), Some("Lax"));
+
+    let dated = cookie_jar::edit::Fields {
+        session: false,
+        expires: "2027-01-15 08:00".to_owned(),
+        subdomains: true,
+        same_site: String::new(),
+        ..fields()
+    };
+    let dated = cookie_jar::edit::cookie_from(&dated).unwrap_or_else(|e| panic!("{e}"));
+    assert_eq!(dated.expires, Some(1_800_000_000));
+    assert!(!dated.host_only);
+    assert_eq!(dated.same_site, None);
+    assert_eq!(
+        cookie_jar::edit::expires_input(Some(1_800_000_000)),
+        "2027-01-15 08:00"
+    );
+    assert_eq!(cookie_jar::edit::expires_input(None), "");
+}
+
+#[test]
+fn a_date_that_does_not_parse_says_how_to_write_it() {
+    let bad = cookie_jar::edit::Fields {
+        session: false,
+        expires: "tomorrow".to_owned(),
+        ..fields()
+    };
+    assert_eq!(
+        cookie_jar::edit::cookie_from(&bad),
+        Err("Expires must be a UTC date such as 2026-12-31 10:00")
+    );
+    assert_eq!(
+        cookie_jar::edit::parse_expires("2027-01-15"),
+        Ok(1_799_971_200)
+    );
+}
+
+fn type_into(cx: &mut VisualTestContext, field: &str, text: &str) {
+    click(cx, field);
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input(text);
+    cx.run_until_parked();
+}
+
+fn jar(shell: &gpui::Entity<Shell>, cx: &mut VisualTestContext) -> Vec<StoredCookie> {
+    shell.read_with(cx, |shell, _| shell.jar_cookies())
+}
+
+#[gpui::test]
+fn add_cookie_writes_the_fields_to_the_jar(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render_jar(cx, &dir, &state_path);
+
+    click(cx, "cookies-add");
+    present(cx, "cookie-edit-dialog");
+    type_into(cx, "cookie-edit-name", "theme");
+    type_into(cx, "cookie-edit-value", "dark");
+    type_into(cx, "cookie-edit-domain", "example.test");
+    click(cx, "cookie-edit-secure");
+    click(cx, "cookie-edit-save");
+
+    let cookies = jar(&shell, cx);
+    assert_eq!(cookies.len(), 1);
+    let saved = &cookies[0];
+    assert_eq!(
+        (
+            saved.name.as_str(),
+            saved.value.as_str(),
+            saved.domain.as_str()
+        ),
+        ("theme", "dark", "example.test")
+    );
+    assert_eq!(saved.path, "/");
+    assert!(saved.secure && saved.expires.is_none());
+    assert!(
+        bounds(cx, "cookie-edit-dialog").is_none(),
+        "the dialog closes"
+    );
+}
+
+#[gpui::test]
+fn a_refused_cookie_shows_the_engine_text_and_keeps_the_dialog(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render_jar(cx, &dir, &state_path);
+
+    click(cx, "cookies-add");
+    type_into(cx, "cookie-edit-value", "secret-1");
+    click(cx, "cookie-edit-save");
+
+    present(cx, "cookie-edit-error");
+    present(cx, "cookie-edit-dialog");
+    assert!(jar(&shell, cx).is_empty());
+    click(cx, "cookie-edit-cancel");
+    assert!(bounds(cx, "cookie-edit-dialog").is_none());
+    assert!(jar(&shell, cx).is_empty(), "cancel writes nothing");
+}
+
+#[gpui::test]
+fn the_pencil_edits_a_cookie_and_a_new_name_moves_it(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render_jar(cx, &dir, &state_path);
+    shell.update(cx, |shell, cx| {
+        let crate::workspace::OpenedWorkspace::Loaded(engine) = &shell.workspace else {
+            panic!("no workspace");
+        };
+        engine
+            .set_cookie(&cookie("example.test", "old", "v1", None))
+            .unwrap_or_else(|e| panic!("{e}"));
+        cx.notify();
+    });
+    cx.run_until_parked();
+
+    click(cx, "cookie-1-edit");
+    present(cx, "cookie-edit-dialog");
+    type_into(cx, "cookie-edit-name", "renamed");
+    type_into(cx, "cookie-edit-value", "v2");
+    click(cx, "cookie-edit-save");
+
+    let cookies = jar(&shell, cx);
+    assert_eq!(cookies.len(), 1, "the old name is gone");
+    assert_eq!(
+        (cookies[0].name.as_str(), cookies[0].value.as_str()),
+        ("renamed", "v2")
+    );
+}
+
+#[gpui::test]
+fn editing_a_hidden_value_keeps_it_unless_it_is_replaced(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render_jar(cx, &dir, &state_path);
+    let hidden = format!("{MASK}-kept");
+    shell.update(cx, |shell, cx| {
+        let crate::workspace::OpenedWorkspace::Loaded(engine) = &shell.workspace else {
+            panic!("no workspace");
+        };
+        engine
+            .set_cookie(&cookie("example.test", "token", &hidden, None))
+            .unwrap_or_else(|e| panic!("{e}"));
+        cx.notify();
+    });
+    cx.run_until_parked();
+
+    click(cx, "cookie-1-edit");
+    let opened = shell.read_with(cx, |shell, cx| {
+        shell
+            .settings
+            .cookies
+            .edit
+            .as_ref()
+            .map(|edit| edit.value.read(cx).value().to_string())
+    });
+    assert_eq!(
+        opened.as_deref(),
+        Some(""),
+        "a hidden value is not put in the field"
+    );
+    type_into(cx, "cookie-edit-name", "token2");
+    click(cx, "cookie-edit-save");
+
+    let cookies = jar(&shell, cx);
+    assert_eq!(
+        (cookies[0].name.as_str(), cookies[0].value.as_str()),
+        ("token2", hidden.as_str())
+    );
 }

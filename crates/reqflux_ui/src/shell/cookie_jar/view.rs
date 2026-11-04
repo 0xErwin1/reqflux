@@ -1,10 +1,11 @@
 //! Drawing Workspace > Cookies (design/network/01-settings-sections, States: Cookie jar,
-//! Filtered, Deleted one, Clear all, Empty jar): the title row with `cookies-clear`, the
+//! Filtered, Deleted one, Clear all, Empty jar, Add cookie, Edit cookie): the title row with
+//! `cookies-add` and `cookies-clear`, the
 //! filter `cookies-filter` and its count `cookies-count`, and the table `cookies-table` with
 //! the header `cookies-header` and a row `cookie-<n>` per cookie, its cells
 //! `cookie-<n>-<column>` (`domain`, `path`, `name`, `value`, `expires`, `flags`), the HOST
 //! badge `cookie-<n>-host`, on a hidden value the SECRET badge `cookie-<n>-secret`, and its
-//! trash button `cookie-<n>-delete`. An empty jar shows `cookies-empty`; a filter that
+//! pencil `cookie-<n>-edit` and trash button `cookie-<n>-delete`. An empty jar shows `cookies-empty`; a filter that
 //! matches nothing `cookies-no-match`. Clear all asks first in `cookies-clear-dialog`.
 //!
 //! It draws with `bolt`: `Button`, `Input`, `Badge`, `EmptyState` and `Modal`, the table in
@@ -87,6 +88,14 @@ pub(crate) fn content(
                 ),
         )
         .child(
+            Button::new("cookies-add", "Add cookie")
+                .primary()
+                .icon(ui::icon(IconName::Plus))
+                .on_click(cx.listener(|this, _event, window, cx| {
+                    this.open_cookie_add(window, cx);
+                })),
+        )
+        .child(
             Button::new("cookies-clear", "Clear all…")
                 .secondary()
                 .icon(ui::icon(IconName::Trash))
@@ -160,6 +169,34 @@ pub(crate) fn content(
         .child(title)
         .child(body)
         .children(clear_dialog(shell, cookies.len(), &name, window, cx))
+        .children(super::edit_view::dialog(shell, window, cx))
+}
+
+/// `modal` over the whole window, above the page.
+pub(super) fn overlay(modal: Modal, window: &Window) -> AnyElement {
+    let viewport = window.viewport_size();
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .child(
+            deferred(
+                anchored().position(Point::default()).child(
+                    div()
+                        .relative()
+                        .w(viewport.width)
+                        .h(viewport.height)
+                        .child(modal),
+                ),
+            )
+            .with_priority(3),
+        )
+        .into_any_element()
+}
+
+/// The actions column: the pencil and the trash button.
+fn actions_width() -> Pixels {
+    tokens::GRID_ACTIONS_COLUMN * 2.0
 }
 
 /// `cookies-empty`: no cookies yet, or after Clear all.
@@ -219,7 +256,7 @@ fn header(cx: &App) -> AnyElement {
                 .iter()
                 .map(|(name, width)| cell(*width).child(*name)),
         )
-        .child(div().w(tokens::GRID_ACTIONS_COLUMN).flex_none())
+        .child(div().w(actions_width()).flex_none())
         .into_any_element()
 }
 
@@ -281,6 +318,18 @@ fn jar_row(row: JarRow, cx: &mut Context<Shell>) -> AnyElement {
     .on_click(cx.listener(move |this, _event, _window, cx| {
         this.delete_jar_cookie(&domain, &path, &name, cx);
     }));
+    let number = row.n;
+    let edit = Button::new(
+        gpui::ElementId::Name(format!("{id}-edit").into()),
+        format!("Edit cookie {}", row.name),
+    )
+    .ghost()
+    .inline()
+    .icon(ui::icon(IconName::Pencil))
+    .icon_only()
+    .on_click(cx.listener(move |this, _event, window, cx| {
+        this.open_cookie_edit(number, window, cx);
+    }));
     let [
         domain_cell,
         path_cell,
@@ -317,8 +366,10 @@ fn jar_row(row: JarRow, cx: &mut Context<Shell>) -> AnyElement {
         .child(flags_cell.child(flags))
         .child(
             div()
-                .w(tokens::GRID_ACTIONS_COLUMN)
+                .w(actions_width())
                 .flex_none()
+                .flex()
+                .child(edit)
                 .child(delete),
         )
         .into_any_element()
@@ -387,24 +438,5 @@ fn clear_dialog(
                 log::warn!("cookie jar clear: {error}");
             }
         });
-    let viewport = window.viewport_size();
-    Some(
-        div()
-            .absolute()
-            .top_0()
-            .left_0()
-            .child(
-                deferred(
-                    anchored().position(Point::default()).child(
-                        div()
-                            .relative()
-                            .w(viewport.width)
-                            .h(viewport.height)
-                            .child(modal),
-                    ),
-                )
-                .with_priority(3),
-            )
-            .into_any_element(),
-    )
+    Some(overlay(modal, window))
 }
