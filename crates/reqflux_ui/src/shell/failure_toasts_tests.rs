@@ -109,7 +109,10 @@ fn script_writes_the_state_refuses_say_so_without_their_values(cx: &mut TestAppC
     // The details name the state file, whose random temp directory may itself contain
     // "abc"; only the rest of the text must not carry the value.
     let without_path = details.replace(&state_path.display().to_string(), "");
-    assert!(!without_path.contains("abc"), "no value in a toast: {details}");
+    assert!(
+        !without_path.contains("abc"),
+        "no value in a toast: {details}"
+    );
 }
 
 #[gpui::test]
