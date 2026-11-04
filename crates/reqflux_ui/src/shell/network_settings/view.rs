@@ -201,6 +201,7 @@ fn read_only<E: Styled>(value: E, cx: &App) -> E {
     let colors = bolt::colors(cx);
     value
         .min_h(Fields::HEIGHT)
+        .text_size(Fields::TEXT)
         .pl(Fields::PADDING_X)
         .pr(Fields::PADDING_X)
         .bg(colors.background)
@@ -225,7 +226,11 @@ fn field_row(label: String, note: Option<String>, value: impl IntoElement, cx: &
                 .flex()
                 .flex_col()
                 .gap(Spacing::XXS)
-                .child(div().text_color(colors.muted).child(label))
+                .child(
+                    ui::role(div(), TextVariant::Body, cx)
+                        .text_color(colors.muted)
+                        .child(label),
+                )
                 .children(note.map(|note| ui::role(div(), TextVariant::Caption, cx).child(note))),
         )
         .child(div().flex_1().min_w_0().flex().flex_col().child(value))
