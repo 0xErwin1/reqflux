@@ -16,10 +16,11 @@ use crate::workspace_tests::{demo_workspace, write};
 const COLLECTION: &str = "01J000000000000000000000V1";
 const REQUEST: &str = "01J000000000000000000000V2";
 const STAGING: &str = "01J000000000000000000000V3";
+const PRODUCTION: &str = "01J000000000000000000000V4";
 const WORKSPACE: &str = "01J00000000000000000000900";
 
 /// A workspace whose collection `API` declares `base`, whose environment Staging declares
-/// `base` and the secret `token`, and whose request `GET Vars` goes to
+/// `base` and the secret `token`, whose environment Production declares nothing, and whose request `GET Vars` goes to
 /// `{{base}}/ok/{{token}}/{{tenant}}` with the header `X-Base: {{base}}`; `tenant` is
 /// defined nowhere.
 fn popover_workspace() -> TempDir {
@@ -41,6 +42,11 @@ fn popover_workspace() -> TempDir {
              [[variables]]\nkey = \"base\"\nvalue = \"https://staging\"\n\n\
              [[variables]]\nkey = \"token\"\nsecret = true\n"
         ),
+    );
+    write(
+        root,
+        "environments/production.env.toml",
+        &format!("id = \"{PRODUCTION}\"\nname = \"Production\"\n"),
     );
     write(
         root,
@@ -270,8 +276,9 @@ fn quick_add_creates_the_variable_in_the_chosen_scope(cx: &mut TestAppContext) {
 
     click(cx, "request-url-var-3");
     assert!(bounds(cx, "variable-popover-not-defined").is_some());
-    // Targets: Staging, API, Globals.
-    click(cx, "variable-popover-target-3");
+    // Targets: Staging, Production, API, Globals.
+    click(cx, "variable-popover-target");
+    click(cx, "variable-popover-target-4");
     click(cx, "variable-popover-input");
     type_text(cx, "tnt_7f2a");
     cx.simulate_keystrokes("enter");
@@ -406,4 +413,254 @@ fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
         .nodes
         .get(id)
         .and_then(|node| node.label.clone())
+}
+
+fn target_index(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<usize> {
+    cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .variable_popover
+            .as_ref()
+            .map(|popover| popover.target)
+    })
+}
+
+fn shell_focused(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
+    cx.update(|window, cx| shell.read(cx).focus.is_focused(window))
+}
+
+fn cell_editing(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
+    cx.update(|_, cx| shell.read(cx).cell_edit.is_some())
+}
+
+/// Draws a frame: a focus change reaches the inputs' blur handlers in the next one, which
+/// the real window draws by itself and the test window only when asked. The test window
+/// starts inactive, and an inactive window reports no focus at all.
+fn draw_frame(cx: &mut VisualTestContext) {
+    // Focus events only reach the inputs of an active window.
+    cx.update(|window, _| window.activate_window());
+    cx.update(|window, cx| window.draw(cx).clear(cx));
+    cx.run_until_parked();
+}
+
+/// A point of the request pane under its grid, away from every control.
+fn empty_area(cx: &mut VisualTestContext) -> Point<gpui::Pixels> {
+    let pane = present(cx, "request-pane");
+    Point::new(pane.right() - px(30.), pane.bottom() - px(30.))
+}
+
+#[gpui::test]
+fn the_add_to_dropdown_lists_every_environment_and_preselects_the_active_one(
+    cx: &mut TestAppContext,
+) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, Some("staging"));
+
+    click(cx, "request-url-var-3");
+    assert!(bounds(cx, "variable-popover-target").is_some());
+    assert!(bounds(cx, "variable-popover-target-1").is_none(), "closed");
+    assert_eq!(target_index(cx, &shell), Some(0), "Staging is active");
+
+    click(cx, "variable-popover-target");
+    for row in 1..=4 {
+        assert!(
+            bounds(cx, &format!("variable-popover-target-{row}")).is_some(),
+            "row {row}"
+        );
+    }
+    assert!(popover_open(cx));
+    click(cx, "variable-popover-target-2");
+    assert!(
+        bounds(cx, "variable-popover-target-1").is_none(),
+        "picking closes the list"
+    );
+    assert!(popover_open(cx));
+    assert_eq!(target_index(cx, &shell), Some(1));
+}
+
+#[gpui::test]
+fn quick_add_creates_the_variable_in_an_environment_that_is_not_active(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, Some("staging"));
+
+    click(cx, "request-url-var-3");
+    click(cx, "variable-popover-target");
+    click(cx, "variable-popover-target-2");
+    click(cx, "variable-popover-input");
+    type_text(cx, "tnt_p");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    let production = std::fs::read_to_string(dir.path().join("environments/production.env.toml"))
+        .unwrap_or_default();
+    assert!(production.contains("key = \"tenant\""), "{production}");
+    assert!(production.contains("value = \"tnt_p\""), "{production}");
+    let staging = std::fs::read_to_string(dir.path().join("environments/staging.env.toml"))
+        .unwrap_or_default();
+    assert!(!staging.contains("tenant"), "{staging}");
+}
+
+#[gpui::test]
+fn with_no_active_environment_the_quick_add_defaults_to_the_collection(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+
+    click(cx, "request-url-var-3");
+
+    // Targets: Production, Staging, API, Globals.
+    assert_eq!(target_index(cx, &shell), Some(2));
+}
+
+#[gpui::test]
+fn clicking_outside_the_url_field_commits_it_and_the_marks_open_the_popover_again(
+    cx: &mut TestAppContext,
+) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    let field = present(cx, "request-url");
+    cx.simulate_click(
+        Point::new(field.right() - px(12.), field.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert!(url_editing(cx, &shell));
+    assert!(!shell_focused(cx, &shell), "the field has the focus");
+    draw_frame(cx);
+
+    let outside = empty_area(cx);
+    cx.simulate_click(outside, Modifiers::none());
+    draw_frame(cx);
+
+    assert!(!url_editing(cx, &shell), "the click outside commits");
+    assert!(shell_focused(cx, &shell), "the shell has the focus again");
+    click(cx, "request-url-var-1");
+    assert!(popover_open(cx), "the mark opens the popover again");
+}
+
+#[gpui::test]
+fn the_url_field_commits_when_it_loses_focus(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    let field = present(cx, "request-url");
+    cx.simulate_click(
+        Point::new(field.right() - px(12.), field.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert!(url_editing(cx, &shell));
+
+    draw_frame(cx);
+    cx.update(|window, cx| {
+        let focus = shell.read(cx).focus.clone();
+        focus.focus(window, cx);
+    });
+    draw_frame(cx);
+
+    assert!(!url_editing(cx, &shell));
+}
+
+#[gpui::test]
+fn clicking_outside_a_cell_field_commits_what_was_typed(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    click(cx, "request-tab-headers");
+    let cell = present(cx, "request-headers-value-1");
+    cx.simulate_click(
+        Point::new(cell.right() - px(8.), cell.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    assert!(cell_editing(cx, &shell));
+    type_text(cx, "q");
+    draw_frame(cx);
+
+    let outside = empty_area(cx);
+    cx.simulate_click(outside, Modifiers::none());
+    draw_frame(cx);
+
+    assert!(!cell_editing(cx, &shell));
+    assert!(shell_focused(cx, &shell));
+    let value = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .drafts
+            .get(REQUEST)
+            .and_then(|draft| draft.request.headers.first().map(|row| row.value.clone()))
+    });
+    assert_eq!(value.as_deref(), Some("{{base}}q"));
+    click(cx, "request-headers-value-1-var-1");
+    assert!(popover_open(cx), "the mark opens the popover again");
+}
+
+#[gpui::test]
+fn clicking_inside_the_popover_does_not_commit_the_url_field(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    let mark = present(cx, "request-url-var-1");
+    let field = present(cx, "request-url");
+    cx.simulate_click(
+        Point::new(field.right() - px(12.), field.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    cx.simulate_click(mark.center(), Modifiers::alt());
+    cx.run_until_parked();
+    assert!(popover_open(cx));
+
+    click(cx, "variable-popover-input");
+
+    assert!(popover_open(cx));
+    assert!(url_editing(cx, &shell), "the click inside is not outside");
+}
+
+#[gpui::test]
+fn clicking_an_empty_area_anywhere_in_the_shell_takes_the_focus(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    for (area, corner) in [
+        ("request-pane", 30.),
+        ("sidebar", 12.),
+        ("status-bar", 4.),
+        ("title-bar", 4.),
+    ] {
+        let Some(found) = bounds(cx, area) else {
+            panic!("{area} is missing");
+        };
+        let field = present(cx, "request-url");
+        cx.simulate_click(
+            Point::new(field.right() - px(12.), field.center().y),
+            Modifiers::none(),
+        );
+        cx.run_until_parked();
+        assert!(url_editing(cx, &shell), "{area}: the field opens");
+        draw_frame(cx);
+
+        cx.simulate_click(
+            Point::new(found.right() - px(corner), found.bottom() - px(corner)),
+            Modifiers::none(),
+        );
+        draw_frame(cx);
+
+        assert!(
+            !url_editing(cx, &shell),
+            "{area}: the click commits the field"
+        );
+        assert!(shell_focused(cx, &shell), "{area}: the shell has the focus");
+    }
 }

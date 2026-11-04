@@ -217,12 +217,18 @@ fn params_replace_the_headers_grid(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn an_empty_table_shows_the_empty_state(cx: &mut TestAppContext) {
+fn an_empty_table_shows_its_columns_and_the_add_row_instead_of_an_empty_state(
+    cx: &mut TestAppContext,
+) {
     let (_shell, cx) = render(cx);
     click(cx, &format!("tree-row-{PLAIN}"));
     assert!(rows(cx, "headers").is_empty());
     let pane = present(cx, "request-pane");
-    assert!(pane.contains(&present(cx, "request-grid-empty").origin));
+    assert!(bounds(cx, "request-grid-empty").is_none());
+    assert!(pane.contains(&present(cx, "request-headers-header").origin));
+    let add = present(cx, "request-headers-add");
+    assert!(pane.contains(&add.origin));
+    assert!(add.origin.y > present(cx, "request-headers-header").origin.y);
 }
 
 fn inside_pane(cx: &mut VisualTestContext, ids: &[&str]) {

@@ -1,5 +1,5 @@
 //! A text with its `{{name}}` references styled as the engine marks them: resolving ones in
-//! the brand tint on its wash, unresolved ones in warning text on a warning wash, underlined.
+//! the brand tint on its wash, unresolved ones in danger text on a danger wash, underlined.
 
 use bolt::tokens::Borders;
 use gpui::{
@@ -13,8 +13,8 @@ use crate::shell::Shell;
 use crate::tokens::{variable_hot_wash, variable_wash};
 
 /// The style of a reference inside a field being edited, the same as [`render`] draws it:
-/// a resolving one in the brand tint on its wash, an unresolved one in warning text on a
-/// warning wash with a thin warning underline.
+/// a resolving one in the brand tint on its wash, an unresolved one in danger text on a
+/// danger wash with a thin danger underline.
 pub(crate) fn mark_style(resolves: bool, cx: &App) -> HighlightStyle {
     let colors = bolt::colors(cx);
     if resolves {
@@ -26,11 +26,11 @@ pub(crate) fn mark_style(resolves: bool, cx: &App) -> HighlightStyle {
         }
     } else {
         HighlightStyle {
-            color: Some(colors.warning),
-            background_color: Some(variable_wash(colors.warning)),
+            color: Some(colors.danger),
+            background_color: Some(variable_wash(colors.danger)),
             underline: Some(UnderlineStyle {
                 thickness: Borders::THIN,
-                color: Some(colors.warning),
+                color: Some(colors.danger),
                 wavy: false,
             }),
             ..HighlightStyle::default()
@@ -56,10 +56,10 @@ pub(crate) fn render(inspection: &Inspection, text: &str, cx: &App) -> Vec<AnyEl
                 .child(raw)
                 .into_any_element(),
             Span::Reference { raw, .. } => div()
-                .text_color(colors.warning)
-                .bg(variable_wash(colors.warning))
+                .text_color(colors.danger)
+                .bg(variable_wash(colors.danger))
                 .border_b(Borders::THIN)
-                .border_color(colors.warning)
+                .border_color(colors.danger)
                 .child(raw)
                 .into_any_element(),
         })
@@ -135,10 +135,10 @@ fn mark(
         })
     } else {
         styled
-            .text_color(colors.warning)
-            .bg(variable_wash(colors.warning))
+            .text_color(colors.danger)
+            .bg(variable_wash(colors.danger))
             .border_b(Borders::THIN)
-            .border_color(colors.warning)
+            .border_color(colors.danger)
     };
     let (click_request, click_anchor, click_name) =
         (request_id.to_owned(), anchor.to_owned(), name.to_owned());

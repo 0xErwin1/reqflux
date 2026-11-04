@@ -414,6 +414,10 @@ was typed. The URL's query string and the Params grid are one list (`reqflux_cor
 the draft keeps the base URL and the params as rows, a query typed in the field becomes rows
 (merged into the rows the request had when the field opened, so order, descriptions and
 disabled or blank rows survive), and the line shows the base plus the params that are sent.
+Losing focus commits the field like Enter, without sending: a click on any other control, or on
+an empty area of the shell (the shell root takes the focus), blurs the input, the draft keeps
+the text and the read-only marks, with their popover, come back. A window deactivation is not
+a blur, and while the variable popover is open the focus sits in it and the field stays.
 A row with an empty key and an empty value is never sent, and params go before a `#fragment`.
 A row with an empty value shows as its bare key (`?b`); the request sends `b=`. While the URL
 field is open, a grid change (a row toggled, edited or deleted) re-seeds it in place, keeping
@@ -483,7 +487,10 @@ state in the same draft on the spot, the grid shows the draft's rows while a dra
 and clicking a row's key or value cell (`request-<table>-<key|value>-<n>`) swaps the cell
 for a field (`request-cell-input`) seeded with the cell's text; Enter commits it to that
 cell of the same draft, Escape drops what was typed, and clicking another cell commits the
-open field first, like a spreadsheet. A value that references a secret is never seeded: the
+open field first, like a spreadsheet; every cell field (the grids', the Variables document's,
+the auth fields', the custom verb's) also commits when it loses focus, as the URL field does
+(`Shell::watch_cell_blur`, run on every render, follows the open field's input). A value that
+references a secret is never seeded: the
 field opens empty with a `Secret value` placeholder and an empty commit keeps the stored
 reference. The row counts next to the Params and Headers sub-tabs read the draft, so a
 toggle moves them. A drafted tab carries a tint dot, Save and Revert
@@ -499,7 +506,9 @@ exists:
   (`request-method-input`) that takes any HTTP token, uppercased; other text leaves the
   draft unchanged.
 - **Rows.** Params, Headers and the urlencoded or form-data body grid end with an `Add` row
-  (`request-<table>-add`) that appends an empty enabled row and opens its key cell, and every
+  (`request-<table>-add`) that appends an empty enabled row and opens its key cell; an empty
+  editable grid shows its header and that row, not an empty state (design/request-panes/01
+  frame E), and the row lights up under the pointer. Every
   row has a delete control (`request-<table>-delete-<n>`). An open cell commits before a row
   is added or deleted, so typed text never lands in a shifted row.
 - **Body.** The mode row (`request-body-mode`) opens a menu (`body-mode-<none|json|xml|text|
@@ -1280,7 +1289,8 @@ when it changes, keeping its sub-tab: variables are styled as resolved or unreso
 number of unresolved ones is shown in the sub-tab bar, or the inspection `problem` in its
 place (`request-problem`), and a value that references a secret, a password, a token, an API key value or
 any field of an auth type the engine does not support is masked as `••••••••` on screen and
-in the automation tree.
+in the automation tree. Unresolved references use the danger role everywhere (the marks and
+the row wash, the `N unresolved variables` note, the popover's "Not defined"), not warning.
 The Scripts pane's pre-request and test scripts, read-only and in their editor, are
 highlighted as JavaScript; the Document layout's `.http` editor stays plain (no http grammar,
 and a JSON body inside a section needs an injection or a head/body split: later).
@@ -1297,11 +1307,15 @@ single "Overrides" line, with Copy, Reset to initial (`variable-popover-reset`) 
 Environments, which opens the settings page at that scope. Enter saves the field as the
 current value of the winning scope (an empty field clears it); a secret shows its SECRET
 badge and an empty masked field, the eye (`variable-popover-reveal`) reads its keyring value
-in, and Enter writes the keyring. An undefined name offers the quick add: the scope picker
-(`variable-popover-target-<n>`: the active environment, the collection, the globals), the
-value, which becomes the initial value, and the Secret box. With no active environment, a
-name only environments declare lists them to activate, with an "Add to collection or globals
-instead". Escape or a click outside closes it without writing; after a write every open
+in, and Enter writes the keyring. An undefined name offers the quick add: the "Add to"
+dropdown (`variable-popover-target`, a `bolt` select trigger; its list `variable-popover-target-<n>`
+opens inside the popover) over every environment the collection allows (`VariableInfo::targets`:
+the active one first, marked "active" and preselected, then the others by name), then the
+collection (the default with no active environment) and the globals, the value, which becomes
+the initial value, and the Secret box; "Not defined" is danger red. With no active
+environment, a name only environments declare lists them to activate, with an "Add to
+collection or globals instead". Escape closes the "Add to" list first, then the popover, and a
+click outside closes it without writing; a click inside it, or on its list, is not outside; after a write every open
 request is inspected again, so the marks follow. A cell whose value references a secret stays
 masked and has no marks; F2 while editing it still opens the popover.
 

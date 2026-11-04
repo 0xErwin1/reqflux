@@ -31,7 +31,7 @@ pub(super) fn render(
             cx,
         )),
         None => unresolved_text(state.inspection.unresolved.len())
-            .map(|label| notice("request-unresolved", label, colors.warning, cx)),
+            .map(|label| notice("request-unresolved", label, colors.danger, cx)),
     };
     region("request-tabs")
         .flex_none()
