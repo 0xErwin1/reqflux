@@ -8,7 +8,7 @@ use gpui_component::input::InputState;
 use reqflux_core::model::Method;
 
 use super::Shell;
-use super::cell_edit::{CellEdit, CellField};
+use super::cell_edit::{CellEdit, CellField, seed_focused};
 
 /// The table name the custom verb field records in its [`CellEdit`], which no grid uses.
 pub(crate) const METHOD_TABLE: &str = "method";
@@ -104,8 +104,7 @@ impl Shell {
         };
         let input = cx.new(|cx| InputState::new(window, cx));
         input.update(cx, |state, cx| {
-            state.set_value(method.to_string(), window, cx);
-            state.focus(window, cx);
+            seed_focused(state, method.to_string(), window, cx)
         });
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),

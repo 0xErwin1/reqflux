@@ -28,7 +28,7 @@ use reqflux_core::model::{KeyValue, Request};
 use reqflux_core::query;
 
 use super::Shell;
-use super::cell_edit::Refocus;
+use super::cell_edit::{Refocus, seed_focused};
 use super::input_marks::InputMarks;
 
 /// The URL field of a request under edit: its state, the id of the request it belongs to
@@ -76,10 +76,7 @@ impl Shell {
         let shown = query::compose(&seed_url, &seed_params);
         let synced_params = seed_params.clone();
         let input = cx.new(|cx| InputState::new(window, cx));
-        input.update(cx, |state, cx| {
-            state.set_value(shown, window, cx);
-            state.focus(window, cx);
-        });
+        input.update(cx, |state, cx| seed_focused(state, shown, window, cx));
         let marks = Some(self.mark_input(id, &input, cx));
         let request_id = id.to_owned();
         let change =

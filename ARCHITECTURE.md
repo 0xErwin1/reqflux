@@ -529,7 +529,10 @@ empty one for a row without; an emptied description is removed from the row); En
 it to that cell of the same draft, Escape drops what was typed, and clicking another cell commits the
 open field first, like a spreadsheet; every cell field (the grids', the Variables document's,
 the auth fields', the custom verb's) also commits when it loses focus, as the URL field does
-(`Shell::watch_cell_blur`, run on every render, follows the open field's input). A value that
+(`Shell::watch_cell_blur`, run on every render, follows the open field's input). A field opens with
+its caret at the end of the text and scrolled to it (`cell_edit::seed_focused`, also the URL field's
+and the auth fields'), so a value longer than its cell shows its tail and the caret; typing and the
+arrow keys keep scrolling with the caret. A value that
 references a secret is never seeded: the
 field opens empty with a `Secret value` placeholder and an empty commit keeps the stored
 reference. The row counts next to the Params and Headers sub-tabs read the draft, so a

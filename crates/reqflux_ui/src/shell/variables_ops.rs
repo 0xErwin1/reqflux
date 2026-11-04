@@ -15,7 +15,7 @@ use reqflux_core::model::Variable;
 use reqflux_engine::{Engine, SecretScope, VariableEdit, VariableError};
 
 use super::Shell;
-use super::cell_edit::{CellEdit, CellField};
+use super::cell_edit::{CellEdit, CellField, seed_focused};
 use super::variables_model::{Column, current_keys, new_key, scope_variables, undeclared};
 use crate::workspace::OpenedWorkspace;
 
@@ -296,10 +296,7 @@ impl Shell {
             }
             state
         });
-        input.update(cx, |state, cx| {
-            state.set_value(seed, window, cx);
-            state.focus(window, cx);
-        });
+        input.update(cx, |state, cx| seed_focused(state, seed, window, cx));
         self.cell_edit = Some(CellEdit {
             request_id: owner,
             table: column.table().to_owned(),

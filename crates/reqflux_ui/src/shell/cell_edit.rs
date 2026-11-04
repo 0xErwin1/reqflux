@@ -13,7 +13,7 @@
 //! field keeps its text. Closing the popover with the focus elsewhere commits the field then
 //! (see [`Shell::close_variable_popover`]).
 
-use gpui::{AppContext as _, Context, Entity, FocusHandle, Window};
+use gpui::{AppContext as _, Context, Entity, FocusHandle, Pixels, SharedString, Window, point};
 use gpui_component::input::{InputEvent, InputState};
 
 use super::Shell;
@@ -74,6 +74,22 @@ impl CellEdit {
     }
 }
 
+/// Seeds `state` with `text` and focuses it with the caret in view. A single-line input
+/// puts the caret at the end of the seeded text but scrolls to its start, like an HTML
+/// `<input>`; a field opened to be edited has to show the caret, so the text scrolls to the
+/// end (the offset is clamped to the text when the field is laid out, so a text that fits
+/// does not move).
+pub(super) fn seed_focused(
+    state: &mut InputState,
+    text: impl Into<SharedString>,
+    window: &mut Window,
+    cx: &mut Context<InputState>,
+) {
+    state.set_value(text.into(), window, cx);
+    state.set_scroll_offset(point(Pixels::MIN, Pixels::ZERO), cx);
+    state.focus(window, cx);
+}
+
 impl Shell {
     /// Opens a focused field over the cell (`table`, 1-based row `n`, `field`) of the
     /// request `id`, seeded with the cell's text as the draft has it, else as the file
@@ -118,10 +134,7 @@ impl Shell {
             state
         });
 
-        input.update(cx, |state, cx| {
-            state.set_value(text, window, cx);
-            state.focus(window, cx);
-        });
+        input.update(cx, |state, cx| seed_focused(state, text, window, cx));
         // Keys and descriptions are plain text at rest too, so only a value shows its
         // references.
         let marks = (field == CellField::Value && !secret).then(|| self.mark_input(id, &input, cx));

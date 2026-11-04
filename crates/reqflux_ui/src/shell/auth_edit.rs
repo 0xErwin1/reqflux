@@ -17,7 +17,7 @@ use gpui_component::input::InputState;
 use reqflux_core::model::{ApiKeyLocation, Auth, AwsV4Auth, DigestAuth, OAuth2Auth};
 
 use super::Shell;
-use super::cell_edit::{CellEdit, CellField};
+use super::cell_edit::{CellEdit, CellField, seed_focused};
 
 pub(crate) use token::TokenFetching;
 pub(crate) use typed::TYPED_PREFIX;
@@ -149,10 +149,7 @@ impl Shell {
             }
             state
         });
-        input.update(cx, |state, cx| {
-            state.set_value(seed, window, cx);
-            state.focus(window, cx);
-        });
+        input.update(cx, |state, cx| seed_focused(state, seed, window, cx));
         let marks = (!secret).then(|| self.mark_input(id, &input, cx));
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),

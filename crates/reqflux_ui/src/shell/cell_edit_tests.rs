@@ -160,3 +160,112 @@ fn an_auth_field_opens_where_its_value_is(cx: &mut TestAppContext) {
     );
     assert_no_jump("auth token", before, after);
 }
+
+/// A value several times wider than any cell.
+fn long_value() -> String {
+    "00020126450014br.gov.bcb.pix0123456789".repeat(12)
+}
+
+/// Asserts that the caret of the open field `input` is inside the painted text area, and
+/// that the text scrolled to put it there.
+fn assert_caret_in_view(what: &str, cx: &mut VisualTestContext, input: Option<Entity<InputState>>) {
+    let Some(input) = input else {
+        panic!("{what}: no field is open");
+    };
+    let (area, caret, offset) = cx.update(|_, cx| {
+        let state = input.read(cx);
+        (
+            state.text_bounds(),
+            state.cursor_layout().map(|(caret, _)| caret),
+            state.scroll_offset(),
+        )
+    });
+    let (Some(area), Some(caret)) = (area, caret) else {
+        panic!("{what}: the field was not painted");
+    };
+    // The painted text bounds move with the scroll; the field's own edges are where the
+    // text starts without it.
+    let (left, right) = (area.left() - offset.x, area.right() - offset.x);
+    assert!(
+        caret.origin.x >= left && caret.origin.x <= right,
+        "{what}: the caret {caret:?} is outside the field ({left:?}..{right:?})"
+    );
+    assert!(
+        offset.x < gpui::px(0.),
+        "{what}: the text did not scroll to the caret"
+    );
+}
+
+#[gpui::test]
+fn a_grid_cell_opens_with_its_caret_in_view(cx: &mut TestAppContext) {
+    let dir = inline_workspace();
+    let long = long_value();
+    write(
+        dir.path(),
+        "collections/api/inline.req.toml",
+        &format!(
+            "id = \"{INLINE}\"\nname = \"Inline\"\nmethod = \"GET\"\nurl = \"https://h/inline\"\n\n\
+             [[params]]\nkey = \"a\"\nvalue = \"{long}\"\n"
+        ),
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{INLINE}"));
+    click(cx, "request-tab-params");
+
+    click(cx, "request-params-value-1");
+    let input = cell_input(cx, &shell);
+    assert_caret_in_view("params value", cx, input);
+
+    cx.simulate_keystrokes("home");
+    cx.run_until_parked();
+    let input = cell_input(cx, &shell);
+    let offset = cx.update(|_, cx| input.as_ref().map(|input| input.read(cx).scroll_offset().x));
+    assert_eq!(
+        offset,
+        Some(gpui::px(0.)),
+        "Home did not bring the start back"
+    );
+    cx.simulate_keystrokes("end");
+    cx.run_until_parked();
+    assert_caret_in_view("params value after End", cx, input);
+}
+
+#[gpui::test]
+fn a_variables_cell_opens_with_its_caret_in_view(cx: &mut TestAppContext) {
+    let dir = crate::shell::variables_tests::variables_workspace(0);
+    let long = long_value();
+    let manifest = format!(
+        "id = \"01J00000000000000000000900\"\nname = \"Demo\"\nformat = 1\n\n\
+         [[globals]]\nkey = \"qrClosed\"\nvalue = \"{long}\"\n"
+    );
+    write(dir.path(), "reqflux.toml", &manifest);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, "rail-environments");
+    click(cx, "variables-scope-globals");
+
+    click(cx, "variables-value-1");
+    let input = cell_input(cx, &shell);
+    assert_caret_in_view("variables value", cx, input);
+}
+
+#[gpui::test]
+fn the_url_field_opens_with_its_caret_in_view(cx: &mut TestAppContext) {
+    let dir = inline_workspace();
+    let long = long_value();
+    write(
+        dir.path(),
+        "collections/api/inline.req.toml",
+        &format!(
+            "id = \"{INLINE}\"\nname = \"Inline\"\nmethod = \"GET\"\nurl = \"https://h/{long}\"\n"
+        ),
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{INLINE}"));
+
+    click(cx, "request-url");
+    let input = url_input(cx, &shell);
+    assert_caret_in_view("URL", cx, input);
+}

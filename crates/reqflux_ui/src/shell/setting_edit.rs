@@ -8,7 +8,7 @@ use gpui_component::input::InputState;
 use reqflux_core::model::Settings;
 
 use super::Shell;
-use super::cell_edit::{CellEdit, CellField};
+use super::cell_edit::{CellEdit, CellField, seed_focused};
 
 /// The table name the timeout field records in its [`CellEdit`], which no grid uses.
 pub(crate) const SETTINGS_TABLE: &str = "settings";
@@ -60,10 +60,7 @@ impl Shell {
             .map(|ms| ms.to_string())
             .unwrap_or_default();
         let input = cx.new(|cx| InputState::new(window, cx));
-        input.update(cx, |state, cx| {
-            state.set_value(seed, window, cx);
-            state.focus(window, cx);
-        });
+        input.update(cx, |state, cx| seed_focused(state, seed, window, cx));
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),
             table: SETTINGS_TABLE.to_owned(),
