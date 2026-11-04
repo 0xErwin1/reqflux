@@ -898,3 +898,92 @@ fn a_click_back_into_the_field_closes_the_popover_and_keeps_the_field(cx: &mut T
     assert!(url_editing(cx, &shell), "the press landed in the field");
     assert!(url_field_focused(cx, &shell));
 }
+
+#[gpui::test]
+fn adding_to_an_inactive_environment_leaves_the_unresolved_count_as_it_was(
+    cx: &mut TestAppContext,
+) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    let before = unresolved(cx, &shell);
+    assert_eq!(before, ["token", "tenant"]);
+
+    click(cx, "request-url-var-3");
+    // Targets: Production, Staging, API, Globals.
+    click(cx, "variable-popover-target");
+    click(cx, "variable-popover-target-1");
+    click(cx, "variable-popover-input");
+    type_text(cx, "tnt_p");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    let production = std::fs::read_to_string(dir.path().join("environments/production.env.toml"))
+        .unwrap_or_default();
+    assert!(production.contains("key = \"tenant\""), "{production}");
+    assert_eq!(unresolved(cx, &shell), before, "no environment is active");
+    assert_eq!(
+        label_of(cx, "request-unresolved").as_deref(),
+        Some("2 unresolved variables")
+    );
+}
+
+#[gpui::test]
+fn the_unresolved_label_counts_what_the_draft_would_send(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    super::draft_tests::edit_url(cx, "{{base}}/ok/{{token}}/{{tenant}}/{{missing}}");
+    cx.simulate_keystrokes("enter");
+    cx.executor().advance_clock(Duration::from_millis(250));
+    cx.run_until_parked();
+
+    let sent = cx.update(|_, cx| {
+        let shell = shell.read(cx);
+        let (Some(draft), super::OpenedWorkspace::Loaded(engine)) =
+            (shell.drafts.get(REQUEST), &shell.workspace)
+        else {
+            return None;
+        };
+        engine
+            .prepare_draft(REQUEST, &draft.request, &Default::default())
+            .ok()
+            .map(|prepared| prepared.unresolved)
+    });
+    assert_eq!(
+        sent.as_deref(),
+        Some(&["token", "tenant", "missing"].map(String::from)[..])
+    );
+    assert_eq!(unresolved(cx, &shell), sent.unwrap_or_default());
+    assert_eq!(
+        label_of(cx, "request-unresolved").as_deref(),
+        Some("3 unresolved variables")
+    );
+}
+
+#[gpui::test]
+fn typing_inspects_once_after_the_edits_settle(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    let runs = |cx: &mut VisualTestContext| cx.update(|_, cx| shell.read(cx).reinspection_runs);
+    let before = runs(cx);
+
+    super::draft_tests::edit_url(cx, "{{base}}/ok/{{token}}/{{tenant}}/{{missing}}");
+    cx.executor().advance_clock(Duration::from_millis(100));
+    cx.run_until_parked();
+    assert_eq!(runs(cx), before, "the edits have not settled");
+    assert_eq!(unresolved(cx, &shell), ["token", "tenant"]);
+
+    cx.executor().advance_clock(Duration::from_millis(150));
+    cx.run_until_parked();
+    assert_eq!(runs(cx), before + 1, "one inspection for the whole edit");
+    assert_eq!(unresolved(cx, &shell), ["token", "tenant", "missing"]);
+    assert_eq!(
+        label_of(cx, "request-unresolved").as_deref(),
+        Some("3 unresolved variables")
+    );
+}

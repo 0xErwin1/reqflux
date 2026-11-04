@@ -77,11 +77,12 @@ mod workspace_switch;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Duration;
 
 use bolt::tokens::IslandMetrics;
 use gpui::{
     App, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Render, Role,
-    Stateful, Styled, Subscription, Window, deferred, div, prelude::*,
+    Stateful, Styled, Subscription, Task, Window, deferred, div, prelude::*,
 };
 use reqflux_engine::CurrentValues;
 use reqflux_engine::state::{AppState, RecentWorkspace};
@@ -171,6 +172,12 @@ pub(crate) struct Shell {
     variable_popover: Option<variable_popover::VariablePopover>,
     /// The mark the pointer rests on, until the hover delay opens its popover.
     variable_hover: Option<variable_popover::PendingHover>,
+    /// The re-inspection each edited request waits for, until its edits settle; a newer
+    /// edit replaces the task.
+    reinspections: HashMap<String, Task<()>>,
+    /// How many times `reinspect_request` ran, for tests.
+    #[cfg(test)]
+    reinspection_runs: usize,
     /// The Generate code dialog, while open, and its focus.
     codegen: codegen::Codegen,
     /// The Export… dialog, its OS dialogs and the Replace API docs question.
@@ -313,6 +320,9 @@ impl Shell {
             url_edit: None,
             variable_popover: None,
             variable_hover: None,
+            reinspections: HashMap::new(),
+            #[cfg(test)]
+            reinspection_runs: 0,
             codegen: codegen::Codegen::new(cx),
             export: export::Export::new(cx),
             curl_undo: None,
@@ -409,8 +419,9 @@ impl Shell {
         let OpenedWorkspace::Loaded(engine) = &self.workspace else {
             return Err("No workspace is open.".to_owned());
         };
+        let draft = self.drafts.get(id).map(|draft| &draft.request);
         let inspection = engine
-            .inspect_current(id, self.active_environment.as_deref(), &self.current)
+            .inspect_draft_current(id, draft, self.active_environment.as_deref(), &self.current)
             .map_err(|error| error.to_string())?;
         self.requests
             .insert(id.to_owned(), RequestState::new(inspection));
@@ -432,8 +443,10 @@ impl Shell {
         if let OpenedWorkspace::Loaded(engine) = &self.workspace {
             let environment = self.active_environment.as_deref();
             let current = &self.current;
+            let drafts = &self.drafts;
             self.requests.retain(|id, state| {
-                match engine.inspect_current(id, environment, current) {
+                let draft = drafts.get(id).map(|draft| &draft.request);
+                match engine.inspect_draft_current(id, draft, environment, current) {
                     Ok(inspection) => {
                         state.inspection = inspection;
                         true
@@ -447,6 +460,50 @@ impl Shell {
         }
         self.remark_open_inputs(cx);
         cx.notify();
+    }
+
+    /// Inspects the open request `id` again after its draft changed, so the unresolved
+    /// notice counts what a send of the draft would resolve. Keeps the previous inspection
+    /// when the engine cannot inspect it.
+    pub(super) fn reinspect_request(&mut self, id: &str) {
+        self.reinspections.remove(id);
+        #[cfg(test)]
+        {
+            self.reinspection_runs += 1;
+        }
+        let OpenedWorkspace::Loaded(engine) = &self.workspace else {
+            return;
+        };
+        let Some(state) = self.requests.get_mut(id) else {
+            return;
+        };
+        let draft = self.drafts.get(id).map(|draft| &draft.request);
+        match engine.inspect_draft_current(
+            id,
+            draft,
+            self.active_environment.as_deref(),
+            &self.current,
+        ) {
+            Ok(inspection) => state.inspection = inspection,
+            Err(error) => log::warn!("cannot inspect request {id}: {error}"),
+        }
+    }
+
+    /// Schedules [`Shell::reinspect_request`] for `id` once `REINSPECT_DELAY` passes with no
+    /// further edit: inspecting reads the secret store, which a keystroke must not wait for.
+    pub(super) fn schedule_reinspection(&mut self, id: &str, cx: &mut Context<Self>) {
+        let key = id.to_owned();
+        let task = cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(REINSPECT_DELAY).await;
+            let id = key.clone();
+            if let Err(error) = this.update(cx, |shell, cx| {
+                shell.reinspect_request(&id);
+                cx.notify();
+            }) {
+                log::debug!("the shell closed before {key} was inspected: {error}");
+            }
+        });
+        self.reinspections.insert(id.to_owned(), task);
     }
 
     /// Opens the environment menu and focuses it, or closes it when open. Does nothing without
@@ -652,6 +709,9 @@ pub(crate) const CANNOT_OPEN_REQUEST: &str = "Cannot open the request";
 
 /// The paint order of the toast stack: above the palette (3, 4) and the dialogs (3).
 const TOAST_PRIORITY: usize = 5;
+
+/// How long a request's draft rests before its unresolved notice is computed again.
+const REINSPECT_DELAY: Duration = Duration::from_millis(200);
 
 /// A region the UI automation tree and the layout tests find by `id`.
 fn region(id: &'static str) -> Stateful<Div> {

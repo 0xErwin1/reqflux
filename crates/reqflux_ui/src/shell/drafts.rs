@@ -341,6 +341,7 @@ impl Shell {
             .filter(|draft| **draft != before)
             .map(|draft| Slot::of(&before, draft));
         self.store_draft(id);
+        self.schedule_reinspection(id, cx);
         if let Some(slot) = slot {
             cx.default_global::<DraftHistories>().record(
                 id,
@@ -388,6 +389,7 @@ impl Shell {
                 self.delete_stored_draft(id);
             }
         }
+        self.reinspect_request(id);
         self.focus.focus(window, cx);
         cx.notify();
     }
