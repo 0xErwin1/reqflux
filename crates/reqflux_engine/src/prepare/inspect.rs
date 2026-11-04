@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use reqflux_core::model::{RequestNode, Variable, Workspace};
+use reqflux_core::model::{Request, RequestNode, Variable, Workspace};
 use reqflux_core::template::{DynamicVariable, Scopes, Segment, SequentialDynamicSource, segments};
 
 use super::{
@@ -120,12 +120,20 @@ pub fn inspect(
         environment,
         &CurrentValues::default(),
         None,
+        None,
     )
 }
 
 /// [`inspect`] with the `current` values of the workspace, and with the valueless secrets
 /// read from `store` when there is one, so a stored secret reports resolved (keyring-secrets
 /// S4). Its value stays out of the inspection.
+///
+/// With a `draft`, the unresolved names, the problem and the URL follow the draft, as a send
+/// of it would resolve them; [`Inspection::request`] stays the stored request.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "the one internal path every public entry point funnels into"
+)]
 pub(crate) fn inspect_stored(
     workspace: &Workspace,
     root: &Path,
@@ -133,9 +141,10 @@ pub(crate) fn inspect_stored(
     environment: Option<&str>,
     current: &CurrentValues,
     store: Option<&dyn SecretStore>,
+    draft: Option<&Request>,
 ) -> Result<Inspection, ExecuteError> {
     let target = select::find(workspace, selector)?;
-    let request = &target.request.request;
+    let request = draft.unwrap_or(&target.request.request);
     let collection = &target.collection.collection;
 
     let params: Vec<(String, String)> = enabled(&request.params)

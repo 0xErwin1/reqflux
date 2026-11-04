@@ -845,7 +845,10 @@ none: the selected request with its scripts, the URL as written with the enabled
 appended after the separator `prepare` uses, the names `prepare` reports unresolved with that
 environment, and `Inspection::spans`, which splits a text into literal runs and `{{name}}`
 references marked as resolving (globals, collection, environment or dynamic variables) and as
-secret (secret in the globals, the collection or an environment the collection allows). When
+secret (secret in the globals, the collection or an environment the collection allows).
+`Engine::inspect_draft_current` does the same for a draft in the place of the stored document, so
+the window's unresolved notice counts what a send of the draft would report; the window inspects
+again after every draft edit, undo and redo. When
 `prepare` fails with that environment (unknown environment, environment not allowed for the
 collection, unsupported auth, invalid GraphQL variables), `problem` carries its error text,
 `unresolved` is empty, and the spans still resolve with the environment when the collection

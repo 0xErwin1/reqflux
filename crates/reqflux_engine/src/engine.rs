@@ -449,6 +449,23 @@ impl Engine {
         environment: Option<&str>,
         current: &CurrentValues,
     ) -> Result<Inspection, ExecuteError> {
+        self.inspect_draft_current(selector, None, environment, current)
+    }
+
+    /// [`Engine::inspect_current`] of `draft` in the place of the request `selector`'s
+    /// document when given, so the unresolved names and the problem agree with what
+    /// [`Engine::execute_draft`] sends. [`Inspection::request`] stays the stored request.
+    ///
+    /// # Errors
+    ///
+    /// The errors of [`inspect`](crate::inspect).
+    pub fn inspect_draft_current(
+        &self,
+        selector: &str,
+        draft: Option<&Request>,
+        environment: Option<&str>,
+        current: &CurrentValues,
+    ) -> Result<Inspection, ExecuteError> {
         inspect_stored(
             self.workspace(),
             &self.root,
@@ -456,6 +473,7 @@ impl Engine {
             environment,
             current,
             Some(self.secrets.as_ref()),
+            draft,
         )
     }
 
