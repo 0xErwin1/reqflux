@@ -1,7 +1,8 @@
 //! The code editors of the request panes (design/syntax/01): gpui-component's code editor
 //! highlighting with one of `bolt`'s bundled grammars, or none for plain text. Text types
 //! as it is pressed: no closing bracket or quote is added and Enter keeps no indent, so a
-//! keystroke lands in the draft as typed, as the plain editor did.
+//! keystroke lands in the draft as typed, as the plain editor did. The gutter has line
+//! numbers and no fold markers, as the artboard draws it.
 
 use bolt::tokens::EditorMetrics;
 use gpui::{App, AppContext as _, Context, Entity, Styled, Window};
@@ -33,6 +34,7 @@ pub(crate) fn open<T: 'static>(
         EditorState::new(window, cx)
             .language(language)
             .line_number(true)
+            .folding(false)
             .auto_close(false)
             .smart_indent(false)
     });

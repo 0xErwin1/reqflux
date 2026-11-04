@@ -13,6 +13,7 @@ use crate::shell::request::spans;
 use crate::workspace_tests::{demo_workspace, write};
 
 const REQUEST: &str = "01J000000000000000000000M2";
+const BODY: &str = "01J000000000000000000000M3";
 
 /// A workspace whose collection declares `base` and whose request `GET Marks` goes to
 /// `{{base}}/ok/{{tenant}}` with the header `X-Base: v {{base}} {{nope}}`; `tenant` and
@@ -177,4 +178,58 @@ fn an_unresolved_reference_is_marked_with_the_danger_role(cx: &mut TestAppContex
             Some(danger)
         );
     });
+}
+
+/// A workspace whose collection declares `base` and whose request `POST Body` has the raw
+/// JSON body `{"a": {{base}}, "b": "{{nope}}"}`: an unquoted reference and a quoted one.
+fn body_marks_workspace() -> TempDir {
+    let dir = demo_workspace();
+    let root = dir.path();
+    write(
+        root,
+        "collections/api/collection.toml",
+        "id = \"01J000000000000000000000M1\"\nname = \"API\"\n\n\
+         [[variables]]\nkey = \"base\"\nvalue = \"1\"\n",
+    );
+    write(
+        root,
+        "collections/api/body.req.toml",
+        &format!(
+            "id = \"{BODY}\"\nname = \"Body\"\nmethod = \"POST\"\nurl = \"https://h/b\"\n\n\
+             [body]\nmode = \"raw\"\nlanguage = \"json\"\n\
+             text = '''{{\"a\": {{{{base}}}}, \"b\": \"{{{{nope}}}}\"}}'''\n"
+        ),
+    );
+    dir
+}
+
+fn body_marks(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<Vec<TextDecoration>> {
+    cx.update(|_, cx| {
+        let edit = shell.read(cx).body_edit.as_ref()?;
+        Some(edit.marks.shown(cx))
+    })
+}
+
+#[gpui::test]
+fn the_raw_body_editor_marks_its_references_quoted_or_not(cx: &mut TestAppContext) {
+    let dir = body_marks_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{BODY}"));
+    click(cx, "request-tab-body");
+    click(cx, "request-body-code");
+    assert!(cx.update(|_, cx| shell.read(cx).body_edit.is_some()));
+
+    let opened = expected(cx, &[(6..14, true), (22..30, false)]);
+    assert_eq!(body_marks(cx, &shell), Some(opened));
+
+    cx.simulate_keystrokes("ctrl-end");
+    type_text(cx, "{{base}}");
+    let typed = expected(cx, &[(6..14, true), (22..30, false), (32..40, true)]);
+    assert_eq!(body_marks(cx, &shell), Some(typed));
+
+    cx.simulate_keystrokes("backspace");
+    cx.run_until_parked();
+    let unbraced = expected(cx, &[(6..14, true), (22..30, false)]);
+    assert_eq!(body_marks(cx, &shell), Some(unbraced));
 }

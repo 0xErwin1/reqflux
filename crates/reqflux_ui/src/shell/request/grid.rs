@@ -3,8 +3,8 @@
 //! description and the delete control, each cell with a line on every side. Disabled rows are
 //! muted and struck through, rows with an unresolved reference carry a danger wash, and a
 //! value that references a secret shows `••••••••` with a SECRET badge. Clicking a row's
-//! enable box toggles the row in the draft; clicking its key or value cell turns the cell
-//! into a well with a text field. The delete control removes the row, and the add row under
+//! enable box toggles the row in the draft; clicking its key, value or description cell turns
+//! the cell into a well with a text field. The delete control removes the row, and the add row under
 //! the grid appends one; an empty editable grid shows its header and the add row, not an
 //! empty state. Rows and the header take the heights and the face of `bolt`'s data
 //! grid.
@@ -92,8 +92,8 @@ fn grid_text<E: Styled>(element: E, cx: &App) -> E {
 /// The grid of `rows`, a `table` of `kind` (`params` and `param`, `headers` and `header`, or
 /// `body`). A row whose entry in `files` is true holds a file path and shows a File icon.
 /// When `request_id` is `Some`, every row's enable box toggles the row in the request's
-/// draft, and its key and value cells open the editable cell field; with `None` the grid is
-/// read-only.
+/// draft, and its key, value and description cells open the editable cell field; with `None`
+/// the grid is read-only.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn render(
     inspection: &Inspection,
@@ -248,13 +248,20 @@ fn data_row(
         }
     };
 
+    let description: AnyElement = match editing.filter(|edit| edit.field == CellField::Description)
+    {
+        Some(edit) => editing_cell(edit, shell, cx).into_any_element(),
+        None => cell_part(request_id, table, n, CellField::Description, cx)
+            .font_family(bolt::fonts::ui_family(cx))
+            .text_color(colors.muted)
+            .when(off, |this| this.line_through())
+            .child(
+                cell_text(table, n, CellField::Description)
+                    .child(row.description.clone().unwrap_or_default()),
+            )
+            .into_any_element(),
+    };
     let line = colors.line;
-    let description = Column::Description
-        .shape(part(format!("request-{table}-description-{n}")), line)
-        .font_family(bolt::fonts::ui_family(cx))
-        .text_color(colors.muted)
-        .when(off, |this| this.line_through())
-        .child(row.description.clone().unwrap_or_default());
 
     grid_text(
         labeled_row(
@@ -348,7 +355,7 @@ fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -
         }))
 }
 
-/// The key or value cell of the 1-based row `n` of `table`, element id
+/// The key, value or description cell of the 1-based row `n` of `table`, element id
 /// `request-<table>-<field>-<n>`. When `request_id` is `Some`, clicking it opens the
 /// editable cell field in the cell's place.
 fn cell_part(
@@ -372,22 +379,24 @@ fn cell_part(
     }
 }
 
-/// The key or value cell of row `n` of `table`, with its element id; the cell fills the
-/// row's height, so an empty key or value still has a place to click.
+/// The key, value or description cell of row `n` of `table`, with its element id; the cell
+/// fills the row's height, so an empty one still has a place to click.
 fn cell_shell(table: &str, n: usize, field: CellField, line: Hsla) -> Stateful<Div> {
     let (name, column) = match field {
         CellField::Key => ("key", Column::Key),
         CellField::Value => ("value", Column::Value),
+        CellField::Description => ("description", Column::Description),
     };
     column.shape(part(format!("request-{table}-{name}-{n}")), line)
 }
 
-/// The text of the key or value cell of row `n` of `table`, element id
+/// The text of the key, value or description cell of row `n` of `table`, element id
 /// `request-<table>-<field>-<n>-text`: where the open field's text starts too.
 fn cell_text(table: &str, n: usize, field: CellField) -> Stateful<Div> {
     let name = match field {
         CellField::Key => "key",
         CellField::Value => "value",
+        CellField::Description => "description",
     };
     part(format!("request-{table}-{name}-{n}-text"))
         .flex_1()
@@ -419,7 +428,11 @@ fn editing_cell(edit: &CellEdit, shell: &Shell, cx: &mut Context<Shell>) -> Stat
                 cx,
             )
         }
-        CellField::Key => cell,
+        CellField::Key | CellField::Description => cell,
+    };
+    let face = match edit.field {
+        CellField::Description => bolt::fonts::ui_family(cx),
+        CellField::Key | CellField::Value => bolt::fonts::grid_family(cx),
     };
     cell.bg(colors.background)
         .child(
@@ -452,7 +465,7 @@ fn editing_cell(edit: &CellEdit, shell: &Shell, cx: &mut Context<Shell>) -> Stat
                 .flex_1()
                 .min_w_0()
                 .text_size(bolt::fonts::grid_font_size(cx))
-                .font_family(bolt::fonts::grid_family(cx))
+                .font_family(face)
                 .text_color(colors.foreground),
         )
         .when(edit.secret, |this| {

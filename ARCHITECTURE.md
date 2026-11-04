@@ -522,9 +522,11 @@ last while it is in flight, whatever tab is active; the split layouts cancel the
 
 In the Params and Headers grids, each row carries an enable box (`request-<params|headers>-enabled-<n>`) whose click toggles the row's `enabled`
 state in the same draft on the spot, the grid shows the draft's rows while a draft exists,
-and clicking a row's key or value cell (`request-<table>-<key|value>-<n>`) swaps the cell
-for a field (`request-cell-input`) seeded with the cell's text; Enter commits it to that
-cell of the same draft, Escape drops what was typed, and clicking another cell commits the
+and clicking a row's key, value or description cell
+(`request-<table>-<key|value|description>-<n>`) swaps the cell for a field
+(`request-cell-input`) seeded with the cell's text (a description in the interface face, an
+empty one for a row without; an emptied description is removed from the row); Enter commits
+it to that cell of the same draft, Escape drops what was typed, and clicking another cell commits the
 open field first, like a spreadsheet; every cell field (the grids', the Variables document's,
 the auth fields', the custom verb's) also commits when it loses focus, as the URL field does
 (`Shell::watch_cell_blur`, run on every render, follows the open field's input). A value that
@@ -557,8 +559,15 @@ exists:
   grammar of its language (JSON, XML, HTML, JavaScript; Text is plain), and the open editor
   follows the language menu. The code editors are gpui-component's `EditorState` through
   `shell::code_edit`, with line numbers and without auto-closed brackets or smart indent, so a
-  keystroke lands as typed; Tab indents by two spaces. Read-only wells draw `bolt`'s runs
-  through `shell::syntax` with the `{{name}}` marks laid over them. The
+  keystroke lands as typed; Tab indents by two spaces, and the gutter has no fold markers.
+  Read-only wells draw `bolt`'s runs through `shell::syntax` with the `{{name}}` marks laid
+  over them, the same marks the URL field draws (`request::spans::mark_style`: tint when the
+  reference resolves, danger when it does not). A reference may stand where a JSON value goes,
+  quoted or not: the read-only well highlights the line with an unquoted reference masked by a
+  string of the same length, so the keys after it keep the `property` role, and the open editor
+  marks every reference with decorations (`shell::input_marks`, `BodyEdit::marks`) set again on
+  every change. The editor highlights the text as it is, so while an unquoted reference is in the
+  text the grammar's error recovery colors the keys after it as strings (a `bolt` gap). The
   urlencoded and form-data grids edit like Params and Headers (a file part's value is its
   path). The GraphQL query (`request-body-query`) and variables (`request-body-variables`)
   each open a code editor (`request-body-query-input`, `request-body-variables-input`); the

@@ -4,8 +4,7 @@
 
 use std::ops::Range;
 
-use bolt::tokens::Borders;
-use gpui::{App, Div, HighlightStyle, ParentElement, Styled, UnderlineStyle, div, prelude::*};
+use gpui::{App, Div, HighlightStyle, ParentElement, Styled, div, prelude::*};
 
 /// The syntax runs of one line, byte ranges into that line.
 pub(crate) type LineRuns = Vec<(Range<usize>, HighlightStyle)>;
@@ -112,35 +111,12 @@ pub(crate) fn styled(text: String, style: HighlightStyle) -> Div {
         .child(text)
 }
 
-/// The mark of a `{{name}}` reference as the URL bar draws it: tint on its wash when it
-/// resolves, warning on its wash and underlined when it does not.
-pub(crate) fn reference_style(resolves: bool, cx: &App) -> HighlightStyle {
-    let colors = bolt::colors(cx);
-    let tint = bolt::brand::brand(cx).accent_tint;
-    match resolves {
-        true => HighlightStyle {
-            color: Some(tint),
-            background_color: Some(crate::tokens::variable_wash(tint)),
-            ..Default::default()
-        },
-        false => HighlightStyle {
-            color: Some(colors.warning),
-            background_color: Some(crate::tokens::variable_wash(colors.warning)),
-            underline: Some(UnderlineStyle {
-                thickness: Borders::THIN,
-                color: Some(colors.warning),
-                wavy: false,
-            }),
-            ..Default::default()
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use gpui::{TestAppContext, hsla};
 
     use super::*;
+    use crate::shell::request::spans;
     use crate::theme::PaletteMode;
     use crate::tokens::tests::rgb_of;
 
@@ -168,8 +144,8 @@ mod tests {
             "the closing brace: operator"
         );
 
-        let resolved = cx.update(|cx| reference_style(true, cx));
-        let unresolved = cx.update(|cx| reference_style(false, cx));
+        let resolved = cx.update(|cx| spans::mark_style(true, cx));
+        let unresolved = cx.update(|cx| spans::mark_style(false, cx));
         let drawn = pieces(
             14,
             runs.get(1).map(Vec::as_slice).unwrap_or_default(),

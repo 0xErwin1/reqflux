@@ -345,6 +345,45 @@ fn the_urlencoded_grid_edits_the_draft(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_body_grids_edit_their_row_descriptions(cx: &mut TestAppContext) {
+    let dir = body_workspace(
+        "mode = \"formdata\"\n\n[[body.parts]]\nkind = \"text\"\nkey = \"a\"\nvalue = \"1\"\n\n\
+         [[body.parts]]\nkind = \"file\"\nkey = \"upload\"\npath = \"/tmp/f.bin\"\n",
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+
+    click(cx, "request-body-description-1");
+    type_text(cx, "text");
+    cx.simulate_keystrokes("enter");
+    click(cx, "request-body-description-2");
+    type_text(cx, "file");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let Some(Body::FormData { parts }) = draft_body(cx, &shell) else {
+        panic!("a form-data draft");
+    };
+    assert_eq!(
+        parts,
+        vec![
+            FormPart::Text {
+                key: "a".to_owned(),
+                value: "1".to_owned(),
+                description: Some("text".to_owned()),
+                enabled: true,
+            },
+            FormPart::File {
+                key: "upload".to_owned(),
+                path: "/tmp/f.bin".to_owned(),
+                description: Some("file".to_owned()),
+                enabled: true,
+            },
+        ]
+    );
+}
+
+#[gpui::test]
 fn a_file_part_value_is_its_path(cx: &mut TestAppContext) {
     let dir = body_workspace(
         "mode = \"formdata\"\n\n[[body.parts]]\nkind = \"file\"\nkey = \"upload\"\n\

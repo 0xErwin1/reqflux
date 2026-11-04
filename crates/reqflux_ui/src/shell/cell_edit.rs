@@ -1,6 +1,6 @@
-//! The editable cell of the Params, Headers and body grids: clicking a row's key or value cell
-//! swaps it for a focused text field seeded with the cell's text as the draft has it, else
-//! as the file does. Enter commits the text into that row of the draft; Escape drops what
+//! The editable cell of the Params, Headers and body grids: clicking a row's key, value or
+//! description cell swaps it for a focused text field seeded with the cell's text as the
+//! draft has it, else as the file does. Enter commits the text into that row of the draft; Escape drops what
 //! was typed, since nothing was written while typing; clicking another cell commits the
 //! open field first, like a spreadsheet. A value that references a secret is never seeded:
 //! the field opens empty with a `Secret value` placeholder and an empty commit keeps the
@@ -18,7 +18,7 @@ use gpui_component::input::{InputEvent, InputState};
 
 use super::Shell;
 use super::auth_edit::{AUTH_TABLE, TYPED_PREFIX};
-use super::drafts::grid_cell;
+use super::drafts::grid_text;
 use super::input_marks::InputMarks;
 use super::method_edit::METHOD_TABLE;
 use super::setting_edit::SETTINGS_TABLE;
@@ -48,6 +48,8 @@ pub(crate) enum CellField {
     Key,
     /// The row's value.
     Value,
+    /// The row's description.
+    Description,
 }
 
 /// The open cell field: the cell it edits — the request, the table, the 1-based row and
@@ -102,20 +104,12 @@ impl Shell {
         let mut request = self
             .displayed_request(id, &state.inspection.request.request)
             .clone();
-        let Some((key, value, _)) = grid_cell(&mut request, table, n) else {
+        let Some(stored) = grid_text(&mut request, table, n, field) else {
             return;
         };
-        let (text, secret) = match field {
-            CellField::Key => (key.clone(), false),
-            CellField::Value => {
-                let secret = state.inspection.references_secret(value);
-                if secret {
-                    (String::new(), true)
-                } else {
-                    (value.clone(), false)
-                }
-            }
-        };
+        // A value that references a secret opens empty; keys and descriptions are text.
+        let secret = field == CellField::Value && state.inspection.references_secret(&stored);
+        let text = if secret { String::new() } else { stored };
         let input = cx.new(|cx| {
             let mut state = InputState::new(window, cx);
             if secret {
@@ -128,7 +122,8 @@ impl Shell {
             state.set_value(text, window, cx);
             state.focus(window, cx);
         });
-        // Keys are plain text at rest too, so only a value shows its references.
+        // Keys and descriptions are plain text at rest too, so only a value shows its
+        // references.
         let marks = (field == CellField::Value && !secret).then(|| self.mark_input(id, &input, cx));
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),

@@ -43,10 +43,10 @@
   grammar to host the injection, or a ReqFlux-side split of each section into a plain head and a
   json-highlighted body; neither exists, so the body is drawn plain and marked "later".
 
-  {{variables}} keep their resolved (accent tint wash) and unresolved (warning wash, underline)
-  marks; the mark draws over the syntax role of the token that holds it.
+  {{variables}} keep their resolved (accent tint wash) and unresolved (danger wash, underline,
+  as the URL field and bolt's danger role draw it) marks; the mark draws over the syntax role of the token that holds it.
   In the Generate code dialog (section 5) the marks are bolt ModalCode tones: bold text in the
-  tint or the warning color, without the wash or the underline (T8c).
+  tint or the danger color, without the wash or the underline (T8c).
 
   Changes from today's ReqFlux tokenizer (4 roles, reqflux_ui tokens.rs): key stays #A9A4B2 as
   property; punctuation moves from #8E8996 (punct) to bolt's operator #C6C3CC; light number moves
@@ -68,12 +68,12 @@ body{margin:0;background:#050507}
 /* palettes: bolt Colors::dark/light and SyntaxColors::dark/light, ReqFlux accent */
 .dark{--desk:#050507;--bg:#09090B;--panel:#100F13;--raised:#1A181E;--line:#232128;--line2:#37333D;
   --strong:#F7F4F7;--fg:#C6C3CC;--muted:#8E8996;--tint:#9DB1FF;--tintw:rgba(157,177,255,.12);
-  --warn:#FFC23D;--warnw:rgba(255,194,61,.12);--ok:#7BE0A0;
+  --warn:#FFC23D;--warnw:rgba(255,194,61,.12);--dng:#FF6B5E;--dngw:rgba(255,107,94,.12);--ok:#7BE0A0;
   --kw:#9DB1FF;--str:#7BE0A0;--num:#B79CFF;--com:#8E8996;--typ:#6EA8FF;--fn:#FFC23D;--op:#C6C3CC;
   --pl:#F7F4F7;--ns:#E5A86E;--fld:#5CCFC9;--prop:#A9A4B2}
 .light{--desk:#E6E1E9;--bg:#F6F4F7;--panel:#FFFFFF;--raised:#EEEAF0;--line:#E3DEE6;--line2:#CBC4D1;
   --strong:#141118;--fg:#3B3740;--muted:#6B6572;--tint:#2B45B8;--tintw:rgba(43,69,184,.12);
-  --warn:#B7791F;--warnw:rgba(183,121,31,.12);--ok:#1C7F45;
+  --warn:#B7791F;--warnw:rgba(183,121,31,.12);--dng:#C7362B;--dngw:rgba(199,54,43,.12);--ok:#1C7F45;
   --kw:#2B45B8;--str:#1C7F45;--num:#6B4FD8;--com:#6B6572;--typ:#1F5FD1;--fn:#B7791F;--op:#3B3740;
   --pl:#141118;--ns:#9A5418;--fld:#0B7A80;--prop:#5C5766}
 
@@ -116,7 +116,7 @@ body{margin:0;background:#050507}
 .typ{color:var(--typ)}.fn{color:var(--fn);font-weight:700}.op{color:var(--op)}.pl{color:var(--pl)}
 .ns{color:var(--ns)}.fld{color:var(--fld)}.prop{color:var(--prop)}
 .var{color:var(--tint);background:var(--tintw)}
-.unres{color:var(--warn);background:var(--warnw);box-shadow:inset 0 -1px 0 var(--warn)}
+.unres{color:var(--dng);background:var(--dngw);box-shadow:inset 0 -1px 0 var(--dng)}
 
 /* legend */
 .legend{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:16px}
@@ -185,16 +185,17 @@ body{margin:0;background:#050507}
 
   <!-- (2) Raw body editor -->
   <div class="state">
-    <div class="state-head"><h3>2 · Raw body editor · JSON while typing</h3><p>Same roles as the response. Highlighting follows each keystroke; an unfinished string highlights to the end of the line, the error stays a parse state, never a color.</p></div>
+    <div class="state-head"><h3>2 · Raw body editor · JSON while typing</h3><p>Same roles as the response. Highlighting follows each keystroke; an unfinished string highlights to the end of the line, the error stays a parse state, never a color. A reference may stand where a value goes, quoted or not (line 4): it is marked as a variable, resolved or danger, and the keys after it keep the property role (the read-only well masks the reference before parsing; the open editor parses the text as typed, so until bolt's JSON grammar tolerates a bare reference the grammar's error recovery draws those keys as strings). The gutter has line numbers and no fold markers.</p></div>
     <div class="c14 isl" aria-label="Raw body editor, JSON" style="max-width:820px">
       <div class="ph"><span class="c6 tab">Params</span><span class="c6 tab">Headers 3</span><span class="c6 tab">Auth</span><span class="c6 tab on">Body</span><span class="c6 tab">Scripts</span><span style="flex-grow:1"></span><div class="c6 seg"><span>none</span><span class="c4 on">raw</span><span>form</span><span>urlencoded</span><span>GraphQL</span></div><span class="hint m">JSON</span></div>
       <div class="code m">
         <div class="ln"><span class="no">1</span><span class="tx"><span class="op">{</span></span></div>
         <div class="ln"><span class="no">2</span><span class="tx">  <span class="prop">"customer"</span><span class="op">:</span> <span class="str">"<span class="var">{{customer_id}}</span>"</span><span class="op">,</span></span></div>
         <div class="ln"><span class="no">3</span><span class="tx">  <span class="prop">"currency"</span><span class="op">:</span> <span class="str">"eur"</span><span class="op">,</span></span></div>
-        <div class="ln"><span class="no">4</span><span class="tx">  <span class="prop">"tenant"</span><span class="op">:</span> <span class="str">"<span class="unres">{{tenant_id}}</span>"</span><span class="op">,</span></span></div>
-        <div class="ln cur"><span class="no" style="color:var(--muted)">5</span><span class="tx">  <span class="prop">"lines"</span><span class="op">: [{</span> <span class="prop">"price"</span><span class="op">:</span> <span class="str">"price_pro_mo</span><span class="caret"></span></span></div>
-        <div class="ln"><span class="no">6</span><span class="tx"><span class="op">}</span></span></div>
+        <div class="ln"><span class="no">4</span><span class="tx">  <span class="prop">"amount"</span><span class="op">:</span> <span class="var">{{amount}}</span><span class="op">,</span></span></div>
+        <div class="ln"><span class="no">5</span><span class="tx">  <span class="prop">"tenant"</span><span class="op">:</span> <span class="str">"<span class="unres">{{tenant_id}}</span>"</span><span class="op">,</span></span></div>
+        <div class="ln cur"><span class="no" style="color:var(--muted)">6</span><span class="tx">  <span class="prop">"lines"</span><span class="op">: [{</span> <span class="prop">"price"</span><span class="op">:</span> <span class="str">"price_pro_mo</span><span class="caret"></span></span></div>
+        <div class="ln"><span class="no">7</span><span class="tx"><span class="op">}</span></span></div>
       </div>
     </div>
   </div>

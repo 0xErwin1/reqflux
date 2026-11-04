@@ -1,11 +1,11 @@
-//! The `{{name}}` marks of a single-line field while it is being edited, drawn as the
-//! read-only text draws them ([`super::request::spans`]): bolt's input decorations style the
+//! The `{{name}}` marks of a field while it is being edited (a single-line field, or the raw
+//! body's code editor), drawn as the read-only text draws them ([`super::request::spans`]): bolt's input decorations style the
 //! reference ranges the engine's inspection finds in the field's text. The ranges follow
 //! edits but are never detected, so every change of the text, and every `set_value`, sets
 //! them again from the text as it is.
 
 use gpui::{App, Context, Entity, Subscription};
-use gpui_component::input::{InputEvent, InputState};
+use gpui_component::input::{EditorState, InputEvent, InputState};
 use reqflux_engine::{Inspection, Span};
 
 use bolt::controls::{TextDecoration, TextDecorationCollection, decorate_input};
@@ -23,6 +23,26 @@ pub(crate) struct InputMarks {
 
 impl InputMarks {
     /// The marks as the field draws them now: the tracked ranges with their styles.
+    #[cfg(test)]
+    pub(crate) fn shown(&self, cx: &App) -> Vec<TextDecoration> {
+        self.collection
+            .get_ranges(cx)
+            .into_iter()
+            .zip(&self.decorations)
+            .map(|(range, decoration)| TextDecoration::new(range, decoration.style))
+            .collect()
+    }
+}
+
+/// The marks of the open raw body editor: the decorations installed on its editor and the
+/// styles they were set with. [`Shell::remark_body_edit`] sets them again on every change.
+pub(crate) struct EditorMarks {
+    collection: TextDecorationCollection,
+    decorations: Vec<TextDecoration>,
+}
+
+impl EditorMarks {
+    /// The marks as the editor draws them now: the tracked ranges with their styles.
     #[cfg(test)]
     pub(crate) fn shown(&self, cx: &App) -> Vec<TextDecoration> {
         self.collection
@@ -79,6 +99,43 @@ impl Shell {
         }
     }
 
+    /// Marks the references of the code editor `input` of the request `request_id`, whose
+    /// text is JSON where a reference may stand in place of a value, quoted or not.
+    pub(super) fn mark_editor(
+        &self,
+        request_id: &str,
+        input: &Entity<EditorState>,
+        cx: &mut Context<Self>,
+    ) -> EditorMarks {
+        let text = input.read(cx).value().to_string();
+        let decorations = self.text_decorations(request_id, &text, cx);
+        let collection = input.update(cx, |state, cx| {
+            state.create_decorations_collection(decorations.clone(), cx)
+        });
+        EditorMarks {
+            collection,
+            decorations,
+        }
+    }
+
+    /// Sets the marks of the open raw body editor again from its text, after a change or
+    /// once the requests were inspected anew.
+    pub(super) fn remark_body_edit(&mut self, cx: &mut Context<Self>) {
+        let Some((request_id, input)) = self
+            .body_edit
+            .as_ref()
+            .map(|edit| (edit.request_id.clone(), edit.input.clone()))
+        else {
+            return;
+        };
+        let text = input.read(cx).value().to_string();
+        let decorations = self.text_decorations(&request_id, &text, cx);
+        if let Some(edit) = self.body_edit.as_mut() {
+            edit.marks.collection.set(decorations.clone(), cx);
+            edit.marks.decorations = decorations;
+        }
+    }
+
     /// Sets the marks of the open field `input` again from its text, after a change or a
     /// `set_value`.
     pub(super) fn remark_input(
@@ -105,7 +162,7 @@ impl Shell {
         }
     }
 
-    /// Sets the marks of the open URL and cell fields again, after the requests were
+    /// Sets the marks of the open URL, cell and body fields again, after the requests were
     /// inspected anew: a variable added, changed or another environment may resolve
     /// differently.
     pub(super) fn remark_open_inputs(&mut self, cx: &mut Context<Self>) {
@@ -120,6 +177,7 @@ impl Shell {
         for (request_id, input) in open.into_iter().flatten() {
             self.remark_input(&request_id, &input, cx);
         }
+        self.remark_body_edit(cx);
     }
 
     /// The decorations of the text of `input` under the inspection of the request
@@ -130,11 +188,17 @@ impl Shell {
         input: &Entity<InputState>,
         cx: &App,
     ) -> Vec<TextDecoration> {
+        let text = input.read(cx).value().to_string();
+        self.text_decorations(request_id, &text, cx)
+    }
+
+    /// The decorations of `text` under the inspection of the request `request_id`; none
+    /// when the request is not loaded.
+    fn text_decorations(&self, request_id: &str, text: &str, cx: &App) -> Vec<TextDecoration> {
         let Some(state) = self.requests.get(request_id) else {
             return Vec::new();
         };
-        let text = input.read(cx).value().to_string();
-        decorations(&state.inspection, &text, cx)
+        decorations(&state.inspection, text, cx)
     }
 }
 

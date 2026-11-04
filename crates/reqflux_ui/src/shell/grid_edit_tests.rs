@@ -18,8 +18,8 @@ const GRID: &str = "01J00000000000000000000052";
 const WORKSPACE: &str = "01J00000000000000000000900";
 
 /// A workspace whose collection `API` declares `base` and the valueless secret `token`,
-/// holding `GET Grid` with two params and two headers, the second of which references the
-/// secret.
+/// holding `GET Grid` with two params and two headers, the first of which has a description and
+/// the second of which references the secret.
 fn grid_workspace() -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
@@ -39,7 +39,7 @@ fn grid_workspace() -> TempDir {
             "id = \"{GRID}\"\nname = \"Grid\"\nmethod = \"GET\"\nurl = \"{{{{base}}}}/grid\"\n\n\
              [[params]]\nkey = \"page\"\nvalue = \"1\"\n\n\
              [[params]]\nkey = \"q\"\nvalue = \"reqflux\"\n\n\
-             [[headers]]\nkey = \"X-One\"\nvalue = \"1\"\n\n\
+             [[headers]]\nkey = \"X-One\"\nvalue = \"1\"\ndescription = \"first header\"\n\n\
              [[headers]]\nkey = \"Authorization\"\nvalue = \"Bearer {{{{token}}}}\"\n"
         ),
     );
@@ -319,6 +319,123 @@ fn escape_in_the_cell_drops_the_text_and_creates_no_draft(cx: &mut TestAppContex
     // The stored value is unchanged: the cell seeds from the file again.
     click(cx, "request-headers-value-1");
     assert_eq!(field_text(cx, &shell).as_deref(), Some("1"));
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn clicking_a_description_cell_opens_the_field_and_enter_persists(cx: &mut TestAppContext) {
+    let dir = grid_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_grid(cx);
+
+    click(cx, "request-headers-description-1");
+    assert_eq!(
+        field_text(cx, &shell).as_deref(),
+        Some("first header"),
+        "seeded with the stored description"
+    );
+    type_cell(cx, "renamed");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    assert!(field_text(cx, &shell).is_none(), "the field closed");
+    let draft = draft_request(cx, &shell, GRID).expect("Enter created the draft");
+    assert_eq!(draft.headers[0].description.as_deref(), Some("renamed"));
+    assert_eq!(draft.headers[0].key, "X-One", "the key is untouched");
+    assert_eq!(draft.headers[0].value, "1", "the value is untouched");
+
+    click(cx, "request-headers-description-1");
+    assert_eq!(field_text(cx, &shell).as_deref(), Some("renamed"));
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    let (_shell_2, _cx_2) = render(cx, &dir, &state_path);
+    let stored = stored_request(&state_path, GRID).expect("the draft was persisted");
+    assert_eq!(stored.headers[0].description.as_deref(), Some("renamed"));
+}
+
+#[gpui::test]
+fn a_row_without_a_description_opens_an_empty_field(cx: &mut TestAppContext) {
+    let dir = grid_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_grid(cx);
+
+    click(cx, "request-headers-description-2");
+    assert_eq!(field_text(cx, &shell).as_deref(), Some(""));
+    type_cell(cx, "bearer");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let draft = draft_request(cx, &shell, GRID).expect("Enter created the draft");
+    assert_eq!(draft.headers[1].description.as_deref(), Some("bearer"));
+    assert_eq!(
+        draft.headers[1].value, "Bearer {{token}}",
+        "the secret reference is untouched"
+    );
+}
+
+#[gpui::test]
+fn escape_in_the_description_drops_the_text_and_creates_no_draft(cx: &mut TestAppContext) {
+    let dir = grid_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_grid(cx);
+
+    click(cx, "request-headers-description-1");
+    type_cell(cx, "junk");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+
+    assert!(field_text(cx, &shell).is_none(), "the field closed");
+    assert!(draft_request(cx, &shell, GRID).is_none(), "no draft");
+    click(cx, "request-headers-description-1");
+    assert_eq!(field_text(cx, &shell).as_deref(), Some("first header"));
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn committing_an_unchanged_description_creates_no_draft(cx: &mut TestAppContext) {
+    let dir = grid_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_grid(cx);
+
+    click(cx, "request-headers-description-1");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert!(field_text(cx, &shell).is_none(), "the field closed");
+    assert!(draft_request(cx, &shell, GRID).is_none(), "no draft");
+}
+
+#[gpui::test]
+fn an_emptied_description_is_removed_from_the_row(cx: &mut TestAppContext) {
+    let dir = grid_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_grid(cx);
+
+    click(cx, "request-headers-description-1");
+    cx.simulate_keystrokes("ctrl-a backspace enter");
+    cx.run_until_parked();
+    let draft = draft_request(cx, &shell, GRID).expect("the commit created the draft");
+    assert_eq!(draft.headers[0].description, None);
+}
+
+#[gpui::test]
+fn clicking_another_cell_commits_the_open_description(cx: &mut TestAppContext) {
+    let dir = grid_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_grid(cx);
+
+    click(cx, "request-headers-description-1");
+    type_cell(cx, "kept");
+    click(cx, "request-headers-key-2");
+    assert_eq!(field_text(cx, &shell).as_deref(), Some("Authorization"));
+    let draft = draft_request(cx, &shell, GRID).expect("the click committed the description");
+    assert_eq!(draft.headers[0].description.as_deref(), Some("kept"));
     cx.simulate_keystrokes("escape");
     cx.run_until_parked();
 }

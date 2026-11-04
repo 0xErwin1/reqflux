@@ -554,7 +554,7 @@ body{background:#050507}
 <!-- ============================================================ frames -->
 
 <section class="frame" aria-label="Frame A: Headers grid while the split is dragged">
-  <div class="cap"><b>A · Headers, dragging the split</b><span>Spreadsheet cells: a line on every side, the focused cell becomes a well with a caret. The handle under the request takes the tint while dragged; the cursor is row-resize.</span></div>
+  <div class="cap"><b>A · Headers, dragging the split</b><span>Spreadsheet cells: a line on every side, the focused cell becomes a well with a caret. Key, value and description all edit in place: a click opens the field, Enter or leaving it commits into the draft, Escape cancels, and the description keeps its text face (here row 1's). The handle under the request takes the tint while dragged; the cursor is row-resize.</span></div>
   <template class="doc">
     <div class="split" style="flex-direction:column">
       <div class="pane-req" style="flex:0 0 306px">
@@ -574,7 +574,7 @@ body{background:#050507}
               <span><span class="chk on"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
               <span style="color:#F7F4F7">Content-Type</span>
               <span>application/json</span>
-              <span class="prose">Set from Body</span>
+              <span class="foc" data-id="request-headers-description-1"><span class="prose">Set from Body</span><span class="caret"></span></span>
               <span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-trash"/></svg></span>
             </div>
             <div class="r" role="row">
@@ -587,7 +587,7 @@ body{background:#050507}
             <div class="r" role="row" style="background:rgba(255,107,94,.05)">
               <span><span class="chk on"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
               <span style="color:#F7F4F7">X-Tenant-Id</span>
-              <span class="foc" data-id="request-header-value-2"><span class="unres">{{tenant_id}}</span><span class="caret"></span></span>
+              <span data-id="request-headers-value-3"><span class="unres">{{tenant_id}}</span></span>
               <span class="prose" style="color:#FF6B5E">Not defined in staging</span>
               <span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-trash"/></svg></span>
             </div>

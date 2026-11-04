@@ -14,6 +14,7 @@ use reqflux_core::model::{Body, FormPart, RawLanguage};
 
 use super::Shell;
 use super::code_edit;
+use super::input_marks::EditorMarks;
 
 /// The modes the mode control offers, by their id and name, left to right.
 pub(crate) const BODY_MODES: [(&str, &str); 6] = [
@@ -112,12 +113,26 @@ pub(crate) fn body_cell(
     }
 }
 
+/// The description of the 1-based row `n` of the urlencoded or form-data `body`.
+pub(crate) fn body_description(body: &mut Body, n: usize) -> Option<&mut Option<String>> {
+    let index = n.checked_sub(1)?;
+    match body {
+        Body::Urlencoded { fields } => fields.get_mut(index).map(|field| &mut field.description),
+        Body::FormData { parts } => parts.get_mut(index).map(|part| match part {
+            FormPart::Text { description, .. } | FormPart::File { description, .. } => description,
+        }),
+        _ => None,
+    }
+}
+
 /// The raw text editor of a request: the request it edits and its state.
 pub(crate) struct BodyEdit {
     pub(crate) request_id: String,
     pub(crate) input: Entity<EditorState>,
     /// Whether the editor has the focus, which its ring shows.
     pub(crate) focused: bool,
+    /// The marks of the `{{name}}` references in the text, set again on every change.
+    pub(crate) marks: EditorMarks,
     /// Puts the text into the draft on every change and follows the focus.
     _change: Subscription,
 }
@@ -239,6 +254,7 @@ impl Shell {
                 if let Some(id) = this.body_edit.as_ref().map(|edit| edit.request_id.clone()) {
                     let value = input.read(cx).value().to_string();
                     this.set_draft_body_text(&id, value, cx);
+                    this.remark_body_edit(cx);
                 }
             }
             InputEvent::Focus | InputEvent::Blur => {
@@ -249,10 +265,12 @@ impl Shell {
             }
             InputEvent::PressEnter { .. } => {}
         });
+        let marks = self.mark_editor(id, &input, cx);
         self.body_edit = Some(BodyEdit {
             request_id: id.to_owned(),
             input,
             focused: true,
+            marks,
             _change: change,
         });
         cx.notify();

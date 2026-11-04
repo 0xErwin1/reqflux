@@ -15,7 +15,7 @@ use reqflux_engine::SaveError;
 use reqflux_engine::state::Draft;
 
 use super::Shell;
-use super::body_edit::body_cell;
+use super::body_edit::{body_cell, body_description};
 use super::cell_edit::CellField;
 use super::{toasts, tree_model};
 use crate::workspace::OpenedWorkspace;
@@ -254,11 +254,7 @@ impl Shell {
                 let mut request = self
                     .displayed_request(id, &state.inspection.request.request)
                     .clone();
-                let (key, value, _) = grid_cell(&mut request, table, n)?;
-                Some(match field {
-                    CellField::Key => key.clone(),
-                    CellField::Value => value.clone(),
-                })
+                grid_text(&mut request, table, n, field)
             });
             if current.as_deref() == Some(value.as_str()) {
                 return;
@@ -266,14 +262,7 @@ impl Shell {
         }
         self.edit_draft(
             id,
-            move |request| {
-                if let Some((key, text, _)) = grid_cell(request, table, n) {
-                    match field {
-                        CellField::Key => *key = value,
-                        CellField::Value => *text = value,
-                    }
-                }
-            },
+            move |request| set_grid_text(request, table, n, field, value),
             cx,
         );
     }
@@ -648,6 +637,61 @@ impl Shell {
         self.inspect_open_requests(cx);
         reloaded
     }
+}
+
+/// The text of `field` of the 1-based row `n` of `table` of `request`; a row without a
+/// description has an empty one.
+pub(super) fn grid_text(
+    request: &mut Request,
+    table: &str,
+    n: usize,
+    field: CellField,
+) -> Option<String> {
+    Some(match field {
+        CellField::Key => grid_cell(request, table, n)?.0.clone(),
+        CellField::Value => grid_cell(request, table, n)?.1.clone(),
+        CellField::Description => grid_description(request, table, n)?
+            .clone()
+            .unwrap_or_default(),
+    })
+}
+
+/// Puts `value` into `field` of the 1-based row `n` of `table` of `request`; an empty
+/// description removes it from the row.
+fn set_grid_text(request: &mut Request, table: &str, n: usize, field: CellField, value: String) {
+    match field {
+        CellField::Key => {
+            if let Some((key, _, _)) = grid_cell(request, table, n) {
+                *key = value;
+            }
+        }
+        CellField::Value => {
+            if let Some((_, text, _)) = grid_cell(request, table, n) {
+                *text = value;
+            }
+        }
+        CellField::Description => {
+            if let Some(description) = grid_description(request, table, n) {
+                *description = (!value.is_empty()).then_some(value);
+            }
+        }
+    }
+}
+
+/// The description of the 1-based row `n` of `table` of `request`, in the tables
+/// [`grid_cell`] reaches.
+pub(super) fn grid_description<'a>(
+    request: &'a mut Request,
+    table: &str,
+    n: usize,
+) -> Option<&'a mut Option<String>> {
+    let rows = match table {
+        "body" => return body_description(&mut request.body, n),
+        "params" => &mut request.params,
+        _ => &mut request.headers,
+    };
+    rows.get_mut(n.checked_sub(1)?)
+        .map(|row| &mut row.description)
 }
 
 /// The key, the value and the enabled flag of the 1-based row `n` of `table` of `request`:
