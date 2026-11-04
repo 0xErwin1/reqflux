@@ -298,3 +298,129 @@ fn a_key_of_another_type_is_refused_without_quoting_it() {
     }
     assert_eq!(read(&path), odd);
 }
+
+#[test]
+fn set_proxy_mode_creates_network_proxy_in_a_missing_or_empty_file() {
+    let dir = temp_dir();
+    let path = dir.path().join("reqflux/config.toml");
+    ok(set_proxy_mode(&path, ProxyMode::None));
+    assert_eq!(read(&path), "[network.proxy]\nmode = \"none\"\n");
+    assert_eq!(loaded(&path).network.proxy.mode, ProxyMode::None);
+
+    ok(set_proxy_mode(&path, ProxyMode::Manual));
+    assert_eq!(read(&path), "[network.proxy]\nmode = \"manual\"\n");
+    ok(set_proxy_mode(&path, ProxyMode::System));
+    assert_eq!(read(&path), "[network.proxy]\nmode = \"system\"\n");
+}
+
+#[test]
+fn set_proxy_mode_keeps_everything_else_as_written() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    let mine = "# Mine.\ntheme = \"dark\"\n\n[network]\n# The corporate CA.\n\
+                ca_bundle = \"/etc/ssl/corp-ca.pem\"\n\n[network.proxy]\n\
+                mode = \"manual\" # per the VPN\nurl = \"http://proxy.test:3128\"\n\
+                bypass = [\"localhost\"]\n\n[network.workspaces.\"01J0000000000000000000000W\".proxy]\n\
+                mode = \"none\"\n\n[future]\nkey = true\n";
+    write(&path, mine);
+    ok(set_proxy_mode(&path, ProxyMode::System));
+    assert_eq!(
+        read(&path),
+        mine.replace(
+            "mode = \"manual\" # per the VPN",
+            "mode = \"system\" # per the VPN"
+        )
+    );
+}
+
+#[test]
+fn set_proxy_mode_adds_the_proxy_table_to_a_network_table_without_one() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    write(
+        &path,
+        "layout = \"stacked\"\n\n[network]\nca_bundle = \"/etc/ssl/corp-ca.pem\"\n",
+    );
+    ok(set_proxy_mode(&path, ProxyMode::None));
+    let written = read(&path);
+    let config = loaded(&path);
+    assert_eq!(config.network.proxy.mode, ProxyMode::None, "{written}");
+    assert_eq!(
+        config.network.ca_bundle.as_deref(),
+        Some(Path::new("/etc/ssl/corp-ca.pem"))
+    );
+    assert!(written.starts_with("layout = \"stacked\"\n\n[network]\n"));
+    assert!(
+        written.ends_with("[network.proxy]\nmode = \"none\"\n"),
+        "{written}"
+    );
+}
+
+#[test]
+fn set_proxy_url_sets_and_clears_the_url_beside_the_mode() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    write(&path, "[network.proxy]\nmode = \"manual\"\n");
+    ok(set_proxy_url(&path, "  http://proxy.test:3128 "));
+    assert_eq!(
+        read(&path),
+        "[network.proxy]\nmode = \"manual\"\nurl = \"http://proxy.test:3128\"\n"
+    );
+    ok(set_proxy_url(&path, "socks5://proxy.test:1080"));
+    assert_eq!(
+        loaded(&path).network.proxy.url.as_deref(),
+        Some("socks5://proxy.test:1080")
+    );
+    ok(set_proxy_url(&path, "   "));
+    assert_eq!(read(&path), "[network.proxy]\nmode = \"manual\"\n");
+    ok(set_proxy_url(&path, ""));
+    assert_eq!(
+        read(&path),
+        "[network.proxy]\nmode = \"manual\"\n",
+        "nothing to clear"
+    );
+}
+
+#[test]
+fn the_proxy_editors_refuse_a_broken_or_mistyped_file_without_quoting_it() {
+    let dir = temp_dir();
+    let path = dir.path().join("config.toml");
+    let broken = "[network.proxy\nmode = sk-live-SECRET123\n";
+    write(&path, broken);
+    for result in [
+        set_proxy_mode(&path, ProxyMode::None),
+        set_proxy_url(&path, "http://proxy.test"),
+    ] {
+        match result {
+            Err(error @ ConfigError::Parse { .. }) => {
+                assert!(!error.to_string().contains("SECRET123"));
+            }
+            other => panic!("expected a parse error, got {other:?}"),
+        }
+    }
+    assert_eq!(read(&path), broken);
+
+    let odd = "network = \"sk-live-SECRET123\"\n";
+    write(&path, odd);
+    match set_proxy_mode(&path, ProxyMode::None) {
+        Err(error @ ConfigError::WrongType { .. }) => {
+            let shown = error.to_string();
+            assert!(shown.ends_with("`network` is not a table"), "{shown}");
+            assert!(!shown.contains("SECRET123"), "{shown}");
+        }
+        other => panic!("expected a type error, got {other:?}"),
+    }
+    let odd = "[network]\nproxy = \"sk-live-SECRET123\"\n";
+    write(&path, odd);
+    match set_proxy_url(&path, "http://proxy.test") {
+        Err(error @ ConfigError::WrongType { .. }) => {
+            assert!(
+                error
+                    .to_string()
+                    .ends_with("`network.proxy` is not a table")
+            );
+        }
+        other => panic!("expected a type error, got {other:?}"),
+    }
+    assert_eq!(read(&path), odd);
+}

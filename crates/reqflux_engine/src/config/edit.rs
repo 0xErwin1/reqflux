@@ -1,5 +1,6 @@
 //! The format-preserving editors of the config file (app-pending S3): the interface font
-//! size, the `[mcp]` rules and the `[mcp]` host and environment lists. Each reads the file,
+//! size, the `[mcp]` rules, the `[mcp]` host and environment lists and the
+//! `[network.proxy]` mode and URL. Each reads the file,
 //! changes one value in place and writes it back, so comments, key order and keys this
 //! build does not know survive; a file that does not parse is refused and left alone, and
 //! the error never quotes it. A missing file is created with its directory.
@@ -8,7 +9,7 @@ use std::path::Path;
 
 use toml_edit::{DocumentMut, Item, TableLike, Value};
 
-use super::{ConfigError, Rule, clamp_font_size, parse_document, read_text, write_text};
+use super::{ConfigError, ProxyMode, Rule, clamp_font_size, parse_document, read_text, write_text};
 use crate::policy::ToolClass;
 
 /// A list of `[mcp]`.
@@ -82,6 +83,43 @@ pub fn set_rule(path: &Path, class: ToolClass, rule: Rule) -> Result<(), ConfigE
     edit(path, |document| {
         let mcp = mcp_table(path, document)?;
         set_value(mcp, class.name(), Value::from(rule_name(rule)));
+        Ok(())
+    })
+}
+
+/// Sets `mode` of `[network.proxy]`, creating the table (and `[network]`) when the file has
+/// none. Every other key, `[network]` entry and table stays as written.
+pub fn set_proxy_mode(path: &Path, mode: ProxyMode) -> Result<(), ConfigError> {
+    let name = match mode {
+        ProxyMode::System => "system",
+        ProxyMode::None => "none",
+        ProxyMode::Manual => "manual",
+    };
+    edit(path, |document| {
+        let proxy = proxy_table(path, document)?;
+        set_value(proxy, "mode", Value::from(name));
+        Ok(())
+    })
+}
+
+/// Sets `url` of `[network.proxy]` to `url`, trimmed; a blank `url` removes the key. The
+/// proxy password is never here: it lives in the keyring.
+pub fn set_proxy_url(path: &Path, url: &str) -> Result<(), ConfigError> {
+    let url = url.trim();
+    edit(path, |document| {
+        if url.is_empty() {
+            let proxy = document
+                .get_mut("network")
+                .and_then(Item::as_table_like_mut)
+                .and_then(|network| network.get_mut("proxy"))
+                .and_then(Item::as_table_like_mut);
+            if let Some(proxy) = proxy {
+                proxy.remove("url");
+            }
+            return Ok(());
+        }
+        let proxy = proxy_table(path, document)?;
+        set_value(proxy, "url", Value::from(url));
         Ok(())
     })
 }
@@ -253,6 +291,39 @@ fn mcp_table<'a>(
             key: "mcp".to_owned(),
             expected: "a table",
         })
+}
+
+/// `[network.proxy]`, created when missing: `[network]` stays implicit when only the proxy
+/// is in it, so the file gets one `[network.proxy]` header, after what it already holds.
+fn proxy_table<'a>(
+    path: &Path,
+    document: &'a mut DocumentMut,
+) -> Result<&'a mut dyn TableLike, ConfigError> {
+    let wrong_type = |key: &str| ConfigError::WrongType {
+        path: path.to_owned(),
+        key: key.to_owned(),
+        expected: "a table",
+    };
+    let has_content = !document.as_table().is_empty();
+    let network = document.entry("network").or_insert_with(|| {
+        let mut table = toml_edit::Table::new();
+        table.set_implicit(true);
+        Item::Table(table)
+    });
+    let network = network
+        .as_table_like_mut()
+        .ok_or_else(|| wrong_type("network"))?;
+    let leading = has_content || !network.is_empty();
+    let proxy = network.entry("proxy").or_insert_with(|| {
+        let mut table = toml_edit::Table::new();
+        if leading {
+            table.decor_mut().set_prefix("\n");
+        }
+        Item::Table(table)
+    });
+    proxy
+        .as_table_like_mut()
+        .ok_or_else(|| wrong_type("network.proxy"))
 }
 
 /// The array `item` holds, the list `list`.
