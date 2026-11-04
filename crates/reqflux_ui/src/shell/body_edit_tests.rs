@@ -37,17 +37,17 @@ fn body_workspace(body: &str) -> TempDir {
     dir
 }
 
-fn json_workspace() -> TempDir {
+pub(super) fn json_workspace() -> TempDir {
     body_workspace("mode = \"raw\"\nlanguage = \"json\"\ntext = \"{}\"\n")
 }
 
 /// Opens `POST Posted` on its Body sub-tab.
-fn open_body(cx: &mut VisualTestContext) {
+pub(super) fn open_body(cx: &mut VisualTestContext) {
     click(cx, &format!("tree-row-{POSTED}"));
     click(cx, "request-tab-body");
 }
 
-fn draft_body(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<Body> {
+pub(super) fn draft_body(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<Body> {
     cx.update(|cx| {
         shell
             .read(cx)
@@ -83,7 +83,7 @@ fn type_text(cx: &mut VisualTestContext, text: &str) {
     cx.run_until_parked();
 }
 
-fn file(dir: &TempDir) -> String {
+pub(super) fn file(dir: &TempDir) -> String {
     std::fs::read_to_string(dir.path().join(FILE)).unwrap_or_default()
 }
 
@@ -111,7 +111,7 @@ fn engine_variables_message(text: &str) -> String {
     }
 }
 
-fn raw(language: RawLanguage, text: &str) -> Body {
+pub(super) fn raw(language: RawLanguage, text: &str) -> Body {
     Body::Raw {
         language,
         text: text.to_owned(),
@@ -186,8 +186,8 @@ fn the_mode_control_switches_the_body_in_the_draft(cx: &mut TestAppContext) {
     click(cx, "body-mode-raw");
     assert_eq!(
         draft_body(cx, &shell),
-        Some(raw(RawLanguage::Json, "")),
-        "another kind starts empty, in JSON"
+        Some(raw(RawLanguage::Xml, "{}")),
+        "going back to raw restores the raw body the draft had"
     );
 
     click(cx, "request-body-language");
@@ -201,7 +201,7 @@ fn the_mode_control_switches_the_body_in_the_draft(cx: &mut TestAppContext) {
     let (shell_2, _cx) = render(cx, &dir, &state_path);
     assert_eq!(
         draft_body(cx, &shell_2),
-        Some(raw(RawLanguage::Json, "")),
+        Some(raw(RawLanguage::Xml, "{}")),
         "the draft was restored"
     );
 }

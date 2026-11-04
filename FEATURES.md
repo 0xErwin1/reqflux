@@ -33,7 +33,9 @@ v1.
 | Edits are local drafts: kept across restarts, marked unsaved in their tab | MVP |
 | Explicit save (`Ctrl+S`) writes the workspace file and discards the draft | MVP |
 | Sending a request with a draft sends the draft, as Postman does | MVP |
-| Discard a draft and revert to the saved file | MVP |
+| Discard a draft and revert to the saved file (undoable) | MVP |
+| Undo and redo draft edits (`Ctrl+Z`, `Ctrl+Shift+Z`), per request | MVP |
+| Switching body mode or auth type keeps the other modes' data until saved | MVP |
 
 ## Requests
 

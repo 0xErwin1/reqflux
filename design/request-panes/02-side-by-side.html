@@ -423,9 +423,9 @@ body{background:#050507}
 <template id="tpl-strip">
           <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:36px;padding:8px 0;flex-shrink:0;border-right:1px solid #232128">
             <button aria-label="Save (Ctrl S)" title="Save  Ctrl S" class="c6 ib g" style="position:relative;width:28px;height:28px;color:#C6C3CC"><svg class="ico" style="width:14px;height:14px"><use href="#i-save"/></svg><span class="dia" style="position:absolute;top:3px;right:3px;width:5px;height:5px;background:#9DB1FF" title="Unsaved draft"></span></button>
-            <button aria-label="Revert" title="Revert" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-revert"/></svg></button>
-            <button aria-label="Undo" title="Undo  Ctrl Z" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-undo"/></svg></button>
-            <button aria-label="Redo" title="Redo  Ctrl Shift Z" class="c6 ib g" style="width:28px;height:28px;color:#37333D"><svg class="ico" style="width:14px;height:14px"><use href="#i-redo"/></svg></button>
+            <button aria-label="Discard changes" title="Discard changes  Ctrl Shift R" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-revert"/></svg></button>
+            <button aria-label="Undo edit" title="Undo edit  Ctrl Z (enabled when the draft has a step to undo)" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-undo"/></svg></button>
+            <button aria-label="Redo edit" title="Redo edit  Ctrl Shift Z or Ctrl Y (enabled when an undone step can be redone)" class="c6 ib g" style="width:28px;height:28px;color:#37333D"><svg class="ico" style="width:14px;height:14px"><use href="#i-redo"/></svg></button>
             <span style="width:16px;height:1px;background:#232128;margin:2px 0"></span>
             <button aria-label="Split request and response side by side" title="Split view" class="c6 ib g" style="width:28px;height:28px"><svg class="ico" style="width:14px;height:14px"><use href="#i-cols"/></svg></button>
           </div>

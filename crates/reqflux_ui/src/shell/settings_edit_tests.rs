@@ -101,6 +101,7 @@ fn the_panes_show_the_drafts_body_auth_and_settings(cx: &mut TestAppContext) {
         shell.drafts.insert(
             TUNED.to_owned(),
             RequestDraft {
+                stash: Default::default(),
                 request,
                 base_hash: None,
                 conflicted: false,

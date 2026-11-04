@@ -2,15 +2,17 @@
 
 use std::collections::HashSet;
 
-use super::{COMMANDS, PALETTE_KEYS, key_label};
+use super::{COMMANDS, PALETTE_KEYS, REDO_KEYS, key_label};
 use crate::shell::send::SHELL_CONTEXT;
 
 /// The palette commands of command-palette S4, by stable id.
-const EXPECTED: [&str; 29] = [
+const EXPECTED: [&str; 31] = [
     "send-request",
     "cancel-send",
     "save-request",
     "revert-request",
+    "undo-draft",
+    "redo-draft",
     "generate-code",
     "undo-paste",
     "run-collection",
@@ -58,6 +60,12 @@ fn every_command_has_a_key_and_no_two_share_one_in_a_context() {
             command.context
         );
     }
+    for key in REDO_KEYS {
+        assert!(
+            seen.insert((SHELL_CONTEXT, key)),
+            "the redo key {key} is taken by a command"
+        );
+    }
     for key in PALETTE_KEYS {
         assert!(
             seen.insert((SHELL_CONTEXT, key)),
@@ -99,6 +107,18 @@ fn the_spec_keys_are_the_defaults() {
     assert_eq!(key("layout-side-by-side"), Some("ctrl-alt-2"));
     assert_eq!(key("layout-document"), Some("ctrl-alt-3"));
     assert_eq!(key("open-approvals"), Some("ctrl-shift-m"));
+    assert_eq!(key("undo-draft"), Some("ctrl-z"));
+    assert_eq!(key("redo-draft"), Some("ctrl-shift-z"));
+    assert_eq!(REDO_KEYS, ["ctrl-y"]);
+}
+
+#[test]
+fn reverting_a_draft_is_labelled_discard_changes() {
+    let label = COMMANDS
+        .iter()
+        .find(|command| command.name == "revert-request")
+        .map(|command| command.label);
+    assert_eq!(label, Some("Discard changes"));
 }
 
 #[test]

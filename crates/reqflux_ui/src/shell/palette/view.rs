@@ -53,6 +53,8 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::CancelSend | CommandId::CloseWorkspace | CommandId::CloseTab => IconName::Close,
         CommandId::SaveRequest => IconName::Save,
         CommandId::RevertRequest | CommandId::UndoPaste => IconName::RotateCcw,
+        CommandId::UndoDraft => IconName::Undo2,
+        CommandId::RedoDraft => IconName::Redo2,
         CommandId::GenerateCode => IconName::Code,
         CommandId::RunCollection => IconName::Play,
         CommandId::Export | CommandId::ExportWorkspace => IconName::Upload,

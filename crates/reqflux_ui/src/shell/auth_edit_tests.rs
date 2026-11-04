@@ -33,17 +33,17 @@ fn auth_workspace(auth: &str) -> TempDir {
     dir
 }
 
-fn bearer_workspace() -> TempDir {
+pub(super) fn bearer_workspace() -> TempDir {
     auth_workspace("type = \"bearer\"\ntoken = \"stored-token\"\n")
 }
 
 /// Opens `GET Guarded` on its Auth sub-tab.
-fn open_auth(cx: &mut VisualTestContext) {
+pub(super) fn open_auth(cx: &mut VisualTestContext) {
     click(cx, &format!("tree-row-{GUARDED}"));
     click(cx, "request-tab-auth");
 }
 
-fn draft_auth(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<Auth> {
+pub(super) fn draft_auth(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<Auth> {
     cx.update(|cx| {
         shell
             .read(cx)
@@ -67,7 +67,7 @@ fn field(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<(String, Stri
 }
 
 /// Picks the auth type `kind` from the type menu.
-fn pick_type(cx: &mut VisualTestContext, kind: &str) {
+pub(super) fn pick_type(cx: &mut VisualTestContext, kind: &str) {
     click(cx, "request-auth-type");
     click(cx, &format!("auth-type-{kind}"));
 }
