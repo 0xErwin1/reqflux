@@ -547,7 +547,7 @@ exists:
 - **Method.** The method chip (`request-method`) opens a menu of the standard verbs
   (`method-<verb>`) and `Custom…` (`method-custom`), which opens a field
   (`request-method-input`) that takes any HTTP token, uppercased; other text leaves the
-  draft unchanged.
+  draft unchanged. The field opens with the verb selected, so typing replaces it.
 - **Rows.** Params, Headers and the urlencoded or form-data body grid end with an `Add` row
   (`request-<table>-add`) that appends an empty enabled row and opens its key cell; an empty
   editable grid shows its header and that row, not an empty state (design/request-panes/01
@@ -599,7 +599,8 @@ exists:
   types ReqFlux does not support stay read-only and masked.
 - **Settings.** The timeout opens a field (`request-setting-timeout-input`) that takes a
   whole number of milliseconds, or empty for the default; other text leaves the draft
-  unchanged. Follow redirects and Verify TLS cycle Default, on and off on click.
+  unchanged. Follow redirects and Verify TLS cycle Default, on and off on click; the redirects hint
+  follows the setting (`Follows up to 10 redirects…` unless it is Off).
 
 Picking the value a request already has, with no draft, creates no draft. A menu closes on
 Escape or a click outside. A stored secret cannot be cleared to empty from the window yet.
@@ -865,6 +866,12 @@ allows it and without one otherwise.
   `pm.variables`, `pm.iterationData`, `pm.request`, `pm.response`, `pm.test`, `pm.expect`,
   `pm.cookies`, `pm.info`, `pm.sendRequest`, `pm.execution.setNextRequest` and
   `pm.execution.skipRequest`.
+- `pm.response.to` is Postman's chai-style chain: `to.have.status(code | reason)`,
+  `to.have.header(name[, value])`, `to.have.body(text | RegExp)`,
+  `to.have.jsonBody([path[, value]] | object)`, `to.be.ok` (200), `success` (2xx), `error`
+  (4xx or 5xx), `clientError`, `serverError` and `json`, and `not` anywhere in the chain flips
+  the verdict. A failure throws Postman's message (`expected response to have status code 200
+  but got 404`), which `pm.test` records.
 - The legacy globals (`tests[...]`, `responseBody`, `postman.setEnvironmentVariable`) are
   supported, because many shared collections still use them.
 - `require()` serves `lodash` 4.17.21, `moment` 2.30.1 and `chai` 4.5.0, vendored unchanged
@@ -1593,7 +1600,8 @@ Nothing is stored, since the cookie jar comes later. History keeps `Set-Cookie` 
 received apart from secret values; MCP output masks their cookie values (see "History").
 
 Clicking the response content gives it the keyboard focus; Ctrl F there (or a click on
-`response-search`) opens the body search in the views row: case-insensitive matches over the
+`response-search`) opens the body search in the views row (when the row is short of room the
+JSONPath filter narrows before the search field does, which keeps its 240 px): case-insensitive matches over the
 lines the body shows, the count `n / total`, Enter and Shift+Enter or the arrows step and wrap,
 the current match filled in the warning color and the others washed in it, and Escape closes
 it. The Tests pane has an All / Failed filter under `<n> passed` and `<n> failed` badges, the
@@ -1604,11 +1612,12 @@ The search, the filters and the focus live with each request's send state.
 The rail's History button (`rail-history`) swaps the sidebar tree for the History panel
 (`history-row-<n>`, newest first, `METHOD path · status · time ago` or `failed`; the 200
 newest; `No requests sent yet` when empty), and Collections (`rail-collections`) swaps back.
-Clicking a row opens its request's tab and shows the recorded response under
-`From history · <time>` (`response-history-label`) without touching the request or its draft;
-`Resend` (`history-resend`) sends the recorded document again through `execute_draft` and
-records the result as a new entry. A row whose request was deleted opens a read-only view
-(`history-readonly`) with the recorded method, URL and response, and Resend disabled.
+Clicking a row opens the read-only history tab (`history-readonly`, design/history/01) with the
+recorded method, URL, Params, Headers, Body and response, without touching the request, its tab
+or its draft. While the request exists its banner offers `Open source request`
+(`history-open-source`) and `Resend` (`history-resend`), which sends the recorded document again
+through `execute_draft` and records the result as a new entry; when the request was deleted the
+banner says so and Resend is disabled.
 In the history tab the response tab reads `Recorded response`; switching to the History
 panel (the rail or Ctrl+2) gives it the keyboard focus, so `/` focuses its filter
 (`history-filter`) at once; activating the history tab leaves the approvals or audit view; Next and Previous tab cycle through the history tab,
@@ -1619,7 +1628,7 @@ The settings page's App section (`design/app-settings/02-workspace-page-app-sect
 opens even with no workspace: the rail's Settings (`rail-settings`, marked active while an App
 section shows) opens it at General (`theme`, `font-size`, applied live through bolt's font
 install); MCP policy holds `rule-read|write|execute|destructive` (Allow, Ask, Deny),
-`hosts-list`, `environments-list` and the read-only `overrides-table` (`overrides-open-config`
+`hosts-list`, `environments-list` (Enter in their field adds, like the button) and the read-only `overrides-table` (`overrides-open-config`
 opens `config.toml` with the OS handler, `open_file.rs`). Every control writes `config.toml` at
 once (General and MCP policy say so under their title); while it does not parse, `config-error`
 shows its path, line and column, the controls are dimmed and do not write, and `config-open` and
@@ -1689,7 +1698,7 @@ menu `variables-stored-menu` offers `variables-stored-file-<n>`, saved in the wo
 shared with whoever has the workspace, and `variables-stored-keyring-<n>`, a secret kept in this
 machine's OS keyring, never in the file and shown masked; picking one moves the value there,
 picking the current one only closes the menu, and Escape or a click outside closes it), description and
-delete, plus the ghost row `variables-add` (key `new_variable`). Variables are not drafts:
+delete, plus the ghost row `variables-add` (key `new_variable`, opened with its text selected so typing names it). Variables are not drafts:
 every commit writes the file (or the keyring, or the app state for a current value) at once
 and re-inspects open requests. A secret's initial value reads `not in the file`; its current
 value shows `••••••••` (`variables-masked-<n>`) and edits the keyring through an empty field

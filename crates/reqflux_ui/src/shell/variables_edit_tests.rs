@@ -121,6 +121,21 @@ fn adding_a_variable_writes_the_file_and_opens_its_key(cx: &mut TestAppContext) 
 }
 
 #[gpui::test]
+fn the_new_variable_opens_with_its_name_selected_so_typing_replaces_it(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+
+    click(cx, "variables-add");
+    cx.simulate_input("fresh");
+    enter(cx);
+    let manifest = read(dir.path(), MANIFEST);
+    assert!(manifest.contains("key = \"fresh\""), "{manifest}");
+    assert!(!manifest.contains("new_variable"), "{manifest}");
+}
+
+#[gpui::test]
 fn adding_a_referenced_variable_reinspects_open_requests(cx: &mut TestAppContext) {
     let dir = variables_workspace(closed_port());
     let (_state_dir, state_path) = state_file();

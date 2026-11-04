@@ -280,6 +280,35 @@ fn hosts_and_environments_are_added_and_removed(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn enter_in_a_list_field_adds_the_entry_like_the_button(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx, _) = render_app(cx, &dir, &state_path, &config_path);
+    open_app(cx, &shell);
+    click(cx, "nav-mcp-policy");
+
+    type_text(cx, "hosts-add", "api.example.com");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    type_text(cx, "environments-add", "dev");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    let mcp = loaded(&config_path).mcp;
+    assert_eq!(mcp.hosts, Some(vec!["api.example.com".to_owned()]));
+    assert_eq!(mcp.environments, Some(vec!["dev".to_owned()]));
+    present(cx, "hosts-row-0");
+
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        loaded(&config_path).mcp.environments,
+        Some(vec!["dev".to_owned()]),
+        "Enter on an emptied field adds nothing"
+    );
+}
+
+#[gpui::test]
 fn workspace_overrides_are_read_only_and_open_config_toml(cx: &mut TestAppContext) {
     let dir = variables_workspace(closed_port());
     let (_state_dir, state_path) = state_file();

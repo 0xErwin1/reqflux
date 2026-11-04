@@ -270,6 +270,25 @@ fn redirects_and_tls_pick_default_on_or_off_from_a_segmented_control(cx: &mut Te
 }
 
 #[gpui::test]
+fn the_redirects_hint_follows_the_setting(cx: &mut TestAppContext) {
+    let dir = settings_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_settings(cx);
+
+    let hint = "request-setting-redirects-hint";
+    let following = "Follows up to 10 redirects. Credentials are dropped when the origin changes.";
+    assert_eq!(label_of(cx, hint).as_deref(), Some(following));
+    click(cx, "request-setting-follow-redirects-off");
+    assert_eq!(
+        label_of(cx, hint).as_deref(),
+        Some("Does not follow redirects. A 3xx response is shown as it is.")
+    );
+    click(cx, "request-setting-follow-redirects-on");
+    assert_eq!(label_of(cx, hint).as_deref(), Some(following));
+}
+
+#[gpui::test]
 fn an_overridden_timeout_shows_its_badge_and_resets_to_the_default(cx: &mut TestAppContext) {
     let dir = settings_workspace();
     let (_state_dir, state_path) = state_file();

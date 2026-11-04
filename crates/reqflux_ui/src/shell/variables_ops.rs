@@ -97,6 +97,7 @@ impl Shell {
         ) {
             let n = variables.len() + 1;
             self.start_variable_edit(scope, Column::Key, n, window, cx);
+            self.select_open_field(window, cx);
         }
     }
 

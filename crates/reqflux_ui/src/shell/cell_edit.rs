@@ -91,6 +91,15 @@ pub(super) fn seed_focused(
 }
 
 impl Shell {
+    /// Selects all the text of the open field, so typing replaces a seed that is a
+    /// placeholder (the custom verb, a new variable's name) instead of appending to it.
+    pub(super) fn select_open_field(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(edit) = &self.cell_edit {
+            edit.input
+                .update(cx, |state, cx| state.select_all(window, cx));
+        }
+    }
+
     /// Opens a focused field over the cell (`table`, 1-based row `n`, `field`) of the
     /// request `id`, seeded with the cell's text as the draft has it, else as the file
     /// does. A field over another cell is committed first, like a spreadsheet, so no edit

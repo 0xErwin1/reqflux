@@ -127,6 +127,21 @@ fn the_menu_picks_a_verb_into_the_draft(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_custom_field_opens_with_the_verb_selected_so_typing_replaces_it(cx: &mut TestAppContext) {
+    let dir = method_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{VERBED}"));
+
+    click(cx, "request-method");
+    click(cx, "method-custom");
+    cx.simulate_input("PURGE");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(draft_method(cx, &shell).as_deref(), Some("PURGE"));
+}
+
+#[gpui::test]
 fn a_custom_verb_lands_in_the_draft_and_is_saved(cx: &mut TestAppContext) {
     let dir = method_workspace();
     let (_state_dir, state_path) = state_file();

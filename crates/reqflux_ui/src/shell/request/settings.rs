@@ -257,6 +257,10 @@ fn toggle_row(
         )
     });
     let (text, color) = match toggle {
+        Toggle::FollowRedirects if value == Some(false) => (
+            "Does not follow redirects. A 3xx response is shown as it is.",
+            colors.muted,
+        ),
         Toggle::FollowRedirects => (
             "Follows up to 10 redirects. Credentials are dropped when the origin changes.",
             colors.muted,

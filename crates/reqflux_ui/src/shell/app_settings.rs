@@ -8,7 +8,7 @@
 
 use std::path::{Path, PathBuf};
 
-use bolt::controls::{Dropdown, DropdownItem, DropdownSelectionChanged, InputState};
+use bolt::controls::{Dropdown, DropdownItem, DropdownSelectionChanged, InputEvent, InputState};
 use gpui::{AppContext as _, Context, Entity, Subscription, Window};
 use reqflux_engine::config::{self, ConfigError, McpList, Rule, ThemeMode, UserConfig};
 use reqflux_engine::policy::ToolClass;
@@ -290,7 +290,7 @@ fn controls(window: &mut Window, cx: &mut Context<Shell>) -> Controls {
     let font_size = cx.new(|_| Dropdown::new("font-size").items(items));
     let hosts = cx.new(|cx| InputState::new(window, cx).placeholder("api.example.com"));
     let environments = cx.new(|cx| InputState::new(window, cx).placeholder("environment slug"));
-    let subscriptions = vec![cx.subscribe_in(
+    let mut subscriptions = vec![cx.subscribe_in(
         &font_size,
         window,
         |this, _, event: &DropdownSelectionChanged, _window, cx| {
@@ -305,6 +305,21 @@ fn controls(window: &mut Window, cx: &mut Context<Shell>) -> Controls {
             }
         },
     )];
+    // Enter adds like the button.
+    for (field, list) in [
+        (&hosts, McpList::Hosts),
+        (&environments, McpList::Environments),
+    ] {
+        subscriptions.push(cx.subscribe_in(
+            field,
+            window,
+            move |this, _, event: &InputEvent, window, cx| {
+                if matches!(event, InputEvent::PressEnter { .. }) {
+                    this.add_app_list_entry(list, window, cx);
+                }
+            },
+        ));
+    }
     Controls {
         font_size,
         sizes,

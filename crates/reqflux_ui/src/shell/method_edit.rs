@@ -104,7 +104,8 @@ impl Shell {
         };
         let input = cx.new(|cx| InputState::new(window, cx));
         input.update(cx, |state, cx| {
-            seed_focused(state, method.to_string(), window, cx)
+            seed_focused(state, method.to_string(), window, cx);
+            state.select_all(window, cx);
         });
         self.cell_edit = Some(CellEdit {
             request_id: id.to_owned(),
