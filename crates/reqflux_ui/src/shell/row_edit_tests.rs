@@ -116,7 +116,14 @@ fn add_under_an_empty_headers_grid(cx: &mut TestAppContext) {
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
     open(cx, "headers");
-    assert!(bounds(cx, "request-grid-empty").is_some(), "No headers");
+    assert!(
+        bounds(cx, "request-grid-empty").is_none(),
+        "the add row replaces the empty state"
+    );
+    assert!(
+        bounds(cx, "request-headers-header").is_some(),
+        "the grid shows its columns"
+    );
 
     click(cx, "request-headers-add");
     let added = draft(cx, &shell).expect("the draft");

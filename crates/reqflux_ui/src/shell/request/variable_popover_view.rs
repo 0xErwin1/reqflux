@@ -2,22 +2,24 @@
 //! `bolt`'s menu frame: the name with the winning scope badge, the value field, the initial
 //! value and the scope it overrides, and a footer with the Enter and Esc keycaps and
 //! Open in Environments. A secret shows its SECRET badge and a reveal eye; an undefined name
-//! the quick add (scope picker, value, Secret box); with no active environment, the
+//! the quick add (the "Add to" dropdown, value, Secret box); with no active environment, the
 //! environments that declare it.
 
-use bolt::composites::menu_frame;
-use bolt::controls::{Button, ButtonSize, Checkbox, Input, InputEnter, InputEscape, InputState};
-use bolt::primitives::{Badge, BadgeTone, Icon, Kbd, SegmentedItem, TextVariant, status_diamond};
+use bolt::composites::{MenuItem, menu_frame, menu_row};
+use bolt::controls::{
+    Button, ButtonSize, Checkbox, Input, InputEnter, InputEscape, InputState, SelectTrigger,
+};
+use bolt::primitives::{Badge, BadgeTone, Icon, Kbd, TextVariant, status_diamond};
 use bolt::tokens::{Borders, Feedback, Spacing};
 use gpui::{
-    AnyElement, Context, Div, Entity, InteractiveElement, IntoElement, KeyDownEvent, MouseButton,
-    MouseUpEvent, ParentElement, Role, SharedString, Stateful, Styled, Window, anchored, deferred,
-    div, prelude::*,
+    AnyElement, Context, Div, Entity, Hsla, InteractiveElement, IntoElement, KeyDownEvent,
+    MouseButton, MouseUpEvent, ParentElement, Role, SharedString, Stateful, Styled, Window,
+    anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_engine::{SecretScope, VariableScopeRef};
 
-use super::{segmented, ui};
+use super::ui;
 use crate::shell::variable_popover::{Mode, POPOVER_ID, VariablePopover};
 use crate::shell::{Shell, region};
 use crate::tokens;
@@ -76,12 +78,12 @@ fn frame(popover: &VariablePopover, cx: &mut Context<Shell>) -> Stateful<Div> {
         }))
         .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             cx.stop_propagation();
-            this.close_variable_popover(window, cx);
+            this.escape_variable_popover(window, cx);
         }))
         .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
             if event.keystroke.key == "escape" {
                 cx.stop_propagation();
-                this.close_variable_popover(window, cx);
+                this.escape_variable_popover(window, cx);
             }
         }))
         .children(body)
@@ -189,22 +191,22 @@ fn open_settings(cx: &mut Context<Shell>) -> AnyElement {
         .into_any_element()
 }
 
-fn warning(id: &'static str, text: &'static str, cx: &Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
+/// The alert on the name row: `text` with a triangle, in `color`.
+fn alert(id: &'static str, text: &'static str, color: Hsla, cx: &Context<Shell>) -> AnyElement {
     region(id)
         .ml_auto()
         .flex()
         .items_center()
         .gap(Spacing::XS)
-        .text_color(colors.warning)
+        .text_color(color)
         .child(
             Icon::new(ui::icon(IconName::TriangleAlert))
                 .size(Feedback::STATUS_DIAMOND * 2.0)
-                .color(colors.warning),
+                .color(color),
         )
         .child(
             ui::role(div(), TextVariant::BodySm, cx)
-                .text_color(colors.warning)
+                .text_color(color)
                 .child(text),
         )
         .into_any_element()
@@ -316,35 +318,83 @@ fn secret(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement>
     ]
 }
 
-/// State d: not defined; the scope picker, the value and the Secret box.
-fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
-    let items: Vec<SegmentedItem> = popover
+/// The label of the quick-add scope `target`: an environment by name, marked when it is the
+/// active one, the collection as `Collection · <name>`, or `Globals`.
+fn target_label(target: &VariableScopeRef, popover: &VariablePopover) -> String {
+    match target.scope {
+        SecretScope::Collection(_) => format!("Collection · {}", target.name),
+        SecretScope::Global => target.name.clone(),
+        SecretScope::Environment(_) if popover.info.active_target == Some(target.scope) => {
+            format!("{} · active", target.name)
+        }
+        SecretScope::Environment(_) => target.name.clone(),
+    }
+}
+
+/// The "Add to" dropdown: `bolt`'s select trigger, element id `variable-popover-target`, and,
+/// while open, its list of rows `variable-popover-target-<n>` under it. The list is part of the
+/// popover, not a layer over it, so a click on a row is a click inside the popover.
+// bolt gap: Dropdown draws its list in a layer above the window; the popover treats a
+// click outside its own frame as a dismissal, so the list stays in the frame.
+fn target_dropdown(popover: &VariablePopover, cx: &mut Context<Shell>) -> AnyElement {
+    let tint = bolt::brand::brand(cx).accent_tint;
+    let label = popover
+        .info
+        .targets
+        .get(popover.target)
+        .map(|target| target_label(target, popover))
+        .unwrap_or_default();
+    let trigger = SelectTrigger::new("variable-popover-target", label.clone())
+        .aria_label(format!("Add to: {label}"))
+        .focus_ring(popover.target_menu.then_some(tint))
+        .on_click(cx.listener(|this, _event, _window, cx| {
+            this.toggle_variable_target_menu(cx);
+        }));
+    let rows = popover
         .info
         .targets
         .iter()
         .enumerate()
         .map(|(index, target)| {
-            let label = match target.scope {
-                SecretScope::Collection(_) => format!("Collection · {}", target.name),
-                SecretScope::Global | SecretScope::Environment(_) => target.name.clone(),
-            };
-            SegmentedItem::new(index.to_string(), label)
-                .element_id(format!("variable-popover-target-{}", index + 1))
-        })
-        .collect();
-    let on_select = cx.listener(|this, id: &SharedString, _window, cx| {
-        if let Ok(index) = id.parse::<usize>() {
-            this.pick_variable_target(index, cx);
-        }
+            let name = target_label(target, popover);
+            let selected = index == popover.target;
+            let id = format!("variable-popover-target-{}", index + 1);
+            let selector = id.clone();
+            menu_row(
+                id,
+                &MenuItem::new(name.clone()).checked(selected),
+                selected,
+                cx,
+            )
+            .debug_selector(move || selector)
+            .aria_label(name)
+            .aria_selected(selected)
+            .on_click(cx.listener(move |this, _event, _window, cx| {
+                this.pick_variable_target(index, cx);
+            }))
+            .into_any_element()
+        });
+    let list = popover.target_menu.then(|| {
+        menu_frame(cx)
+            .id("variable-popover-target-list")
+            .role(Role::Menu)
+            .max_h(tokens::VARIABLE_POPOVER_TARGET_LIST_HEIGHT)
+            .overflow_y_scroll()
+            .children(rows.collect::<Vec<_>>())
     });
-    let picker = segmented::control(
-        "variable-popover-targets",
-        Some("Scope".into()),
-        false,
-        items,
-        popover.target.to_string(),
-        on_select,
-    );
+    div()
+        .flex()
+        .flex_col()
+        .gap(Spacing::XS)
+        .w_full()
+        .child(trigger)
+        .children(list)
+        .into_any_element()
+}
+
+/// State d: not defined; the "Add to" dropdown, the value and the Secret box.
+fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
+    let picker = target_dropdown(popover, cx);
     let secret_box = Checkbox::new("variable-popover-secret")
         .checked(popover.secret)
         .label("Secret (store in OS keyring)")
@@ -370,11 +420,16 @@ fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
     vec![
         header(
             &popover.info.name,
-            vec![warning("variable-popover-not-defined", "Not defined", cx)],
+            vec![alert(
+                "variable-popover-not-defined",
+                "Not defined",
+                bolt::colors(cx).danger,
+                cx,
+            )],
             cx,
         ),
         caption("Add to", cx),
-        picker.into_any_element(),
+        picker,
         caption("Value", cx),
         field(popover, popover.secret, Vec::new(), cx),
         secret_box.into_any_element(),
@@ -422,9 +477,10 @@ fn no_environment(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<Any
     vec![
         header(
             &popover.info.name,
-            vec![warning(
+            vec![alert(
                 "variable-popover-no-environment",
                 "No active environment",
+                bolt::colors(cx).warning,
                 cx,
             )],
             cx,

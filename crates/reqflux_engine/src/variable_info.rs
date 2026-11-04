@@ -103,8 +103,12 @@ pub struct VariableInfo {
     /// name, sorted by name.
     pub environments: Vec<EnvironmentChoice>,
     /// The scopes a quick add can create the variable in: the active environment, if any,
-    /// the request's collection and the globals.
+    /// then the other environments the collection allows by name, the request's collection
+    /// and the globals.
     pub targets: Vec<VariableScopeRef>,
+    /// The active environment's scope, which is the first of `targets`; `None` when no
+    /// environment is active.
+    pub active_target: Option<SecretScope>,
 }
 
 impl VariableInfo {
@@ -186,8 +190,25 @@ impl Engine {
         } else {
             Vec::new()
         };
+        let active_target = environment_ref.as_ref().map(|at| at.scope);
+        let mut others: Vec<VariableScopeRef> = workspace
+            .environments
+            .iter()
+            .filter(|node| {
+                collection
+                    .collection
+                    .allows_environment(node.environment.id)
+                    && Some(SecretScope::Environment(node.environment.id)) != active_target
+            })
+            .map(|node| VariableScopeRef {
+                scope: SecretScope::Environment(node.environment.id),
+                name: node.environment.name.clone(),
+            })
+            .collect();
+        others.sort_by(|a, b| a.name.cmp(&b.name));
         let targets = environment_ref
             .into_iter()
+            .chain(others)
             .chain([collection_ref, globals])
             .collect();
         Ok(VariableInfo {
@@ -197,6 +218,7 @@ impl Engine {
             dynamic: DynamicVariable::parse(name).is_some(),
             environments,
             targets,
+            active_target,
         })
     }
 

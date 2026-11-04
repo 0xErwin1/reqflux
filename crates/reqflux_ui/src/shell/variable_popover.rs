@@ -6,9 +6,10 @@
 //!
 //! - Enter saves the field as the current value of that scope, or a secret's value in the
 //!   keyring; the workspace file is never written. Reset to initial clears the current value.
-//! - An undefined name offers a quick add to the active environment, the collection or the
-//!   globals, with the typed value as its initial value; a secret keeps only its key in the
-//!   file.
+//! - An undefined name offers a quick add through an "Add to" dropdown listing every
+//!   environment the collection allows (the active one first, marked, and preselected), then
+//!   the collection and the globals, with the typed value as its initial value; a secret keeps
+//!   only its key in the file.
 //! - With no active environment, a name only environments declare lists them to activate.
 //!
 //! Escape or a click outside closes it without writing. After a write the open requests are
@@ -42,6 +43,8 @@ pub(crate) struct VariablePopover {
     pub(crate) focus: FocusHandle,
     /// The quick-add scope, an index into `info.targets`.
     pub(crate) target: usize,
+    /// Whether the "Add to" list is open under its trigger.
+    pub(crate) target_menu: bool,
     /// The quick-add Secret box.
     pub(crate) secret: bool,
     /// Whether a secret's value was read into the field.
@@ -73,11 +76,24 @@ impl VariablePopover {
         }
     }
 
-    /// The scopes a quick add can pick: with the environment list skipped, the collection
-    /// and the globals only.
+    /// The scopes a quick add can pick: every environment the collection allows, the
+    /// collection and the globals.
     pub(crate) fn add_targets(&self) -> &[reqflux_engine::VariableScopeRef] {
         &self.info.targets
     }
+}
+
+/// The quick-add scope picked when the popover opens: the active environment, else the
+/// collection.
+fn default_target(info: &VariableInfo) -> usize {
+    info.active_target
+        .and_then(|scope| info.targets.iter().position(|target| target.scope == scope))
+        .or_else(|| {
+            info.targets
+                .iter()
+                .position(|target| matches!(target.scope, SecretScope::Collection(_)))
+        })
+        .unwrap_or(0)
 }
 
 /// The pending hover of the mark `anchor`, which opens its popover when the timer fires.
@@ -194,12 +210,14 @@ impl Shell {
             state.set_value(seed, window, cx);
             state.select_all(window, cx);
         });
+        let target = default_target(&info);
         let popover = VariablePopover {
             anchor: anchor.to_owned(),
             info,
             input,
             focus: cx.focus_handle(),
-            target: 0,
+            target,
+            target_menu: false,
             secret: false,
             revealed: false,
             adding: false,
@@ -408,12 +426,32 @@ impl Shell {
         }
     }
 
-    /// Picks the quick-add scope `index` of the popover.
+    /// Picks the quick-add scope `index` of the popover and closes the "Add to" list.
     pub(super) fn pick_variable_target(&mut self, index: usize, cx: &mut Context<Self>) {
         if let Some(popover) = self.variable_popover.as_mut() {
             popover.target = index;
+            popover.target_menu = false;
         }
         cx.notify();
+    }
+
+    /// Opens the "Add to" list, or closes it when open.
+    pub(super) fn toggle_variable_target_menu(&mut self, cx: &mut Context<Self>) {
+        if let Some(popover) = self.variable_popover.as_mut() {
+            popover.target_menu = !popover.target_menu;
+        }
+        cx.notify();
+    }
+
+    /// Escape in the popover: closes the "Add to" list when it is open, else the popover.
+    pub(super) fn escape_variable_popover(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.variable_popover.as_mut() {
+            Some(popover) if popover.target_menu => {
+                popover.target_menu = false;
+                cx.notify();
+            }
+            _ => self.close_variable_popover(window, cx),
+        }
     }
 
     /// Toggles the quick-add Secret box.

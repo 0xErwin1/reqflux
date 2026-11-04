@@ -93,6 +93,10 @@ fn staging() -> SecretScope {
     SecretScope::Environment(id(STAGING))
 }
 
+fn production() -> SecretScope {
+    SecretScope::Environment(id(PRODUCTION))
+}
+
 fn billing() -> SecretScope {
     SecretScope::Collection(id(COLLECTION))
 }
@@ -215,10 +219,43 @@ fn s10_an_unknown_name_is_unresolved_with_the_quick_add_scopes() {
         targets,
         vec![
             (staging(), "Staging"),
+            (production(), "Production"),
             (billing(), "Billing"),
             (SecretScope::Global, "Globals"),
         ]
     );
+    assert_eq!(info.active_target, Some(staging()));
+}
+
+#[test]
+fn s0_the_quick_add_lists_every_allowed_environment_with_none_active() {
+    let dir = workspace_dir();
+    let engine = engine(dir.path(), Arc::new(MemorySecretStore::new()));
+    let info = info(&engine, None, &CurrentValues::new(), "tenant_id");
+
+    let targets: Vec<_> = info.targets.iter().map(|target| target.scope).collect();
+    assert_eq!(
+        targets,
+        vec![production(), staging(), billing(), SecretScope::Global]
+    );
+    assert_eq!(info.active_target, None);
+}
+
+#[test]
+fn s0_the_quick_add_leaves_out_environments_the_collection_does_not_allow() {
+    let dir = workspace_dir();
+    let collection = dir.path().join("collections/api/collection.toml");
+    let text = std::fs::read_to_string(&collection).unwrap();
+    std::fs::write(
+        &collection,
+        format!("environments = [\"{}\"]\n{text}", id_text(PRODUCTION)),
+    )
+    .unwrap();
+    let engine = engine(dir.path(), Arc::new(MemorySecretStore::new()));
+    let info = info(&engine, None, &CurrentValues::new(), "tenant_id");
+
+    let targets: Vec<_> = info.targets.iter().map(|target| target.scope).collect();
+    assert_eq!(targets, vec![production(), billing(), SecretScope::Global]);
 }
 
 #[test]
@@ -235,7 +272,10 @@ fn s10_an_environment_only_name_lists_its_environments_when_none_is_active() {
         .collect();
     assert_eq!(environments, vec![("production", "Production")]);
     let targets: Vec<_> = info.targets.iter().map(|target| target.scope).collect();
-    assert_eq!(targets, vec![billing(), SecretScope::Global]);
+    assert_eq!(
+        targets,
+        vec![production(), staging(), billing(), SecretScope::Global]
+    );
 }
 
 #[test]

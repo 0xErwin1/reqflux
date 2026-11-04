@@ -1,11 +1,12 @@
 //! The Params and Headers grids as spreadsheet cells (request-panes/01): a header row, then
 //! one row per entry with its enable box, the key, the value with its references styled, the
 //! description and the delete control, each cell with a line on every side. Disabled rows are
-//! muted and struck through, rows with an unresolved reference carry a warning wash, and a
+//! muted and struck through, rows with an unresolved reference carry a danger wash, and a
 //! value that references a secret shows `••••••••` with a SECRET badge. Clicking a row's
 //! enable box toggles the row in the draft; clicking its key or value cell turns the cell
 //! into a well with a text field. The delete control removes the row, and the add row under
-//! the grid appends one. Rows and the header take the heights and the face of `bolt`'s data
+//! the grid appends one; an empty editable grid shows its header and the add row, not an
+//! empty state. Rows and the header take the heights and the face of `bolt`'s data
 //! grid.
 
 use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter, InputEscape};
@@ -105,18 +106,15 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let add = request_id.map(|id| add_row(id, table, kind, cx));
-    if rows.is_empty() {
+    // An editable grid shows its columns and the add row even when empty, so a row is one
+    // click away; only a read-only grid has nothing to add and shows the empty state.
+    if rows.is_empty() && request_id.is_none() {
         let empty = code::empty(
             "request-grid-empty".to_owned(),
             IconName::List,
             format!("No {table}"),
         );
-        return div()
-            .flex()
-            .flex_col()
-            .child(empty)
-            .children(add)
-            .into_any_element();
+        return div().flex().flex_col().child(empty).into_any_element();
     }
     let hint = value_hint(shell.environment_name().as_deref());
     let header = header(table, kind, hint, cx);
@@ -270,7 +268,7 @@ fn data_row(
     .flex_none()
     .h(bolt::fonts::grid_row_height(cx))
     .when(unresolved, |this| {
-        this.bg(tokens::unresolved_wash(colors.warning))
+        this.bg(tokens::unresolved_wash(colors.danger))
     })
     .child(Column::Enable.cell(line).children(enable))
     .child(key_cell)
@@ -311,7 +309,8 @@ fn delete_control(
 }
 
 /// The add row under the grid of `table`, element id `request-<table>-add`: a grid row with
-/// a plus in the enable cell and the placeholders of a new `kind` entry. Clicking it appends
+/// a plus in the enable cell and the placeholders of a new `kind` entry, which lights up
+/// under the pointer so it reads as the place to type. Clicking it appends
 /// an empty enabled row to the request's draft and opens its key cell.
 fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -> Stateful<Div> {
     let colors = bolt::colors(cx);
@@ -327,11 +326,12 @@ fn add_row(request_id: &str, table: &str, kind: &str, cx: &mut Context<Shell>) -
         .flex_none()
         .h(bolt::fonts::grid_row_height(cx))
         .text_color(colors.muted)
+        .hover(|style| style.bg(colors.hover).text_color(colors.foreground))
         .child(
             Column::Enable.cell(line).child(
                 Icon::new(ui::icon(IconName::Plus))
                     .size(Fields::CHECK_MARK)
-                    .color(colors.line_2),
+                    .color(colors.muted),
             ),
         )
         .child(Column::Key.cell(line).child(placeholder(kind)))

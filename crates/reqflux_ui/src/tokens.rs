@@ -107,6 +107,9 @@ pub(crate) const EMPTY_STATE_WIDTH: Pixels = px(420.0);
 /// The width of the variable popover (variable-popover/01).
 pub(crate) const VARIABLE_POPOVER_WIDTH: Pixels = px(340.0);
 
+/// The tallest the "Add to" list of the variable popover grows before it scrolls.
+pub(crate) const VARIABLE_POPOVER_TARGET_LIST_HEIGHT: Pixels = px(160.0);
+
 /// The width of the Auth pane type menu.
 pub(crate) const AUTH_MENU_WIDTH: Pixels = px(240.0);
 
@@ -204,12 +207,12 @@ pub(crate) const APP_SETTINGS_OVERRIDE_RULE: Pixels = px(70.0);
 /// The key column of a Keymap row (design/layouts/01 D3 `.krow`).
 pub(crate) const KEYMAP_KEY_WIDTH: Pixels = px(240.0);
 
-/// The opacity of the warning wash on a grid row with an unresolved reference.
+/// The opacity of the danger wash on a grid row with an unresolved reference.
 const UNRESOLVED_ROW_WASH: f32 = 0.05;
 
-/// The wash of a grid row with an unresolved reference, from the palette's `warning`.
-pub(crate) fn unresolved_wash(warning: Hsla) -> Hsla {
-    wash(warning, UNRESOLVED_ROW_WASH)
+/// The wash of a grid row with an unresolved reference, from the palette's `danger`.
+pub(crate) fn unresolved_wash(danger: Hsla) -> Hsla {
+    wash(danger, UNRESOLVED_ROW_WASH)
 }
 
 /// The height of the indeterminate progress bar under the tab row while sending.

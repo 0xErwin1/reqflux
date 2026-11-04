@@ -150,8 +150,7 @@ fn adding_a_variable_from_the_open_field_marks_it_resolved(cx: &mut TestAppConte
     cx.simulate_keystrokes(&format!("{keys} f2"));
     cx.run_until_parked();
 
-    // Targets: API, Globals.
-    click(cx, "variable-popover-target-1");
+    // The quick add starts on the collection, API.
     click(cx, "variable-popover-input");
     type_text(cx, "acme");
     cx.simulate_keystrokes("enter");
@@ -160,4 +159,22 @@ fn adding_a_variable_from_the_open_field_marks_it_resolved(cx: &mut TestAppConte
     assert!(cx.update(|_, cx| shell.read(cx).url_edit.is_some()));
     let resolved = expected(cx, &[(0..8, true), (12..22, true)]);
     assert_eq!(url_marks(cx, &shell), Some(resolved));
+}
+
+#[gpui::test]
+fn an_unresolved_reference_is_marked_with_the_danger_role(cx: &mut TestAppContext) {
+    cx.update(|cx| {
+        crate::theme::install(crate::theme::PaletteMode::Dark, cx);
+        let danger = bolt::colors(cx).danger;
+        let style = spans::mark_style(false, cx);
+        assert_eq!(style.color, Some(danger));
+        assert_eq!(
+            style.background_color,
+            Some(crate::tokens::variable_wash(danger))
+        );
+        assert_eq!(
+            style.underline.and_then(|underline| underline.color),
+            Some(danger)
+        );
+    });
 }

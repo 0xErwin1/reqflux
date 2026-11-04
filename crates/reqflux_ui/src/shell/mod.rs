@@ -179,6 +179,9 @@ pub(crate) struct Shell {
     /// The cell field of the Params or Headers grid, the Settings timeout field or an Auth
     /// field, under edit, while it has focus.
     cell_edit: Option<CellEdit>,
+    /// The input of the open cell field the shell listens to for its blur, with the
+    /// subscription (see `cell_edit::watch_cell_blur`).
+    cell_blur: Option<(Entity<gpui_component::input::InputState>, Subscription)>,
     /// Where the request/response split sits, shared by every request tab.
     split: split::Split,
     /// The raw body editor of the request under edit.
@@ -309,6 +312,7 @@ impl Shell {
             export: export::Export::new(cx),
             curl_undo: None,
             cell_edit: None,
+            cell_blur: None,
             split: split::Split::new(cx.focus_handle()),
             body_edit: None,
             script_edit: None,
@@ -532,6 +536,7 @@ impl Shell {
 
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.watch_cell_blur(window, cx);
         let root = div()
             .key_context(SHELL_CONTEXT)
             .track_focus(&self.focus)

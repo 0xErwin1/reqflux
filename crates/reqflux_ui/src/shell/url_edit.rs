@@ -8,7 +8,10 @@
 //! and sends the request; Escape discards what was typed since the field got focus and
 //! restores the URL and the params. The field takes Escape while it has focus through the
 //! input's own key context, so the shell's send-cancel binding keeps working when no field
-//! is focused.
+//! is focused. The field losing focus (a click on an empty area of the shell gives the focus
+//! to the shell) commits it like Enter without sending, so the read-only marks and their
+//! popover come back; while the variable popover that hangs under the field is open the
+//! focus sits in the popover and the field keeps its text.
 //!
 //! The open field follows the grid: when a row is toggled, edited, added or deleted while it
 //! is open, its text becomes the URL as shown and the cursor keeps its offset (clamped to the
@@ -76,16 +79,23 @@ impl Shell {
         });
         let marks = Some(self.mark_input(id, &input, cx));
         let request_id = id.to_owned();
-        let change = cx.subscribe(&input, |this, _, event: &InputEvent, cx| {
-            if matches!(event, InputEvent::Change)
-                && let Some(edit) = this.url_edit.as_ref()
-            {
-                let value = edit.input.read(cx).value().to_string();
-                let request_id = edit.request_id.clone();
-                let seed_params = edit.seed_params.clone();
-                this.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
-            }
-        });
+        let change =
+            cx.subscribe_in(
+                &input,
+                window,
+                |this, _, event: &InputEvent, window, cx| match event {
+                    InputEvent::Change => {
+                        if let Some(edit) = this.url_edit.as_ref() {
+                            let value = edit.input.read(cx).value().to_string();
+                            let request_id = edit.request_id.clone();
+                            let seed_params = edit.seed_params.clone();
+                            this.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
+                        }
+                    }
+                    InputEvent::Blur => this.blur_url_edit(window, cx),
+                    _ => {}
+                },
+            );
         let follow = cx.observe_in(&cx.entity(), window, |this, _, window, cx| {
             this.follow_grid(window, cx);
         });
@@ -192,6 +202,34 @@ impl Shell {
         let value = input.read(cx).value().to_string();
         self.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
         self.close_url_edit(window, cx);
+    }
+
+    /// The field lost focus: commits it without sending, unless the variable popover is open,
+    /// whose field legitimately holds the focus, or the window was deactivated, which is not
+    /// the user leaving the field. The focus is not taken back from whatever
+    /// got it; when nothing has it the shell does, so its keys work.
+    fn blur_url_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some((request_id, input, seed_params)) = self
+            .url_edit
+            .as_ref()
+            .filter(|_| self.variable_popover.is_none() && window.is_window_active())
+            .map(|edit| {
+                (
+                    edit.request_id.clone(),
+                    edit.input.clone(),
+                    edit.seed_params.clone(),
+                )
+            })
+        else {
+            return;
+        };
+        let value = input.read(cx).value().to_string();
+        self.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
+        self.url_edit = None;
+        if window.focused(cx).is_none() {
+            self.focus.focus(window, cx);
+        }
+        cx.notify();
     }
 
     /// Escape in the field: discards what was typed since the field got focus and restores

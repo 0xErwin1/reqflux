@@ -51,7 +51,7 @@ button{font:inherit;white-space:nowrap}
 .gr>.rn{padding:0 12px 0 0;text-align:right;color:#37333D}
 .tp{font-weight:400;font-size:10.5px;color:#8E8996;margin-left:6px}
 .var{color:#9DB1FF;background:rgba(157,177,255,.12)}
-.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+.unres{color:#FF6B5E;background:rgba(255,107,94,.12);box-shadow:inset 0 -1px 0 #FF6B5E}
 
 /* code */
 .ln{display:flex;align-items:center;height:20px}
@@ -150,6 +150,9 @@ body{background:#050507}
 .eg .r>span.foc{overflow:visible;background:#09090B;box-shadow:inset 0 0 0 1.5px #9DB1FF}
 .eg .r.off>span:not(:first-child){color:#8E8996;text-decoration:line-through;text-decoration-color:#37333D}
 .eg .r.add>span{color:#8E8996}
+.eg .r.add{cursor:pointer}
+.eg .r.add:hover,.eg .r.add.hot{background:#1A181E}
+.eg .r.add:hover>span,.eg .r.add.hot>span{color:#F7F4F7}
 .prose{font-family:Archivo,system-ui,sans-serif;font-size:12.5px;color:#8E8996}
 .secret{display:inline-flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em}
 .mask{color:#8E8996;letter-spacing:.1em}
@@ -517,7 +520,7 @@ body{background:#050507}
           <span class="tab" data-tab="Scripts" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-code"/></svg>Scripts<span class="m" style="font-size:10.5px;font-weight:400;color:#8E8996">pre</span></span>
           <span class="tab" data-tab="Settings" role="tab"><svg class="ico" style="width:14px;height:14px"><use href="#i-sliders"/></svg>Settings<span class="m" style="font-size:10.5px;font-weight:400;color:#9DB1FF">2</span></span>
           <span style="flex-grow:1"></span>
-          <span data-only="Headers" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#FFC23D;white-space:nowrap">
+          <span data-only="Headers" style="display:flex;align-items:center;gap:6px;font-size:12px;color:#FF6B5E;white-space:nowrap">
             <svg class="ico" style="width:13px;height:13px"><use href="#i-alert"/></svg>1 unresolved variable
           </span>
         </div>
@@ -581,11 +584,11 @@ body{background:#050507}
               <span class="prose">From Auth › Token</span>
               <span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-trash"/></svg></span>
             </div>
-            <div class="r" role="row" style="background:rgba(255,194,61,.05)">
+            <div class="r" role="row" style="background:rgba(255,107,94,.05)">
               <span><span class="chk on"><svg class="ico" style="width:12px;height:12px"><use href="#i-check"/></svg></span></span>
               <span style="color:#F7F4F7">X-Tenant-Id</span>
               <span class="foc" data-id="request-header-value-2"><span class="unres">{{tenant_id}}</span><span class="caret"></span></span>
-              <span class="prose" style="color:#FFC23D">Not defined in staging</span>
+              <span class="prose" style="color:#FF6B5E">Not defined in staging</span>
               <span><svg class="ico" style="width:13px;height:13px;color:#8E8996"><use href="#i-trash"/></svg></span>
             </div>
             <div class="r off" role="row">
@@ -761,6 +764,37 @@ body{background:#050507}
                   <button class="c6 btn pri" data-id="request-script-test-create"><svg class="ico" style="width:14px;height:14px"><use href="#i-pencil"/></svg>Write a script</button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </template>
+</section>
+
+<section class="frame" aria-label="Frame E: An empty Params grid">
+  <div class="cap"><b>E · Empty Params</b><span>An editable grid never swaps to a big empty state: the header and the add row stay, so a param is one click away, as in Postman. The add row is a real row (plus, Key, Value, Description placeholders); under the pointer it takes the hover wash and its text brightens, and a click appends the row and opens its key cell. Read-only grids still show the empty state.</span></div>
+  <template class="doc">
+    <div class="split" style="flex-direction:column">
+      <div class="pane-req" style="flex:1 1 0">
+        <div data-use="strip"></div>
+        <div style="display:flex;flex-direction:column;flex-grow:1;min-width:0;min-height:0">
+          <div data-use="line"></div>
+          <div data-use="subtabs" data-on="Params"></div>
+          <div class="eg" role="grid" aria-label="Params" data-id="request-params-grid">
+            <div class="h" role="row">
+              <span role="columnheader" aria-label="Enabled"></span>
+              <span role="columnheader">key<span class="tp">param</span></span>
+              <span role="columnheader">value<span class="tp">resolved in staging</span></span>
+              <span role="columnheader">description</span>
+              <span role="columnheader" aria-label="Actions"></span>
+            </div>
+            <div class="r add hot" role="row" data-id="request-params-add" aria-label="Add to params">
+              <span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-plus"/></svg></span>
+              <span>Param</span>
+              <span>Value</span>
+              <span class="prose">Description</span>
+              <span></span>
             </div>
           </div>
         </div>

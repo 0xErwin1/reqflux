@@ -18,7 +18,7 @@
       value to the keyring instead and the file holds only the key.
 
   bolt components used: Popover (overlay, cut 12), Field / TextInput (30 px), Badge (scope, SECRET),
-    Button (primary, ghost), IconButton (reveal, copy), SegmentedControl (scope picker),
+    Button (primary, ghost), IconButton (reveal, copy), SelectTrigger + menu rows (Add to dropdown),
     Checkbox, KeyHint (keycap), Link-style ghost button, environment diamond.
   bolt gaps:
     - bolt gap: Popover anchored to a text range inside an input (needs the anchor rect of a
@@ -58,7 +58,7 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
 .send{height:30px;padding:0 14px;border:0;background:#2B45B8;color:#FFF;font-weight:700}
 .var{color:#9DB1FF;background:rgba(157,177,255,.12)}
 .var.hot{background:rgba(157,177,255,.24)}
-.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+.unres{color:#FF6B5E;background:rgba(255,107,94,.12);box-shadow:inset 0 -1px 0 #FF6B5E}
 .caret{display:inline-block;width:1.5px;height:15px;background:#9DB1FF;vertical-align:middle;margin:0 -1px}
 .anchor{position:relative}
 .pop{position:absolute;top:36px;width:340px;background:#1A181E;box-shadow:inset 0 0 0 1px #37333D;padding:12px 14px 12px;z-index:2}
@@ -85,6 +85,15 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
 .btn.p{background:#2B45B8;color:#FFF;font-weight:700}
 .cb{display:inline-flex;width:14px;height:14px;box-shadow:#37333D 0 0 0 1.5px inset}
 .wrn{display:flex;align-items:center;gap:6px;color:#FFC23D;font-size:12px}
+.wrn.dng{color:#FF6B5E}
+.sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12px}
+.sel.open{box-shadow:#8E6BFF 0 0 0 1px inset}
+.sel .grow{flex:1}
+.sel .chev{width:12px;height:12px;color:#8E8996}
+.lst{margin-top:4px;padding:4px;background:#121014;box-shadow:#37333D 0 0 0 1px inset;display:flex;flex-direction:column;max-height:160px;overflow:auto}
+.lst>div{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px;color:#C6C3CC;font-size:12px}
+.lst>div.on{background:#1A181E;color:#F7F4F7}
+.lst>div .ck{margin-left:auto;color:#8E6BFF}
 .grid{background:#09090B;box-shadow:#232128 0 0 0 1px inset}
 .gh,.gr{display:flex;align-items:center;font-size:12.5px}
 .gh{height:32px;color:#F7F4F7;font-weight:600;border-bottom:1px solid #232128}
@@ -102,6 +111,7 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
   <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
   <symbol id="i-revert" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></symbol>
 </svg>
 <header class="top">
@@ -171,14 +181,20 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
 <section class="st c14" aria-labelledby="d-h">
   <div class="cap">State d</div>
   <h2 id="d-h">Unresolved variable: quick add</h2>
-  <p class="note">"Not defined" with an inline add. Scope defaults to the active environment. The value becomes the initial value of the new variable; "Secret" sends it to the keyring instead.</p>
+  <p class="note">"Not defined" in the danger red, with an inline add. "Add to" is a dropdown that lists every environment the collection allows (the active one first, marked, and preselected), then the collection and Globals; with no active environment it starts on the collection. The list opens inside the popover, so a click on a row is a click inside it. Unresolved marks use the danger role, not warning. The value becomes the initial value of the new variable; "Secret" sends it to the keyring instead.</p>
   <div class="urlbar">
     <span class="meth c6 m" style="color:#FFC23D">POST</span>
     <div class="url c8 m">https://api.staging.acme.dev/v2/tenants/<span class="anchor"><span class="unres">{{tenant_id}}</span>
       <div class="pop c12" style="left:-150px" role="dialog" aria-label="Variable tenant_id, not defined">
-        <div class="ph"><span class="nm m">tenant_id</span><span class="wrn" style="margin-left:auto"><svg class="ico"><use href="#i-alert"/></svg>Not defined</span></div>
+        <div class="ph"><span class="nm m">tenant_id</span><span class="wrn dng" style="margin-left:auto"><svg class="ico"><use href="#i-alert"/></svg>Not defined</span></div>
         <span class="lbl">Add to</span>
-        <div class="seg c6" role="radiogroup" aria-label="Scope"><span class="on" role="radio" aria-checked="true"><span class="dia" style="background:#FFC23D"></span>Staging</span><span role="radio" aria-checked="false">Collection · Billing</span><span role="radio" aria-checked="false">Globals</span></div>
+        <div class="sel open c6" role="combobox" aria-expanded="true" aria-label="Add to: Staging · active"><span class="dia" style="background:#FFC23D"></span><span class="grow">Staging · active</span><svg class="ico chev"><use href="#i-chevron"/></svg></div>
+        <div class="lst c6" role="menu">
+          <div class="on" role="menuitem" aria-selected="true"><span class="dia" style="background:#FFC23D"></span>Staging · active<span class="ck">&#10003;</span></div>
+          <div role="menuitem"><span class="dia" style="background:#FF6B5E"></span>Production</div>
+          <div role="menuitem">Collection · Billing</div>
+          <div role="menuitem">Globals</div>
+        </div>
         <label class="lbl" for="d-val">Value</label>
         <div class="field foc c8 m" id="d-val"><span class="grow">tnt_7f2a<span class="caret"></span></span></div>
         <div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px"><span class="cb c4" role="checkbox" aria-checked="false"></span>Secret (store in OS keyring)</div>
