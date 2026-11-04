@@ -312,7 +312,8 @@ fn environment_items(choices: &[ScopeEntry]) -> Vec<DropdownItem> {
         .collect()
 }
 
-/// The selection box `variables-select-<n>` of the row of `key`.
+/// The selection box `variables-select-<n>` of the row of `key`; an environment's grid
+/// cannot copy, so it keeps the column empty.
 pub(in crate::shell) fn select_box(
     shell: &Shell,
     scope: SecretScope,
@@ -320,6 +321,9 @@ pub(in crate::shell) fn select_box(
     key: &str,
     cx: &mut Context<Shell>,
 ) -> Div {
+    if matches!(scope, SecretScope::Environment(_)) {
+        return spacer();
+    }
     let checked =
         shell.settings.copy.owner == Some(scope) && shell.settings.copy.selected.contains(key);
     let key = key.to_owned();
@@ -341,6 +345,9 @@ pub(in crate::shell) fn select_all_box(
     scope: SecretScope,
     cx: &mut Context<Shell>,
 ) -> Div {
+    if matches!(scope, SecretScope::Environment(_)) {
+        return spacer();
+    }
     let count = shell.variables_of(scope).len();
     let checked = count > 0 && shell.selected_variable_keys(scope).len() == count;
     column(

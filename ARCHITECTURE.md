@@ -1055,7 +1055,11 @@ workspace file; see below). `reqflux_engine::config` edits `font_size`, the `[mc
 `[network.proxy]` `mode` and `url` are edited by `set_proxy_mode` and `set_proxy_url` (a blank
 URL removes the key); they create `[network.proxy]` after what the file holds and leave
 `[network]`'s other entries, the per-workspace proxies and unknown tables as written. The proxy
-password is never written there: it stays in the keyring.
+password is never written there: it stays in the keyring. `set_proxy_url` refuses a URL that
+carries a password (`ConfigError::PasswordInUrl`, nothing written); `set_proxy_url_with_secret`
+is the caller that splits it: the password (percent-decoded) goes to `network/proxy` first, then
+the file gets the URL without it and the user name as `username`, so a keyring failure writes
+nothing. No error, log or toast carries the password.
 `[keymap]` (`"save-request" = "ctrl-shift-s"`; only bindings that differ from the defaults are
 kept) rebinds the window's commands (the registry in `shell/commands.rs`): the window reads it at
 startup and after every edit, an unknown slug or a chord it cannot bind is a warning in the
@@ -1623,8 +1627,10 @@ size select empty, until the rail's Settings was used.
 
 App > Network writes the proxy beside the keyring: `network-proxy-mode` (System, None, Manual)
 writes `mode` of `[network.proxy]` and applies it to the open engine; Manual shows the field
-`network-proxy-url`, which writes `url` on Enter and when it loses focus (a URL that carries a
-password is shown masked, and a text that still holds the mask is never written back). The CA
+`network-proxy-url`, which writes `url` on Enter and when it loses focus (a password typed in it
+goes to the keyring through `set_proxy_url_with_secret` and the file keeps the URL without it; the
+field shows a URL with a password, or whose password the keyring holds, masked, and a text that
+still holds the mask is never written back). The CA
 bundle, the certificates, the bypass list and a workspace's own proxy are read from the file. A
 write that fails raises an error toast; with a file that does not parse the mode control is
 dimmed and inert, so nothing that looks editable answers with an error.

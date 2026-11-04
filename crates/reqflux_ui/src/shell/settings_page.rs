@@ -226,6 +226,7 @@ impl Shell {
         self.settings.confirm = None;
         self.settings.rename = None;
         self.settings.docs = None;
+        self.settings.warning = None;
         cx.notify();
     }
 

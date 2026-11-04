@@ -216,3 +216,36 @@ fn the_environment_menu_is_as_wide_as_its_trigger(cx: &mut TestAppContext) {
         trigger.size.width
     );
 }
+
+#[gpui::test]
+fn an_environment_page_has_no_selection_boxes_because_it_cannot_copy(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    click(cx, "rail-environments");
+    click(cx, &format!("variables-scope-environment-{DEV}"));
+    present(cx, "variables-row-1");
+    assert!(bounds(cx, "variables-select-all").is_none());
+    assert!(bounds(cx, "variables-select-1").is_none());
+    assert!(bounds(cx, "variables-copy").is_none());
+
+    open_globals(cx);
+    present(cx, "variables-select-all");
+    present(cx, "variables-select-1");
+}
+
+#[gpui::test]
+fn the_copy_result_line_goes_away_with_the_section(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    let automation = automation(cx);
+    open_globals(cx);
+    click(cx, "variables-select-1");
+    click(cx, "variables-copy");
+    click(cx, "variables-copy-confirm");
+    assert!(label(&automation, "variables-warning").is_some());
+
+    click(cx, "nav-general");
+    assert_eq!(label(&automation, "variables-warning"), None);
+}

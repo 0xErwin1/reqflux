@@ -5,6 +5,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use gpui::{Entity, TestAppContext, VisualTestContext};
 use reqflux_engine::config;
@@ -363,4 +364,65 @@ fn the_proxy_controls_do_nothing_while_the_file_does_not_parse(cx: &mut TestAppC
         vec![],
         "and nothing answers with an error toast"
     );
+}
+
+const PASSWORD: &str = "secretpw";
+
+#[gpui::test]
+fn a_proxy_url_typed_with_a_password_keeps_it_out_of_config_toml(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+
+    click(cx, "network-proxy-mode-manual");
+    click(cx, "network-proxy-url");
+    cx.simulate_input("http://u:secretpw@127.0.0.1:3999");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    let text = read(&config_path);
+    assert!(!text.contains(PASSWORD), "{text}");
+    assert!(text.contains("url = \"http://u@127.0.0.1:3999\""), "{text}");
+    let stored = shell.update(cx, |shell, _| {
+        shell
+            .network_secrets()
+            .get_account("network/proxy")
+            .ok()
+            .flatten()
+    });
+    assert_eq!(stored.as_deref(), Some(PASSWORD));
+    assert_eq!(
+        shown_proxy(cx, &shell).1.as_deref(),
+        Some("http://u:••••••••@127.0.0.1:3999"),
+        "the field shows the password masked"
+    );
+    assert_eq!(toasts::pushed(cx), vec![], "no toast, so none carries it");
+}
+
+#[gpui::test]
+fn a_keyring_failure_writes_nothing_and_the_toast_has_no_password(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+    click(cx, "network-proxy-mode-manual");
+    let before = read(&config_path);
+    shell.update(cx, |shell, _| {
+        // No open engine, so the page's own store is the one asked.
+        shell.workspace = crate::workspace::OpenedWorkspace::None;
+        shell.settings.network.secrets = Some(Arc::new(
+            reqflux_engine::MemorySecretStore::unavailable("no keyring"),
+        ));
+    });
+
+    click(cx, "network-proxy-url");
+    cx.simulate_input("http://u:secretpw@127.0.0.1:3999");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    assert_eq!(read(&config_path), before);
+    let pushed = format!("{:?}", toasts::pushed(cx));
+    assert!(pushed.contains("Cannot write config.toml"), "{pushed}");
+    assert!(!pushed.contains(PASSWORD), "{pushed}");
 }

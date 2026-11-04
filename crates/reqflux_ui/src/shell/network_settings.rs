@@ -83,7 +83,8 @@ pub(crate) struct CertificateRow {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ProxyRow {
     pub(crate) mode: ProxyMode,
-    /// The URL with any password in it replaced by the mask.
+    /// The URL with any password in it replaced by the mask; the password a split URL moved
+    /// to the keyring shows masked too.
     pub(crate) url: Option<String>,
     pub(crate) username: Option<String>,
     /// The password of a manual proxy.
@@ -145,6 +146,27 @@ pub(crate) fn masked_url(url: &str) -> String {
     format!("{scheme}://{user}@{host}{tail}")
 }
 
+/// `url` (already masked) with the mask added as the password of a userinfo that has a user
+/// name and no password, when the keyring `stored` one for it.
+fn mask_stored_password(url: &str, stored: bool) -> String {
+    if !stored {
+        return url.to_owned();
+    }
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return url.to_owned();
+    };
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let Some((authority, tail)) = rest.split_at_checked(end) else {
+        return url.to_owned();
+    };
+    match authority.rsplit_once('@') {
+        Some((user, host)) if !user.contains(':') => {
+            format!("{scheme}://{user}:{MASK}@{host}{tail}")
+        }
+        _ => url.to_owned(),
+    }
+}
+
 /// Whether `secret` is in `store`; the value is dropped at once.
 fn keyring(store: &dyn SecretStore, secret: &NetworkSecret) -> Keyring {
     match store
@@ -178,7 +200,12 @@ fn proxy_row(
             .url
             .as_deref()
             .filter(|url| !url.trim().is_empty())
-            .map(|url| masked_url(url.trim())),
+            .map(|url| {
+                let stored = password
+                    .as_ref()
+                    .is_some_and(|row| row.state == Keyring::Set);
+                mask_stored_password(&masked_url(url.trim()), stored)
+            }),
         username,
         password,
         bypass: proxy.bypass.clone(),
@@ -487,7 +514,13 @@ impl Shell {
             self.sync_proxy_url(window, cx);
             return;
         }
-        self.edit_network_config(|path| config::set_proxy_url(path, &value), window, cx);
+        // A password in the text goes to the keyring; the file only gets the URL without it.
+        let store = self.network_secrets();
+        self.edit_network_config(
+            |path| config::set_proxy_url_with_secret(path, &value, store.as_ref()),
+            window,
+            cx,
+        );
     }
 
     /// Runs `edit` on `config.toml` when the proxy controls write, then reads the file back
