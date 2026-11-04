@@ -5,7 +5,7 @@
 
 use bolt::controls::Button;
 use bolt::primitives::{Icon, SegmentedItem, TextVariant};
-use bolt::tokens::{Borders, Fields, ResultMetrics};
+use bolt::tokens::{Borders, Fields, ResultMetrics, Spacing};
 use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 
@@ -85,23 +85,31 @@ pub(super) fn render(
         )
         .child(caption)
     });
+    let compact = send.views.compact();
     let copy = (*received.text != BodyText::Binary).then(|| {
         let request = id.to_owned();
-        Button::new("response-copy", "Copy")
+        let button = Button::new("response-copy", "Copy")
             .secondary()
-            .icon(ui::icon(IconName::Copy))
-            .on_click(cx.listener(move |this, _event, _window, cx| {
-                this.copy_response_body(&request, cx);
-            }))
+            .icon(ui::icon(IconName::Copy));
+        let button = if compact {
+            button.icon_only().tooltip("Copy")
+        } else {
+            button
+        };
+        button.on_click(cx.listener(move |this, _event, _window, cx| {
+            this.copy_response_body(&request, cx);
+        }))
     });
     region("response-footer")
         .flex_none()
-        .h(ResultMetrics::FOOTER_HEIGHT)
+        .min_h(ResultMetrics::FOOTER_HEIGHT)
         .flex()
+        .flex_wrap()
         .items_center()
         .gap(ResultMetrics::FOOTER_GAP)
         .pl(ResultMetrics::FOOTER_PADDING_X)
         .pr(ResultMetrics::FOOTER_PADDING_X)
+        .py(Spacing::XXS)
         .border_t(Borders::THIN)
         .border_color(colors.line)
         .child(control(
@@ -135,7 +143,26 @@ pub(super) fn render(
             .child(label)
         }))
         .children(filtered)
-        .child(gpui::div().flex_1())
-        .children(copy)
-        .children(crate::shell::examples::response_buttons(id, cx))
+        .child(
+            gpui::div()
+                .flex()
+                .flex_wrap()
+                .items_center()
+                .justify_end()
+                .gap(ResultMetrics::FOOTER_GAP)
+                .ml_auto()
+                .max_w_full()
+                .children(copy)
+                .children(
+                    crate::shell::examples::response_buttons(id, compact, cx)
+                        .into_iter()
+                        .map(|button| {
+                            gpui::div()
+                                .flex()
+                                .max_w_full()
+                                .overflow_hidden()
+                                .child(button)
+                        }),
+                ),
+        )
 }

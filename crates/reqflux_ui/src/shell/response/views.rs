@@ -13,8 +13,8 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    App, AppContext, ClipboardItem, Context, Entity, FocusHandle, KeyBinding, ScrollStrategy,
-    Subscription, UniformListScrollHandle, Window, actions,
+    App, AppContext, ClipboardItem, Context, Entity, FocusHandle, KeyBinding, Pixels,
+    ScrollStrategy, Subscription, UniformListScrollHandle, Window, actions,
 };
 
 use bolt::controls::{InputEvent, InputState};
@@ -28,6 +28,7 @@ use crate::shell::Shell;
 use crate::shell::request::{Completed, Received, SendState};
 use crate::shell::send::RequestSend;
 use crate::shell::toasts;
+use crate::tokens;
 
 /// The key context of the response, where Ctrl F opens the search.
 pub(crate) const RESPONSE_CONTEXT: &str = "Response";
@@ -69,6 +70,9 @@ pub(crate) struct ViewState {
     pub(crate) scroll: UniformListScrollHandle,
     /// Made the first time the response's content is clicked.
     pub(crate) focus: Option<FocusHandle>,
+    /// The width of the response pane at the last layout, `None` before the first one;
+    /// the bottom bar's buttons shrink to icons below [`tokens::RESPONSE_COMPACT_WIDTH`].
+    pub(crate) pane_width: Option<Pixels>,
     /// The syntax runs of the body lines last shown, so a render does not parse them again.
     pub(crate) syntax: super::syntax::SyntaxCache,
 }
@@ -88,6 +92,12 @@ struct FilterCache {
 }
 
 impl ViewState {
+    /// `true` while the pane is narrower than [`tokens::RESPONSE_COMPACT_WIDTH`].
+    pub(crate) fn compact(&self) -> bool {
+        self.pane_width
+            .is_some_and(|width| width < tokens::RESPONSE_COMPACT_WIDTH)
+    }
+
     /// The search text, empty while the search is closed.
     pub(crate) fn query(&self, cx: &App) -> String {
         field_text(self.search.as_ref(), cx)

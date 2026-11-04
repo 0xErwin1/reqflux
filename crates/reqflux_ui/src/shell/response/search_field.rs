@@ -61,7 +61,7 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
         );
     div()
         .w(ResultMetrics::SEARCH_WIDTH)
-        .flex_none()
+        .min_w_0()
         .capture_action(cx.listener(move |this, _: &InputEscape, window, cx| {
             this.close_response_search(&escape, window, cx);
             cx.stop_propagation();
@@ -82,7 +82,7 @@ fn closed(id: &str, cx: &mut Context<Shell>) -> AnyElement {
     let request = id.to_owned();
     region("response-search")
         .relative()
-        .flex_none()
+        .min_w_0()
         .flex()
         .items_center()
         .gap(Fields::GAP)

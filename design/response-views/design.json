@@ -23,6 +23,13 @@
       "tradeoff": "Body and a failing test or cookie are visible together; the body loses 500 px, so long JSON lines wrap sooner, and the cookies table becomes stacked cards",
       "width": 1440,
       "height": 3728
+    },
+    {
+      "file": "04-narrow-pane.html",
+      "title": "Narrow pane",
+      "tradeoff": "Nothing leaves the pane at any width; the second line makes the views row taller in a narrow column and the buttons lose their labels under 360 px",
+      "width": 1440,
+      "height": 1100
     }
   ]
 }

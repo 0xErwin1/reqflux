@@ -45,7 +45,7 @@ use bolt::controls::Button;
 use bolt::primitives::{Badge, BadgeTone, BannerBlock, BannerVariant};
 use bolt::tokens::{Borders, EditorMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Context, Div, MouseButton, ParentElement, Role, Stateful, Styled, div,
+    AnyElement, App, Context, Div, MouseButton, ParentElement, Role, Stateful, Styled, canvas, div,
     prelude::*,
 };
 use gpui_kit_assets::IconName;
@@ -81,7 +81,9 @@ pub(super) fn render(
     let line_2 = bolt::colors(cx).line_2;
     let focus = send.and_then(|send| send.views.focus.clone());
     let request = id.to_owned();
+    let measure = pane_width(id, cx);
     region("response")
+        .relative()
         .key_context(views::RESPONSE_CONTEXT)
         .when_some(focus, |region, focus| region.track_focus(&focus))
         .on_action(
@@ -95,12 +97,35 @@ pub(super) fn render(
         .flex_col()
         .border_t(Borders::THIN)
         .border_color(line_2)
+        .child(measure)
         .child(tab_row::render(id, send, cx))
         .children(
             send.and_then(|send| send.history.as_ref())
                 .map(|reopened| history_bar::render(id, reopened, cx)),
         )
         .children(content)
+}
+
+/// Records the width of the response `id` pane in its view state, so the bottom bar can
+/// shrink its buttons in a narrow pane; draws nothing.
+fn pane_width(id: &str, cx: &mut Context<Shell>) -> AnyElement {
+    let (entity, request) = (cx.entity(), id.to_owned());
+    canvas(
+        move |bounds, _window, cx| {
+            entity.update(cx, |shell, cx| {
+                if let Some(send) = shell.sends.get_mut(&request)
+                    && send.views.pane_width != Some(bounds.size.width)
+                {
+                    send.views.pane_width = Some(bounds.size.width);
+                    cx.notify();
+                }
+            });
+        },
+        |_, _, _, _| {},
+    )
+    .absolute()
+    .size_full()
+    .into_any_element()
 }
 
 /// A finished send: the unresolved line, then the body or headers of a response or the

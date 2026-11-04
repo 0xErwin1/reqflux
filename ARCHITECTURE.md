@@ -1600,13 +1600,20 @@ Nothing is stored, since the cookie jar comes later. History keeps `Set-Cookie` 
 received apart from secret values; MCP output masks their cookie values (see "History").
 
 Clicking the response content gives it the keyboard focus; Ctrl F there (or a click on
-`response-search`) opens the body search in the views row (when the row is short of room the
-JSONPath filter narrows before the search field does, which keeps its 240 px): case-insensitive matches over the
+`response-search`) opens the body search in the views row: case-insensitive matches over the
 lines the body shows, the count `n / total`, Enter and Shift+Enter or the arrows step and wrap,
 the current match filled in the warning color and the others washed in it, and Escape closes
 it. The Tests pane has an All / Failed filter under `<n> passed` and `<n> failed` badges, the
 Console pane an All / Warnings / Errors filter with counts; rows keep their numbers under a
 filter. Copy (`response-copy`) in the body's bottom bar puts a UTF-8 body on the clipboard.
+
+Every row of the response pane (tab row, views row, bottom bar) wraps instead of overflowing,
+down to the 120 px the splitter leaves the pane (`SPLIT_PANE_MIN`): the JSONPath filter and the
+search drop to a second line, each 240 px wide or the pane's width if that is less; the time and
+size and the bottom bar's buttons follow, and the views control, the tabs and the time are cut at
+the pane edge. Under `RESPONSE_COMPACT_WIDTH` (360 px) Copy, Save as example and Export are
+icons with a tooltip; the pane measures its own width into `ViewState::pane_width`
+(design/response-views/04).
 The search, the filters and the focus live with each request's send state.
 
 The rail's History button (`rail-history`) swaps the sidebar tree for the History panel

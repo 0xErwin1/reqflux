@@ -19,19 +19,32 @@ pub(crate) struct ExportMenu {
     at: Point<Pixels>,
 }
 
-/// The Save as example and Export buttons of the response of the request `id`.
-pub(crate) fn response_buttons(id: &str, cx: &mut Context<Shell>) -> Vec<AnyElement> {
+/// The Save as example and Export buttons of the response of the request `id`; `compact`,
+/// in a pane too narrow for their labels, draws them as icons with a tooltip.
+pub(crate) fn response_buttons(
+    id: &str,
+    compact: bool,
+    cx: &mut Context<Shell>,
+) -> Vec<AnyElement> {
     let request = id.to_owned();
+    let save = Button::new("response-save-example", "Save as example")
+        .secondary()
+        .icon(ui::icon(IconName::Bookmark));
+    let export = Button::new("response-export", "Export")
+        .secondary()
+        .icon(ui::icon(IconName::FileDown));
+    let (save, export) = if compact {
+        (
+            save.icon_only().tooltip("Save as example"),
+            export.icon_only().tooltip("Export"),
+        )
+    } else {
+        (save, export.trailing_icon(ui::icon(IconName::ChevronDown)))
+    };
     vec![
-        Button::new("response-save-example", "Save as example")
-            .secondary()
-            .icon(ui::icon(IconName::Bookmark))
-            .on_click(cx.listener(|this, _event, window, cx| this.open_save_example(window, cx)))
+        save.on_click(cx.listener(|this, _event, window, cx| this.open_save_example(window, cx)))
             .into_any_element(),
-        Button::new("response-export", "Export")
-            .secondary()
-            .icon(ui::icon(IconName::FileDown))
-            .trailing_icon(ui::icon(IconName::ChevronDown))
+        export
             .on_click(cx.listener(move |this, event: &ClickEvent, window, cx| {
                 this.open_export_menu(&request, event.position(), window, cx);
             }))

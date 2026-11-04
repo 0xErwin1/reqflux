@@ -15,7 +15,6 @@ use super::jsonpath_model::{Filtered, JSONPATH_PLACEHOLDER};
 use crate::shell::request::{Received, ui};
 use crate::shell::send::RequestSend;
 use crate::shell::{Shell, region};
-use crate::tokens;
 
 /// The JSONPath field of the response `received` of the request `id`: open, `bolt`'s
 /// `SearchField` with the match count.
@@ -44,8 +43,7 @@ pub(super) fn render(
     let escape = id.to_owned();
     div()
         .w(ResultMetrics::SEARCH_WIDTH)
-        .flex_shrink(1.)
-        .min_w(tokens::RESPONSE_FILTER_MIN_WIDTH)
+        .min_w_0()
         .capture_action(cx.listener(move |this, _: &InputEscape, window, cx| {
             this.close_response_jsonpath(&escape, window, cx);
             cx.stop_propagation();
@@ -70,8 +68,7 @@ fn closed(id: &str, cx: &mut Context<Shell>) -> AnyElement {
         .items_center()
         .gap(Fields::GAP)
         .w(ResultMetrics::SEARCH_WIDTH)
-        .flex_shrink(1.)
-        .min_w(tokens::RESPONSE_FILTER_MIN_WIDTH)
+        .min_w_0()
         .h(Fields::HEIGHT)
         .pl(Fields::PADDING_X)
         .pr(Fields::PADDING_X)

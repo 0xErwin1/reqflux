@@ -1,6 +1,7 @@
 //! The response views row, `Body`, `Headers <n>`, `Cookies <n>` and `Timeline` with the
 //! content type, the JSONPath field of the body and the body search field, and the Headers
-//! grid.
+//! grid. The row wraps: when the pane is too narrow for everything in one line, the JSONPath
+//! field and the search drop to the next line, and a field wider than the pane shrinks to it.
 
 use bolt::primitives::SegmentedItem;
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
@@ -44,7 +45,7 @@ pub(super) fn effective_view(view: BodyView, received: &Received) -> BodyView {
 /// The views row of the response `received` of the request `id`: the `Body`, `Headers <n>`,
 /// `Cookies <n>` and `Timeline` segments, element id `response-views`, then the content
 /// type and, at the end, the JSONPath field (on the Pretty and Raw body only) and the
-/// search field.
+/// search field; what does not fit the pane's width wraps to a new line.
 pub(super) fn render(
     id: &str,
     send: &RequestSend,
@@ -102,27 +103,40 @@ pub(super) fn render(
             this.select_response_tab(&request, *view_tab, cx);
         }
     });
+    let jsonpath = (tab == ResponseTab::Body
+        && effective_view(send.view, received) != BodyView::Preview)
+        .then(|| jsonpath_field::render(id, send, received, cx));
+    let search_at_end = jsonpath.is_none();
     div()
         .flex_none()
-        .h(ResultMetrics::VIEW_ROW_HEIGHT)
+        .min_h(ResultMetrics::VIEW_ROW_HEIGHT)
         .flex()
+        .flex_wrap()
         .items_center()
         .gap(ResultMetrics::VIEW_ROW_GAP)
         .pl(Spacing::MD)
         .pr(Spacing::MD)
+        .py(Spacing::XXS)
         .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(control(
-            "response-views",
-            None,
-            true,
-            segments,
-            active,
-            on_select,
-        ))
+        .child(
+            div()
+                .flex_none()
+                .max_w_full()
+                .overflow_hidden()
+                .child(control(
+                    "response-views",
+                    None,
+                    true,
+                    segments,
+                    active,
+                    on_select,
+                )),
+        )
         .children(received.content_type().map(|content_type| {
             div()
                 .min_w_0()
+                .max_w_full()
                 .overflow_hidden()
                 .text_ellipsis()
                 .whitespace_nowrap()
@@ -131,12 +145,14 @@ pub(super) fn render(
                 .text_color(colors.muted)
                 .child(content_type.to_owned())
         }))
-        .child(div().flex_1())
-        .children(
-            (tab == ResponseTab::Body && effective_view(send.view, received) != BodyView::Preview)
-                .then(|| jsonpath_field::render(id, send, received, cx)),
+        .children(jsonpath.map(|field| div().flex().ml_auto().max_w_full().child(field)))
+        .child(
+            div()
+                .flex()
+                .when(search_at_end, |end| end.ml_auto())
+                .max_w_full()
+                .child(search_field::render(id, send, cx)),
         )
-        .child(search_field::render(id, send, cx))
 }
 
 /// The headers of `received`, one row `response-headers-row-<n>` each, name then value.

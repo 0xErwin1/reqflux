@@ -785,31 +785,95 @@ fn dragging_a_response_cookies_header_edge_resizes_only_that_column(cx: &mut Tes
     );
 }
 
-#[gpui::test]
-fn the_views_row_fits_the_window_and_the_filter_gives_way_to_the_search(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+/// What the response's rows draw at their right: each must stay inside the response pane,
+/// whatever its width.
+const ROW_ITEMS: [&str; 5] = [
+    "response-jsonpath",
+    "response-search",
+    "response-meta",
+    "response-copy",
+    "response-save-example",
+];
+
+fn assert_rows_inside_pane(cx: &mut VisualTestContext) {
+    let pane = present(cx, "response-area");
+    for selector in ROW_ITEMS {
+        let item = present(cx, selector);
+        assert!(
+            item.left() >= pane.left() && item.right() <= pane.right(),
+            "{selector} spans {:?} to {:?} in a pane from {:?} to {:?}",
+            item.left(),
+            item.right(),
+            pane.left(),
+            pane.right()
+        );
+    }
+}
+
+fn resize_window(cx: &mut VisualTestContext) {
     cx.simulate_resize(gpui::size(gpui::px(1280.), gpui::px(800.)));
     cx.run_until_parked();
-    let window = cx.update(|window, _| window.viewport_size());
-    let jsonpath = present(cx, "response-jsonpath");
+}
+
+/// Switches to Side by side, with the request column at its default share.
+fn side_by_side(cx: &mut VisualTestContext) {
+    click(cx, "layout-strip-side-by-side");
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn side_by_side_at_1280_keeps_the_response_rows_inside_the_pane(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    side_by_side(cx);
+    resize_window(cx);
+    let pane = present(cx, "response-area");
+    assert!(
+        pane.size.width < gpui::px(520.),
+        "the pane is the narrow column of the report: {pane:?}"
+    );
+    assert_rows_inside_pane(cx);
+}
+
+#[gpui::test]
+fn the_narrowest_response_pane_keeps_its_rows_inside(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    side_by_side(cx);
+    resize_window(cx);
+    let start = present(cx, "request-response-split").center();
+    let end = gpui::point(start.x + gpui::px(1500.), start.y);
+    cx.simulate_mouse_down(start, gpui::MouseButton::Left, gpui::Modifiers::none());
+    cx.simulate_mouse_move(
+        gpui::point(start.x + gpui::px(4.), start.y),
+        gpui::MouseButton::Left,
+        gpui::Modifiers::none(),
+    );
+    cx.simulate_mouse_move(end, gpui::MouseButton::Left, gpui::Modifiers::none());
+    cx.run_until_parked();
+    cx.simulate_mouse_up(end, gpui::MouseButton::Left, gpui::Modifiers::none());
+    cx.run_until_parked();
+    let pane = present(cx, "response-area");
+    assert_eq!(
+        pane.size.width,
+        gpui::px(120.),
+        "the splitter leaves the response its minimum"
+    );
+    assert_rows_inside_pane(cx);
+}
+
+#[gpui::test]
+fn stacked_at_1280_keeps_the_response_rows_inside_the_pane(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    resize_window(cx);
+    assert_rows_inside_pane(cx);
     let search = present(cx, "response-search");
-    assert!(
-        search.right() <= window.width,
-        "the search field ends at {:?} in a {:?} window",
-        search.right(),
-        window.width
-    );
-    assert!(
-        jsonpath.right() <= search.left(),
-        "the fields do not overlap"
-    );
     assert_eq!(
         search.size.width,
         gpui::px(240.),
-        "the search keeps its width, so its placeholder and keycap are not clipped"
+        "the search keeps its width where it fits, so its placeholder and keycap are not clipped"
     );
+    let jsonpath = present(cx, "response-jsonpath");
     assert!(
-        jsonpath.size.width < gpui::px(240.),
-        "the filter shrank: {jsonpath:?}"
+        jsonpath.right() <= search.left() || jsonpath.bottom() <= search.top(),
+        "the fields do not overlap"
     );
 }

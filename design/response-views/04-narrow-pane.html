@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReqFlux - Response views: narrow pane</title>
+<!--
+The response pane's rows in a narrow column (side by side at 1280 px down to the 120 px splitter minimum): rows wrap instead of overflowing.
+-->
+<style>
+body{margin:0;background:#09090B}
+.x{font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-stretch:125%}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace}
+.c4{clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px)}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.ico{display:inline-block;flex-shrink:0;vertical-align:middle;overflow:visible;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+button{font:inherit;white-space:nowrap}
+.isl-doc [style*=" width:"],.isl-doc [style^="width:"]{flex-shrink:0}
+
+/* shared control shapes, values from the DBFlux artboard */
+.kc{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10.5px;padding:2px 6px;background:#1A181E;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
+.field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
+.ib{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:0;background:#1A181E;color:#C6C3CC}
+.ib.g{background:transparent;color:#8E8996}
+.btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
+.rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
+.sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px;white-space:nowrap}
+.tab{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;color:#8E8996;font-size:13px;white-space:nowrap}
+.tab.on{background:#1A181E;color:#F7F4F7;font-weight:600}
+.seg{display:flex;flex-shrink:0;padding:2px;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12px}
+.seg>span{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;color:#8E8996;white-space:nowrap}
+.seg>span.on{background:#1A181E;color:#F7F4F7}
+.chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
+.dia{width:7px;height:7px;flex-shrink:0;clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+
+/* tree */
+.row{position:relative;display:flex;align-items:center;gap:7px;height:26px;padding:0 12px;font-size:13px;color:#C6C3CC}
+.row .gl{position:absolute;top:0;bottom:0;width:1px;background:#232128}
+.row .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .ct{margin-left:auto;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:11px;color:#8E8996}
+.row.sel-row{background:rgba(157,177,255,.14);color:#F7F4F7}
+.row.sel-row::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:#9DB1FF}
+.mt{width:38px;flex-shrink:0;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:10px;font-weight:700;letter-spacing:.02em;text-align:left}
+.get{color:#7BE0A0}.post{color:#FFC23D}.patch{color:#B79CFF}.del{color:#FF6B5E}
+
+/* grid */
+.gh{display:flex;align-items:center;height:32px;background:#09090B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12px;color:#F7F4F7;font-weight:600}
+.gr{display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+.gh>span,.gr>span{padding:0 12px;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gr>.rn{padding:0 12px 0 0;text-align:right;color:#37333D}
+.tp{font-weight:400;font-size:10.5px;color:#8E8996;margin-left:6px}
+.var{color:#9DB1FF;background:rgba(157,177,255,.12)}
+.unres{color:#FFC23D;background:rgba(255,194,61,.12);box-shadow:inset 0 -1px 0 #FFC23D}
+
+/* code */
+.ln{display:flex;align-items:center;height:20px}
+.ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:#37333D}
+.ln>.tx{white-space:pre;color:#C6C3CC}
+.k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}.b{color:#FFC23D}
+</style>
+<style>
+.desk{padding:32px;color:#C6C3CC;font-family:system-ui,sans-serif}
+.desk h2{margin:0 0 8px;font-size:18px;color:#F7F4F7}.desk p{margin:0 0 16px;max-width:720px;font-size:13px;line-height:1.5}
+.state{margin-bottom:32px}.state-head h3{margin:0 0 4px;font-size:14px;color:#F7F4F7}.state-head p{margin:0 0 12px}
+</style></head><body>
+<section class="desk" aria-label="Response views · narrow pane"><h2>Response views · narrow pane</h2><p>Each row of the response pane (tab row, views row, bottom bar) wraps when its items do not fit the pane. The JSONPath filter and the search move to a second line, the time and size and the bottom bar buttons follow, and a control wider than the pane is cut at its edge.</p>
+<div class="state"><div class="state-head"><h3>Side by side at 1280 px</h3><p>The response column is 469 px wide. The tab row keeps its time and size at the right; the views row no longer fits one line, so the JSONPath filter and the search drop to a second line, right aligned. The bottom bar keeps its labels while the pane is at least 360 px.</p></div><div class="c14 x" style="width:469px;background:#100F13;color:#F7F4F7;font-size:13px;overflow:hidden"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:46px;padding:2px 12px;box-sizing:border-box"><span class="tab on c6" style="max-width:100%;overflow:hidden">Response <span class="chip c4">200 OK</span></span><span class="m" style="margin-left:auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8E8996;font-size:12px">◷ 2 ms · 210 B</span></div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:2px 12px;box-sizing:border-box;border-top:1px solid #232128"><div class="seg c4" style="max-width:100%;overflow:hidden"><span class="on">Body</span><span>Headers <b class="m">9</b></span><span>Cookies <b class="m">0</b></span><span>Timeline</span></div><div style="margin-left:auto;display:flex;max-width:100%"><div class="field c4" style="width:240px;max-width:100%;color:#8E8996">⌕ Filter with JSONPath</div></div><div style="display:flex;max-width:100%"><div class="field c4" style="width:240px;max-width:100%;color:#8E8996">⌕ Search in response<span class="kc c4">Ctrl F</span></div></div></div><div class="m" style="height:60px;padding:8px 12px;color:#8E8996;font-size:12px">{ "ok": true }</div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:2px 12px;box-sizing:border-box;border-top:1px solid #232128"><div class="seg c4"><span class="on">Pretty</span><span>Raw</span></div><div style="margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:100%"><button class="btn c4">⧉ Copy</button><button class="btn c4">★ Save as example</button><button class="btn c4">⇩ Export ⌄</button></div></div></div></div><div class="state"><div class="state-head"><h3>Narrow pane</h3><p>Under 360 px the bottom bar shows Copy, Save as example and Export as icons with a tooltip. The search keeps 240 px while the pane has room for it.</p></div><div class="c14" style="width:240px;background:#100F13;color:#F7F4F7;font-size:13px;overflow:hidden" class="x"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:46px;padding:2px 12px;box-sizing:border-box"><span class="tab on c6" style="max-width:100%;overflow:hidden">Response <span class="chip c4">200 OK</span></span><span class="m" style="margin-left:auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8E8996;font-size:12px">◷ 2 ms · 210 B</span></div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:2px 12px;box-sizing:border-box;border-top:1px solid #232128"><div class="seg c4" style="max-width:100%;overflow:hidden"><span class="on">Body</span><span>Headers <b class="m">9</b></span><span>Cookies <b class="m">0</b></span><span>Timeline</span></div><div style="margin-left:auto;display:flex;max-width:100%"><div class="field c4" style="width:240px;max-width:100%;color:#8E8996">⌕ Filter with JSONPath</div></div><div style="display:flex;max-width:100%"><div class="field c4" style="width:240px;max-width:100%;color:#8E8996">⌕ Search in response<span class="kc c4">Ctrl F</span></div></div></div><div class="m" style="height:60px;padding:8px 12px;color:#8E8996;font-size:12px">{ "ok": true }</div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:2px 12px;box-sizing:border-box;border-top:1px solid #232128"><div class="seg c4"><span class="on">Pretty</span><span>Raw</span></div><div style="margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:100%"><button class="btn c4">⧉</button><button class="btn c4">★</button><button class="btn c4">⇩</button></div></div></div></div><div class="state"><div class="state-head"><h3>Narrowest pane</h3><p>The splitter keeps 120 px for each pane. Every element stays inside the pane: the filter and the search shrink to the pane width, the views control, the tabs and the time are cut at the pane edge, and the buttons wrap.</p></div><div class="c14" style="width:120px;background:#100F13;color:#F7F4F7;font-size:13px;overflow:hidden" class="x"><div style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;min-height:46px;padding:2px 12px;box-sizing:border-box"><span class="tab on c6" style="max-width:100%;overflow:hidden">Response <span class="chip c4">200 OK</span></span><span class="m" style="margin-left:auto;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8E8996;font-size:12px">◷ 2 ms · 210 B</span></div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:2px 12px;box-sizing:border-box;border-top:1px solid #232128"><div class="seg c4" style="max-width:100%;overflow:hidden"><span class="on">Body</span><span>Headers <b class="m">9</b></span><span>Cookies <b class="m">0</b></span><span>Timeline</span></div><div style="margin-left:auto;display:flex;max-width:100%"><div class="field c4" style="width:240px;max-width:100%;color:#8E8996">⌕ Filter with JSONPath</div></div><div style="display:flex;max-width:100%"><div class="field c4" style="width:240px;max-width:100%;color:#8E8996">⌕ Search in response<span class="kc c4">Ctrl F</span></div></div></div><div class="m" style="height:60px;padding:8px 12px;color:#8E8996;font-size:12px">{ "ok": true }</div><div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:40px;padding:2px 12px;box-sizing:border-box;border-top:1px solid #232128"><div class="seg c4"><span class="on">Pretty</span><span>Raw</span></div><div style="margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;max-width:100%"><button class="btn c4">⧉</button><button class="btn c4">★</button><button class="btn c4">⇩</button></div></div></div></div>
+</section></body></html>

@@ -1,7 +1,9 @@
 //! The response tab row: the `Response` tab with the state of the send (`Recorded response`
 //! in the history tab), the `Tests` and
 //! `Console` tabs of a response with script results, the time and size at the right, and the
-//! indeterminate progress bar under it while sending. The tabs are `bolt`'s document tabs and
+//! indeterminate progress bar under it while sending. In a pane too narrow for it the row
+//! wraps: the time and size drop to a new line, and a chip or the time wider than the pane
+//! is cut to it. The tabs are `bolt`'s document tabs and
 //! the status is a `bolt` badge.
 
 use bolt::Colors;
@@ -121,9 +123,12 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
         })
         .collect();
     document_tab_bar(cx)
+        .h_auto()
+        .min_h(TabMetrics::DOCUMENT_BAR_HEIGHT)
+        .flex_wrap()
+        .py(Spacing::XXS)
         .child(response)
         .children(script_tabs)
-        .child(div().flex_1())
         .children(meta.map(|(id, label)| meta_label(id, label, &colors, cx)))
 }
 
@@ -172,6 +177,8 @@ fn tab_chip(id: impl Into<String>, label: &'static str, selected: bool, cx: &App
     let selector = id.clone();
     document_tab(gpui::ElementId::Name(id.into()), selected, cx)
         .debug_selector(move || selector)
+        .max_w_full()
+        .overflow_hidden()
         .role(Role::Tab)
         .aria_label(label)
         .aria_selected(selected)
@@ -190,6 +197,9 @@ fn meta_label(id: &'static str, label: String, colors: &Colors, cx: &App) -> Sta
     text_region(id)
         .aria_label(label.clone())
         .flex_none()
+        .ml_auto()
+        .max_w_full()
+        .overflow_hidden()
         .flex()
         .items_center()
         .gap(Spacing::XXS)
@@ -202,7 +212,13 @@ fn meta_label(id: &'static str, label: String, colors: &Colors, cx: &App) -> Sta
                 .size(Fields::SEGMENT_ICON)
                 .color(colors.muted),
         )
-        .child(label)
+        .child(
+            div()
+                .min_w_0()
+                .overflow_hidden()
+                .text_ellipsis()
+                .child(label),
+        )
 }
 
 /// The badge tone of a status class.
