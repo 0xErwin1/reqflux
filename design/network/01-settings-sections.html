@@ -33,9 +33,11 @@
   Hierarchy (feedback-nov3 S14): a section title is an accent kicker over a heading on a line
   (.sec), a field label is muted and its value strong, a value the page cannot change sits on an
   inset surface with the plain line (.field.ro, a disabled input), an editable control keeps the
-  stronger edge (.field.ed) and the raised fill of a button. The proxy mode control is drawn live,
-  not dimmed: [network.proxy] has no writer, so choosing a mode raises a toast that points at
-  config.toml.
+  stronger edge (.field.ed) and the raised fill of a button. The proxy mode control writes
+  [network.proxy] mode in config.toml at once (format-preserving, like the theme); Manual shows the
+  URL as an editable field that writes url on Enter and on blur. The control is dimmed (.seg.dis)
+  and inert only while config.toml does not parse. Nothing that looks editable answers with an
+  error (feedback-nov3 S21). The CA bundle, certificates and bypass list stay read-only.
   bolt gap: no read-only value field; the .field.ro surface is a stand-in.
   bolt gap: list row with trailing badge plus actions and a second muted line (certificate rows).
 -->
@@ -72,6 +74,7 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 .sec .k{font-family:Archivo,system-ui,sans-serif;font-stretch:125%;font-weight:800;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#9DB1FF}
 .sec h2{display:flex;align-items:baseline;gap:12px;margin:0;font-size:16px;font-weight:700;color:#F7F4F7}
 .field.ro{background:#09090B;box-shadow:#232128 0 0 0 1px inset;color:#C6C3CC}
+.seg.dis{opacity:.45}
 .field.ed{background:#09090B;box-shadow:#37333D 0 0 0 1px inset;color:#F7F4F7}
 .chip{display:flex;align-items:center;gap:8px;height:26px;padding:0 12px;border:0;background:#100F13;font-size:12px;color:#8E8996;white-space:nowrap}
 .nav a{display:flex;align-items:center;gap:10px;height:32px;padding:0 16px;font-size:13px;color:#C6C3CC;text-decoration:none}
@@ -189,9 +192,9 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
       <div style="display:flex;align-items:flex-start;gap:12px;padding:20px 28px 12px;border-bottom:1px solid #232128">
         <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1">
           <h1 id="settings-heading" class="ttl">Network</h1>
-          <span class="ds" style="font-size:13px">Used by every send on this machine: requests, auth requests and <span class="m">pm.sendRequest</span>. Values come from <span class="m">[network]</span> in config.toml; passwords and passphrases live in the OS keyring.</span>
+          <span class="ds" style="font-size:13px">Used by every send on this machine: requests, auth requests and <span class="m">pm.sendRequest</span>. The proxy mode and URL save to config.toml at once; the CA bundle, certificates and bypass list are read from <span class="m">[network]</span>. Passwords and passphrases live in the OS keyring.</span>
         </div>
-        <span class="badge" style="margin-top:6px"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-lock"/></svg>READ FROM CONFIG.TOML</span>
+        <span class="badge" style="margin-top:6px">SAVES TO CONFIG.TOML</span>
         <button id="network-open-config" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open config.toml</button>
         <button id="network-reload" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-refresh"/></svg>Reload</button>
       </div>
@@ -235,9 +238,9 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
         <div>
           <div class="sec" style="padding-top:14px"><span class="k">Every workspace</span><h2>Proxy</h2></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Mode</b></div>
-            <!-- drawn live; choosing a mode raises the "set in config.toml" toast (state below) -->
+            <!-- choosing a mode writes [network.proxy] mode; Manual shows the URL field below -->
             <div id="network-proxy-mode" class="c6 seg" role="radiogroup" aria-label="Proxy mode" style="width:max-content"><span role="radio" aria-checked="false">System</span><span role="radio" aria-checked="false">None</span><span class="on" role="radio" aria-checked="true">Manual</span></div></div>
-          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>URL</b></div><span id="network-proxy-url" class="c6 field ro m">http://proxy.corp.acme.com:3128</span></div>
+          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>URL</b></div><label id="network-proxy-url" class="c6 field ed m" aria-label="Proxy URL">http://proxy.corp.acme.com:3128</label></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Username</b></div><span class="c6 field ro m">mbrandt</span></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b></div>
             <div class="val"><span id="network-proxy-password" class="c4 badge b-set"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-key"/></svg>KEYRING · SET</span><span style="flex-grow:1"></span><button class="c6 btn sm">Change…</button><button class="c6 btn sm">Clear</button></div></div>
@@ -266,7 +269,7 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 
 <div class="state"><div class="state-head"><h3>Proxy: System (the default)</h3><p>No <span class="m">[network.proxy]</span> table. The environment decides; URL, username and bypass are not shown.</p></div>
 <div class="frame pad" style="width:640px">
-  <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Mode</b></div><div class="c6 seg dis" style="width:max-content" role="radiogroup" aria-label="Proxy mode" aria-disabled="true"><span class="on" role="radio" aria-checked="true">System</span><span role="radio" aria-checked="false">None</span><span role="radio" aria-checked="false">Manual</span></div></div>
+  <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Mode</b></div><div class="c6 seg" style="width:max-content" role="radiogroup" aria-label="Proxy mode"><span class="on" role="radio" aria-checked="true">System</span><span role="radio" aria-checked="false">None</span><span role="radio" aria-checked="false">Manual</span></div></div>
   <div class="fr" style="grid-template-columns:120px 1fr;border-bottom:0"><div class="l"><b>From</b></div><span class="ds"><span class="m">HTTP_PROXY</span>, <span class="m">HTTPS_PROXY</span>, <span class="m">ALL_PROXY</span> and <span class="m">NO_PROXY</span> of the environment ReqFlux started in</span></div>
 </div></div>
 
@@ -419,9 +422,15 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
   </div>
 </div></div>
 
-<div class="state"><div class="state-head"><h3>Proxy mode</h3><p>The mode control is live, not dimmed. <span class="m">[network.proxy]</span> has no writer yet, so choosing a mode keeps the current one and raises this toast.</p></div>
-<div class="frame" style="height:72px;display:flex;align-items:center;justify-content:flex-end;padding:0 20px">
-  <div class="c8 toast" role="status"><svg class="ico" aria-hidden="true" style="width:14px;height:14px;color:#6EA8FF"><use href="#i-alert"/></svg><span>The proxy mode is set in config.toml<br><span class="ds">Change mode under [network.proxy], then Reload.</span></span></div>
+<div class="state"><div class="state-head"><h3>Proxy mode: Manual asks for the URL</h3><p>Choosing Manual writes <span class="m">mode = "manual"</span> and shows the URL field, empty with its placeholder, with the engine's warning under it until a URL is set. Enter or leaving the field writes <span class="m">url</span>. A URL that carries a password is shown with the mask and is never written back as typed.</p></div>
+<div class="frame pad" style="width:640px">
+  <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Mode</b></div><div class="c6 seg" style="width:max-content" role="radiogroup" aria-label="Proxy mode"><span role="radio" aria-checked="false">System</span><span role="radio" aria-checked="false">None</span><span class="on" role="radio" aria-checked="true">Manual</span></div></div>
+  <div class="fr" style="grid-template-columns:120px 1fr;border-bottom:0"><div class="l"><b>URL</b></div><div><label class="c6 field ed m" aria-label="Proxy URL"><span style="color:#8E8996">http://proxy.corp:3128</span></label><span class="warn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;margin-top:2px"><use href="#i-alert"/></svg><span class="m">[network.proxy] mode = "manual" has no url; the system proxy is used</span></span></div></div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Proxy mode while config.toml does not parse</h3><p>The control is dimmed and does not write, as the app settings controls are; the banner above the page names the line and offers Open file and Reload. No toast.</p></div>
+<div class="frame pad" style="width:640px">
+  <div class="fr" style="grid-template-columns:120px 1fr;border-bottom:0"><div class="l"><b>Mode</b></div><div class="c6 seg dis" style="width:max-content" role="radiogroup" aria-label="Proxy mode" aria-disabled="true"><span class="on" role="radio" aria-checked="true">System</span><span role="radio" aria-checked="false">None</span><span role="radio" aria-checked="false">Manual</span></div></div>
 </div></div>
 
 <div class="state"><div class="state-head"><h3>Where the jar opens from</h3><p>Status bar chip (shown while the jar has cookies), the palette, the workspace menu, and the response Cookies view. All open Workspace &gt; Cookies.</p></div>

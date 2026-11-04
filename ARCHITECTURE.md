@@ -1051,7 +1051,11 @@ when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `sys
 `[mcp]` and `[network]` (certificates and proxies are per user and machine, never in a
 workspace file; see below). `reqflux_engine::config` edits `font_size`, the `[mcp]` rules and the
 `hosts`/`environments` lists the same way (`set_font_size`, `set_rule`, `add_list_entry`,
-`remove_list_entry`); removing the last list entry removes the key (no list means any).
+`remove_list_entry`); removing the last list entry removes the key (no list means any). The
+`[network.proxy]` `mode` and `url` are edited by `set_proxy_mode` and `set_proxy_url` (a blank
+URL removes the key); they create `[network.proxy]` after what the file holds and leave
+`[network]`'s other entries, the per-workspace proxies and unknown tables as written. The proxy
+password is never written there: it stays in the keyring.
 `[keymap]` (`"save-request" = "ctrl-shift-s"`; only bindings that differ from the defaults are
 kept) rebinds the window's commands (the registry in `shell/commands.rs`): the window reads it at
 startup and after every edit, an unknown slug or a chord it cannot bind is a warning in the
@@ -1610,8 +1614,20 @@ section shows) opens it at General (`theme`, `font-size`, applied live through b
 install); MCP policy holds `rule-read|write|execute|destructive` (Allow, Ask, Deny),
 `hosts-list`, `environments-list` and the read-only `overrides-table` (`overrides-open-config`
 opens `config.toml` with the OS handler, `open_file.rs`). Every control writes `config.toml` at
-once; while it does not parse, `config-error` shows its path, line and column, the controls do
-not write, and `config-open` and `config-reload` act.
+once (General and MCP policy say so under their title); while it does not parse, `config-error`
+shows its path, line and column, the controls are dimmed and do not write, and `config-open` and
+`config-reload` act. Every way into an App section (the rail, the nav entries, Network) reads
+`config.toml` first (`Shell::prepare_app_section`), so a control never shows before the file was
+read: a page opened at a workspace section used to leave the App controls dimmed, with the font
+size select empty, until the rail's Settings was used.
+
+App > Network writes the proxy beside the keyring: `network-proxy-mode` (System, None, Manual)
+writes `mode` of `[network.proxy]` and applies it to the open engine; Manual shows the field
+`network-proxy-url`, which writes `url` on Enter and when it loses focus (a URL that carries a
+password is shown masked, and a text that still holds the mask is never written back). The CA
+bundle, the certificates, the bypass list and a workspace's own proxy are read from the file. A
+write that fails raises an error toast; with a file that does not parse the mode control is
+dimmed and inert, so nothing that looks editable answers with an error.
 
 Environments and variables are edited on the workspace settings page (`settings-page`,
 `design/variables/01-settings-page.html`, `shell/settings_page.rs`, `shell/settings_view.rs`,

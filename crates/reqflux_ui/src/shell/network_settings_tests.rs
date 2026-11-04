@@ -11,8 +11,9 @@ use reqflux_engine::config;
 use tempfile::TempDir;
 
 use crate::shell::Shell;
-use crate::shell::draft_tests::{click, present, render, state_file};
+use crate::shell::draft_tests::{bounds, click, present, render, state_file};
 use crate::shell::send_tests::closed_port;
+use crate::shell::toasts::tests as toasts;
 use crate::shell::variables_tests::variables_workspace;
 use crate::theme::ConfigReport;
 
@@ -209,5 +210,157 @@ fn a_file_that_does_not_parse_says_so_and_sends_with_the_defaults(cx: &mut TestA
     assert!(
         model.expect("a model").ca_bundle.is_none(),
         "the defaults apply"
+    );
+}
+
+/// The proxy mode and URL the page shows.
+fn shown_proxy(
+    cx: &mut VisualTestContext,
+    shell: &Entity<Shell>,
+) -> (config::ProxyMode, Option<String>) {
+    shell.read_with(cx, |shell, _| {
+        let proxy = shell.settings.network.model.clone().expect("a model").proxy;
+        (proxy.mode, proxy.url)
+    })
+}
+
+#[gpui::test]
+fn the_proxy_mode_control_writes_config_toml_and_never_raises_a_toast(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let mine = "# Mine.\ntheme = \"dark\"\n\n[network.proxy]\nmode = \"system\" # VPN\n";
+    write(&config_path, mine);
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+
+    click(cx, "network-proxy-mode-none");
+    assert_eq!(read(&config_path), mine.replace("\"system\"", "\"none\""));
+    assert_eq!(shown_proxy(cx, &shell).0, config::ProxyMode::None);
+    present(cx, "network-proxy-mode");
+
+    click(cx, "network-proxy-mode-manual");
+    assert_eq!(
+        config::load(&config_path)
+            .expect("parses")
+            .network
+            .proxy
+            .mode,
+        config::ProxyMode::Manual
+    );
+    assert_eq!(shown_proxy(cx, &shell).0, config::ProxyMode::Manual);
+
+    click(cx, "network-proxy-mode-system");
+    assert_eq!(read(&config_path), mine);
+    assert_eq!(
+        toasts::pushed(cx),
+        vec![],
+        "choosing a mode never answers with a toast"
+    );
+}
+
+#[gpui::test]
+fn the_proxy_mode_is_written_into_a_file_that_does_not_exist_yet(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+
+    click(cx, "network-proxy-mode-none");
+    assert_eq!(read(&config_path), "[network.proxy]\nmode = \"none\"\n");
+    assert_eq!(shown_proxy(cx, &shell).0, config::ProxyMode::None);
+}
+
+#[gpui::test]
+fn manual_asks_for_the_url_and_writes_it_on_enter_and_on_blur(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+    assert!(
+        bounds(cx, "network-proxy-url").is_none(),
+        "System has no URL"
+    );
+
+    click(cx, "network-proxy-mode-manual");
+    click(cx, "network-proxy-url");
+    cx.simulate_input("http://proxy.test:3128");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    assert_eq!(
+        read(&config_path),
+        "[network.proxy]\nmode = \"manual\"\nurl = \"http://proxy.test:3128\"\n"
+    );
+    assert_eq!(
+        shown_proxy(cx, &shell).1.as_deref(),
+        Some("http://proxy.test:3128")
+    );
+
+    click(cx, "network-proxy-url");
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("socks5://proxy.test:1080");
+    let input = shell.read_with(cx, |shell, _| shell.settings.network.proxy_url.clone());
+    let Some(input) = input else {
+        panic!("the URL field is missing");
+    };
+    cx.update(|_, cx| {
+        input.update(cx, |_, cx| cx.emit(gpui_component::input::InputEvent::Blur));
+    });
+    cx.run_until_parked();
+    assert_eq!(
+        config::load(&config_path)
+            .expect("parses")
+            .network
+            .proxy
+            .url
+            .as_deref(),
+        Some("socks5://proxy.test:1080"),
+        "leaving the field commits it"
+    );
+    assert_eq!(toasts::pushed(cx), vec![]);
+}
+
+#[gpui::test]
+fn a_url_with_a_password_is_shown_masked_and_left_alone_unless_replaced(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let text = "[network.proxy]\nmode = \"manual\"\nurl = \"http://me:hunter2@proxy.test:3128\"\n";
+    write(&config_path, text);
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+
+    click(cx, "network-proxy-url");
+    click(cx, "settings-heading");
+    assert_eq!(
+        read(&config_path),
+        text,
+        "an untouched field writes nothing"
+    );
+    let shown = shell.read_with(cx, |shell, cx| {
+        shell
+            .settings
+            .network
+            .proxy_url
+            .as_ref()
+            .map(|input| input.read(cx).value().to_string())
+    });
+    assert_eq!(shown.as_deref(), Some("http://me:••••••••@proxy.test:3128"));
+    assert!(!read(&config_path).contains(reqflux_engine::MASK));
+}
+
+#[gpui::test]
+fn the_proxy_controls_do_nothing_while_the_file_does_not_parse(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let broken = "[network\nca_bundle = 1\n";
+    write(&config_path, broken);
+    let (_shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+
+    click(cx, "network-proxy-mode-none");
+    assert_eq!(read(&config_path), broken, "nothing overwrites the file");
+    assert_eq!(
+        toasts::pushed(cx),
+        vec![],
+        "and nothing answers with an error toast"
     );
 }

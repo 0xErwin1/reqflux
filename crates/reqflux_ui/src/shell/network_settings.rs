@@ -12,11 +12,12 @@
 //! secret is set comes from `SecretStore::get_account(..).is_some()`; no value reaches the
 //! page, and the dialog's field starts empty.
 
+use std::path::Path;
 use std::sync::Arc;
 
-use bolt::controls::InputState;
+use bolt::controls::{InputEvent, InputState};
 use bolt::modals::ModalFocus;
-use gpui::{App, AppContext as _, Context, Entity, Focusable, Window};
+use gpui::{App, AppContext as _, Context, Entity, Focusable, Subscription, Window};
 use reqflux_core::model::Id;
 use reqflux_engine::config::{
     self, CertificateConfig, ConfigError, NetworkConfig, ProxyConfig, ProxyMode,
@@ -317,6 +318,9 @@ pub(crate) struct NetworkState {
     secrets: Option<Arc<dyn SecretStore>>,
     pub(crate) dialog: Option<SecretDialog>,
     pub(crate) focus: ModalFocus,
+    /// The Manual proxy's URL field, made the first time the section opens.
+    pub(crate) proxy_url: Option<Entity<InputState>>,
+    _proxy_url_subscription: Option<Subscription>,
 }
 
 impl NetworkState {
@@ -328,6 +332,8 @@ impl NetworkState {
             secrets: None,
             dialog: None,
             focus: ModalFocus::new(cx),
+            proxy_url: None,
+            _proxy_url_subscription: None,
         }
     }
 }
@@ -403,10 +409,111 @@ impl Shell {
 
     /// The nav's Network: reads `config.toml` and shows the section.
     pub(crate) fn open_network_settings(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.ensure_app_controls(window, cx);
+        self.prepare_app_section(window, cx);
         self.apply_network_config();
+        self.ensure_proxy_url(window, cx);
+        self.sync_proxy_url(window, cx);
         self.open_settings(Section::App(AppSection::Network), cx);
         self.restore_focus(window, cx);
+    }
+
+    /// Whether the proxy controls write: `config.toml` has a path and parses.
+    pub(crate) fn network_editable(&self) -> bool {
+        self.config_path.is_some() && self.settings.network.config_error.is_none()
+    }
+
+    /// Makes the Manual proxy's URL field the first time the section opens. Enter and
+    /// leaving the field commit it.
+    fn ensure_proxy_url(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.settings.network.proxy_url.is_some() {
+            return;
+        }
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder("http://proxy.corp:3128"));
+        self.settings.network._proxy_url_subscription =
+            Some(
+                cx.subscribe_in(&input, window, |this, _, event: &InputEvent, window, cx| {
+                    if matches!(event, InputEvent::PressEnter { .. } | InputEvent::Blur) {
+                        this.commit_proxy_url(window, cx);
+                    }
+                }),
+            );
+        self.settings.network.proxy_url = Some(input);
+    }
+
+    /// Shows the URL `[network.proxy]` holds in the field, a password in it masked.
+    pub(crate) fn sync_proxy_url(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(input) = self.settings.network.proxy_url.clone() else {
+            return;
+        };
+        let url = self.shown_proxy_url();
+        if input.read(cx).value().as_ref() != url {
+            input.update(cx, |input, cx| input.set_value(url, window, cx));
+        }
+    }
+
+    /// The URL the page shows for the app proxy, a password in it masked.
+    fn shown_proxy_url(&self) -> String {
+        self.settings
+            .network
+            .model
+            .as_ref()
+            .and_then(|model| model.proxy.url.clone())
+            .unwrap_or_default()
+    }
+
+    /// The proxy mode control: writes `mode` of `[network.proxy]` and applies it.
+    pub(crate) fn select_proxy_mode(
+        &mut self,
+        mode: ProxyMode,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.commit_proxy_url(window, cx);
+        self.edit_network_config(|path| config::set_proxy_mode(path, mode), window, cx);
+    }
+
+    /// The URL field, on Enter or when it loses focus: writes `url` of `[network.proxy]`
+    /// when the text changed. A text that still holds the mask of a password is the value
+    /// the page showed, not a new one, so the field goes back to what the file holds.
+    pub(crate) fn commit_proxy_url(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(input) = self.settings.network.proxy_url.clone() else {
+            return;
+        };
+        let value = input.read(cx).value().to_string();
+        if !self.network_editable() || value == self.shown_proxy_url() {
+            return;
+        }
+        if value.contains(MASK) {
+            self.sync_proxy_url(window, cx);
+            return;
+        }
+        self.edit_network_config(|path| config::set_proxy_url(path, &value), window, cx);
+    }
+
+    /// Runs `edit` on `config.toml` when the proxy controls write, then reads the file back
+    /// and applies `[network]`; a failure shows in an error toast. Returns whether it
+    /// succeeded.
+    fn edit_network_config(
+        &mut self,
+        edit: impl FnOnce(&Path) -> Result<(), ConfigError>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(path) = self.config_path.clone().filter(|_| self.network_editable()) else {
+            return false;
+        };
+        let outcome = edit(&path);
+        self.read_app_config(cx);
+        self.apply_network_config();
+        self.sync_proxy_url(window, cx);
+        cx.notify();
+        match outcome {
+            Ok(()) => true,
+            Err(error) => {
+                toasts::failure("Cannot write config.toml", error.to_string(), cx);
+                false
+            }
+        }
     }
 
     /// Set… or Change…: opens the dialog of `secret` with an empty masked field.

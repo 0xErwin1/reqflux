@@ -15,16 +15,15 @@
 //! It draws with `bolt`: `SegmentedControl`, `Badge`, `Button`, `Input`, `BannerBlock` and
 //! `Modal`. No value of a secret is drawn: a keyring badge says `SET` or `NOT SET`.
 
-use bolt::controls::{Button, Input, InputEnter};
+use bolt::controls::{Button, Input, InputEnter, InputState};
 use bolt::modals::{Modal, modal_field, modal_lead};
 use bolt::primitives::{
     Badge, BadgeTone, BannerBlock, BannerVariant, Icon, SegmentedItem, TextVariant,
 };
-use bolt::toast::Toast;
 use bolt::tokens::{Borders, Fields, HeaderMetrics, ModalMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Context, Div, IntoElement, ParentElement, Point, Role, Stateful, Styled,
-    Window, anchored, deferred, div, prelude::*,
+    AnyElement, App, Context, Div, Entity, IntoElement, ParentElement, Point, Role, SharedString,
+    Stateful, Styled, Window, anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_engine::NetworkSecret;
@@ -37,11 +36,13 @@ use crate::shell::{Shell, region, text_region};
 use crate::tokens::{
     APP_SETTINGS_COLUMN_GAP as COLUMN_GAP, APP_SETTINGS_OVERRIDE_RULE as KIND_WIDTH,
     APP_SETTINGS_RULE_LABEL_WIDTH as LABEL_WIDTH, COOKIE_DOMAIN_COLUMN as HOST_WIDTH,
+    READ_ONLY_OPACITY,
 };
 
 const DESCRIPTION: &str = "Used by every send on this machine: requests, auth requests and \
-                           pm.sendRequest. Values come from [network] in config.toml; \
-                           passwords and passphrases live in the OS keyring.";
+                           pm.sendRequest. The proxy mode and URL save to config.toml at \
+                           once; the CA bundle, certificates and bypass list are read from \
+                           [network]. Passwords and passphrases live in the OS keyring.";
 
 /// The content island of App > Network.
 pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -> Div {
@@ -75,9 +76,11 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
                         .child(DESCRIPTION),
                 ),
         )
-        .child(div().pt(Spacing::XS).child(
-            Badge::new("READ FROM CONFIG.TOML", BadgeTone::Neutral).icon(ui::icon(IconName::Lock)),
-        ))
+        .child(
+            div()
+                .pt(Spacing::XS)
+                .child(Badge::new("SAVES TO CONFIG.TOML", BadgeTone::Neutral)),
+        )
         .child(
             Button::new("network-open-config", "Open config.toml")
                 .secondary()
@@ -98,13 +101,18 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
         .config_error
         .as_ref()
         .map(|detail| config_error(detail, cx));
-    let editable = shell.settings.network.config_error.is_none();
+    let editable = shell.network_editable();
     let body = shell.settings.network.model.as_ref().map(|model| {
         div()
             .flex()
             .gap(COLUMN_GAP)
             .child(trust(model, editable, cx))
-            .child(proxies(model, editable, cx))
+            .child(proxies(
+                model,
+                shell.settings.network.proxy_url.as_ref(),
+                editable,
+                cx,
+            ))
     });
     div()
         .size_full()
@@ -477,9 +485,10 @@ fn mode_name(mode: ProxyMode) -> &'static str {
     }
 }
 
-/// The System / None / Manual control `<id>`, drawn live: the mode lives in `[network.proxy]`
-/// of config.toml, which the page does not write, so choosing one points there.
-fn mode_control(id: &str, mode: ProxyMode) -> Div {
+/// The System / None / Manual control `<id>`: choosing a mode writes `mode` of
+/// `[network.proxy]`. Drawn dimmed, and inert, while config.toml does not parse.
+fn mode_control(id: &str, mode: ProxyMode, editable: bool, cx: &mut Context<Shell>) -> Div {
+    let shell = cx.entity().downgrade();
     let items = [ProxyMode::System, ProxyMode::None, ProxyMode::Manual]
         .into_iter()
         .map(|candidate| {
@@ -487,26 +496,64 @@ fn mode_control(id: &str, mode: ProxyMode) -> Div {
             SegmentedItem::new(name, name).element_id(format!("{id}-{}", name.to_lowercase()))
         })
         .collect();
-    div().flex_none().child(segmented::control(
-        id,
-        Some("Proxy mode".into()),
-        false,
-        items,
-        mode_name(mode),
-        |_, _, cx| {
-            Toast::info("The proxy mode is set in config.toml")
-                .subtitle("Change mode under [network.proxy], then Reload.")
-                .push(cx);
-        },
-    ))
+    div()
+        .flex_none()
+        .when(!editable, |control| control.opacity(READ_ONLY_OPACITY))
+        .child(segmented::control(
+            id,
+            Some("Proxy mode".into()),
+            false,
+            items,
+            mode_name(mode),
+            move |name: &SharedString, window, cx| {
+                let mode = match name.as_ref() {
+                    "System" => ProxyMode::System,
+                    "None" => ProxyMode::None,
+                    "Manual" => ProxyMode::Manual,
+                    _ => return,
+                };
+                let updated = shell.update(cx, |this, cx| this.select_proxy_mode(mode, window, cx));
+                if let Err(error) = updated {
+                    log::warn!("the proxy mode control outlived the shell: {error}");
+                }
+            },
+        ))
+}
+
+/// The Manual proxy's URL: the field `<prefix>-url` for the app proxy, which Enter and
+/// leaving commit; the value as written for a proxy the page cannot edit.
+fn proxy_url(
+    prefix: &str,
+    row: &ProxyRow,
+    field: Option<&Entity<InputState>>,
+    editable: bool,
+    cx: &App,
+) -> AnyElement {
+    match field {
+        Some(state) => Input::new(state)
+            .id(gpui::ElementId::Name(format!("{prefix}-url").into()))
+            .aria_label("Proxy URL")
+            .disabled(!editable)
+            .into_any_element(),
+        None => {
+            let url = row.url.clone().unwrap_or_else(|| "not set".to_owned());
+            mono(format!("{prefix}-url"), url, false, cx).into_any_element()
+        }
+    }
 }
 
 /// The rows of a proxy table under the `<prefix>` ids.
-fn proxy_rows(prefix: &str, row: &ProxyRow, editable: bool, cx: &mut Context<Shell>) -> Vec<Div> {
+fn proxy_rows(
+    prefix: &str,
+    row: &ProxyRow,
+    url_field: Option<&Entity<InputState>>,
+    editable: bool,
+    cx: &mut Context<Shell>,
+) -> Vec<Div> {
     let mut rows = vec![field_row(
         "Mode".to_owned(),
         None,
-        mode_control(&format!("{prefix}-mode"), row.mode),
+        mode_control(&format!("{prefix}-mode"), row.mode, editable, cx),
         cx,
     )];
     match row.mode {
@@ -527,11 +574,10 @@ fn proxy_rows(prefix: &str, row: &ProxyRow, editable: bool, cx: &mut Context<She
             cx,
         )),
         ProxyMode::Manual => {
-            let url = row.url.clone().unwrap_or_else(|| "not set".to_owned());
             rows.push(field_row(
                 "URL".to_owned(),
                 None,
-                mono(format!("{prefix}-url"), url, false, cx),
+                proxy_url(prefix, row, url_field, editable, cx),
                 cx,
             ));
             if let Some(username) = &row.username {
@@ -573,8 +619,13 @@ fn proxy_rows(prefix: &str, row: &ProxyRow, editable: bool, cx: &mut Context<She
 }
 
 /// The app proxy and the open workspace's own one.
-fn proxies(model: &NetworkModel, editable: bool, cx: &mut Context<Shell>) -> Div {
-    let global = proxy_rows("network-proxy", &model.proxy, editable, cx);
+fn proxies(
+    model: &NetworkModel,
+    url_field: Option<&Entity<InputState>>,
+    editable: bool,
+    cx: &mut Context<Shell>,
+) -> Div {
+    let global = proxy_rows("network-proxy", &model.proxy, url_field, editable, cx);
     let global_warnings = warnings("network-proxy", &model.proxy.warnings, cx);
     let workspace =
         model.workspace.as_ref().map(|workspace| {
