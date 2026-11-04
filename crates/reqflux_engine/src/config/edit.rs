@@ -188,17 +188,15 @@ fn split_url(url: &str) -> UrlParts {
     let Some((scheme, rest)) = url.split_once("://") else {
         return plain();
     };
-    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-    let Some((authority, tail)) = rest.split_at_checked(end) else {
-        return plain();
-    };
-    let Some((userinfo, host)) = authority.rsplit_once('@') else {
+    // The userinfo runs to the last `@`, so a password with an unencoded `/`, `?` or `#` is
+    // still taken out whole instead of being cut at the delimiter and left in the URL.
+    let Some((userinfo, after)) = rest.rsplit_once('@') else {
         return plain();
     };
     let decode = percent_decode;
     match userinfo.split_once(':') {
         Some((user, password)) => UrlParts {
-            without_password: format!("{scheme}://{user}@{host}{tail}"),
+            without_password: format!("{scheme}://{user}@{after}"),
             username: Some(decode(user)),
             password: Some(decode(password)),
         },

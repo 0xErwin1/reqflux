@@ -86,3 +86,25 @@ fn set_proxy_url_itself_refuses_a_url_with_a_password() {
     }
     assert!(!path.exists(), "nothing is written");
 }
+
+#[test]
+fn a_password_with_an_unencoded_slash_question_mark_or_hash_never_reaches_the_file() {
+    for password in ["p/ss", "p?ss", "p#ss"] {
+        let dir = dir();
+        let path = dir.path().join("config.toml");
+        let store = MemorySecretStore::new();
+        let url = format!("http://u:{password}@proxy.test:3128");
+        let outcome = set_proxy_url_with_secret(&path, &url, &store);
+        assert!(outcome.is_ok(), "{password}: {outcome:?}");
+        let text = read(&path);
+        assert!(!text.contains(password), "{password}: {text}");
+        assert!(
+            text.contains("url = \"http://u@proxy.test:3128\""),
+            "{password}: {text}"
+        );
+        assert_eq!(
+            store.get_account("network/proxy").ok().flatten().as_deref(),
+            Some(password)
+        );
+    }
+}
