@@ -9,9 +9,11 @@
 //! restores the URL and the params. The field takes Escape while it has focus through the
 //! input's own key context, so the shell's send-cancel binding keeps working when no field
 //! is focused. The field losing focus (a click on an empty area of the shell gives the focus
-//! to the shell) commits it like Enter without sending, so the read-only marks and their
-//! popover come back; while the variable popover that hangs under the field is open the
-//! focus sits in the popover and the field keeps its text.
+//! to the shell) commits it like Enter without sending, through the same close path, so the
+//! read-only marks and their popover come back; while the variable popover that hangs under
+//! the field is open the focus sits in the popover and the field keeps its text. Closing the
+//! popover with the focus elsewhere commits the field then (see
+//! [`Shell::close_variable_popover`]).
 //!
 //! The open field follows the grid: when a row is toggled, edited, added or deleted while it
 //! is open, its text becomes the URL as shown and the cursor keeps its offset (clamped to the
@@ -26,6 +28,7 @@ use reqflux_core::model::{KeyValue, Request};
 use reqflux_core::query;
 
 use super::Shell;
+use super::cell_edit::Refocus;
 use super::input_marks::InputMarks;
 
 /// The URL field of a request under edit: its state, the id of the request it belongs to
@@ -190,6 +193,17 @@ impl Shell {
 
     /// Commits the field's text into the draft and returns to the read-only line.
     pub(super) fn commit_url_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.commit_url_edit_as(Refocus::Shell, window, cx);
+    }
+
+    /// Commits the field like Enter, closing it with `refocus`. Enter and the field losing
+    /// focus share this path, so whatever closing does happens for both.
+    pub(super) fn commit_url_edit_as(
+        &mut self,
+        refocus: Refocus,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some((request_id, input, seed_params)) = self.url_edit.as_ref().map(|edit| {
             (
                 edit.request_id.clone(),
@@ -201,35 +215,19 @@ impl Shell {
         };
         let value = input.read(cx).value().to_string();
         self.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
-        self.close_url_edit(window, cx);
+        self.close_url_edit_as(refocus, window, cx);
     }
 
     /// The field lost focus: commits it without sending, unless the variable popover is open,
-    /// whose field legitimately holds the focus, or the window was deactivated, which is not
-    /// the user leaving the field. The focus is not taken back from whatever
-    /// got it; when nothing has it the shell does, so its keys work.
+    /// whose field legitimately holds the focus (closing the popover settles the field then),
+    /// or the window was deactivated, which is not the user leaving the field. The focus is
+    /// not taken back from whatever got it; when nothing has it the shell does, so its keys
+    /// work.
     fn blur_url_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some((request_id, input, seed_params)) = self
-            .url_edit
-            .as_ref()
-            .filter(|_| self.variable_popover.is_none() && window.is_window_active())
-            .map(|edit| {
-                (
-                    edit.request_id.clone(),
-                    edit.input.clone(),
-                    edit.seed_params.clone(),
-                )
-            })
-        else {
+        if self.variable_popover.is_some() || !window.is_window_active() {
             return;
-        };
-        let value = input.read(cx).value().to_string();
-        self.set_draft_url_and_query(&request_id, &value, &seed_params, cx);
-        self.url_edit = None;
-        if window.focused(cx).is_none() {
-            self.focus.focus(window, cx);
         }
-        cx.notify();
+        self.commit_url_edit_as(Refocus::KeepIfTaken, window, cx);
     }
 
     /// Escape in the field: discards what was typed since the field got focus and restores
@@ -273,8 +271,13 @@ impl Shell {
     /// Drops the field and gives the focus back to the shell, so the window's keys
     /// (Ctrl+Enter, Escape) keep reaching the shell's key context.
     pub(super) fn close_url_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_url_edit_as(Refocus::Shell, window, cx);
+    }
+
+    /// Drops the field and settles the focus as `refocus` says.
+    fn close_url_edit_as(&mut self, refocus: Refocus, window: &mut Window, cx: &mut Context<Self>) {
         if self.url_edit.take().is_some() {
-            self.focus.focus(window, cx);
+            refocus.settle(&self.focus, window, cx);
             cx.notify();
         }
     }

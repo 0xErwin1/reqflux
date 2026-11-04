@@ -7,11 +7,13 @@
 //! stored reference. The Variables document's cells use the same field; see
 //! [`super::variables_ops`].
 //!
-//! Clicking outside the field, or the field losing focus, commits it like Enter, and the
-//! focus goes back to the shell; the variable popover that hangs under a value field is not
-//! outside, and while it is open the field keeps its text.
+//! Clicking outside the field, or the field losing focus, commits it like Enter through the
+//! same close path, and the focus goes back to the shell unless something took it; the
+//! variable popover that hangs under a value field is not outside, and while it is open the
+//! field keeps its text. Closing the popover with the focus elsewhere commits the field then
+//! (see [`Shell::close_variable_popover`]).
 
-use gpui::{AppContext as _, Context, Entity, Window};
+use gpui::{AppContext as _, Context, Entity, FocusHandle, Window};
 use gpui_component::input::{InputEvent, InputState};
 
 use super::Shell;
@@ -21,6 +23,23 @@ use super::input_marks::InputMarks;
 use super::method_edit::METHOD_TABLE;
 use super::setting_edit::SETTINGS_TABLE;
 use super::variables_model::Column;
+
+/// Where the focus goes when a field closes.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum Refocus {
+    /// To the shell, so its keys work: Enter and Escape in the field.
+    Shell,
+    /// To the shell only when nothing has the focus: the field lost it to something else.
+    KeepIfTaken,
+}
+
+impl Refocus {
+    pub(super) fn settle(self, shell: &FocusHandle, window: &mut Window, cx: &mut gpui::App) {
+        if self == Self::Shell || window.focused(cx).is_none() {
+            shell.focus(window, cx);
+        }
+    }
+}
 
 /// Which cell of a grid row the field edits.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -126,8 +145,19 @@ impl Shell {
     /// Enter in the field: commits its text into that cell of the draft and closes the
     /// field. An empty commit on a secret cell keeps the stored reference.
     pub(super) fn commit_cell_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.commit_cell_edit_as(Refocus::Shell, window, cx);
+    }
+
+    /// Commits the field like Enter, closing it with `refocus`. Enter and the field losing
+    /// focus share this path, so whatever closing does happens for both.
+    pub(super) fn commit_cell_edit_as(
+        &mut self,
+        refocus: Refocus,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.write_cell_edit(cx) {
-            self.close_cell_edit(window, cx);
+            self.close_cell_edit_as(refocus, window, cx);
         }
     }
 
@@ -174,21 +204,15 @@ impl Shell {
     }
 
     /// The field lost focus: commits it, unless the variable popover is open, whose field
-    /// legitimately holds the focus, or the window was deactivated, which is not the user
-    /// leaving the field. The focus is not taken back from whatever got it; when
-    /// nothing has it the shell does, so its keys work.
+    /// legitimately holds the focus (closing the popover settles the field then), or the
+    /// window was deactivated, which is not the user leaving the field. The focus is not
+    /// taken back from whatever got it; when nothing has it the shell does, so its keys
+    /// work.
     fn blur_cell_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.variable_popover.is_some()
-            || !window.is_window_active()
-            || !self.write_cell_edit(cx)
-        {
+        if self.variable_popover.is_some() || !window.is_window_active() {
             return;
         }
-        self.cell_edit = None;
-        if window.focused(cx).is_none() {
-            self.focus.focus(window, cx);
-        }
-        cx.notify();
+        self.commit_cell_edit_as(Refocus::KeepIfTaken, window, cx);
     }
 
     /// Follows the open cell field's focus, so that every cell field (the grids', the
@@ -227,8 +251,18 @@ impl Shell {
     /// Closes the field and gives the focus back to the shell, so the window's keys
     /// (Ctrl+Enter, Escape) keep reaching the shell's key context.
     pub(super) fn close_cell_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.close_cell_edit_as(Refocus::Shell, window, cx);
+    }
+
+    /// Drops the field and settles the focus as `refocus` says.
+    fn close_cell_edit_as(
+        &mut self,
+        refocus: Refocus,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if self.cell_edit.take().is_some() {
-            self.focus.focus(window, cx);
+            refocus.settle(&self.focus, window, cx);
             cx.notify();
         }
     }

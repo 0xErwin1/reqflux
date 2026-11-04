@@ -12,15 +12,21 @@
 //!   only its key in the file.
 //! - With no active environment, a name only environments declare lists them to activate.
 //!
-//! Escape or a click outside closes it without writing. After a write the open requests are
-//! inspected again, so their marks show the new state. No value reaches a log.
+//! Escape or a click outside closes it without writing; Escape is two-level while the "Add to"
+//! list is open (the first closes the list). A field under edit whose blur arrived while the
+//! popover was open commits when the popover closes with the focus elsewhere. After a write
+//! the open requests are inspected again, so their marks show the new state. No value reaches
+//! a log.
 
 use std::time::Duration;
 
-use gpui::{AppContext as _, ClipboardItem, Context, Entity, FocusHandle, Task, Window};
+use gpui::{
+    AppContext as _, ClipboardItem, Context, Entity, FocusHandle, Focusable as _, Task, Window,
+};
 use gpui_component::input::InputState;
 use reqflux_engine::{SecretScope, Span, VariableInfo};
 
+use super::cell_edit::Refocus;
 use super::settings_page::Section;
 use super::{Shell, toasts};
 use crate::workspace::OpenedWorkspace;
@@ -259,19 +265,55 @@ impl Shell {
         self.open_variable_popover(request_id, anchor, &name, window, cx);
     }
 
-    /// Closes the popover without writing, giving the focus back to a field under edit.
+    /// Closes the popover without writing, and settles the focus once the event that closed
+    /// it was handled, because a press outside the popover closes it first and then moves
+    /// the focus to what it landed on. While the focus is still in the popover (or the window
+    /// is inactive) it goes back to a field under edit, else to the shell. When the focus
+    /// had left the popover, a blur the open field ignored is settled now: a field that no
+    /// longer has the focus commits like Enter, and nothing is stranded open.
     pub(super) fn close_variable_popover(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.variable_popover.take().is_none() {
+        let Some(popover) = self.variable_popover.take() else {
             return;
-        }
-        if let Some(edit) = &self.url_edit {
-            edit.input.update(cx, |state, cx| state.focus(window, cx));
-        } else if let Some(edit) = &self.cell_edit {
-            edit.input.update(cx, |state, cx| state.focus(window, cx));
-        } else {
-            self.focus.focus(window, cx);
-        }
+        };
         cx.notify();
+        cx.defer_in(window, move |this, window, cx| {
+            let held = popover.input.focus_handle(cx).is_focused(window)
+                || popover.focus.contains_focused(window, cx);
+            if window.is_window_active() && !held {
+                this.settle_fields_after_popover(window, cx);
+                if window.focused(cx).is_none() {
+                    this.focus.focus(window, cx);
+                }
+            } else if let Some(edit) = &this.url_edit {
+                edit.input.update(cx, |state, cx| state.focus(window, cx));
+            } else if let Some(edit) = &this.cell_edit {
+                edit.input.update(cx, |state, cx| state.focus(window, cx));
+            } else {
+                this.focus.focus(window, cx);
+            }
+            cx.notify();
+        });
+    }
+
+    /// Commits the open URL and cell fields that do not have the focus.
+    fn settle_fields_after_popover(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let blurred = |input: &Entity<InputState>, window: &Window, cx: &gpui::App| {
+            !input.focus_handle(cx).is_focused(window)
+        };
+        if self
+            .url_edit
+            .as_ref()
+            .is_some_and(|edit| blurred(&edit.input, window, cx))
+        {
+            self.commit_url_edit_as(Refocus::KeepIfTaken, window, cx);
+        }
+        if self
+            .cell_edit
+            .as_ref()
+            .is_some_and(|edit| blurred(&edit.input, window, cx))
+        {
+            self.commit_cell_edit_as(Refocus::KeepIfTaken, window, cx);
+        }
     }
 
     /// Enter: saves the field to the winning scope, or adds the variable.

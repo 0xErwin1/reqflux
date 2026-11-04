@@ -97,9 +97,12 @@ value (a secret keeps only its key in the file). `Engine::copy_variables(from, k
 (`reqflux_engine/src/variables_copy.rs`) copies the declared variables `keys` of one scope into
 another: initial values, descriptions and enabled flags, and for a secret the keyring value into
 the destination's own entry. A key the destination already declares is skipped
-(`CopyPolicy::Skip`, the default) or replaced in place (`CopyPolicy::Overwrite`). A keyring
-that cannot be read or written skips that key (`SkipReason::Keyring`); a secret is never copied
-without its value. The `CopyReport` names keys, never a value.
+(`CopyPolicy::Skip`, the default) or replaced in place (`CopyPolicy::Overwrite`), as one file
+write per key: a secret's new keyring value is set before the write and the previous one put back
+if the write fails, so a key is never left half updated. A keyring that cannot be read or written
+skips that key (`SkipReason::Keyring`) with the old variable intact; a secret is never copied
+without its value. An unknown source or destination scope is an error even when no key reaches
+it. The `CopyReport` names keys, never a value.
 
 ### Execution pipeline
 
@@ -447,7 +450,12 @@ disabled or blank rows survive), and the line shows the base plus the params tha
 Losing focus commits the field like Enter, without sending: a click on any other control, or on
 an empty area of the shell (the shell root takes the focus), blurs the input, the draft keeps
 the text and the read-only marks, with their popover, come back. A window deactivation is not
-a blur, and while the variable popover is open the focus sits in it and the field stays.
+a blur, and while the variable popover is open the focus sits in it and the field stays. Blur and
+Enter close the field through the same path (`commit_url_edit_as`, differing only in whether the
+shell takes the focus back from whatever got it). When the popover closes, once the event that
+closed it was handled (a press outside moves the focus after closing), the focus returns to the
+field if it was still in the popover, else the field commits if it does not have the focus, so a
+blur that arrived under the popover is never lost and no field is stranded open.
 A row with an empty key and an empty value is never sent, and params go before a `#fragment`.
 A row with an empty value shows as its bare key (`?b`); the request sends `b=`. While the URL
 field is open, a grid change (a row toggled, edited or deleted) re-seeds it in place, keeping
@@ -666,10 +674,12 @@ measurably demand it, and then by one-way layers.
   through on every change), never in the workspace; `Engine::{cookies, add_cookie, set_cookie,
   replace_cookie, delete_cookie, clear_cookies}` edit it. `set_cookie` writes a cookie from its
   fields (the Cookies page's Add cookie) and `replace_cookie` edits one, a changed domain, path or
-  name moving it. Both refuse an empty name or domain, a path without a leading `/`, a name or
+  name moving it; it refuses, rather than overwrites, a different cookie that already has the new
+  domain, path and name. Both refuse an empty name or domain, a path without a leading `/`, a name or
   value with a separator or control character, an unknown `SameSite` and a past date, with an
   error text that never holds the value (`CookieError::Invalid`). The page's Add cookie and
-  pencil open a dialog over those fields; a value shown as a secret opens empty and an empty
+  pencil open a dialog over those fields (the pencil names its cookie by domain, path and name,
+  looked up when clicked, never by row position); a value shown as a secret opens empty and an empty
   field keeps it. The jar's `Cookie` header is recorded masked whole like
   every `Cookie` header. `reqflux run` keeps a jar for the run only, as Newman does.
 - Timings (`Response.timings`: one `HopTimings` per hop, redirects included, with DNS, connect,

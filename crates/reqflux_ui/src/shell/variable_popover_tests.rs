@@ -429,6 +429,16 @@ fn shell_focused(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
     cx.update(|window, cx| shell.read(cx).focus.is_focused(window))
 }
 
+fn url_field_focused(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
+    cx.update(|window, cx| {
+        shell
+            .read(cx)
+            .url_edit
+            .as_ref()
+            .is_some_and(|edit| gpui::Focusable::focus_handle(&edit.input, cx).is_focused(window))
+    })
+}
+
 fn cell_editing(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
     cx.update(|_, cx| shell.read(cx).cell_edit.is_some())
 }
@@ -622,9 +632,45 @@ fn clicking_inside_the_popover_does_not_commit_the_url_field(cx: &mut TestAppCon
     assert!(popover_open(cx));
 
     click(cx, "variable-popover-input");
+    draw_frame(cx);
+    // The field's blur reaches the shell as an event; the popover holds the field open.
+    cx.update(|_, cx| {
+        let input = shell
+            .read(cx)
+            .url_edit
+            .as_ref()
+            .map(|edit| edit.input.clone());
+        if let Some(input) = input {
+            input.update(cx, |_, cx| cx.emit(gpui_component::input::InputEvent::Blur));
+        }
+    });
+    draw_frame(cx);
 
     assert!(popover_open(cx));
     assert!(url_editing(cx, &shell), "the click inside is not outside");
+}
+
+#[gpui::test]
+fn a_cell_blur_event_while_the_popover_is_open_does_not_commit_the_cell(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    cell_field_with_popover(cx, &shell);
+
+    cx.update(|_, cx| {
+        let input = shell
+            .read(cx)
+            .cell_edit
+            .as_ref()
+            .map(|edit| edit.input.clone());
+        if let Some(input) = input {
+            input.update(cx, |_, cx| cx.emit(gpui_component::input::InputEvent::Blur));
+        }
+    });
+    draw_frame(cx);
+
+    assert!(popover_open(cx));
+    assert!(cell_editing(cx, &shell), "the popover holds the field open");
 }
 
 #[gpui::test]
@@ -663,4 +709,192 @@ fn clicking_an_empty_area_anywhere_in_the_shell_takes_the_focus(cx: &mut TestApp
         );
         assert!(shell_focused(cx, &shell), "{area}: the shell has the focus");
     }
+}
+
+/// Opens the URL field and, with Alt+click on its first mark, the popover over it.
+fn url_field_with_popover(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+    open(cx, shell, None);
+    let mark = present(cx, "request-url-var-1");
+    let field = present(cx, "request-url");
+    cx.simulate_click(
+        Point::new(field.right() - px(12.), field.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    cx.simulate_click(mark.center(), Modifiers::alt());
+    cx.run_until_parked();
+    assert!(popover_open(cx));
+    assert!(url_editing(cx, shell));
+    draw_frame(cx);
+}
+
+/// Opens the first header's value cell field and, with F2 on its reference, the popover.
+fn cell_field_with_popover(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+    open(cx, shell, None);
+    click(cx, "request-tab-headers");
+    let cell = present(cx, "request-headers-value-1");
+    cx.simulate_click(
+        Point::new(cell.right() - px(8.), cell.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    cx.simulate_keystrokes("home right right right f2");
+    cx.run_until_parked();
+    assert!(popover_open(cx));
+    assert!(cell_editing(cx, shell));
+    draw_frame(cx);
+}
+
+fn focus_shell(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+    cx.update(|window, cx| {
+        let focus = shell.read(cx).focus.clone();
+        focus.focus(window, cx);
+    });
+    draw_frame(cx);
+}
+
+#[gpui::test]
+fn a_url_blur_during_the_popover_commits_the_field_when_it_closes(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    url_field_with_popover(cx, &shell);
+
+    focus_shell(cx, &shell);
+    assert!(url_editing(cx, &shell), "the popover holds the field open");
+    shell.update_in(cx, |shell, window, cx| {
+        shell.close_variable_popover(window, cx)
+    });
+    draw_frame(cx);
+
+    assert!(!popover_open(cx));
+    assert!(!url_editing(cx, &shell), "the blur was not lost");
+    assert!(shell_focused(cx, &shell));
+}
+
+#[gpui::test]
+fn a_cell_blur_during_the_popover_commits_the_field_when_it_closes(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    cell_field_with_popover(cx, &shell);
+
+    focus_shell(cx, &shell);
+    assert!(cell_editing(cx, &shell), "the popover holds the field open");
+    shell.update_in(cx, |shell, window, cx| {
+        shell.close_variable_popover(window, cx)
+    });
+    draw_frame(cx);
+
+    assert!(!popover_open(cx));
+    assert!(!cell_editing(cx, &shell), "the blur was not lost");
+    assert!(shell_focused(cx, &shell));
+}
+
+#[gpui::test]
+fn a_click_outside_the_open_popover_leaves_no_field_open(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    url_field_with_popover(cx, &shell);
+
+    let outside = empty_area(cx);
+    cx.simulate_click(outside, Modifiers::none());
+    draw_frame(cx);
+    draw_frame(cx);
+
+    assert!(!popover_open(cx));
+    assert!(!url_editing(cx, &shell), "the field is not stranded open");
+    assert!(shell_focused(cx, &shell));
+}
+
+#[gpui::test]
+fn escape_in_the_popover_gives_the_focus_back_to_the_field(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    url_field_with_popover(cx, &shell);
+
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    draw_frame(cx);
+
+    assert!(!popover_open(cx));
+    assert!(url_editing(cx, &shell), "Escape closes only the popover");
+    assert!(url_field_focused(cx, &shell));
+}
+
+#[gpui::test]
+fn escape_closes_the_add_to_list_first_and_the_popover_second(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, Some("staging"));
+    click(cx, "request-url-var-3");
+    click(cx, "variable-popover-target");
+    assert!(
+        bounds(cx, "variable-popover-target-1").is_some(),
+        "list open"
+    );
+
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(
+        bounds(cx, "variable-popover-target-1").is_none(),
+        "list closed"
+    );
+    assert!(popover_open(cx), "the first Escape keeps the popover");
+
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert!(!popover_open(cx), "the second Escape closes it");
+}
+
+#[gpui::test]
+fn the_url_field_closes_the_same_way_on_blur_and_on_enter(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+    let field = present(cx, "request-url");
+    cx.simulate_click(
+        Point::new(field.right() - px(12.), field.center().y),
+        Modifiers::none(),
+    );
+    cx.run_until_parked();
+    type_text(cx, "z");
+    draw_frame(cx);
+
+    focus_shell(cx, &shell);
+
+    assert!(!url_editing(cx, &shell));
+    let url = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .drafts
+            .get(REQUEST)
+            .map(|draft| draft.request.url.clone())
+    });
+    assert_eq!(url.as_deref(), Some("{{base}}/ok/{{token}}/{{tenant}}z"));
+    assert!(shell_focused(cx, &shell));
+}
+
+#[gpui::test]
+fn a_click_back_into_the_field_closes_the_popover_and_keeps_the_field(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    url_field_with_popover(cx, &shell);
+
+    let field = present(cx, "request-url");
+    cx.simulate_click(
+        Point::new(field.right() - px(12.), field.center().y),
+        Modifiers::none(),
+    );
+    draw_frame(cx);
+    draw_frame(cx);
+
+    assert!(!popover_open(cx));
+    assert!(url_editing(cx, &shell), "the press landed in the field");
+    assert!(url_field_focused(cx, &shell));
 }
