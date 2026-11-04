@@ -196,3 +196,23 @@ fn nothing_opens_without_a_selection(cx: &mut TestAppContext) {
     click(cx, "variables-copy");
     assert!(bounds(cx, "variables-copy-dialog").is_none());
 }
+
+#[gpui::test]
+fn the_environment_menu_is_as_wide_as_its_trigger(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_globals(cx);
+    click(cx, "variables-select-1");
+    click(cx, "variables-copy");
+    click(cx, "variables-copy-env");
+
+    let trigger = present(cx, "variables-copy-env");
+    let menu = present(cx, "variables-copy-env-menu");
+    assert!(
+        menu.size.width >= trigger.size.width,
+        "menu {:?} is narrower than its trigger {:?}",
+        menu.size.width,
+        trigger.size.width
+    );
+}
