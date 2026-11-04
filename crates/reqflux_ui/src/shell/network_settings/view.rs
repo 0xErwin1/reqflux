@@ -26,8 +26,8 @@ use gpui::{
     Stateful, Styled, Window, anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
-use reqflux_engine::NetworkSecret;
-use reqflux_engine::config::ProxyMode;
+use reqflux_engine::config::{self, ProxyMode};
+use reqflux_engine::{MASK, NetworkSecret};
 
 use super::{CertificateKind, CertificateRow, Keyring, NetworkModel, ProxyRow, SecretRow};
 use crate::shell::request::{segmented, ui};
@@ -530,9 +530,12 @@ fn proxy_url(
     cx: &App,
 ) -> AnyElement {
     match field {
+        // The field is one line of plain text, so it cannot mask the password alone; while the
+        // text carries a typed one the whole field is a secret to the automation tree.
         Some(state) => Input::new(state)
             .id(gpui::ElementId::Name(format!("{prefix}-url").into()))
             .aria_label("Proxy URL")
+            .secret(carries_password(state.read(cx).value().as_ref()))
             .disabled(!editable)
             .into_any_element(),
         None => {
@@ -540,6 +543,11 @@ fn proxy_url(
             mono(format!("{prefix}-url"), url, false, cx).into_any_element()
         }
     }
+}
+
+/// Whether `text` holds a password other than the mask the page shows for a stored one.
+fn carries_password(text: &str) -> bool {
+    !text.contains(MASK) && config::url_without_password(text) != text
 }
 
 /// The rows of a proxy table under the `<prefix>` ids.

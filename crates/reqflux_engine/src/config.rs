@@ -33,6 +33,7 @@ pub use crate::keymap::KeymapConfig;
 pub use edit::{
     McpList, add_list_entry, clear_keymap, remove_keymap_binding, remove_list_entry, set_font_size,
     set_keymap_binding, set_proxy_mode, set_proxy_url, set_proxy_url_with_secret, set_rule,
+    url_without_password,
 };
 pub use network::{
     CertificateConfig, NetworkConfig, ProxyConfig, ProxyMode, WorkspaceNetworkConfig,

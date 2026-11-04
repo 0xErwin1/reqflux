@@ -423,6 +423,81 @@ fn a_keyring_failure_writes_nothing_and_the_toast_has_no_password(cx: &mut TestA
 
     assert_eq!(read(&config_path), before);
     let pushed = format!("{:?}", toasts::pushed(cx));
-    assert!(pushed.contains("Cannot write config.toml"), "{pushed}");
+    assert!(
+        pushed.contains("Cannot save the proxy password"),
+        "{pushed}"
+    );
+    assert!(!pushed.contains("Cannot write config.toml"), "{pushed}");
     assert!(!pushed.contains(PASSWORD), "{pushed}");
+}
+
+#[gpui::test]
+fn a_refused_url_stays_in_the_field_without_its_password(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+    click(cx, "network-proxy-mode-manual");
+    shell.update(cx, |shell, _| {
+        shell.workspace = crate::workspace::OpenedWorkspace::None;
+        shell.settings.network.secrets = Some(Arc::new(
+            reqflux_engine::MemorySecretStore::unavailable("no keyring"),
+        ));
+    });
+
+    click(cx, "network-proxy-url");
+    cx.simulate_input("http://u:secretpw@127.0.0.1:3999");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    assert_eq!(
+        field_text(cx, &shell),
+        "http://u@127.0.0.1:3999",
+        "only the password has to be typed again"
+    );
+    assert!(!field_text(cx, &shell).contains(PASSWORD));
+}
+
+#[gpui::test]
+fn the_bridge_does_not_expose_a_password_typed_in_the_url(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (_shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    click(cx, "network-proxy-mode-manual");
+
+    let exposed = |automation: &gpui_mcp::Automation| {
+        let snapshot = automation.snapshot();
+        format!("{:?}", snapshot.nodes["network-proxy-url"])
+    };
+    click(cx, "network-proxy-url");
+    cx.simulate_input("http://u@127.0.0.1:3999");
+    cx.run_until_parked();
+    let dump = exposed(&automation);
+    assert!(dump.contains("http://u@127.0.0.1:3999"), "{dump}");
+
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("http://u:secretpw@127.0.0.1:3999");
+    cx.run_until_parked();
+    let dump = exposed(&automation);
+    assert!(!dump.contains(PASSWORD), "{dump}");
+    assert!(
+        !dump.contains("127.0.0.1"),
+        "the whole value is withheld: {dump}"
+    );
+}
+
+/// The text of the URL field.
+fn field_text(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> String {
+    shell.read_with(cx, |shell, cx| {
+        shell
+            .settings
+            .network
+            .proxy_url
+            .as_ref()
+            .map(|input| input.read(cx).value().to_string())
+            .unwrap_or_default()
+    })
 }

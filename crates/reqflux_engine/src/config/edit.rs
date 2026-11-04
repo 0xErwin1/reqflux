@@ -144,6 +144,14 @@ pub fn set_proxy_url_with_secret(
     write_proxy_url(path, &parts.without_password, parts.username.as_deref())
 }
 
+/// `url` as typed with the `:password` of its userinfo removed, the text a front end keeps in
+/// a field after the password went to the keyring or was refused. A URL without a password
+/// comes back as it is.
+#[must_use]
+pub fn url_without_password(url: &str) -> String {
+    split_url(url).without_password
+}
+
 /// Writes `url` (blank removes the key) and, when given, `username` into `[network.proxy]`.
 fn write_proxy_url(path: &Path, url: &str, username: Option<&str>) -> Result<(), ConfigError> {
     edit(path, |document| {

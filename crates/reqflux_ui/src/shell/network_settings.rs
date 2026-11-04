@@ -459,8 +459,13 @@ impl Shell {
         self.settings.network._proxy_url_subscription =
             Some(
                 cx.subscribe_in(&input, window, |this, _, event: &InputEvent, window, cx| {
-                    if matches!(event, InputEvent::PressEnter { .. } | InputEvent::Blur) {
-                        this.commit_proxy_url(window, cx);
+                    match event {
+                        InputEvent::PressEnter { .. } | InputEvent::Blur => {
+                            this.commit_proxy_url(window, cx);
+                        }
+                        // The field's automation flag follows whether the text has a password.
+                        InputEvent::Change => cx.notify(),
+                        _ => {}
                     }
                 }),
             );
@@ -516,11 +521,16 @@ impl Shell {
         }
         // A password in the text goes to the keyring; the file only gets the URL without it.
         let store = self.network_secrets();
-        self.edit_network_config(
+        let saved = self.edit_network_config(
             |path| config::set_proxy_url_with_secret(path, &value, store.as_ref()),
             window,
             cx,
         );
+        // A refused URL stays in the field, without its password, so only that is typed again.
+        if !saved {
+            let kept = config::url_without_password(value.trim());
+            input.update(cx, |input, cx| input.set_value(kept, window, cx));
+        }
     }
 
     /// Runs `edit` on `config.toml` when the proxy controls write, then reads the file back
@@ -543,7 +553,7 @@ impl Shell {
         match outcome {
             Ok(()) => true,
             Err(error) => {
-                toasts::failure("Cannot write config.toml", error.to_string(), cx);
+                toasts::failure(failure_title(&error), error.to_string(), cx);
                 false
             }
         }
@@ -608,6 +618,14 @@ impl Shell {
             Err(error) => toasts::failure("Cannot clear the keyring entry", error.to_string(), cx),
         }
         cx.notify();
+    }
+}
+
+/// The toast title of a failed `config.toml` edit, named after what failed.
+fn failure_title(error: &ConfigError) -> &'static str {
+    match error {
+        ConfigError::Keyring(_) => "Cannot save the proxy password",
+        _ => "Cannot write config.toml",
     }
 }
 

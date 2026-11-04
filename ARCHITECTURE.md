@@ -1630,9 +1630,14 @@ writes `mode` of `[network.proxy]` and applies it to the open engine; Manual sho
 `network-proxy-url`, which writes `url` on Enter and when it loses focus (a password typed in it
 goes to the keyring through `set_proxy_url_with_secret` and the file keeps the URL without it; the
 field shows a URL with a password, or whose password the keyring holds, masked, and a text that
-still holds the mask is never written back). The CA
+still holds the mask is never written back). While the typed text carries a password the field is
+a secret (`Input::secret`): the automation tree withholds its whole value, because a single-line
+input cannot mask only the password on screen, where it stays visible until committed. A URL the
+keyring refused stays in the field minus its password (`config::url_without_password`), so only
+the password is typed again. The CA
 bundle, the certificates, the bypass list and a workspace's own proxy are read from the file. A
-write that fails raises an error toast; with a file that does not parse the mode control is
+write that fails raises an error toast, titled after the cause (`Cannot save the proxy password`
+for the keyring, `Cannot write config.toml` otherwise); with a file that does not parse the mode control is
 dimmed and inert, so nothing that looks editable answers with an error.
 
 Environments and variables are edited on the workspace settings page (`settings-page`,
