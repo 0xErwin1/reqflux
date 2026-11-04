@@ -1,0 +1,14 @@
+{
+  "title": "Documentation",
+  "brief": "The markdown description of a request on a Docs sub-tab (first in the row, like Postman) and of a collection in its settings section: rendered view with Edit, multi-line editor with Done or Save and Cancel, and the empty state.",
+  "feature": "odd/tasks/feedback-nov3.md",
+  "artboards": [
+    {
+      "file": "01-docs-tab-and-section.html",
+      "title": "Docs tab and collection description",
+      "tradeoff": "One block for requests and collections, so the view, the editor and the empty state read the same; a request edits its draft (Done, then Ctrl+S) while a collection writes on Save",
+      "width": 1440,
+      "height": 1500
+    }
+  ]
+}

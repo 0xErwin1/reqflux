@@ -434,6 +434,14 @@ fn content(
                 None
             }
         })
+        .children(match section {
+            Section::Collection(id) => {
+                Some(super::settings_page::docs::collection_block(shell, id, cx))
+            }
+            Section::App(_) | Section::Globals | Section::Environments(_) | Section::Cookies => {
+                None
+            }
+        })
         .child(
             div()
                 .flex_1()

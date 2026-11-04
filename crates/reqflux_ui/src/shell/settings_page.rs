@@ -28,6 +28,8 @@ use crate::workspace::OpenedWorkspace;
 pub(crate) mod app_settings;
 #[path = "cookie_jar.rs"]
 pub(crate) mod cookie_jar;
+#[path = "docs.rs"]
+pub(crate) mod docs;
 #[path = "network_settings.rs"]
 pub(crate) mod network_settings;
 
@@ -105,6 +107,8 @@ pub(crate) struct SettingsPage {
     pub(crate) keymap: super::keymap::KeymapState,
     /// Workspace > Cookies: the filter and the Clear all confirmation.
     pub(crate) cookies: cookie_jar::CookieJarState,
+    /// The open description editor of the collection section.
+    pub(crate) docs: Option<docs::CollectionDocsEdit>,
 }
 
 impl SettingsPage {
@@ -124,6 +128,7 @@ impl SettingsPage {
             network: network_settings::NetworkState::new(cx),
             keymap: super::keymap::KeymapState::default(),
             cookies: cookie_jar::CookieJarState::new(cx),
+            docs: None,
         }
     }
 
@@ -141,6 +146,7 @@ impl SettingsPage {
         self.warning = None;
         self.keymap = super::keymap::KeymapState::default();
         self.cookies.reset();
+        self.docs = None;
     }
 }
 
@@ -207,6 +213,7 @@ impl Shell {
         self.settings.menu = None;
         self.settings.confirm = None;
         self.settings.rename = None;
+        self.settings.docs = None;
         cx.notify();
     }
 

@@ -399,6 +399,7 @@ impl Shell {
         self.drop_url_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
+        self.drop_docs_edit_of(id);
         // A cell field shows text the draft does not have yet: commit it, so saving never
         // silently drops what was typed.
         self.commit_cell_edit(window, cx);
@@ -484,6 +485,7 @@ impl Shell {
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
+        self.drop_docs_edit_of(id);
         if self.drafts.remove(id).is_some() {
             self.save_errors.remove(id);
             self.delete_stored_draft(id);

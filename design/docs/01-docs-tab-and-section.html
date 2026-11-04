@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation: Docs tab and collection description — ReqFlux (Bolt)</title>
+<!--
+  Direction 01. Feature: odd/tasks/feedback-nov3.md T7 (S11: "Esa colaccion tenia documentacion en
+  postman, no lo soportamos no?"). Chrome copied from design/request-panes/01 (sub-tab row, pane)
+  and design/variables/01 (settings section); only the Documentation block is new.
+
+  Frames
+    A  Request, Docs tab: rendered markdown in a sunken well, DOCUMENTATION label, Edit button.
+    B  Request, editing: the editor replaces the well, accent focus ring while focused, Done.
+       Every keystroke lands in the request's draft (diamond on the tab); Ctrl+S saves it.
+    C  Request, no documentation: bolt EmptyState "No documentation" with "Add documentation".
+    D  Collection settings section: the Documentation block sits between the Environments
+       block and the variables. View with Edit, or editor with Cancel and Save; Save writes
+       collection.toml through the engine (collections have no draft).
+
+  Rules
+    - Docs is the first sub-tab, before Params. The default sub-tab of an opened request does not
+      change.
+    - The description is markdown. Rendered with gpui-component's text view until bolt has a
+      document component (// bolt gap: markdown view).
+    - Escape closes the editor: Done for a request (the text stays in the draft), Cancel for a
+      collection (the text is dropped).
+    - Text is stored in `description` of the .req.toml / collection.toml / folder.toml, a TOML
+      multi-line string when it has several lines. Postman imports fill it from info.description,
+      the folders' and the requests' description; the export writes it back.
+
+  bolt gaps: markdown view (stand-in: gpui-component TextView).
+-->
+<style>
+body{margin:0;background:#050507}
+.m{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.c6{clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px)}
+.c8{clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.c14{clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px)}
+.dark{--desk:#050507;--bg:#09090B;--panel:#100F13;--raised:#1A181E;--line:#232128;--line2:#37333D;
+  --strong:#F7F4F7;--fg:#C6C3CC;--muted:#8E8996;--tint:#9DB1FF;--tintw:rgba(157,177,255,.12);
+  --accent:#2B45B8;--ok:#7BE0A0;--warn:#FFC23D}
+.desk{width:1440px;box-sizing:border-box;padding:40px 48px 56px;background:var(--desk);color:var(--fg);font-family:Archivo,system-ui,sans-serif;font-size:13px}
+.desk h1{margin:0 0 6px;font-size:20px;font-weight:600;color:var(--strong)}
+.desk h3{margin:0;font-size:13px;font-weight:600;color:var(--strong)}
+.desk p{margin:0;color:var(--muted);font-size:12.5px;line-height:1.5}
+.frame{margin-top:28px;display:flex;flex-direction:column;gap:10px}
+.island{background:var(--panel);border:1px solid rgba(255,255,255,.05)}
+.tabs{display:flex;align-items:center;gap:4px;height:34px;padding:0 12px;border-bottom:1px solid var(--line);border-top:1px solid var(--line)}
+.tab{display:flex;align-items:center;gap:6px;height:26px;padding:0 10px;color:var(--muted);font-size:12.5px}
+.tab.on{color:var(--strong);background:var(--tintw)}
+.tab.on i{background:var(--tint)}
+.tab i{width:12px;height:12px;background:var(--muted);opacity:.6;display:inline-block}
+.pane{padding:12px 16px 20px}
+.head{display:flex;align-items:center;gap:8px;height:28px}
+.head i{width:14px;height:14px;background:var(--tint);display:inline-block}
+.label{font-family:"Archivo Expanded",Archivo,sans-serif;font-weight:800;font-size:11px;letter-spacing:.14em;color:var(--fg)}
+.sp{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;font-size:12px;color:var(--fg)}
+.btn.ghost{background:rgba(255,255,255,.04)}
+.btn.primary{background:var(--accent);color:#fff}
+.well{position:relative;margin-top:8px;padding:10px 14px;background:var(--bg);border:1px solid var(--line);line-height:1.55}
+.well h4{margin:0 0 6px;font-size:16px;color:var(--strong)}
+.well p{color:var(--fg);font-size:13px;margin:0 0 8px}
+.well code{font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--raised);padding:1px 5px}
+.well ul{margin:0 0 4px;padding-left:20px}
+.ring{position:absolute;inset:0;border:1.5px solid var(--tint);pointer-events:none}
+.edit{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--strong);white-space:pre-wrap;min-height:190px}
+.caret{display:inline-block;width:1.5px;height:14px;background:var(--tint);vertical-align:text-bottom}
+.empty{display:flex;flex-direction:column;align-items:center;gap:8px;padding:28px 0 24px;text-align:center}
+.empty .t{color:var(--strong);font-size:14px;font-weight:600}
+.empty p{max-width:420px}
+.block{padding:8px 12px 12px;border-bottom:1px solid var(--line)}
+.note{font-size:11.5px;color:var(--muted);margin-top:6px}
+.dia{display:inline-block;width:7px;height:7px;background:var(--tint);transform:rotate(45deg);margin-left:4px}
+</style></head>
+<body><div class="desk dark">
+<h1>Documentation</h1>
+<p>A request's Docs tab and a collection's description, in markdown. The same block serves both.</p>
+
+<div class="frame"><div class="state-head"><h3>A · Request, Docs tab</h3></div>
+<div class="island c14">
+ <div class="tabs"><span class="tab on"><i></i>Docs</span><span class="tab"><i></i>Params</span><span class="tab"><i></i>Headers 2</span><span class="tab"><i></i>Body</span><span class="tab"><i></i>Auth</span><span class="tab"><i></i>Scripts</span><span class="tab"><i></i>Settings</span></div>
+ <div class="pane">
+  <div class="head"><i></i><span class="label">DOCUMENTATION</span><span class="sp"></span><span class="btn ghost c6">✎ Edit</span></div>
+  <div class="well c8"><h4>List invoices</h4><p>Returns the invoices of the current tenant, newest first.</p><ul><li>Pass <code>page</code> to page through</li><li>Needs the <code>billing:read</code> scope</li></ul></div>
+ </div></div></div>
+
+<div class="frame"><div class="state-head"><h3>B · Request, editing (draft)</h3></div>
+<div class="island c14">
+ <div class="tabs"><span class="tab on"><i></i>Docs<span class="dia"></span></span><span class="tab"><i></i>Params</span><span class="tab"><i></i>Headers 2</span><span class="tab"><i></i>Body</span><span class="tab"><i></i>Auth</span><span class="tab"><i></i>Scripts</span><span class="tab"><i></i>Settings</span></div>
+ <div class="pane">
+  <div class="head"><i></i><span class="label">DOCUMENTATION</span><span class="sp"></span><span class="btn primary c6">Done</span></div>
+  <div class="well c8"><div class="edit"># List invoices
+
+Returns the invoices of the current tenant, newest first.
+
+- Pass `page` to page through<span class="caret"></span></div><div class="ring"></div></div>
+  <p class="note">Edits land in the request's draft. Ctrl+S saves them with the request; Escape closes the editor.</p>
+ </div></div></div>
+
+<div class="frame"><div class="state-head"><h3>C · Request, no documentation</h3></div>
+<div class="island c14">
+ <div class="tabs"><span class="tab on"><i></i>Docs</span><span class="tab"><i></i>Params</span><span class="tab"><i></i>Headers</span><span class="tab"><i></i>Body</span><span class="tab"><i></i>Auth</span><span class="tab"><i></i>Scripts</span><span class="tab"><i></i>Settings</span></div>
+ <div class="pane">
+  <div class="head"><i></i><span class="label">DOCUMENTATION</span></div>
+  <div class="empty"><span class="t">No documentation</span><p>Notes about this request, in markdown: what it does and what it expects.</p><span class="btn primary c6">✎ Add documentation</span></div>
+ </div></div></div>
+
+<div class="frame"><div class="state-head"><h3>D · Collection settings, Documentation block</h3></div>
+<div class="row" style="display:flex;gap:16px">
+ <div class="island c14" style="flex:1"><div class="block"><div class="head"><i></i><span class="label">DOCUMENTATION</span><span class="sp"></span><span class="btn ghost c6">✎ Edit</span></div>
+  <div class="well c8"><h4>Billing API</h4><p>Start with the <strong>Invoices</strong> folder. Every call needs a bearer token.</p></div></div></div>
+ <div class="island c14" style="flex:1"><div class="block"><div class="head"><i></i><span class="label">DOCUMENTATION</span><span class="sp"></span><span class="btn ghost c6">Cancel</span><span class="btn primary c6">Save</span></div>
+  <div class="well c8"><div class="edit" style="min-height:90px"># Billing API
+
+Start with the **Invoices** folder.<span class="caret"></span></div><div class="ring"></div></div>
+  <p class="note">Save writes <span class="m">description</span> in collection.toml.</p></div></div>
+</div></div>
+</div></body></html>

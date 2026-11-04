@@ -7,6 +7,7 @@ use reqflux_engine::Inspection;
 /// A sub-tab of the request view, in bar order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SubTab {
+    Docs,
     Params,
     Headers,
     Body,
@@ -17,7 +18,8 @@ pub(crate) enum SubTab {
 
 impl SubTab {
     /// Every sub-tab, left to right.
-    pub(crate) const ALL: [Self; 6] = [
+    pub(crate) const ALL: [Self; 7] = [
+        Self::Docs,
         Self::Params,
         Self::Headers,
         Self::Body,
@@ -28,6 +30,7 @@ impl SubTab {
 
     pub(crate) fn label(self) -> &'static str {
         match self {
+            Self::Docs => "Docs",
             Self::Params => "Params",
             Self::Headers => "Headers",
             Self::Body => "Body",
@@ -51,6 +54,8 @@ pub(crate) struct RequestState {
     pub(crate) tab: SubTab,
     /// The GraphQL query or variables editor the Body pane holds open, while it has one.
     pub(crate) graphql_edit: Option<super::body::graphql::GraphqlEdit>,
+    /// The description editor the Docs pane holds open, while it has one.
+    pub(crate) docs_edit: Option<crate::shell::settings_page::docs::DocsEdit>,
 }
 
 impl std::fmt::Debug for RequestState {
@@ -60,6 +65,7 @@ impl std::fmt::Debug for RequestState {
             .field("inspection", &self.inspection)
             .field("tab", &self.tab)
             .field("graphql_edit", &self.graphql_edit.is_some())
+            .field("docs_edit", &self.docs_edit.is_some())
             .finish()
     }
 }
@@ -71,6 +77,7 @@ impl RequestState {
             inspection,
             tab: SubTab::Headers,
             graphql_edit: None,
+            docs_edit: None,
         }
     }
 }
@@ -81,7 +88,7 @@ pub(crate) fn count(request: &Request, tab: SubTab) -> Option<usize> {
     match tab {
         SubTab::Params => Some(enabled_count(&request.params)),
         SubTab::Headers => Some(enabled_count(&request.headers)),
-        SubTab::Body | SubTab::Auth | SubTab::Scripts | SubTab::Settings => None,
+        SubTab::Docs | SubTab::Body | SubTab::Auth | SubTab::Scripts | SubTab::Settings => None,
     }
 }
 
@@ -108,6 +115,7 @@ mod tests {
         assert_eq!(
             ids,
             [
+                "request-tab-docs",
                 "request-tab-params",
                 "request-tab-headers",
                 "request-tab-body",

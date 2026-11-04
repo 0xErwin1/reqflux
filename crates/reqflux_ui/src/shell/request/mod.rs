@@ -9,6 +9,7 @@ mod body;
 pub(crate) use body::binary::answer_body_file_dialog;
 mod body_menu;
 mod code;
+mod docs;
 mod grid;
 mod grid_model;
 mod line;
@@ -69,6 +70,7 @@ fn pane(
     // immediately and survives a restart.
     let request = shell.displayed_request(id, &inspection.request.request);
     let content = match state.tab {
+        SubTab::Docs => docs::render(id, state, request, cx),
         SubTab::Params => vec![grid::render(
             inspection,
             "params",
