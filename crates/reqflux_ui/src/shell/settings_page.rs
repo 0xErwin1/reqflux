@@ -105,6 +105,12 @@ pub(crate) struct SettingsPage {
     pub(crate) keymap: super::keymap::KeymapState,
     /// Workspace > Cookies: the filter and the Clear all confirmation.
     pub(crate) cookies: cookie_jar::CookieJarState,
+    /// Globals and collections: the selected rows and the `Copy to environment…` dialog
+    /// (feedback-nov3 S13).
+    pub(crate) copy: super::variables_ops::copy::CopyState,
+    /// App > Keymap: the filter, the context select and the folded groups, made the first
+    /// time the page shows (feedback-nov3 S15).
+    pub(crate) keymap_list: Option<super::keymap::view::list::ListState>,
 }
 
 impl SettingsPage {
@@ -124,6 +130,8 @@ impl SettingsPage {
             network: network_settings::NetworkState::new(cx),
             keymap: super::keymap::KeymapState::default(),
             cookies: cookie_jar::CookieJarState::new(cx),
+            copy: super::variables_ops::copy::CopyState::new(cx),
+            keymap_list: None,
         }
     }
 
@@ -141,6 +149,7 @@ impl SettingsPage {
         self.warning = None;
         self.keymap = super::keymap::KeymapState::default();
         self.cookies.reset();
+        self.copy.reset();
     }
 }
 
@@ -204,6 +213,9 @@ impl Shell {
         self.commit_cell_edit(window, cx);
         self.settings.section = section;
         self.settings.section = self.settings_section();
+        if matches!(section, Section::App(AppSection::Keymap)) {
+            self.ensure_keymap_list(window, cx);
+        }
         self.settings.menu = None;
         self.settings.confirm = None;
         self.settings.rename = None;
@@ -414,7 +426,7 @@ impl Shell {
 
     /// After an environment operation: the error clears, a section that no longer exists is
     /// replaced and the open requests are inspected again.
-    fn environments_changed(&mut self, cx: &mut Context<Self>) {
+    pub(crate) fn environments_changed(&mut self, cx: &mut Context<Self>) {
         self.settings.error = None;
         self.settings.section = self.settings_section();
         self.inspect_open_requests(cx);
