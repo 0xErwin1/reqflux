@@ -34,7 +34,6 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
     let field = SearchField::new("response-search", &input)
         .icon(ui::icon(IconName::Search))
         .aria_label(SEARCH_PLACEHOLDER)
-        .width(ResultMetrics::SEARCH_WIDTH)
         .count(SearchCount::new(count))
         .trailing(
             Button::new("response-search-previous", "Previous match")
@@ -61,6 +60,7 @@ pub(super) fn render(id: &str, send: &RequestSend, cx: &mut Context<Shell>) -> A
                 })),
         );
     div()
+        .w(ResultMetrics::SEARCH_WIDTH)
         .flex_none()
         .capture_action(cx.listener(move |this, _: &InputEscape, window, cx| {
             this.close_response_search(&escape, window, cx);

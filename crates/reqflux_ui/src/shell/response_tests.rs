@@ -784,3 +784,32 @@ fn dragging_a_response_cookies_header_edge_resizes_only_that_column(cx: &mut Tes
         "the rows follow the header"
     );
 }
+
+#[gpui::test]
+fn the_views_row_fits_the_window_and_the_filter_gives_way_to_the_search(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    cx.simulate_resize(gpui::size(gpui::px(1280.), gpui::px(800.)));
+    cx.run_until_parked();
+    let window = cx.update(|window, _| window.viewport_size());
+    let jsonpath = present(cx, "response-jsonpath");
+    let search = present(cx, "response-search");
+    assert!(
+        search.right() <= window.width,
+        "the search field ends at {:?} in a {:?} window",
+        search.right(),
+        window.width
+    );
+    assert!(
+        jsonpath.right() <= search.left(),
+        "the fields do not overlap"
+    );
+    assert_eq!(
+        search.size.width,
+        gpui::px(240.),
+        "the search keeps its width, so its placeholder and keycap are not clipped"
+    );
+    assert!(
+        jsonpath.size.width < gpui::px(240.),
+        "the filter shrank: {jsonpath:?}"
+    );
+}

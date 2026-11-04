@@ -122,6 +122,9 @@ pub(super) fn render(
         ))
         .children(received.content_type().map(|content_type| {
             div()
+                .min_w_0()
+                .overflow_hidden()
+                .text_ellipsis()
                 .whitespace_nowrap()
                 .font_family(bolt::fonts::editor_family(cx))
                 .text_size(ResultMetrics::STATEMENT_FONT)

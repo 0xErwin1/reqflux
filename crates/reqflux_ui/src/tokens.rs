@@ -167,6 +167,10 @@ pub(crate) fn search_wash(color: Hsla) -> Hsla {
     wash(color, VARIABLE_WASH)
 }
 
+/// How narrow the response JSONPath filter gets when the views row is short of room (it gives
+/// way before the search field and the content type; response-views/01).
+pub(crate) const RESPONSE_FILTER_MIN_WIDTH: Pixels = px(96.0);
+
 /// The variables grid columns of the workspace settings page (variables/01): row number,
 /// enable box, key, initial value, current value and where the value is stored; the
 /// description fills the rest.
