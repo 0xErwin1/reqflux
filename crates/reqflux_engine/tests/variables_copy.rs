@@ -12,13 +12,14 @@ mod common;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use common::{id, id_text, snapshot, temp_dir, write};
 use pretty_assertions::assert_eq;
 use reqflux_core::model::Variable;
 use reqflux_engine::{
-    CopyPolicy, Engine, MemorySecretStore, SecretKey, SecretScope, SecretStore, SkipReason,
-    SkippedVariable, VariableEdit,
+    CopyPolicy, Engine, MemorySecretStore, SecretError, SecretKey, SecretScope, SecretStore,
+    SkipReason, SkippedVariable, VariableEdit,
 };
 
 const ENV: &str = "environments/dev.env.toml";
@@ -272,4 +273,194 @@ fn globals_copy_like_a_collection() {
         env_variables(&engine)[1].description.as_deref(),
         Some("Host")
     );
+}
+
+/// A memory store whose writes or deletes can be switched off after the setup.
+#[derive(Debug, Default)]
+struct FlakyStore {
+    inner: MemorySecretStore,
+    fail_set: AtomicBool,
+    fail_delete: AtomicBool,
+}
+
+impl FlakyStore {
+    fn refuse(flag: &AtomicBool) -> Result<(), SecretError> {
+        if flag.load(Ordering::SeqCst) {
+            return Err(SecretError::Unavailable("locked".to_owned()));
+        }
+        Ok(())
+    }
+}
+
+impl SecretStore for FlakyStore {
+    fn get_account(&self, account: &str) -> Result<Option<String>, SecretError> {
+        self.inner.get_account(account)
+    }
+
+    fn set_account(&self, account: &str, value: &str) -> Result<(), SecretError> {
+        Self::refuse(&self.fail_set)?;
+        self.inner.set_account(account, value)
+    }
+
+    fn delete_account(&self, account: &str) -> Result<(), SecretError> {
+        Self::refuse(&self.fail_delete)?;
+        self.inner.delete_account(account)
+    }
+}
+
+fn open_flaky(root: &Path, store: Arc<FlakyStore>) -> Engine {
+    match Engine::open_with_secrets(root, store) {
+        Ok(engine) => engine,
+        Err(error) => panic!("open: {error}"),
+    }
+}
+
+fn add_secret(engine: &mut Engine, name: &str, value: &str) {
+    let mut variable = Variable::new(name, value);
+    variable.secret = true;
+    if let Err(error) = engine.add_variable(env(), variable) {
+        panic!("add secret: {error}");
+    }
+}
+
+#[test]
+fn overwrite_replaces_every_field_and_the_position_stays() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let mut engine = open(root, Arc::new(MemorySecretStore::new()));
+    let mut changed = Variable::new("off", "keep");
+    changed.description = Some("Old".to_owned());
+    if let Err(error) = engine.add_variable(env(), changed) {
+        panic!("add: {error}");
+    }
+    let report =
+        match engine.copy_variables(collection(), &keys(&["off"]), env(), CopyPolicy::Overwrite) {
+            Ok(report) => report,
+            Err(error) => panic!("copy: {error}"),
+        };
+    assert_eq!(report.copied, keys(&["off"]));
+    let variables = env_variables(&engine);
+    assert_eq!(variables[1].key, "off");
+    assert_eq!(variables[1].value.as_deref(), Some("x"));
+    assert_eq!(variables[1].description, None);
+    assert!(!variables[1].enabled);
+}
+
+#[test]
+fn overwrite_carries_a_secret_over_a_plain_variable() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let store = Arc::new(MemorySecretStore::new());
+    if let Err(error) = store.set(&key(collection(), "pass"), "s3cret") {
+        panic!("seed: {error}");
+    }
+    let mut engine = open(root, store.clone());
+    if let Err(error) = engine.add_variable(env(), Variable::new("pass", "plain")) {
+        panic!("add: {error}");
+    }
+    let report =
+        match engine.copy_variables(collection(), &keys(&["pass"]), env(), CopyPolicy::Overwrite) {
+            Ok(report) => report,
+            Err(error) => panic!("copy: {error}"),
+        };
+    assert_eq!(report.copied, keys(&["pass"]));
+    let variables = env_variables(&engine);
+    assert!(variables[1].secret);
+    assert_eq!(variables[1].value, None);
+    assert_eq!(
+        store.get(&key(env(), "pass")).ok().flatten().as_deref(),
+        Some("s3cret")
+    );
+    let text = read(root, ENV);
+    assert!(
+        !text.contains("s3cret") && !text.contains("plain"),
+        "{text}"
+    );
+}
+
+#[test]
+fn overwrite_turns_a_secret_into_a_plain_variable_and_drops_its_entry() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let store = Arc::new(MemorySecretStore::new());
+    let mut engine = open(root, store.clone());
+    add_secret(&mut engine, "base", "old-secret");
+    let report =
+        match engine.copy_variables(collection(), &keys(&["base"]), env(), CopyPolicy::Overwrite) {
+            Ok(report) => report,
+            Err(error) => panic!("copy: {error}"),
+        };
+    assert_eq!(report.copied, keys(&["base"]));
+    let variables = env_variables(&engine);
+    assert!(!variables[1].secret);
+    assert_eq!(variables[1].value.as_deref(), Some("http://a.test"));
+    assert_eq!(store.get(&key(env(), "base")).ok().flatten(), None);
+}
+
+#[test]
+fn an_overwrite_cleanup_failure_still_leaves_the_whole_new_variable() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let store = Arc::new(FlakyStore::default());
+    let mut engine = open_flaky(root, store.clone());
+    add_secret(&mut engine, "base", "old-secret");
+    store.fail_delete.store(true, Ordering::SeqCst);
+    if let Err(error) =
+        engine.copy_variables(collection(), &keys(&["base"]), env(), CopyPolicy::Overwrite)
+    {
+        panic!("copy: {error}");
+    }
+    let variables = env_variables(&engine);
+    assert!(!variables[1].secret);
+    assert_eq!(variables[1].value.as_deref(), Some("http://a.test"));
+}
+
+#[test]
+fn a_keyring_failure_on_overwrite_leaves_the_old_variable_untouched() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let store = Arc::new(FlakyStore::default());
+    if let Err(error) = store.set(&key(collection(), "pass"), "new-secret") {
+        panic!("seed: {error}");
+    }
+    let mut engine = open_flaky(root, store.clone());
+    add_secret(&mut engine, "pass", "old-secret");
+    store.fail_set.store(true, Ordering::SeqCst);
+    let before = snapshot(root);
+    let report =
+        match engine.copy_variables(collection(), &keys(&["pass"]), env(), CopyPolicy::Overwrite) {
+            Ok(report) => report,
+            Err(error) => panic!("copy: {error}"),
+        };
+    assert!(report.copied.is_empty());
+    assert_eq!(
+        report.skipped,
+        [SkippedVariable {
+            key: "pass".to_owned(),
+            reason: SkipReason::Keyring,
+        }]
+    );
+    assert_eq!(snapshot(root), before);
+    assert_eq!(
+        store.get(&key(env(), "pass")).ok().flatten().as_deref(),
+        Some("old-secret")
+    );
+}
+
+#[test]
+fn an_unknown_destination_scope_is_an_error_even_when_no_key_reaches_it() {
+    let dir = temp_dir();
+    let root = dir.path();
+    workspace(root);
+    let mut engine = open(root, Arc::new(MemorySecretStore::new()));
+    let missing = SecretScope::Environment(id(77));
+    for asked in [keys(&[]), keys(&["nope"]), keys(&["base"])] {
+        let result = engine.copy_variables(collection(), &asked, missing, CopyPolicy::Skip);
+        assert!(result.is_err(), "{asked:?} -> {result:?}");
+    }
 }

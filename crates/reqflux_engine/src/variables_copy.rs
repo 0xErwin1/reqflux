@@ -1,21 +1,23 @@
 //! Copying variables from one scope into another (feedback-nov3 S13): the keys of a
 //! collection or of the globals into an environment of the workspace.
 //!
-//! A copy goes through [`Engine::add_variable`] and [`Engine::edit_variable`], so it keeps
-//! every invariant they enforce (unique keys, the secret store ordering, the reload after
-//! each write). A key the destination already declares is skipped, or overwritten in place
-//! (keeping its position) under [`CopyPolicy::Overwrite`].
+//! A new key goes through [`Engine::add_variable`], so it keeps every invariant that
+//! enforces (unique keys, the secret store ordering, the reload after each write). A key the
+//! destination already declares is skipped, or overwritten in place (keeping its position)
+//! under [`CopyPolicy::Overwrite`]; the overwrite is one file write per key, so a failure
+//! leaves the old variable intact and the key is skipped.
 //!
 //! A secret copies its keyring value to the destination's own entry. When the keyring
 //! cannot be read or written the key is skipped as [`SkipReason::Keyring`]; it is never
 //! copied without its value. The report names keys, never a value.
 
 use reqflux_core::model::Variable;
+use reqflux_store::VariableChange;
 
 use crate::engine::Engine;
 use crate::error::VariableError;
 use crate::secrets::SecretScope;
-use crate::variables::{VariableEdit, scope_file};
+use crate::variables::scope_file;
 
 /// What to do with a key the destination already declares.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -76,7 +78,8 @@ impl Engine {
     ///
     /// # Errors
     ///
-    /// The store error (an unknown scope, a conflict) or [`VariableError::Reload`]; a
+    /// The store error (an unknown source or destination scope, even when no key reaches it,
+    /// or a conflict) or [`VariableError::Reload`]; a
     /// keyring failure is a [`SkipReason::Keyring`] in the report instead.
     pub fn copy_variables(
         &mut self,
@@ -86,6 +89,7 @@ impl Engine {
         policy: CopyPolicy,
     ) -> Result<CopyReport, VariableError> {
         let source = reqflux_store::scope_variables(&self.loaded, scope_file(from))?.to_vec();
+        reqflux_store::scope_variables(&self.loaded, scope_file(to))?;
         let mut report = CopyReport::default();
         let mut seen: Vec<&str> = Vec::new();
         for key in keys {
@@ -162,7 +166,13 @@ impl Engine {
         }
     }
 
-    /// Makes the variable at `index` in `to` match `variable`, carrying `value`.
+    /// Makes the variable at `index` in `to` match `variable`, carrying `value`, in one file
+    /// write.
+    ///
+    /// A secret's new value is stored before the write, so a keyring failure refuses the
+    /// whole key; when the write then fails the previous entry is put back. The entry of a
+    /// secret that stops being one is deleted after the write, as in
+    /// [`Engine::edit_variable`].
     fn overwrite(
         &mut self,
         to: SecretScope,
@@ -174,20 +184,53 @@ impl Engine {
             .get(index)
             .cloned()
             .ok_or(reqflux_store::StoreError::NoVariable { index })?;
-        if current.secret != variable.secret {
-            self.edit_variable(to, index, VariableEdit::Secret(variable.secret))?;
+        let replacement = Variable {
+            value: if variable.secret { None } else { value.clone() },
+            ..variable.clone()
+        };
+        let plan = reqflux_store::plan_variables(
+            &self.root,
+            &self.loaded,
+            scope_file(to),
+            VariableChange::Replace(index, replacement),
+        )?;
+        let store = self.secret_store().clone();
+        let account = self.secret_key(to, &variable.key);
+        let mut restore = None;
+        if variable.secret {
+            let previous = store.get(&account)?;
+            match &value {
+                Some(value) => store.set(&account, value)?,
+                None => store.delete(&account)?,
+            }
+            restore = Some(previous);
         }
-        self.edit_variable(to, index, VariableEdit::Value(value))?;
-        if current.description != variable.description {
-            self.edit_variable(
-                to,
-                index,
-                VariableEdit::Description(variable.description.clone()),
-            )?;
+        if let Err(error) = plan.write() {
+            let undone = match restore {
+                Some(Some(previous)) => store.set(&account, &previous),
+                Some(None) => store.delete(&account),
+                None => Ok(()),
+            };
+            return Err(match undone {
+                Ok(()) => error.into(),
+                Err(rollback) => VariableError::Orphaned {
+                    source: Box::new(error),
+                    account: account.account(),
+                    rollback,
+                },
+            });
         }
-        if current.enabled != variable.enabled {
-            self.edit_variable(to, index, VariableEdit::Enabled(variable.enabled))?;
-        }
-        Ok(())
+        let cleanup = if current.secret && !variable.secret {
+            store
+                .delete(&account)
+                .map_err(|source| VariableError::SecretCleanup {
+                    account: account.account(),
+                    source,
+                })
+        } else {
+            Ok(())
+        };
+        self.reload().map_err(VariableError::Reload)?;
+        cleanup
     }
 }
