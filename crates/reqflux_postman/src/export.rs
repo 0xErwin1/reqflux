@@ -44,6 +44,7 @@ pub fn export_collection(node: &CollectionNode, examples: &BTreeMap<Id, Vec<Exam
         info.insert("_postman_id".to_owned(), id);
     }
     info.insert("name".to_owned(), Value::String(collection.name.clone()));
+    insert_description(&mut info, collection.description.as_deref());
     info.insert(
         "schema".to_owned(),
         Value::String(COLLECTION_SCHEMA.to_owned()),
@@ -111,6 +112,7 @@ fn items(items: &[Item], examples: &BTreeMap<Id, Vec<Example>>) -> Value {
 fn folder_item(node: &FolderNode, examples: &BTreeMap<Id, Vec<Example>>) -> Value {
     let mut out = Map::new();
     out.insert("name".to_owned(), Value::String(node.folder.name.clone()));
+    insert_description(&mut out, node.folder.description.as_deref());
     out.insert("item".to_owned(), items(&node.items, examples));
     insert_some(&mut out, "auth", auth::export(&node.folder.auth));
     insert_some(&mut out, "event", events(&node.scripts));
@@ -130,6 +132,7 @@ fn request_item(node: &RequestNode, examples: Option<&Vec<Example>>) -> Value {
         .map(request::example)
         .collect();
     let mut document = request::request(request);
+    insert_description(&mut document, request.description.as_deref());
     let mut out = Map::new();
     out.insert("name".to_owned(), Value::String(request.name.clone()));
     insert_some(&mut out, "event", events(&node.scripts));
@@ -228,6 +231,13 @@ pub(crate) fn postman_rest(extensions: &toml::Table) -> Map<String, Value> {
     {
         Some(Value::Object(map)) => map,
         _ => Map::new(),
+    }
+}
+
+/// Writes the description as the markdown text Postman reads, when there is one.
+fn insert_description(out: &mut Map<String, Value>, description: Option<&str>) {
+    if let Some(text) = description {
+        out.insert("description".to_owned(), Value::String(text.to_owned()));
     }
 }
 

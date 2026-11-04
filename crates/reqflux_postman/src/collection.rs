@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use reqflux_core::model::{
     ApiKeyLocation, Auth, Body, Collection, CollectionNode, Example, Folder, FolderNode, FormPart,
     Id, Item, KeyValue, Method, RawLanguage, Request, RequestNode, Scripts, Settings, Variable,
+    postman_description,
 };
 use serde_json::{Map, Value};
 
@@ -54,6 +55,7 @@ pub fn collection(value: &Value) -> Result<Imported, PostmanError> {
         collection: Collection {
             id: Id::new(),
             name: name.to_owned(),
+            description: info.and_then(|info| postman_description(info.get("description"))),
             environments: Vec::new(),
             order: order(&items),
             auth: auth(object.get("auth")),
@@ -137,14 +139,21 @@ fn folder_node(
 ) -> Result<FolderNode, PostmanError> {
     let name = item_name(object, path)?;
     let items = items(object.get("item"), path, all)?;
+    let description = postman_description(object.get("description"));
+    let has_description = description.is_some();
     Ok(FolderNode {
         slug: take_slug(name, siblings, &mut all.slugs),
         folder: Folder {
             id: Id::new(),
             name: name.to_owned(),
+            description,
             order: order(&items),
             auth: auth(object.get("auth")),
-            extensions: extensions(object, &["name", "item", "auth", "event"], &[]),
+            extensions: extensions(
+                object,
+                &consumed(&["name", "item", "auth", "event"], has_description),
+                &[],
+            ),
         },
         scripts: events(object.get("event")),
         items,
@@ -171,12 +180,17 @@ fn request_node(
     let method = method(request, &request_path)?;
     let (url, params) = url_and_params(request, &request_path)?;
     let id = Id::new();
+    // Postman puts the text on the request, sometimes on the item; the request's wins.
+    let description = postman_description(request.get("description"))
+        .or_else(|| postman_description(object.get("description")));
+    let has_description = description.is_some();
     let (examples, unmapped) = crate::examples::responses(object.get("response"), request);
     let node = RequestNode {
         slug: take_slug(name, siblings, &mut all.slugs),
         request: Request {
             id,
             name: name.to_owned(),
+            description,
             method,
             url,
             params,
@@ -187,9 +201,12 @@ fn request_node(
             extensions: {
                 let mut rest = rest_map(
                     object,
-                    &[
-                        "name", "request", "method", "url", "header", "body", "auth", "event",
-                    ],
+                    &consumed(
+                        &[
+                            "name", "request", "method", "url", "header", "body", "auth", "event",
+                        ],
+                        has_description,
+                    ),
                 );
                 if !examples.is_empty() {
                     if unmapped.is_empty() {
@@ -201,7 +218,10 @@ fn request_node(
                 merge_rest(
                     &mut rest,
                     request,
-                    &["method", "url", "header", "body", "auth"],
+                    &consumed(
+                        &["method", "url", "header", "body", "auth"],
+                        has_description,
+                    ),
                 );
                 postman_table(rest)
             },
@@ -623,6 +643,16 @@ pub(crate) fn extensions(
         rest.insert((*key).to_owned(), value.clone());
     }
     postman_table(rest)
+}
+
+/// The keys an import consumed, plus `description` once it was read into the document: a
+/// description that was not (blank, or not text) stays in the kept Postman text.
+fn consumed<'a>(keys: &[&'a str], description_read: bool) -> Vec<&'a str> {
+    let mut out = keys.to_vec();
+    if description_read {
+        out.push("description");
+    }
+    out
 }
 
 fn rest_map(object: &Map<String, Value>, consumed: &[&str]) -> Map<String, Value> {
