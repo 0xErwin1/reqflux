@@ -16,6 +16,7 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
+use super::chip_strip;
 use super::model::ResponseTab;
 use super::sub_tabs::effective_tab;
 use crate::shell::request::ui;
@@ -98,7 +99,7 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
             let request = id.to_owned();
             let selected = tab == Some(script_tab);
             let icon_color = if selected { tint } else { colors.muted };
-            tab_chip(
+            let chip = tab_chip(
                 format!("response-tab-{}", label.to_lowercase()),
                 label,
                 selected,
@@ -119,16 +120,35 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
             }))
             .on_click(cx.listener(move |this, _event, _window, cx| {
                 this.select_response_tab(&request, script_tab, cx);
-            }))
+            }));
+            (selected, chip)
         })
         .collect();
+    let selected = if response_selected {
+        0
+    } else {
+        script_tabs
+            .iter()
+            .position(|(selected, _)| *selected)
+            .map_or(0, |index| index + 1)
+    };
+    let scroll = send.map(|send| send.views.tabs_scroll.clone());
+    let scroll = scroll.unwrap_or_default();
+    if let Some(views) = send.map(|send| &send.views) {
+        views
+            .tabs_revealed
+            .child(&scroll, selected, views.pane_width.unwrap_or_default());
+    }
+    let tabs = chip_strip::strip("response-tabs-scroll", &scroll)
+        .gap(TabMetrics::DOCUMENT_BAR_GAP)
+        .child(response)
+        .children(script_tabs.into_iter().map(|(_, chip)| chip));
     document_tab_bar(cx)
         .h_auto()
         .min_h(TabMetrics::DOCUMENT_BAR_HEIGHT)
         .flex_wrap()
         .py(Spacing::XXS)
-        .child(response)
-        .children(script_tabs)
+        .child(tabs)
         .children(meta.map(|(id, label)| meta_label(id, label, &colors, cx)))
 }
 
@@ -177,8 +197,6 @@ fn tab_chip(id: impl Into<String>, label: &'static str, selected: bool, cx: &App
     let selector = id.clone();
     document_tab(gpui::ElementId::Name(id.into()), selected, cx)
         .debug_selector(move || selector)
-        .max_w_full()
-        .overflow_hidden()
         .role(Role::Tab)
         .aria_label(label)
         .aria_selected(selected)

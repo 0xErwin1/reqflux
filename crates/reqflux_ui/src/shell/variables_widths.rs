@@ -66,3 +66,23 @@ impl Resizable {
 pub(super) fn resizable<E: gpui::InteractiveElement>(table: E, cx: &App) -> E {
     table_widths::resizable(table, TABLE, cx)
 }
+
+/// The narrowest the grid gets: the selection, number and on columns, every resizable column
+/// as it is now, the description at its minimum and the delete control. A pane narrower than this scrolls the
+/// grid sideways.
+pub(super) fn min_width(cx: &App) -> Pixels {
+    [
+        Resizable::Key,
+        Resizable::Value,
+        Resizable::Current,
+        Resizable::Stored,
+    ]
+    .into_iter()
+    .fold(
+        tokens::VARIABLES_ON_COLUMN * 2.0
+            + tokens::VARIABLES_NUMBER_COLUMN
+            + tokens::VARIABLES_DESCRIPTION_MIN_COLUMN
+            + tokens::VARIABLES_DELETE_COLUMN,
+        |sum, column| sum + column.width(cx),
+    )
+}

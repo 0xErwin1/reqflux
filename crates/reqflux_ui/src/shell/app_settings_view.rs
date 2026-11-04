@@ -41,6 +41,7 @@ use super::{caption, message};
 use crate::tokens::{
     APP_SETTINGS_COLUMN_GAP as POLICY_COLUMN_GAP, APP_SETTINGS_FONT_SIZE_WIDTH as FONT_SIZE_WIDTH,
     APP_SETTINGS_LABEL_WIDTH as GENERAL_LABEL_WIDTH,
+    APP_SETTINGS_OVERRIDE_LISTS_MIN as OVERRIDE_LISTS_MIN_WIDTH,
     APP_SETTINGS_OVERRIDE_RULE as OVERRIDE_RULE_WIDTH,
     APP_SETTINGS_OVERRIDE_WORKSPACE as OVERRIDE_WORKSPACE_WIDTH,
     APP_SETTINGS_RULE_LABEL_WIDTH as RULE_LABEL_WIDTH, READ_ONLY_OPACITY,
@@ -767,9 +768,16 @@ fn overrides(mcp: &McpConfig, workspace: Option<&Workspace>, cx: &mut Context<Sh
                 OVERRIDES,
                 cx,
             )
-            .child(header)
-            .children(rows)
-            .children(empty),
+            .child(table_widths::scrollable(
+                "overrides-scroll".to_owned(),
+                div()
+                    .flex()
+                    .flex_col()
+                    .child(header)
+                    .children(rows)
+                    .children(empty),
+                overrides_min_width(cx),
+            )),
         )
         .child(
             ui::role(div(), TextVariant::Caption, cx)
@@ -793,6 +801,17 @@ fn override_default(column: usize) -> Option<Pixels> {
         1..=4 => Some(OVERRIDE_RULE_WIDTH),
         _ => None,
     }
+}
+
+/// The narrowest the overrides table gets: every column with a width as the user left it and
+/// the lists at their minimum. A pane narrower than this scrolls the table sideways.
+fn overrides_min_width(cx: &App) -> Pixels {
+    (0..=RULES.len() + 1).fold(Pixels::ZERO, |sum, column| {
+        sum + match override_default(column) {
+            Some(default) => table_widths::width(OVERRIDES, column, default, cx),
+            None => OVERRIDE_LISTS_MIN_WIDTH,
+        }
+    })
 }
 
 /// `element` as the cell of column `column` of the overrides table.

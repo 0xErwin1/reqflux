@@ -32,6 +32,7 @@ use reqflux_engine::{SecretKey, SecretScope};
 
 use super::request::ui;
 use super::rows::{labeled_row, part};
+use super::table_widths;
 use super::variables_model::{Column, current_keys, empty_count, is_empty, undeclared};
 use super::variables_ops::copy;
 use super::variables_widths::{self, Resizable};
@@ -83,7 +84,7 @@ pub(super) fn render(
     let heading = heading(shell, scope, &variables, title, cx);
     let add = add_row(scope, cx);
     let colors = bolt::colors(cx);
-    let mut column = region("variables-document")
+    let column = region("variables-document")
         .flex_1()
         .min_w_0()
         .min_h_0()
@@ -93,22 +94,22 @@ pub(super) fn render(
         .pb(Spacing::XL)
         .flex()
         .flex_col()
-        .child(heading)
-        .child(
-            variables_widths::resizable(
-                region("variables-table")
-                    .role(Role::Table)
-                    .flex_none()
-                    .flex()
-                    .flex_col(),
-                cx,
-            )
-            .child(header(shell, scope, &colors, cx))
-            .children(rows)
-            .child(add),
-        );
+        .child(heading);
+    let mut tables = div().flex().flex_col().child(
+        variables_widths::resizable(
+            region("variables-table")
+                .role(Role::Table)
+                .flex_none()
+                .flex()
+                .flex_col(),
+            cx,
+        )
+        .child(header(shell, scope, &colors, cx))
+        .children(rows)
+        .child(add),
+    );
     if !extra_rows.is_empty() {
-        column = column.child(undeclared_heading(cx)).child(
+        tables = tables.child(undeclared_heading(cx)).child(
             variables_widths::resizable(
                 region("variables-undeclared")
                     .role(Role::Table)
@@ -120,7 +121,13 @@ pub(super) fn render(
             .children(extra_rows),
         );
     }
+    let tables = table_widths::scrollable(
+        "variables-scroll".to_owned(),
+        tables,
+        variables_widths::min_width(cx),
+    );
     column
+        .child(tables)
         .child(notes(shell, scope, &variables, !extra.is_empty(), file, cx))
         .into_any_element()
 }

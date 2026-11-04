@@ -435,17 +435,8 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                 .pr(GridMetrics::CELL_PADDING_X)
                 .child("value"),
         );
-    table_widths::resizable(
-        region("history-grid")
-            .flex_none()
-            .overflow_y_scroll()
-            .flex()
-            .flex_col(),
-        TABLE,
-        cx,
-    )
-    .child(header)
-    .children(rows.iter().enumerate().map(|(index, (key, value))| {
+    let min_width = GridMetrics::ROW_NUMBER_WIDTH + key_width + tokens::GRID_VALUE_MIN_COLUMN;
+    let rows = rows.iter().enumerate().map(|(index, (key, value))| {
         let n = index + 1;
         div()
             .flex()
@@ -489,7 +480,21 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                     .text_color(colors.foreground)
                     .child(value.clone()),
             )
-    }))
+    });
+    table_widths::resizable(
+        region("history-grid")
+            .flex_none()
+            .overflow_y_scroll()
+            .flex()
+            .flex_col(),
+        TABLE,
+        cx,
+    )
+    .child(table_widths::scrollable(
+        "history-grid-scroll".to_owned(),
+        div().flex().flex_col().child(header).children(rows),
+        min_width,
+    ))
     .into_any_element()
 }
 

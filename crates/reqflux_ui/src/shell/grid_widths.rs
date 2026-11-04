@@ -73,6 +73,16 @@ impl GridWidths {
     pub(crate) fn description(self) -> Pixels {
         Pixels::from(self.get(DESCRIPTION))
     }
+
+    /// The narrowest the grid gets: every column at its width, the value at its minimum. A
+    /// pane narrower than this scrolls the grid sideways.
+    pub(crate) fn min_width(self) -> Pixels {
+        tokens::GRID_ENABLE_COLUMN
+            + self.key()
+            + tokens::GRID_VALUE_MIN_COLUMN
+            + self.description()
+            + tokens::GRID_ACTIONS_COLUMN
+    }
 }
 
 #[cfg(test)]

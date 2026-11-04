@@ -154,6 +154,9 @@ pub(crate) const COOKIE_VALUE_COLUMN: Pixels = px(190.0);
 pub(crate) const COOKIE_DOMAIN_COLUMN: Pixels = px(200.0);
 pub(crate) const COOKIE_PATH_COLUMN: Pixels = px(50.0);
 pub(crate) const COOKIE_EXPIRES_COLUMN: Pixels = px(150.0);
+/// The narrowest the flags column, the one that fills the rest, gets before the table
+/// scrolls sideways.
+pub(crate) const COOKIE_FLAGS_MIN_COLUMN: Pixels = px(120.0);
 
 /// The filter bar over the response's Tests and Console panes (response-views/02): its
 /// height, side padding and gap.
@@ -180,6 +183,11 @@ pub(crate) const VARIABLES_KEY_COLUMN: Pixels = px(140.0);
 pub(crate) const VARIABLES_VALUE_COLUMN: Pixels = px(220.0);
 pub(crate) const VARIABLES_CURRENT_COLUMN: Pixels = px(150.0);
 pub(crate) const VARIABLES_STORED_COLUMN: Pixels = px(120.0);
+/// The narrowest the description column, the one that fills the rest, gets before the grid
+/// scrolls sideways.
+pub(crate) const VARIABLES_DESCRIPTION_MIN_COLUMN: Pixels = px(160.0);
+/// The delete control at the end of a declared row: its icon button and the padding around it.
+pub(crate) const VARIABLES_DELETE_COLUMN: Pixels = px(32.0);
 /// The width of the `stored in` menu, which fits each option's one-line explanation.
 pub(crate) const VARIABLES_STORED_MENU_WIDTH: Pixels = px(480.0);
 /// The width of the `Set by` column of an undeclared row, which the page leaves empty.
@@ -210,6 +218,9 @@ pub(crate) const APP_SETTINGS_COLUMN_GAP: Pixels = px(36.0);
 pub(crate) const APP_SETTINGS_OVERRIDE_WORKSPACE: Pixels = px(150.0);
 /// Each rule column of the policy overrides table.
 pub(crate) const APP_SETTINGS_OVERRIDE_RULE: Pixels = px(70.0);
+/// The narrowest the lists column, the one that fills the rest, gets before the overrides
+/// table scrolls sideways.
+pub(crate) const APP_SETTINGS_OVERRIDE_LISTS_MIN: Pixels = px(140.0);
 
 /// The key column of a Keymap row (design/layouts/01 D3 `.krow`).
 pub(crate) const KEYMAP_KEY_WIDTH: Pixels = px(240.0);
@@ -278,6 +289,9 @@ pub(crate) const GRID_ENABLE_COLUMN: Pixels = px(36.0);
 pub(crate) const GRID_CELL_KEY_COLUMN: Pixels = px(210.0);
 pub(crate) const GRID_DESCRIPTION_COLUMN: Pixels = px(230.0);
 pub(crate) const GRID_ACTIONS_COLUMN: Pixels = px(34.0);
+/// The narrowest the value column gets: a pane too narrow for the columns around it scrolls
+/// the grid sideways instead.
+pub(crate) const GRID_VALUE_MIN_COLUMN: Pixels = px(160.0);
 
 /// The width of the Settings pane's timeout field (request-panes/01 frame C).
 pub(crate) const SETTING_NUMBER_FIELD: Pixels = px(160.0);
@@ -293,6 +307,9 @@ pub(crate) const AUDIT_CLASS_COLUMN: Pixels = px(100.0);
 pub(crate) const AUDIT_TOOL_COLUMN: Pixels = px(190.0);
 pub(crate) const AUDIT_WORKSPACE_COLUMN: Pixels = px(130.0);
 pub(crate) const AUDIT_OUTCOME_COLUMN: Pixels = px(110.0);
+/// The narrowest the target column, the one that fills the rest, gets before the table
+/// scrolls sideways.
+pub(crate) const AUDIT_TARGET_MIN_COLUMN: Pixels = px(200.0);
 
 /// The width of the workspace menu's `New workspace` name popover (workspace-menu/01).
 pub(crate) const NEW_WORKSPACE_POPOVER_WIDTH: Pixels = px(340.0);

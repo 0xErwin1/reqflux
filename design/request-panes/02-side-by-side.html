@@ -759,6 +759,38 @@ body{background:#050507}
   </template>
 </section>
 
+<section class="frame" aria-label="Frame E: Headers grid in a narrow request pane">
+  <div class="cap"><b>E · Headers, narrow request pane</b><span>When the pane is narrower than the columns (36 enable + key + 160 value minimum + description + 34 actions), the value keeps its 160 px minimum and the grid scrolls sideways instead of the cells overlapping. A vertical wheel still scrolls the pane. The drag handles stay on the key and description edges.</span></div>
+  <div style="padding:16px 24px">
+    <div style="width:405px;height:150px;overflow-x:auto;overflow-y:hidden;background:#100F13;box-shadow:#232128 0 0 0 1px inset">
+      <div style="display:flex;flex-direction:column;width:670px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px">
+        <div style="display:flex;align-items:center;height:32px;background:#09090B;color:#F7F4F7;font-weight:600">
+          <span style="width:36px;flex:none"></span>
+          <span style="width:210px;flex:none;padding:0 12px;box-sizing:border-box;box-shadow:#232128 -1px 0 0 inset">key</span>
+          <span style="flex:1;min-width:160px;padding:0 12px;box-sizing:border-box;box-shadow:#232128 -1px 0 0 inset">value</span>
+          <span style="width:230px;flex:none;padding:0 12px;box-sizing:border-box;box-shadow:#232128 -1px 0 0 inset">description</span>
+          <span style="width:34px;flex:none"></span>
+        </div>
+        <div style="display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;color:#C6C3CC">
+          <span style="width:36px;flex:none"></span>
+          <span style="width:210px;flex:none;padding:0 12px;box-sizing:border-box;color:#F7F4F7;overflow:hidden;white-space:nowrap">Content-Type</span>
+          <span style="flex:1;min-width:160px;padding:0 12px;box-sizing:border-box;overflow:hidden;white-space:nowrap">application/json</span>
+          <span style="width:230px;flex:none;padding:0 12px;box-sizing:border-box;color:#8E8996;overflow:hidden;white-space:nowrap">body format</span>
+          <span style="width:34px;flex:none"></span>
+        </div>
+        <div style="display:flex;align-items:center;height:29px;border-bottom:1px solid #18161B;color:#C6C3CC">
+          <span style="width:36px;flex:none"></span>
+          <span style="width:210px;flex:none;padding:0 12px;box-sizing:border-box;color:#F7F4F7;overflow:hidden;white-space:nowrap">Authorization</span>
+          <span style="flex:1;min-width:160px;padding:0 12px;box-sizing:border-box;overflow:hidden;white-space:nowrap">Bearer <span class="var">{{access_token}}</span></span>
+          <span style="width:230px;flex:none;padding:0 12px;box-sizing:border-box;color:#8E8996;overflow:hidden;white-space:nowrap"></span>
+          <span style="width:34px;flex:none"></span>
+        </div>
+      </div>
+    </div>
+    <p style="margin:8px 0 0;font-size:12px;color:#8E8996">Pane 405 px · grid 670 px · the description is reached by scrolling sideways</p>
+  </div>
+</section>
+
 <script>
 // Builds every frame from the shared shell, then wires the splitters so they can be dragged,
 // moved with the arrow keys and collapsed with a double click or Enter.

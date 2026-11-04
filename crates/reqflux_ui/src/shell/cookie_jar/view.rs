@@ -157,9 +157,16 @@ pub(crate) fn content(
                     .overflow_y_scroll()
                     .font_family(bolt::fonts::grid_family(cx))
                     .text_size(GridMetrics::FONT)
-                    .child(header(cx))
-                    .children(table_rows)
-                    .children(no_match),
+                    .child(table_widths::scrollable(
+                        "cookies-scroll".to_owned(),
+                        div()
+                            .flex()
+                            .flex_col()
+                            .child(header(cx))
+                            .children(table_rows)
+                            .children(no_match),
+                        min_width(cx),
+                    )),
                 TABLE,
                 cx,
             ))
@@ -228,6 +235,21 @@ fn empty(name: &str) -> AnyElement {
 /// The id of the jar's table in the table store; a column is resized by its index in
 /// `COLUMNS`.
 const TABLE: &str = "cookies";
+
+/// The narrowest the table gets: the row number, every column with a width as the user left
+/// it, the flags at their minimum and the actions. A pane narrower than this scrolls the
+/// table sideways.
+fn min_width(cx: &App) -> Pixels {
+    COLUMNS.iter().enumerate().fold(
+        GridMetrics::ROW_NUMBER_WIDTH + actions_width(),
+        |sum, (column, (_, width))| {
+            sum + match width {
+                Some(default) => table_widths::width(TABLE, column, *default, cx),
+                None => tokens::COOKIE_FLAGS_MIN_COLUMN,
+            }
+        },
+    )
+}
 
 /// The cell of column `column` of `COLUMNS`: as wide as the user left it, or filling the rest
 /// when the column has no width.

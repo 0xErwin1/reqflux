@@ -13,12 +13,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui::{
-    App, AppContext, ClipboardItem, Context, Entity, FocusHandle, KeyBinding, Pixels,
+    App, AppContext, ClipboardItem, Context, Entity, FocusHandle, KeyBinding, Pixels, ScrollHandle,
     ScrollStrategy, Subscription, UniformListScrollHandle, Window, actions,
 };
 
 use bolt::controls::{InputEvent, InputState};
 
+use super::chip_strip::Revealed;
 use super::filters::{ConsoleFilter, TestsFilter};
 use super::jsonpath_model::{Filtered, JSONPATH_PLACEHOLDER};
 use super::model::{BodyText, BodyView, ResponseTab};
@@ -73,6 +74,12 @@ pub(crate) struct ViewState {
     /// The width of the response pane at the last layout, `None` before the first one;
     /// the bottom bar's buttons shrink to icons below [`tokens::RESPONSE_COMPACT_WIDTH`].
     pub(crate) pane_width: Option<Pixels>,
+    /// The scroll of the tab row's tabs and of the views row's control, in a pane too
+    /// narrow for them, and what each last scrolled into view.
+    pub(crate) tabs_scroll: ScrollHandle,
+    pub(crate) tabs_revealed: Revealed,
+    pub(crate) views_scroll: ScrollHandle,
+    pub(crate) views_revealed: Revealed,
     /// The syntax runs of the body lines last shown, so a render does not parse them again.
     pub(crate) syntax: super::syntax::SyntaxCache,
 }

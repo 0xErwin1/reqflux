@@ -396,7 +396,7 @@ fn type_text(cx: &mut VisualTestContext, text: &str) {
 
 /// Sends `GET Ping`, whose JSON body pretty-prints as six lines, two holding an `a`
 /// (`"tags"` and `"a"`).
-fn sent(cx: &mut TestAppContext) -> &mut VisualTestContext {
+pub(super) fn sent(cx: &mut TestAppContext) -> &mut VisualTestContext {
     let (shell, cx) = render(cx, serve(Server::Ok));
     click(cx, "request-send");
     assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
@@ -736,8 +736,11 @@ fn body_search_still_counts_the_body_beside_the_jsonpath_field(cx: &mut TestAppC
     assert_eq!(label(cx, "response-search-count"), "2 / 2");
 }
 
-#[gpui::test]
-fn dragging_a_response_cookies_header_edge_resizes_only_that_column(cx: &mut TestAppContext) {
+/// Sends `GET Keyed`, whose response sets one cookie. The directories hold the workspace and
+/// the app state, so the caller keeps them for the length of the test.
+pub(super) fn cookie_sent(
+    cx: &mut TestAppContext,
+) -> (tempfile::TempDir, tempfile::TempDir, &mut VisualTestContext) {
     let port = serve_reply(
         &[
             ("content-type", "text/plain"),
@@ -764,6 +767,12 @@ fn dragging_a_response_cookies_header_edge_resizes_only_that_column(cx: &mut Tes
     click_selector(cx, &format!("tree-row-{KEYED}"));
     click(cx, "request-send");
     assert_eq!(settle(cx, &shell, KEYED).as_deref(), Some("200 OK"));
+    (dir, _state_dir, cx)
+}
+
+#[gpui::test]
+fn dragging_a_response_cookies_header_edge_resizes_only_that_column(cx: &mut TestAppContext) {
+    let (_dir, _state_dir, cx) = cookie_sent(cx);
     click(cx, "response-tab-cookies");
     let name = present(cx, "response-cookies-header-name").size.width;
     let value = present(cx, "response-cookies-header-value").size.width;

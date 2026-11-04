@@ -1471,8 +1471,11 @@ The key and description columns resize: their header cells (`request-<table>-hea
 `request-<table>-header-description`) carry the resize handle on the right edge, and the widths
 (`shell::grid_widths`, which maps the grid kind to a table id) are kept per grid kind (Params,
 Headers, urlencoded, form data), so every request shares them for the session. The value
-column keeps filling the rest. Every other table resizes the same way, see "Table column
-resize".
+column keeps filling the rest, but never under `GRID_VALUE_MIN_COLUMN` (160 px): a request pane
+narrower than every column (`GridWidths::min_width`) scrolls the grid sideways in
+`request-<table>-scroll` instead of the value collapsing under the cells beside it (the
+description drawn over the value, L69). Every other table resizes the same way, see "Table
+column resize".
 
 ### Table column resize
 
@@ -1488,6 +1491,16 @@ and `with_handle(cell, table, column, default, cx)` on each fixed header cell, w
 drawn (the variables grid and the undeclared rows under it share one), a drag changes only that
 column and `bolt` clamps it to 50 px. The column that fills the rest stays flex and has no
 handle, as do the narrow fixed columns (row number, enable box, actions).
+
+A table never lets the column that fills the rest collapse: it gives that column a minimum
+(`GRID_VALUE_MIN_COLUMN`, `COOKIE_FLAGS_MIN_COLUMN`, `VARIABLES_DESCRIPTION_MIN_COLUMN`,
+`AUDIT_TARGET_MIN_COLUMN`, `APP_SETTINGS_OVERRIDE_LISTS_MIN`), sums it with the other columns as
+the user left them, and wraps its content in `table_widths::scrollable` (or `scrollable_fill`
+for a table that takes the page's height) with that width. The viewport (`<table>-scroll`,
+`request-<table>-scroll`) scrolls on the horizontal axis only, so a vertical wheel stays with
+the pane or page; the vertical scroll stays with the table's own rows. `bolt`'s grid has no
+horizontal overflow (`// bolt gap:` on `scrollable`). The runner grid has no column that fills
+the rest, so it needs none.
 
 The global rather than shell state is deliberate: the response Cookies table, the recorded
 history grid and the audit table draw from `&App`, with no shell to ask.
@@ -1610,8 +1623,14 @@ filter. Copy (`response-copy`) in the body's bottom bar puts a UTF-8 body on the
 Every row of the response pane (tab row, views row, bottom bar) wraps instead of overflowing,
 down to the 120 px the splitter leaves the pane (`SPLIT_PANE_MIN`): the JSONPath filter and the
 search drop to a second line, each 240 px wide or the pane's width if that is less; the time and
-size and the bottom bar's buttons follow, and the views control, the tabs and the time are cut at
-the pane edge. Under `RESPONSE_COMPACT_WIDTH` (360 px) Copy, Save as example and Export are
+size and the bottom bar's buttons follow. The tabs (`response-tabs-scroll`) and the views
+control (`response-views-scroll`) never cut a chip: each is a viewport at most as wide as the
+pane that scrolls sideways (wheel or trackpad, no scrollbar), `response::chip_strip`; the
+selected chip is scrolled into view when the selection or the pane's width changes (the tab row
+by child index, the views row, one `bolt` control, in proportion to the selected segment's
+position), so every tab and view down to Timeline is reachable at 120 px. A viewport is inside
+the pane and a chip's drawn part is inside the viewport. `bolt`'s tab bar and segmented control
+have no overflow behavior yet (`// bolt gap:` on `chip_strip::strip`). Under `RESPONSE_COMPACT_WIDTH` (360 px) Copy, Save as example and Export are
 icons with a tooltip; the pane measures its own width into `ViewState::pane_width`
 (design/response-views/04).
 The search, the filters and the focus live with each request's send state.

@@ -12,6 +12,7 @@
 //! is in: [`document_block`] is that block, with its own status chip and Retry.
 
 mod body;
+mod chip_strip;
 mod cookies;
 mod cookies_view;
 mod error;

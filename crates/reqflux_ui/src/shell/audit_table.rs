@@ -25,6 +25,7 @@ use super::rows::part;
 use super::table_widths;
 use super::tree_model::Node;
 use super::{Shell, region, text_region};
+use crate::tokens;
 use crate::workspace::OpenedWorkspace;
 
 use crate::tokens::{
@@ -81,10 +82,27 @@ pub(super) fn render(
             rows = rows.child(detail(n, entry, cx));
         }
     }
-    table_widths::resizable(div().flex_1().min_h_0().flex().flex_col(), TABLE, cx)
+    let min_width = min_width(cx);
+    let table = table_widths::resizable(div().flex().flex_col(), TABLE, cx)
         .child(header(cx))
-        .child(rows)
-        .into_any_element()
+        .child(rows);
+    table_widths::scrollable_fill("audit-scroll".to_owned(), table, min_width).into_any_element()
+}
+
+/// The narrowest the table gets: the chevron, every column with a width as the user left it,
+/// the target at its minimum and the gaps and padding between them. A pane narrower than this
+/// scrolls the table sideways.
+fn min_width(cx: &App) -> Pixels {
+    let columns = COLUMNS.len() as f32 + 1.0;
+    COLUMNS.iter().enumerate().fold(
+        CHEVRON_WIDTH + DocumentMetrics::GAP * (columns - 1.0) + DocumentMetrics::PADDING_X * 2.0,
+        |sum, (column, (_, width))| {
+            sum + match width {
+                Some(default) => table_widths::width(TABLE, column, *default, cx),
+                None => tokens::AUDIT_TARGET_MIN_COLUMN,
+            }
+        },
+    )
 }
 
 /// The header row naming the columns.

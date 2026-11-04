@@ -89,7 +89,7 @@ fn the_variables_widths_survive_a_scope_switch(cx: &mut TestAppContext) {
     );
 }
 
-fn add_cookie(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+pub(super) fn add_cookie(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
     cx.update(|_window, cx| {
         shell.update(cx, |shell, cx| {
             let OpenedWorkspace::Loaded(engine) = &shell.workspace else {

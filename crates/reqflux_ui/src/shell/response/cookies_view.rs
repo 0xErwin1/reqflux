@@ -105,12 +105,29 @@ pub(super) fn render(received: &Received, masker: &Masker, cx: &App) -> AnyEleme
             .font_family(bolt::fonts::grid_family(cx))
             .text_size(GridMetrics::FONT)
             .child(bar)
-            .child(header(cx))
-            .children(rows),
+            .child(table_widths::scrollable(
+                "response-cookies-scroll".to_owned(),
+                div().flex().flex_col().child(header(cx)).children(rows),
+                min_width(cx),
+            )),
         TABLE,
         cx,
     )
     .into_any_element()
+}
+
+/// The narrowest the table gets: the row number, every column with a width as the user left
+/// it, and the flags at their minimum. A pane narrower than this scrolls the table sideways.
+fn min_width(cx: &App) -> Pixels {
+    COLUMNS.iter().enumerate().fold(
+        GridMetrics::ROW_NUMBER_WIDTH,
+        |sum, (column, (_, width))| {
+            sum + match width {
+                Some(default) => table_widths::width(TABLE, column, *default, cx),
+                None => tokens::COOKIE_FLAGS_MIN_COLUMN,
+            }
+        },
+    )
 }
 
 /// The id of the table in the table store; a column is resized by its index in `COLUMNS`.

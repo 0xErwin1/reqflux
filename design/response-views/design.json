@@ -27,7 +27,7 @@
     {
       "file": "04-narrow-pane.html",
       "title": "Narrow pane",
-      "tradeoff": "Nothing leaves the pane at any width; the second line makes the views row taller in a narrow column and the buttons lose their labels under 360 px",
+      "tradeoff": "Nothing leaves the pane at any width and every tab and view stays reachable; the second line makes the views row taller in a narrow column, the buttons lose their labels under 360 px, and a hidden chip needs a sideways scroll (no scrollbar is drawn)",
       "width": 1440,
       "height": 1100
     }

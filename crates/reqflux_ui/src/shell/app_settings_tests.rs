@@ -466,6 +466,27 @@ fn dragging_an_overrides_header_edge_resizes_only_that_column(cx: &mut TestAppCo
     );
 }
 
+#[gpui::test]
+fn the_overrides_lists_keep_their_minimum_in_a_narrow_page(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    write(
+        &config_path,
+        &format!("[mcp.workspaces.\"{WORKSPACE_ID}\"]\nwrite = \"deny\"\n"),
+    );
+    let (shell, cx, _opened) = render_app(cx, &dir, &state_path, &config_path);
+    cx.simulate_resize(gpui::size(gpui::px(1000.), gpui::px(700.)));
+    open_app(cx, &shell);
+    click(cx, "nav-mcp-policy");
+    crate::shell::table_narrow_tests::assert_kept(
+        cx,
+        "overrides-scroll",
+        "overrides-header-lists",
+        crate::tokens::APP_SETTINGS_OVERRIDE_LISTS_MIN,
+    );
+}
+
 /// Opens the page the way the workspace menu does, at a workspace section, so the App
 /// section has not read `config.toml` yet.
 fn open_workspace_section(cx: &mut VisualTestContext, shell: &Entity<Shell>) {

@@ -11,7 +11,10 @@ use std::collections::HashMap;
 use bolt::components::grid::{
     ColumnResize, ColumnResizeDrag, clamp_column_width, column_resize_handle, track_column_resize,
 };
-use gpui::{App, Global, InteractiveElement, ParentElement, Pixels, Styled};
+use gpui::{
+    App, Div, Global, InteractiveElement, ParentElement, Pixels, SharedString, Stateful,
+    StatefulInteractiveElement, Styled, div,
+};
 
 /// The widths the user dragged, per table and column, and the drag in progress.
 #[derive(Default)]
@@ -78,6 +81,37 @@ pub(crate) fn with_handle<E: Styled + ParentElement>(
     let current = f32::from(width(table, column, default, cx));
     cell.relative()
         .child(column_resize_handle(column, current, &drag, wash))
+}
+
+// bolt gap: `bolt`'s grid has no horizontal overflow; this viewport stands in until it does.
+/// `table`, a table that needs `min_width`, in a viewport `id` that scrolls sideways when its
+/// pane is narrower. Columns that fill the rest (a value, a URL) keep their minimum instead of
+/// collapsing under the cells beside them. A vertical wheel stays with the pane.
+pub(crate) fn scrollable(id: String, table: Div, min_width: Pixels) -> Stateful<Div> {
+    let selector = id.clone();
+    div()
+        .id(SharedString::from(id))
+        .debug_selector(move || selector)
+        .flex_none()
+        .w_full()
+        .overflow_x_scroll()
+        .restrict_scroll_to_axis()
+        .child(table.min_w(min_width))
+}
+
+/// [`scrollable`] for a table that fills the height its parent leaves: the viewport and the
+/// table take it, and the table's own rows scroll vertically inside.
+pub(crate) fn scrollable_fill(id: String, table: Div, min_width: Pixels) -> Stateful<Div> {
+    let selector = id.clone();
+    div()
+        .id(SharedString::from(id))
+        .debug_selector(move || selector)
+        .flex_1()
+        .min_h_0()
+        .w_full()
+        .overflow_x_scroll()
+        .restrict_scroll_to_axis()
+        .child(table.min_w(min_width).h_full())
 }
 
 /// The drag every table shares and the wash its handles take, for a header `bolt` draws

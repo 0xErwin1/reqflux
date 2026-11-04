@@ -125,7 +125,7 @@ pub(super) fn render(
     let header = header(table, kind, grid_kind, hint, widths, cx);
     // The drag follows the pointer over the whole grid; each move stores the width it asks
     // for in the table store, which every grid of this kind reads.
-    table_widths::resizable(div().flex().flex_col(), grid_kind.table(), cx)
+    let grid = table_widths::resizable(div().flex().flex_col(), grid_kind.table(), cx)
         .child(header)
         .children(rows.iter().enumerate().map(|(index, row)| {
             let file = files.get(index).copied().unwrap_or(false);
@@ -141,8 +141,9 @@ pub(super) fn render(
                 cx,
             )
         }))
-        .children(add)
-        .into_any_element()
+        .children(add);
+    let min_width = widths.min_width();
+    table_widths::scrollable(format!("request-{table}-scroll"), grid, min_width).into_any_element()
 }
 
 /// The header row, element id `request-<table>-header`: the column names, the key's `kind`
@@ -188,9 +189,15 @@ fn header(
             tokens::GRID_CELL_KEY_COLUMN,
             cx,
         ))
-        .child(Column::Value.cell(line, widths).child("value").children(
-            value_hint.map(|hint| part(format!("request-{table}-value-hint")).child(note(hint))),
-        ))
+        .child(
+            Column::Value
+                .shape(part(format!("request-{table}-header-value")), line, widths)
+                .child("value")
+                .children(
+                    value_hint
+                        .map(|hint| part(format!("request-{table}-value-hint")).child(note(hint))),
+                ),
+        )
         .child(table_widths::with_handle(
             Column::Description
                 .shape(

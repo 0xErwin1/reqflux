@@ -359,3 +359,16 @@ fn dragging_an_audit_header_edge_resizes_only_that_column(cx: &mut TestAppContex
         "the target column keeps filling the rest"
     );
 }
+
+#[gpui::test]
+fn the_audit_target_keeps_its_minimum_in_a_narrow_page(cx: &mut TestAppContext) {
+    let f = fixture(cx, Some(&lines()));
+    f.cx.simulate_resize(gpui::size(gpui::px(1000.), gpui::px(700.)));
+    click(f.cx, "rail-audit");
+    crate::shell::table_narrow_tests::assert_kept(
+        f.cx,
+        "audit-scroll",
+        "audit-header-target",
+        crate::tokens::AUDIT_TARGET_MIN_COLUMN,
+    );
+}

@@ -747,6 +747,8 @@ mod failure_toasts_tests;
 #[cfg(test)]
 mod grid_edit_tests;
 #[cfg(test)]
+mod grid_narrow_tests;
+#[cfg(test)]
 mod grid_resize_tests;
 #[cfg(test)]
 mod history_tests;
@@ -769,6 +771,8 @@ mod problems_tests;
 #[cfg(test)]
 mod request_tests;
 #[cfg(test)]
+mod response_narrow_tests;
+#[cfg(test)]
 mod response_tests;
 #[cfg(test)]
 mod row_edit_tests;
@@ -784,6 +788,8 @@ mod settings_page_tests;
 mod sidebar_tests;
 #[cfg(test)]
 mod split_tests;
+#[cfg(test)]
+mod table_narrow_tests;
 #[cfg(test)]
 mod table_resize_tests;
 #[cfg(test)]
