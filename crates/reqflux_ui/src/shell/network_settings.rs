@@ -187,7 +187,9 @@ fn proxy_row(
 ) -> ProxyRow {
     let manual = proxy.mode == ProxyMode::Manual;
     let username = proxy.username.clone().filter(|name| !name.is_empty());
-    let password = (manual && username.is_some()).then(|| {
+    // The app proxy always has its Password field in Manual; a workspace's own proxy shows
+    // its keyring row once it names a user.
+    let password = (manual && (username.is_some() || workspace.is_none())).then(|| {
         let secret = NetworkSecret::ProxyPassword { workspace };
         SecretRow {
             state: keyring(store, &secret),
@@ -348,6 +350,9 @@ pub(crate) struct NetworkState {
     /// The Manual proxy's URL field, made the first time the section opens.
     pub(crate) proxy_url: Option<Entity<InputState>>,
     _proxy_url_subscription: Option<Subscription>,
+    /// The Manual proxy's masked Password field, made with the URL field.
+    pub(crate) proxy_password: Option<Entity<InputState>>,
+    _proxy_password_subscription: Option<Subscription>,
 }
 
 impl NetworkState {
@@ -361,6 +366,8 @@ impl NetworkState {
             focus: ModalFocus::new(cx),
             proxy_url: None,
             _proxy_url_subscription: None,
+            proxy_password: None,
+            _proxy_password_subscription: None,
         }
     }
 }
@@ -470,16 +477,61 @@ impl Shell {
                 }),
             );
         self.settings.network.proxy_url = Some(input);
+        self.ensure_proxy_password(window, cx);
     }
 
-    /// Shows the URL `[network.proxy]` holds in the field, a password in it masked.
-    pub(crate) fn sync_proxy_url(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(input) = self.settings.network.proxy_url.clone() else {
+    /// Makes the masked Password field next to the URL. Enter and leaving the field commit it.
+    fn ensure_proxy_password(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.settings.network.proxy_password.is_some() {
             return;
-        };
-        let url = self.shown_proxy_url();
-        if input.read(cx).value().as_ref() != url {
-            input.update(cx, |input, cx| input.set_value(url, window, cx));
+        }
+        let input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .masked(true)
+                .placeholder("Not set")
+        });
+        self.settings.network._proxy_password_subscription =
+            Some(
+                cx.subscribe_in(&input, window, |this, _, event: &InputEvent, window, cx| {
+                    if matches!(event, InputEvent::PressEnter { .. } | InputEvent::Blur) {
+                        this.commit_proxy_password(window, cx);
+                    }
+                }),
+            );
+        self.settings.network.proxy_password = Some(input);
+    }
+
+    /// Shows the URL `[network.proxy]` holds in the field, a password in it masked, and the
+    /// mask in the Password field while the keyring holds one.
+    pub(crate) fn sync_proxy_url(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(input) = self.settings.network.proxy_url.clone() {
+            let url = self.shown_proxy_url();
+            if input.read(cx).value().as_ref() != url {
+                input.update(cx, |input, cx| input.set_value(url, window, cx));
+            }
+        }
+        if let Some(input) = self.settings.network.proxy_password.clone() {
+            let shown = self.shown_proxy_password();
+            if input.read(cx).value().as_ref() != shown {
+                input.update(cx, |input, cx| input.set_value(shown, window, cx));
+            }
+        }
+    }
+
+    /// What the Password field shows: the mask while the keyring holds a password, which is
+    /// never read back, else nothing.
+    fn shown_proxy_password(&self) -> String {
+        let stored = self
+            .settings
+            .network
+            .model
+            .as_ref()
+            .and_then(|model| model.proxy.password.as_ref())
+            .is_some_and(|row| row.state == Keyring::Set);
+        if stored {
+            MASK.to_owned()
+        } else {
+            String::new()
         }
     }
 
@@ -531,6 +583,28 @@ impl Shell {
             let kept = config::url_without_password(value.trim());
             input.update(cx, |input, cx| input.set_value(kept, window, cx));
         }
+    }
+
+    /// The Password field, on Enter or when it loses focus: writes the keyring entry
+    /// `network/proxy` through `set_proxy_password` when the text changed, and removes the
+    /// entry when the field was cleared. A text that is still the mask is the value the page
+    /// showed; typing next to the mask replaces it with what was typed. The field goes back to
+    /// what the keyring holds afterwards, so a typed password never lingers on the screen.
+    pub(crate) fn commit_proxy_password(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(input) = self.settings.network.proxy_password.clone() else {
+            return;
+        };
+        let value = input.read(cx).value().to_string();
+        if !self.network_editable() || value == self.shown_proxy_password() {
+            return;
+        }
+        let password = value.replace(MASK, "");
+        let store = self.network_secrets();
+        self.edit_network_config(
+            |path| config::set_proxy_password(path, &password, store.as_ref()),
+            window,
+            cx,
+        );
     }
 
     /// Runs `edit` on `config.toml` when the proxy controls write, then reads the file back

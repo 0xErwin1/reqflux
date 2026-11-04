@@ -1059,7 +1059,10 @@ password is never written there: it stays in the keyring. `set_proxy_url` refuse
 carries a password (`ConfigError::PasswordInUrl`, nothing written); `set_proxy_url_with_secret`
 is the caller that splits it: the password (percent-decoded) goes to `network/proxy` first, then
 the file gets the URL without it and the user name as `username`, so a keyring failure writes
-nothing. No error, log or toast carries the password.
+nothing. `set_proxy_password` is the writer of the Password field: it writes the keyring entry
+`network/proxy` (an empty password removes it), then sets `username` from the user of `url` when
+the file has none, because sends use the keyring password only with a `username`; a file that
+does not parse or a keyring failure changes nothing. No error, log or toast carries the password.
 `[keymap]` (`"save-request" = "ctrl-shift-s"`; only bindings that differ from the defaults are
 kept) rebinds the window's commands (the registry in `shell/commands.rs`): the window reads it at
 startup and after every edit, an unknown slug or a chord it cannot bind is a warning in the
@@ -1632,7 +1635,18 @@ goes to the keyring through `set_proxy_url_with_secret` and the file keeps the U
 field shows a URL with a password, or whose password the keyring holds, masked, and a text that
 still holds the mask is never written back). While the typed text carries a password the field is
 a secret (`Input::secret`): the automation tree withholds its whole value, because a single-line
-input cannot mask only the password on screen, where it stays visible until committed. A URL the
+input cannot mask only the password on screen, where it stays visible until committed; the URL's
+note points to the Password field, which has no such limit. `network-proxy-password` is a masked
+secret input under the URL (it replaces the keyring badge row of the app proxy; a workspace's own
+proxy and the certificate passphrases keep the badge and the Set dialog): it shows bullets while
+typing, the tree never carries its value, and Enter or leaving it calls `set_proxy_password`. A
+stored password shows as the mask and is never read back, typing next to the mask replaces it,
+and clearing the field and committing removes the entry. Afterwards the field goes back to what
+the keyring holds, so a typed password never stays on screen, and a keyring failure raises the
+`Cannot save the proxy password` toast with nothing written (bolt's `Input` has no invalid state,
+so the field draws no danger edge). While the keyring holds a password and neither the URL nor the
+file names a user, `network-proxy-password-hint` says to add one to the URL, because sends ignore
+the password without it. A URL the
 keyring refused stays in the field minus its password (`config::url_without_password`), so only
 the password is typed again. The CA
 bundle, the certificates, the bypass list and a workspace's own proxy are read from the file. A

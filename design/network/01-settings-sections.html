@@ -38,6 +38,15 @@
   URL as an editable field that writes url on Enter and on blur. The control is dimmed (.seg.dis)
   and inert only while config.toml does not parse. Nothing that looks editable answers with an
   error (feedback-nov3 S21). The CA bundle, certificates and bypass list stay read-only.
+  Proxy password (feedback-nov3 S22): under the URL, Manual shows a masked Password field
+  (network-proxy-password) in place of the keyring badge row. Typing shows bullets and the bridge
+  never exposes the value; Enter or leaving the field writes the keyring entry network/proxy (and
+  sets username from the URL when the file has none, since sends use the password only with a
+  username). A stored password shows as bullets with "in the keyring" and is never read back;
+  clearing the field and committing removes the entry. A keyring failure writes nothing and raises
+  a toast titled after the cause, without the password. The URL field keeps splitting a typed
+  user:password and says to use this field instead. Workspace proxies and certificate
+  passphrases keep the keyring badge and dialog.
   bolt gap: no read-only value field; the .field.ro surface is a stand-in.
   bolt gap: list row with trailing badge plus actions and a second muted line (certificate rows).
 -->
@@ -242,8 +251,9 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
             <div id="network-proxy-mode" class="c6 seg" role="radiogroup" aria-label="Proxy mode" style="width:max-content"><span role="radio" aria-checked="false">System</span><span role="radio" aria-checked="false">None</span><span class="on" role="radio" aria-checked="true">Manual</span></div></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>URL</b></div><label id="network-proxy-url" class="c6 field ed m" aria-label="Proxy URL">http://proxy.corp.acme.com:3128</label></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Username</b></div><span class="c6 field ro m">mbrandt</span></div>
-          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b></div>
-            <div class="val"><span id="network-proxy-password" class="c4 badge b-set"><svg class="ico" aria-hidden="true" style="width:10px;height:10px"><use href="#i-key"/></svg>KEYRING · SET</span><span style="flex-grow:1"></span><button class="c6 btn sm">Change…</button><button class="c6 btn sm">Clear</button></div></div>
+          <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b><span class="ds">network/proxy</span></div>
+            <!-- masked secret input: bullets while typing, the bridge never exposes the value; Enter or blur writes the keyring entry network/proxy, empty removes it -->
+            <label id="network-proxy-password" class="c6 field ed" aria-label="Proxy password"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-lock"/></svg><span style="color:#F7F4F7;letter-spacing:.1em">••••••••</span><span style="flex-grow:1"></span><span class="ds">in the keyring</span></label></div>
           <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Bypass</b><span class="ds">NO_PROXY syntax</span></div>
             <div class="val m c6 field ro" id="network-proxy-bypass" style="height:auto;min-height:30px;padding-top:3px;padding-bottom:3px"><span class="c4 pill">localhost</span><span class="c4 pill">127.0.0.1</span><span class="c4 pill">.corp.acme.com</span></div></div>
 
@@ -271,6 +281,15 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 <div class="frame pad" style="width:640px">
   <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Mode</b></div><div class="c6 seg" style="width:max-content" role="radiogroup" aria-label="Proxy mode"><span class="on" role="radio" aria-checked="true">System</span><span role="radio" aria-checked="false">None</span><span role="radio" aria-checked="false">Manual</span></div></div>
   <div class="fr" style="grid-template-columns:120px 1fr;border-bottom:0"><div class="l"><b>From</b></div><span class="ds"><span class="m">HTTP_PROXY</span>, <span class="m">HTTPS_PROXY</span>, <span class="m">ALL_PROXY</span> and <span class="m">NO_PROXY</span> of the environment ReqFlux started in</span></div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Proxy password</h3><p>Under the URL in Manual. Empty, set (masked, never read back), set without a user to send it with, and keyring error: nothing is written and the toast names the cause, never the password. bolt gap: Input has no invalid state (only SearchField draws a danger frame), so the field itself stays as is and the toast carries the error.</p></div>
+<div class="frame pad" style="width:640px">
+  <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b><span class="ds">network/proxy</span></div><label class="c6 field ed" aria-label="Proxy password, empty"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-lock"/></svg><span class="ds">Not set</span></label></div>
+  <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b><span class="ds">network/proxy</span></div><label class="c6 field ed" aria-label="Proxy password, set"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-lock"/></svg><span style="color:#F7F4F7;letter-spacing:.1em">••••••••</span><span style="flex-grow:1"></span><span class="ds">in the keyring</span></label></div>
+  <div class="fr" style="grid-template-columns:120px 1fr"><div class="l"><b>Password</b><span class="ds">network/proxy</span></div><div style="display:flex;flex-direction:column;gap:4px"><label class="c6 field ed" aria-label="Proxy password, set, no user"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-lock"/></svg><span style="color:#F7F4F7;letter-spacing:.1em">••••••••</span><span style="flex-grow:1"></span><span class="ds">in the keyring</span></label><span id="network-proxy-password-hint" class="ds">Add a user to the URL, as <span class="m">http://user@host:port</span>, so the password is sent</span></div></div>
+  <div class="fr" style="grid-template-columns:120px 1fr;border-bottom:0"><div class="l"><b>Password</b><span class="ds">network/proxy</span></div><label class="c6 field ed" aria-label="Proxy password, keyring error"><svg class="ico" aria-hidden="true" style="width:13px;height:13px;color:#8E8996"><use href="#i-lock"/></svg><span class="ds">Not set</span></label></div>
+  <div class="ban d c8" role="alert" style="margin-top:10px;padding:10px 14px;display:flex;gap:8px;align-items:baseline"><b style="color:#F7F4F7">Cannot save the proxy password</b><span class="ds">The OS keyring is not available. Nothing was written.</span></div>
 </div></div>
 
 <div class="state"><div class="state-head"><h3>Workspace without its own proxy</h3><p>The row says the workspace follows the app proxy.</p></div>

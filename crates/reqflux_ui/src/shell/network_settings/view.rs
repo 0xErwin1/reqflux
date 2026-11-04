@@ -109,7 +109,10 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
             .child(trust(model, editable, cx))
             .child(proxies(
                 model,
-                shell.settings.network.proxy_url.as_ref(),
+                [
+                    shell.settings.network.proxy_url.as_ref(),
+                    shell.settings.network.proxy_password.as_ref(),
+                ],
                 editable,
                 cx,
             ))
@@ -545,6 +548,46 @@ fn proxy_url(
     }
 }
 
+/// The Manual proxy's Password: the masked field `<prefix>-password`, whose value the
+/// automation tree never carries. Enter and leaving the field write the keyring entry.
+fn proxy_password(
+    prefix: &str,
+    state: &Entity<InputState>,
+    editable: bool,
+    hint: bool,
+    cx: &App,
+) -> Div {
+    let input = Input::new(state)
+        .id(gpui::ElementId::Name(format!("{prefix}-password").into()))
+        .aria_label("Proxy password")
+        .secret(true)
+        .disabled(!editable);
+    let hint = hint.then(|| {
+        ui::role(
+            text_region("network-proxy-password-hint"),
+            TextVariant::Caption,
+            cx,
+        )
+        .pt(Spacing::XS)
+        .child(PASSWORD_HINT)
+    });
+    div().flex().flex_col().child(input).children(hint)
+}
+
+/// Shown under the Password field when sends would not use the stored password.
+const PASSWORD_HINT: &str =
+    "Add a user to the URL, as http://user@host:port, so the password is sent";
+
+/// Whether the URL (as the page shows it) names a user.
+fn url_has_user(url: &str) -> bool {
+    url.split_once("://")
+        .map_or(url, |(_, rest)| rest)
+        .split(['/', '?', '#'])
+        .next()
+        .and_then(|authority| authority.rsplit_once('@'))
+        .is_some_and(|(userinfo, _)| !userinfo.is_empty() && !userinfo.starts_with(':'))
+}
+
 /// Whether `text` holds a password other than the mask the page shows for a stored one.
 fn carries_password(text: &str) -> bool {
     !text.contains(MASK) && config::url_without_password(text) != text
@@ -554,7 +597,7 @@ fn carries_password(text: &str) -> bool {
 fn proxy_rows(
     prefix: &str,
     row: &ProxyRow,
-    url_field: Option<&Entity<InputState>>,
+    [url_field, password_field]: [Option<&Entity<InputState>>; 2],
     editable: bool,
     cx: &mut Context<Shell>,
 ) -> Vec<Div> {
@@ -584,7 +627,7 @@ fn proxy_rows(
         ProxyMode::Manual => {
             rows.push(field_row(
                 "URL".to_owned(),
-                None,
+                url_field.map(|_| "Without the password: use the Password field".to_owned()),
                 proxy_url(prefix, row, url_field, editable, cx),
                 cx,
             ));
@@ -596,7 +639,17 @@ fn proxy_rows(
                     cx,
                 ));
             }
-            if let Some(password) = &row.password {
+            if let (Some(field), Some(stored)) = (password_field, &row.password) {
+                let unsent = stored.state == Keyring::Set
+                    && row.username.is_none()
+                    && !row.url.as_deref().is_some_and(url_has_user);
+                rows.push(field_row(
+                    "Password".to_owned(),
+                    Some("Kept in the OS keyring".to_owned()),
+                    proxy_password(prefix, field, editable, unsent, cx),
+                    cx,
+                ));
+            } else if let Some(password) = &row.password {
                 let id = format!("{prefix}-password");
                 rows.push(field_row(
                     "Password".to_owned(),
@@ -629,11 +682,11 @@ fn proxy_rows(
 /// The app proxy and the open workspace's own one.
 fn proxies(
     model: &NetworkModel,
-    url_field: Option<&Entity<InputState>>,
+    fields: [Option<&Entity<InputState>>; 2],
     editable: bool,
     cx: &mut Context<Shell>,
 ) -> Div {
-    let global = proxy_rows("network-proxy", &model.proxy, url_field, editable, cx);
+    let global = proxy_rows("network-proxy", &model.proxy, fields, editable, cx);
     let global_warnings = warnings("network-proxy", &model.proxy.warnings, cx);
     let workspace =
         model.workspace.as_ref().map(|workspace| {

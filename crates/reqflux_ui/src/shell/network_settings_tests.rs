@@ -146,49 +146,49 @@ fn set_and_clear_write_only_the_keyring(cx: &mut TestAppContext) {
     let dir = variables_workspace(closed_port());
     let (_state_dir, state_path) = state_file();
     let (_config_dir, config_path) = config_home();
-    let text = "[network.proxy]\nmode = \"manual\"\nurl = \"http://proxy.test:3128\"\n\
-                username = \"me\"\n";
-    write(&config_path, text);
-    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
-    let before = shell.read_with(cx, |shell, _| {
-        shell
-            .settings
-            .network
-            .model
-            .clone()
-            .expect("a model")
-            .proxy
-            .password
-            .clone()
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let id = shell.read_with(cx, |shell, _| match &shell.workspace {
+        crate::workspace::OpenedWorkspace::Loaded(engine) => engine.workspace().manifest.id,
+        _ => panic!("no workspace"),
     });
-    assert!(
-        matches!(
-            before.map(|row| row.state),
-            Some(crate::shell::settings_page::network_settings::Keyring::NotSet)
-        ),
+    let text = format!(
+        "[network.workspaces.\"{id}\".proxy]\nmode = \"manual\"\n\
+         url = \"http://proxy.test:3128\"\nusername = \"me\"\n"
+    );
+    write(&config_path, &text);
+    let path = config_path.clone();
+    shell.update(cx, |shell, _| {
+        shell.set_config(Some(path), ConfigReport::default());
+    });
+    cx.update(|window, cx| {
+        shell.update(cx, |shell, cx| shell.open_network_settings(window, cx));
+    });
+    cx.run_until_parked();
+    let state = |cx: &mut VisualTestContext| {
+        shell.read_with(cx, |shell, _| {
+            let model = shell.settings.network.model.clone().expect("a model");
+            model
+                .workspace
+                .and_then(|workspace| workspace.own)
+                .and_then(|own| own.password)
+                .map(|row| row.state)
+        })
+    };
+    assert_eq!(
+        state(cx),
+        Some(crate::shell::settings_page::network_settings::Keyring::NotSet),
         "a manual proxy with a username asks for its password"
     );
 
-    click(cx, "network-proxy-password-set");
+    click(cx, "network-workspace-proxy-password-set");
     present(cx, "network-secret-dialog");
     click(cx, "network-secret-input");
     cx.simulate_input("hunter2");
     click(cx, "network-secret-save");
-    let after = shell.read_with(cx, |shell, _| {
-        shell
-            .settings
-            .network
-            .model
-            .clone()
-            .expect("a model")
-            .proxy
-            .password
-            .clone()
-    });
-    assert!(matches!(
-        after.map(|row| row.state),
+    assert_eq!(
+        state(cx),
         Some(crate::shell::settings_page::network_settings::Keyring::Set)
-    ));
+    );
     assert_eq!(
         read(&config_path),
         text,
@@ -487,6 +487,231 @@ fn the_bridge_does_not_expose_a_password_typed_in_the_url(cx: &mut TestAppContex
         !dump.contains("127.0.0.1"),
         "the whole value is withheld: {dump}"
     );
+}
+
+const PROXY_KEYRING: &str = "network/proxy";
+
+/// A manual proxy whose URL names a user, App > Network open on it.
+fn render_manual<'a>(
+    cx: &'a mut TestAppContext,
+    dir: &TempDir,
+    state_path: &Path,
+    config_path: &Path,
+) -> (Entity<Shell>, &'a mut VisualTestContext) {
+    write(
+        config_path,
+        "[network.proxy]\nmode = \"manual\"\nurl = \"http://u@127.0.0.1:3999\"\n",
+    );
+    render_network(cx, dir, state_path, config_path)
+}
+
+fn stored_password(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
+    shell.update(cx, |shell, _| {
+        shell
+            .network_secrets()
+            .get_account(PROXY_KEYRING)
+            .ok()
+            .flatten()
+    })
+}
+
+/// Leaves the Password field the way the test window can: by the event focus loss emits.
+fn blur_password(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+    let input = shell.read_with(cx, |shell, _| shell.settings.network.proxy_password.clone());
+    let Some(input) = input else {
+        panic!("the Password field is missing");
+    };
+    cx.update(|_, cx| {
+        input.update(cx, |_, cx| cx.emit(gpui_component::input::InputEvent::Blur));
+    });
+    cx.run_until_parked();
+}
+
+fn type_password(cx: &mut VisualTestContext, text: &str) {
+    click(cx, "network-proxy-password");
+    cx.simulate_keystrokes("ctrl-a");
+    if text.is_empty() {
+        cx.simulate_keystrokes("backspace");
+    } else {
+        cx.simulate_input(text);
+    }
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+}
+
+#[gpui::test]
+fn typing_in_the_password_field_never_exposes_the_text(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (_shell, cx) = render_manual(cx, &dir, &state_path, &config_path);
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| automation.attach(window));
+    present(cx, "network-proxy-password");
+
+    click(cx, "network-proxy-password");
+    cx.simulate_input(PASSWORD);
+    cx.run_until_parked();
+    let snapshot = automation.snapshot();
+    let dump = snapshot
+        .nodes
+        .get("network-proxy-password")
+        .map(|node| format!("{node:?}"))
+        .unwrap_or_default();
+    assert!(!dump.is_empty(), "the field is in the tree");
+    assert!(!dump.contains(PASSWORD), "{dump}");
+}
+
+#[gpui::test]
+fn committing_the_password_writes_the_keyring_and_not_config_toml(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_manual(cx, &dir, &state_path, &config_path);
+
+    type_password(cx, PASSWORD);
+
+    assert_eq!(stored_password(cx, &shell).as_deref(), Some(PASSWORD));
+    let text = read(&config_path);
+    assert!(!text.contains(PASSWORD), "{text}");
+    assert!(
+        text.contains("username = \"u\""),
+        "the engine sends the password only with a username: {text}"
+    );
+    assert_eq!(
+        shell.read_with(cx, |shell, cx| shell
+            .settings
+            .network
+            .proxy_password
+            .as_ref()
+            .map(|input| input.read(cx).value().to_string())),
+        Some(reqflux_engine::MASK.to_owned()),
+        "the field shows a mask and never reads the secret back"
+    );
+    assert_eq!(toasts::pushed(cx), vec![]);
+}
+
+#[gpui::test]
+fn blurring_the_password_field_commits_it(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_manual(cx, &dir, &state_path, &config_path);
+
+    click(cx, "network-proxy-password");
+    cx.simulate_input(PASSWORD);
+    blur_password(cx, &shell);
+
+    assert_eq!(stored_password(cx, &shell).as_deref(), Some(PASSWORD));
+}
+
+#[gpui::test]
+fn clearing_the_password_field_removes_the_keyring_entry(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_manual(cx, &dir, &state_path, &config_path);
+    type_password(cx, PASSWORD);
+    assert_eq!(stored_password(cx, &shell).as_deref(), Some(PASSWORD));
+
+    type_password(cx, "");
+
+    assert_eq!(stored_password(cx, &shell), None);
+    assert_eq!(
+        field_value(cx, &shell, |network| &network.proxy_password),
+        ""
+    );
+}
+
+#[gpui::test]
+fn an_untouched_password_field_writes_nothing(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_manual(cx, &dir, &state_path, &config_path);
+    type_password(cx, PASSWORD);
+    let before = read(&config_path);
+
+    click(cx, "network-proxy-password");
+    blur_password(cx, &shell);
+
+    assert_eq!(stored_password(cx, &shell).as_deref(), Some(PASSWORD));
+    assert_eq!(read(&config_path), before);
+}
+
+#[gpui::test]
+fn a_password_keyring_failure_writes_nothing_and_the_toast_has_no_password(
+    cx: &mut TestAppContext,
+) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    let (shell, cx) = render_manual(cx, &dir, &state_path, &config_path);
+    let before = read(&config_path);
+    shell.update(cx, |shell, _| {
+        shell.workspace = crate::workspace::OpenedWorkspace::None;
+        shell.settings.network.secrets = Some(Arc::new(
+            reqflux_engine::MemorySecretStore::unavailable("no keyring"),
+        ));
+    });
+
+    type_password(cx, PASSWORD);
+
+    assert_eq!(read(&config_path), before);
+    let pushed = format!("{:?}", toasts::pushed(cx));
+    assert!(
+        pushed.contains("Cannot save the proxy password"),
+        "{pushed}"
+    );
+    assert!(!pushed.contains(PASSWORD), "{pushed}");
+    assert_eq!(
+        field_value(cx, &shell, |network| &network.proxy_password),
+        "",
+        "the typed text does not linger in the field"
+    );
+}
+
+#[gpui::test]
+fn a_stored_password_without_a_username_says_sends_ignore_it(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    write(
+        &config_path,
+        "[network.proxy]\nmode = \"manual\"\nurl = \"http://127.0.0.1:3999\"\n",
+    );
+    let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
+    assert!(
+        bounds(cx, "network-proxy-password-hint").is_none(),
+        "nothing is stored yet"
+    );
+
+    type_password(cx, PASSWORD);
+    present(cx, "network-proxy-password-hint");
+
+    // A user in the URL is enough: the commit takes it as `username`.
+    click(cx, "network-proxy-url");
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("http://u@127.0.0.1:3999");
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    type_password(cx, "other");
+    assert!(bounds(cx, "network-proxy-password-hint").is_none());
+    assert_eq!(stored_password(cx, &shell).as_deref(), Some("other"));
+}
+
+/// The text of the input `pick` selects.
+fn field_value(
+    cx: &mut VisualTestContext,
+    shell: &Entity<Shell>,
+    pick: impl Fn(&super::NetworkState) -> &Option<Entity<bolt::controls::InputState>>,
+) -> String {
+    shell.read_with(cx, |shell, cx| {
+        pick(&shell.settings.network)
+            .as_ref()
+            .map(|input| input.read(cx).value().to_string())
+            .unwrap_or_default()
+    })
 }
 
 /// The text of the URL field.
