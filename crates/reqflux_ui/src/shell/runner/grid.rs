@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use bolt::components::grid::{GridCellCoord, GridColors, GridHost, render_header, render_rows};
+use bolt::components::grid::{
+    GridCellCoord, GridColors, GridHost, HeaderResize, render_header, render_rows,
+};
 use bolt::data::{
     CellAlignment, CellTone, CellView, ColumnKind, ColumnView, RowVisualState, StaticRows,
 };
@@ -55,6 +57,7 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     let shell = cx.entity().downgrade();
     let null_color = bolt::colors(cx).muted;
     let colors = GridColors::of(cx.global::<gpui_component::theme::Theme>());
+    let (drag, hover) = table_widths::header_resize(cx);
     let header = render_header(
         "runner-grid-header-cell",
         source.as_ref(),
@@ -64,6 +67,7 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         GridMetrics::FONT,
         GridMetrics::TYPE_FONT,
         &colors,
+        Some(HeaderResize { drag: &drag, hover }),
     );
     let rows_source = Arc::clone(&source);
     let list = uniform_list(
@@ -124,17 +128,7 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         .flex()
         .flex_col()
         .font_family(bolt::fonts::editor_family(cx))
-        .child(
-            region("runner-grid-header")
-                .flex_none()
-                .child(table_widths::over_header(
-                    header,
-                    TABLE,
-                    &defaults,
-                    GridMetrics::ROW_NUMBER_WIDTH,
-                    cx,
-                )),
-        )
+        .child(region("runner-grid-header").flex_none().child(header))
         .child(list)
 }
 

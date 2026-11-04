@@ -9,10 +9,9 @@
 use std::collections::HashMap;
 
 use bolt::components::grid::{
-    ColumnResize, ColumnResizeDrag, RESIZE_HANDLE_WIDTH, clamp_column_width, column_resize_handle,
-    track_column_resize,
+    ColumnResize, ColumnResizeDrag, clamp_column_width, column_resize_handle, track_column_resize,
 };
-use gpui::{AnyElement, App, Div, Global, InteractiveElement, ParentElement, Pixels, Styled, div};
+use gpui::{App, Global, InteractiveElement, ParentElement, Pixels, Styled};
 
 /// The widths the user dragged, per table and column, and the drag in progress.
 #[derive(Default)]
@@ -81,44 +80,14 @@ pub(crate) fn with_handle<E: Styled + ParentElement>(
         .child(column_resize_handle(column, current, &drag, wash))
 }
 
-/// `header`, a header row `bolt` drew itself, with a resize handle over the right edge of
-/// each of its columns, whose defaults are `defaults`, after a gutter `gutter` wide.
-// bolt gap: `render_header` draws its own cells and has no slot for a resize handle, so the
-// handles sit over its row instead of inside its cells.
-pub(crate) fn over_header(
-    header: AnyElement,
-    table: &'static str,
-    defaults: &[Pixels],
-    gutter: Pixels,
-    cx: &App,
-) -> Div {
+/// The drag every table shares and the wash its handles take, for a header `bolt` draws
+/// itself (`render_header` with a `HeaderResize`).
+pub(crate) fn header_resize(cx: &App) -> (ColumnResizeDrag, gpui::Hsla) {
     let drag = cx
         .try_global::<TableWidths>()
         .map(|store| store.drag.clone())
         .unwrap_or_default();
-    let wash = bolt::brand::brand(cx).accent_tint.opacity(0.3);
-    let mut edge = gutter;
-    let strips: Vec<Div> = defaults
-        .iter()
-        .enumerate()
-        .map(|(column, default)| {
-            let current = width(table, column, *default, cx);
-            edge += current;
-            div()
-                .absolute()
-                .left(edge - RESIZE_HANDLE_WIDTH)
-                .top_0()
-                .bottom_0()
-                .w(RESIZE_HANDLE_WIDTH)
-                .child(column_resize_handle(
-                    column,
-                    f32::from(current),
-                    &drag,
-                    wash,
-                ))
-        })
-        .collect();
-    div().relative().flex_none().child(header).children(strips)
+    (drag, bolt::brand::brand(cx).accent_tint.opacity(0.3))
 }
 
 #[cfg(test)]

@@ -1491,9 +1491,9 @@ history grid and the audit table draw from `&App`, with no shell to ask.
 
 Not column tables, so without handles: the response Headers and the example request and
 response grids (a name and a value list with no header row), and the keymap (commands grouped
-under folding contexts). The runner grid is drawn by `bolt`'s `render_header`, which has no
-slot for a handle, so `table_widths::over_header` lays the handles over its row
-(`// bolt gap:`); `bolt` should take them natively.
+under folding contexts). The runner grid's header is `bolt`'s `render_header`, which takes the
+handles natively through `HeaderResize` (`table_widths::header_resize` gives it the shared drag
+and wash).
 The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem tokens, `Button`,
 `Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
 `field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL
