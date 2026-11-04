@@ -1627,14 +1627,14 @@ down to the 120 px the splitter leaves the pane (`SPLIT_PANE_MIN`): the JSONPath
 search drop to a second line, each 240 px wide or the pane's width if that is less; the time and
 size and the bottom bar's buttons follow. The tabs (`response-tabs-scroll`) and the views
 control (`response-views-scroll`) never cut a chip: each is a viewport at most as wide as the
-pane that scrolls sideways (wheel or trackpad, no scrollbar), `response::chip_strip`; the
-selected chip is scrolled into view when the selection or the pane's width changes (the tab row
-by child index, the views row, one `bolt` control, in proportion to the selected segment's
-position), so every tab and view down to Timeline is reachable at 120 px. A viewport is inside
+pane that scrolls sideways (wheel or trackpad, no scrollbar), `bolt::composites::scroll_strip`;
+the selected chip is scrolled into view when the selection or the pane's width changes
+(`StripReveal`: the tab row by child index, the views row and the format switch by segment through `response::segment_reveal`,
+measured through `SegmentedControl::segment_bounds`, so the selected segment is revealed
+exactly), so every tab and view down to Timeline is reachable at 120 px. A viewport is inside
 the pane and a chip's drawn part is inside the viewport. The bottom bar's Pretty / Raw / Preview switch is
 the same kind of strip (`response-format-scroll`), so it stays inside the pane at 120 px and every
-segment is reachable. `bolt`'s tab bar and segmented control
-have no overflow behavior yet (`// bolt gap:` on `chip_strip::strip`). Under `RESPONSE_COMPACT_WIDTH` (360 px) Copy, Save as example and Export are
+segment is reachable. Under `RESPONSE_COMPACT_WIDTH` (360 px) Copy, Save as example and Export are
 icons with a tooltip; the pane measures its own width into `ViewState::pane_width`
 (design/response-views/04).
 The search, the filters and the focus live with each request's send state.

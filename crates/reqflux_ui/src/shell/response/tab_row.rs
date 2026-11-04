@@ -7,7 +7,7 @@
 //! the status is a `bolt` badge.
 
 use bolt::Colors;
-use bolt::composites::{document_tab, document_tab_bar, document_tab_title};
+use bolt::composites::{document_tab, document_tab_bar, document_tab_title, scroll_strip};
 use bolt::primitives::{Badge, BadgeTone, Icon};
 use bolt::tokens::{Fields, ResultMetrics, Spacing, TabMetrics};
 use gpui::{
@@ -16,7 +16,6 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
-use super::chip_strip;
 use super::model::ResponseTab;
 use super::sub_tabs::effective_tab;
 use crate::shell::request::ui;
@@ -139,7 +138,8 @@ pub(super) fn render(id: &str, send: Option<&RequestSend>, cx: &mut Context<Shel
             .tabs_revealed
             .child(&scroll, selected, views.pane_width.unwrap_or_default());
     }
-    let tabs = chip_strip::strip("response-tabs-scroll", &scroll)
+    let tabs = scroll_strip("response-tabs-scroll", &scroll)
+        .debug_selector(|| "response-tabs-scroll".to_owned())
         .gap(TabMetrics::DOCUMENT_BAR_GAP)
         .child(response)
         .children(script_tabs.into_iter().map(|(_, chip)| chip));

@@ -3,13 +3,13 @@
 //! matches, `filtered view of a <size> body` (`response-footer-filtered`), and at the end
 //! Copy (`response-copy`), which puts what shows on the clipboard.
 
+use bolt::composites::scroll_strip;
 use bolt::controls::Button;
 use bolt::primitives::{Icon, SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ResultMetrics, Spacing};
 use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 
-use super::chip_strip;
 use super::jsonpath_model::{Filtered, filtered_caption};
 use super::model::{BodyText, BodyView};
 use super::sub_tabs::effective_view;
@@ -35,18 +35,16 @@ pub(super) fn render(
     if received.preview.is_some() {
         views.push((BodyView::Preview, "Preview", IconName::Eye));
     }
-    if let Some(index) = views.iter().position(|(view, ..)| *view == selected) {
-        send.views.format_revealed.share(
-            &send.views.format_scroll,
-            index,
-            views.len(),
-            send.views.pane_width.unwrap_or_default(),
-        );
-    }
     let active = views
         .iter()
         .find(|(view, ..)| *view == selected)
         .map_or(String::new(), |(_, label, _)| label.to_lowercase());
+    send.views.format_revealed.segment(
+        &send.views.format_scroll,
+        &send.views.format_segments,
+        &active,
+        send.views.pane_width.unwrap_or_default(),
+    );
     let keys: Vec<_> = views
         .iter()
         .map(|(view, label, _)| (*view, label.to_lowercase()))
@@ -122,14 +120,12 @@ pub(super) fn render(
         .border_t(Borders::THIN)
         .border_color(colors.line)
         .child(
-            chip_strip::strip("response-format-scroll", &send.views.format_scroll).child(control(
-                "response-format",
-                None,
-                true,
-                segments,
-                active,
-                on_select,
-            )),
+            scroll_strip("response-format-scroll", &send.views.format_scroll)
+                .debug_selector(|| "response-format-scroll".to_owned())
+                .child(
+                    control("response-format", None, true, segments, active, on_select)
+                        .segment_bounds(&send.views.format_segments),
+                ),
         )
         .children(lines.map(|count| {
             let label = match count {

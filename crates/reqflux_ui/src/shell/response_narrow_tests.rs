@@ -251,3 +251,35 @@ fn at_the_120_px_minimum_the_footer_switch_is_inside_the_pane_and_reachable(
         "the selected format is in view"
     );
 }
+
+/// Asserts the chip `chip` is revealed exactly in the viewport `strip`, to a pixel: whole
+/// when it fits, else aligned to the viewport's start.
+fn assert_revealed(cx: &mut VisualTestContext, strip: &str, chip: &str) {
+    let viewport = present(cx, strip);
+    let chip_bounds = present(cx, chip);
+    let fits = chip_bounds.size.width <= viewport.size.width;
+    let revealed = if fits {
+        chip_bounds.left() >= viewport.left() - px(1.)
+            && chip_bounds.right() <= viewport.right() + px(1.)
+    } else {
+        (chip_bounds.left() - viewport.left()).abs() <= px(1.)
+    };
+    assert!(
+        revealed,
+        "{chip} spans {:?} to {:?} in {strip} from {:?} to {:?}",
+        chip_bounds.left(),
+        chip_bounds.right(),
+        viewport.left(),
+        viewport.right()
+    );
+}
+
+#[gpui::test]
+fn at_120_px_a_middle_view_is_revealed_exactly(cx: &mut TestAppContext) {
+    for view in ["response-tab-headers", "response-tab-cookies"] {
+        let cx = sent(cx);
+        click(cx, view);
+        narrow_pane(cx, px(120.));
+        assert_revealed(cx, "response-views-scroll", view);
+    }
+}

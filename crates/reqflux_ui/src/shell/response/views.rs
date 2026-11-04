@@ -17,13 +17,15 @@ use gpui::{
     ScrollStrategy, Subscription, UniformListScrollHandle, Window, actions,
 };
 
+use bolt::composites::StripReveal;
 use bolt::controls::{InputEvent, InputState};
+use bolt::primitives::SegmentBounds;
 
-use super::chip_strip::Revealed;
 use super::filters::{ConsoleFilter, TestsFilter};
 use super::jsonpath_model::{Filtered, JSONPATH_PLACEHOLDER};
 use super::model::{BodyText, BodyView, ResponseTab};
 use super::search::{self, Hit};
+use super::segment_reveal::SegmentReveal;
 use super::sub_tabs::effective_view;
 use crate::shell::Shell;
 use crate::shell::request::{Completed, Received, SendState};
@@ -74,14 +76,17 @@ pub(crate) struct ViewState {
     /// The width of the response pane at the last layout, `None` before the first one;
     /// the bottom bar's buttons shrink to icons below [`tokens::RESPONSE_COMPACT_WIDTH`].
     pub(crate) pane_width: Option<Pixels>,
-    /// The scroll of the tab row's tabs and of the views row's control, in a pane too
-    /// narrow for them, and what each last scrolled into view.
+    /// The scroll of the tab row's tabs and of the views row's and format switch's
+    /// controls, in a pane too narrow for them, what each last scrolled into view and,
+    /// for the controls, where their segments paint.
     pub(crate) tabs_scroll: ScrollHandle,
-    pub(crate) tabs_revealed: Revealed,
+    pub(crate) tabs_revealed: StripReveal,
     pub(crate) views_scroll: ScrollHandle,
-    pub(crate) views_revealed: Revealed,
+    pub(crate) views_revealed: SegmentReveal,
+    pub(crate) views_segments: SegmentBounds,
     pub(crate) format_scroll: ScrollHandle,
-    pub(crate) format_revealed: Revealed,
+    pub(crate) format_revealed: SegmentReveal,
+    pub(crate) format_segments: SegmentBounds,
     /// The syntax runs of the body lines last shown, so a render does not parse them again.
     pub(crate) syntax: super::syntax::SyntaxCache,
 }

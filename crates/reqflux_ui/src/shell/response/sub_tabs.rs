@@ -3,6 +3,7 @@
 //! grid. The row wraps: when the pane is too narrow for everything in one line, the JSONPath
 //! field and the search drop to the next line, and a field wider than the pane shrinks to it.
 
+use bolt::composites::scroll_strip;
 use bolt::primitives::SegmentedItem;
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
 use gpui::{
@@ -10,7 +11,6 @@ use gpui::{
 };
 use gpui_kit_assets::IconName;
 
-use super::chip_strip;
 use super::cookies::cookie_count;
 use super::jsonpath_field;
 use super::model::{BodyView, ResponseTab};
@@ -86,16 +86,12 @@ pub(super) fn render(
         .find(|(view_tab, ..)| *view_tab == tab)
         .map_or("", |(_, key, ..)| *key);
     let keys = views.clone().map(|(view_tab, key, ..)| (view_tab, key));
-    let count = keys.len();
-    let selected = keys.iter().position(|(view_tab, _)| *view_tab == tab);
-    if let Some(selected) = selected {
-        send.views.views_revealed.share(
-            &send.views.views_scroll,
-            selected,
-            count,
-            send.views.pane_width.unwrap_or_default(),
-        );
-    }
+    send.views.views_revealed.segment(
+        &send.views.views_scroll,
+        &send.views.views_segments,
+        active,
+        send.views.pane_width.unwrap_or_default(),
+    );
     let segments: Vec<_> = views
         .into_iter()
         .map(|(_, key, label, icon_name, count)| {
@@ -131,14 +127,12 @@ pub(super) fn render(
         .border_t(Borders::THIN)
         .border_color(colors.line)
         .child(
-            chip_strip::strip("response-views-scroll", &send.views.views_scroll).child(control(
-                "response-views",
-                None,
-                true,
-                segments,
-                active,
-                on_select,
-            )),
+            scroll_strip("response-views-scroll", &send.views.views_scroll)
+                .debug_selector(|| "response-views-scroll".to_owned())
+                .child(
+                    control("response-views", None, true, segments, active, on_select)
+                        .segment_bounds(&send.views.views_segments),
+                ),
         )
         .children(received.content_type().map(|content_type| {
             div()
