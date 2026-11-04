@@ -195,6 +195,11 @@ impl WorkspaceCookies {
         cookies
     }
 
+    /// Whether an unexpired cookie is stored under `domain`, `path` and `name`.
+    fn contains(&self, domain: &str, path: &str, name: &str) -> bool {
+        self.lock().get(domain, path, name).is_some()
+    }
+
     /// Parses `set_cookie` as received from `url` and stores it under RFC 6265's rules, writing
     /// the change through to the attached state.
     fn insert(&self, url: &Url, set_cookie: &str) -> Result<Option<StoredCookie>, CookieError> {
@@ -447,7 +452,8 @@ impl Engine {
     ///
     /// # Errors
     ///
-    /// The same as [`Engine::set_cookie`].
+    /// The same as [`Engine::set_cookie`], and a refusal when the new domain, path and name
+    /// belong to a different cookie, which is never overwritten.
     pub fn replace_cookie(
         &self,
         domain: &str,
@@ -455,6 +461,19 @@ impl Engine {
         name: &str,
         cookie: &StoredCookie,
     ) -> Result<StoredCookie, CookieError> {
+        let (_, built) = build(cookie)?;
+        let target = (
+            String::from(&built.domain),
+            String::from(&built.path),
+            built.name().to_owned(),
+        );
+        if (target.0.as_str(), target.1.as_str(), target.2.as_str()) != (domain, path, name)
+            && self.cookies.contains(&target.0, &target.1, &target.2)
+        {
+            return Err(CookieError::Invalid(
+                "another cookie already has that domain, path and name",
+            ));
+        }
         let stored = self.set_cookie(cookie)?;
         if (domain, path, name)
             != (

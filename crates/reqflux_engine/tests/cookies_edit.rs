@@ -191,3 +191,48 @@ fn a_written_cookie_is_kept_in_the_app_state() {
     let names: Vec<_> = again.cookies().into_iter().map(|c| c.name).collect();
     assert_eq!(names, vec!["b"]);
 }
+
+#[test]
+fn a_replacement_never_overwrites_a_different_cookie() {
+    let dir = temp_dir();
+    let engine = engine(&dir);
+    let mine = cookie("example.test", "/", "mine", "1");
+    let theirs = cookie("example.test", "/", "theirs", "keep");
+    engine.set_cookie(&mine).unwrap();
+    engine.set_cookie(&theirs).unwrap();
+
+    let error = engine
+        .replace_cookie(
+            "example.test",
+            "/",
+            "mine",
+            &cookie("example.test", "/", "theirs", "clobber"),
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        error.to_string(),
+        "the cookie was not saved: another cookie already has that domain, path and name"
+    );
+    assert_eq!(engine.cookies(), vec![mine, theirs]);
+}
+
+#[test]
+fn a_replacement_that_keeps_its_own_key_is_not_a_collision() {
+    let dir = temp_dir();
+    let engine = engine(&dir);
+    engine
+        .set_cookie(&cookie("example.test", "/", "a", "1"))
+        .unwrap();
+
+    engine
+        .replace_cookie(
+            "example.test",
+            "/",
+            "a",
+            &cookie("example.test", "/", "a", "2"),
+        )
+        .unwrap();
+
+    assert_eq!(engine.cookies()[0].value, "2");
+}

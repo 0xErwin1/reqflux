@@ -156,17 +156,22 @@ impl Shell {
         self.open_cookie_dialog(None, &blank, None, window, cx);
     }
 
-    /// A row's pencil: opens the dialog over the cookie at place `n` of the jar.
+    /// A row's pencil: opens the dialog over the cookie stored under `domain`, `path` and
+    /// `name`, looked up now so a filtered list or a jar that changed since the row was drawn
+    /// never opens another cookie. A cookie that is gone opens nothing.
     pub(crate) fn open_cookie_edit(
         &mut self,
-        n: usize,
+        (domain, path, name): (&str, &str, &str),
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let Some(cookie) = n
-            .checked_sub(1)
-            .and_then(|index| self.jar_cookies().into_iter().nth(index))
-        else {
+        let Some(cookie) = self.jar_cookies().into_iter().find(|cookie| {
+            (
+                cookie.domain.as_str(),
+                cookie.path.as_str(),
+                cookie.name.as_str(),
+            ) == (domain, path, name)
+        }) else {
             return;
         };
         let hidden = match &self.settings.cookies.masker {

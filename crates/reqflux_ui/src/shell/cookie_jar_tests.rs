@@ -367,3 +367,56 @@ fn editing_a_hidden_value_keeps_it_unless_it_is_replaced(cx: &mut TestAppContext
         ("token2", hidden.as_str())
     );
 }
+
+#[gpui::test]
+fn the_pencil_edits_the_cookie_of_its_row_after_the_jar_changed(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render_jar(cx, &dir, &state_path);
+    let add = |shell: &gpui::Entity<Shell>, cx: &mut VisualTestContext, name: &str| {
+        shell.update(cx, |shell, _| {
+            let crate::workspace::OpenedWorkspace::Loaded(engine) = &shell.workspace else {
+                panic!("no workspace");
+            };
+            engine
+                .set_cookie(&cookie("example.test", name, "v", None))
+                .unwrap_or_else(|e| panic!("{e}"));
+        });
+    };
+    add(&shell, cx, "b");
+    shell.update(cx, |_, cx| cx.notify());
+    cx.run_until_parked();
+    present(cx, "cookie-1-edit");
+
+    // A cookie that sorts first lands after the row was drawn: the row still means "b".
+    add(&shell, cx, "a");
+    shell.update_in(cx, |shell, window, cx| {
+        shell.open_cookie_edit(("example.test", "/", "b"), window, cx);
+    });
+
+    let editing = |shell: &gpui::Entity<Shell>, cx: &mut VisualTestContext| {
+        shell.read_with(cx, |shell, _| {
+            shell
+                .settings
+                .cookies
+                .edit
+                .as_ref()
+                .and_then(|edit| edit.original.clone())
+        })
+    };
+    assert_eq!(
+        editing(&shell, cx),
+        Some(("example.test".to_owned(), "/".to_owned(), "b".to_owned())),
+        "the row's own cookie opens, not whatever sits at its old place"
+    );
+
+    shell.update(cx, |shell, cx| shell.cancel_cookie_edit(cx));
+    shell.update_in(cx, |shell, window, cx| {
+        shell.open_cookie_edit(("example.test", "/", "gone"), window, cx);
+    });
+    assert_eq!(
+        editing(&shell, cx),
+        None,
+        "a cookie that is gone opens nothing"
+    );
+}

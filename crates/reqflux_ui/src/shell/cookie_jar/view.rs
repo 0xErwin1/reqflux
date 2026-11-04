@@ -306,7 +306,8 @@ fn jar_row(row: JarRow, cx: &mut Context<Shell>) -> AnyElement {
                 .iter()
                 .map(|flag| Badge::new(flag.clone(), BadgeTone::Neutral)),
         );
-    let (domain, path, name) = (row.domain.clone(), row.path.clone(), row.name.clone());
+    let identity = (row.domain.clone(), row.path.clone(), row.name.clone());
+    let (domain, path, name) = identity.clone();
     let delete = Button::new(
         gpui::ElementId::Name(format!("{id}-delete").into()),
         format!("Delete cookie {}", row.name),
@@ -318,7 +319,6 @@ fn jar_row(row: JarRow, cx: &mut Context<Shell>) -> AnyElement {
     .on_click(cx.listener(move |this, _event, _window, cx| {
         this.delete_jar_cookie(&domain, &path, &name, cx);
     }));
-    let number = row.n;
     let edit = Button::new(
         gpui::ElementId::Name(format!("{id}-edit").into()),
         format!("Edit cookie {}", row.name),
@@ -328,7 +328,8 @@ fn jar_row(row: JarRow, cx: &mut Context<Shell>) -> AnyElement {
     .icon(ui::icon(IconName::Pencil))
     .icon_only()
     .on_click(cx.listener(move |this, _event, window, cx| {
-        this.open_cookie_edit(number, window, cx);
+        let (domain, path, name) = &identity;
+        this.open_cookie_edit((domain, path, name), window, cx);
     }));
     let [
         domain_cell,
