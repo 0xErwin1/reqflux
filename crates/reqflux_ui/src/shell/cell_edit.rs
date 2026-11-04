@@ -6,9 +6,13 @@
 //! the field opens empty with a `Secret value` placeholder and an empty commit keeps the
 //! stored reference. The Variables document's cells use the same field; see
 //! [`super::variables_ops`].
+//!
+//! Clicking outside the field, or the field losing focus, commits it like Enter, and the
+//! focus goes back to the shell; the variable popover that hangs under a value field is not
+//! outside, and while it is open the field keeps its text.
 
 use gpui::{AppContext as _, Context, Entity, Window};
-use gpui_component::input::InputState;
+use gpui_component::input::{InputEvent, InputState};
 
 use super::Shell;
 use super::auth_edit::{AUTH_TABLE, TYPED_PREFIX};
@@ -100,6 +104,7 @@ impl Shell {
             }
             state
         });
+
         input.update(cx, |state, cx| {
             state.set_value(text, window, cx);
             state.focus(window, cx);
@@ -121,6 +126,14 @@ impl Shell {
     /// Enter in the field: commits its text into that cell of the draft and closes the
     /// field. An empty commit on a secret cell keeps the stored reference.
     pub(super) fn commit_cell_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.write_cell_edit(cx) {
+            self.close_cell_edit(window, cx);
+        }
+    }
+
+    /// Writes the open field's text into its cell, without closing the field; reports
+    /// whether a field was open.
+    fn write_cell_edit(&mut self, cx: &mut Context<Self>) -> bool {
         let Some((request_id, table, n, field, secret, input)) =
             self.cell_edit.as_ref().map(|edit| {
                 (
@@ -133,36 +146,76 @@ impl Shell {
                 )
             })
         else {
-            return;
+            return false;
         };
         let value = input.read(cx).value().to_string();
         if Column::from_table(&table).is_some() {
             self.commit_variable_cell(&request_id, &table, n, secret, value, cx);
-            self.close_cell_edit(window, cx);
-            return;
+            return true;
         }
         if table == SETTINGS_TABLE {
             self.set_draft_timeout(&request_id, &value, cx);
-            self.close_cell_edit(window, cx);
-            return;
+            return true;
         }
         if table == METHOD_TABLE {
             self.commit_custom_method(&request_id, &value, cx);
-            self.close_cell_edit(window, cx);
-            return;
+            return true;
         }
         if table == AUTH_TABLE {
             self.set_draft_auth_text(&request_id, secret, value, cx);
-            self.close_cell_edit(window, cx);
-            return;
+            return true;
         }
         if let Some(key) = table.strip_prefix(TYPED_PREFIX) {
             self.set_draft_typed_text(&request_id, key, secret, value, cx);
-            self.close_cell_edit(window, cx);
-            return;
+            return true;
         }
         self.set_draft_cell(&request_id, &table, n, field, value, secret, cx);
-        self.close_cell_edit(window, cx);
+        true
+    }
+
+    /// The field lost focus: commits it, unless the variable popover is open, whose field
+    /// legitimately holds the focus, or the window was deactivated, which is not the user
+    /// leaving the field. The focus is not taken back from whatever got it; when
+    /// nothing has it the shell does, so its keys work.
+    fn blur_cell_edit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.variable_popover.is_some()
+            || !window.is_window_active()
+            || !self.write_cell_edit(cx)
+        {
+            return;
+        }
+        self.cell_edit = None;
+        if window.focused(cx).is_none() {
+            self.focus.focus(window, cx);
+        }
+        cx.notify();
+    }
+
+    /// Follows the open cell field's focus, so that every cell field (the grids', the
+    /// Variables document's, the auth fields', the custom verb's) commits when it loses it:
+    /// subscribes to the field's input when a field opened since the last call.
+    pub(super) fn watch_cell_blur(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let open = self.cell_edit.as_ref().map(|edit| edit.input.clone());
+        if self.cell_blur.as_ref().map(|(input, _)| input) == open.as_ref() {
+            return;
+        }
+        self.cell_blur = open.map(|input| {
+            let watch = cx.subscribe_in(
+                &input,
+                window,
+                |this, input, event: &InputEvent, window, cx| {
+                    if matches!(event, InputEvent::Blur)
+                        && this
+                            .cell_edit
+                            .as_ref()
+                            .is_some_and(|edit| edit.input == *input)
+                    {
+                        this.blur_cell_edit(window, cx);
+                    }
+                },
+            );
+            (input, watch)
+        });
     }
 
     /// Escape in the field: closes it and drops what was typed. Nothing was written to the
