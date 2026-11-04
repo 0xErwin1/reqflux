@@ -9,6 +9,7 @@ use bolt::tokens::{Borders, Fields, ResultMetrics, Spacing};
 use gpui::{Context, Div, ParentElement, SharedString, Stateful, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 
+use super::chip_strip;
 use super::jsonpath_model::{Filtered, filtered_caption};
 use super::model::{BodyText, BodyView};
 use super::sub_tabs::effective_view;
@@ -33,6 +34,14 @@ pub(super) fn render(
     ];
     if received.preview.is_some() {
         views.push((BodyView::Preview, "Preview", IconName::Eye));
+    }
+    if let Some(index) = views.iter().position(|(view, ..)| *view == selected) {
+        send.views.format_revealed.share(
+            &send.views.format_scroll,
+            index,
+            views.len(),
+            send.views.pane_width.unwrap_or_default(),
+        );
     }
     let active = views
         .iter()
@@ -112,14 +121,16 @@ pub(super) fn render(
         .py(Spacing::XXS)
         .border_t(Borders::THIN)
         .border_color(colors.line)
-        .child(control(
-            "response-format",
-            None,
-            true,
-            segments,
-            active,
-            on_select,
-        ))
+        .child(
+            chip_strip::strip("response-format-scroll", &send.views.format_scroll).child(control(
+                "response-format",
+                None,
+                true,
+                segments,
+                active,
+                on_select,
+            )),
+        )
         .children(lines.map(|count| {
             let label = match count {
                 1 => "1 line".to_owned(),

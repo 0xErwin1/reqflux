@@ -203,6 +203,12 @@ pub(crate) const VARIABLES_PANEL_INSET: Pixels = px(20.0);
 pub(crate) const SETTINGS_NAV_WIDTH: Pixels = px(230.0);
 pub(crate) const SETTINGS_ENVIRONMENT_LIST: Pixels = px(244.0);
 
+/// The narrowest the text column of a settings section header gets before its buttons wrap
+/// onto a second line.
+pub(crate) const SETTINGS_HEADER_TEXT_MIN: Pixels = px(240.0);
+/// The narrowest a column of the Network section gets before the columns stack.
+pub(crate) const NETWORK_COLUMN_MIN: Pixels = px(340.0);
+
 /// The label column of an App > General row (app-settings/02 `.fr`).
 pub(crate) const APP_SETTINGS_LABEL_WIDTH: Pixels = px(240.0);
 /// The label column of an MCP policy rule row.

@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ReqFlux - Network and cookies: settings page sections</title>
 <!--
+  At a narrow window (800 px) a section header wraps its buttons under the title (the text column keeps 240 px) and the Network columns stack at 340 px each.
   Direction 1: Network joins the App section of the built settings page
   (design/app-settings/02-workspace-page-app-section.html) and the cookie jar joins its Workspace
   section. Shell from design/bolt-v2/01-main.html (title bar, rail, islands, status bar).
@@ -198,8 +199,8 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
     </nav></div>
 
     <div class="c14 edge" style="flex-grow:1;min-width:0"><section class="in14" style="flex-grow:1;display:flex;flex-direction:column">
-      <div style="display:flex;align-items:flex-start;gap:12px;padding:20px 28px 12px;border-bottom:1px solid #232128">
-        <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1">
+      <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;padding:20px 28px 12px;border-bottom:1px solid #232128">
+        <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1;min-width:240px">
           <h1 id="settings-heading" class="ttl">Network</h1>
           <span class="ds" style="font-size:13px">Used by every send on this machine: requests, auth requests and <span class="m">pm.sendRequest</span>. The proxy mode and URL save to config.toml at once; the CA bundle, certificates and bypass list are read from <span class="m">[network]</span>. Passwords and passphrases live in the OS keyring.</span>
         </div>
@@ -342,13 +343,13 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 
 <div class="state"><div class="state-head"><h3>config.toml does not parse</h3><p>The defaults apply (system proxy, no CA bundle, no certificates); the section shows the error banner of app-settings/02 and keeps the keyring buttons off.</p></div>
 <div class="frame pad">
-  <div class="c8 ban d" role="alert"><svg class="ico" aria-hidden="true" style="width:16px;height:16px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><div style="display:flex;flex-direction:column;gap:4px;flex-grow:1"><b>config.toml does not parse, so sends use the default network settings.</b><span style="color:#C6C3CC"><span class="m">~/.config/reqflux/config.toml</span>, line 31, column 7.</span></div><button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open file</button><button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-refresh"/></svg>Reload</button></div>
+  <div class="c8 ban d" role="alert"><svg class="ico" aria-hidden="true" style="width:16px;height:16px;color:#FF6B5E;margin-top:1px"><use href="#i-alert"/></svg><div style="display:flex;flex-direction:column;gap:4px;flex-grow:1;min-width:240px"><b>config.toml does not parse, so sends use the default network settings.</b><span style="color:#C6C3CC"><span class="m">~/.config/reqflux/config.toml</span>, line 31, column 7.</span></div><button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-external"/></svg>Open file</button><button class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-refresh"/></svg>Reload</button></div>
 </div></div>
 
 <div class="state"><div class="state-head"><h3>Cookie jar</h3><p>Workspace · billing &gt; Cookies. Rows by domain, path and name as <span class="m">Engine::cookies</span> returns them; expired cookies are already gone. Values show as stored. Cookie jar table, resizable columns: each fixed-width header cell carries a 6 px handle on its right edge (cursor col-resize, the tint at 30% under the pointer; not drawn here). Dragging changes only that column, never below 50 px, and the flags column keeps filling the rest; domain, path, name, value and expires take a handle. Widths belong to the table, not to a row or a tab, and last for the session.</p></div>
 <div class="frame" style="display:flex;flex-direction:column">
-  <div style="display:flex;align-items:flex-start;gap:12px;padding:20px 28px 12px;border-bottom:1px solid #232128">
-    <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1"><h1 class="ttl">Cookies</h1><span class="ds" style="font-size:13px">Stored for billing on this machine and sent with every matching request. Never written to the workspace.</span></div>
+  <div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;padding:20px 28px 12px;border-bottom:1px solid #232128">
+    <div style="display:flex;flex-direction:column;gap:4px;flex-grow:1;min-width:240px"><h1 class="ttl">Cookies</h1><span class="ds" style="font-size:13px">Stored for billing on this machine and sent with every matching request. Never written to the workspace.</span></div>
     <button id="cookies-add" class="c6 btn pri"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-plus"/></svg>Add cookie</button>
     <button id="cookies-clear" class="c6 btn"><svg class="ico" aria-hidden="true" style="width:13px;height:13px"><use href="#i-trash"/></svg>Clear all…</button>
   </div>

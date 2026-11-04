@@ -80,6 +80,8 @@ pub(crate) struct ViewState {
     pub(crate) tabs_revealed: Revealed,
     pub(crate) views_scroll: ScrollHandle,
     pub(crate) views_revealed: Revealed,
+    pub(crate) format_scroll: ScrollHandle,
+    pub(crate) format_revealed: Revealed,
     /// The syntax runs of the body lines last shown, so a render does not parse them again.
     pub(crate) syntax: super::syntax::SyntaxCache,
 }

@@ -1212,7 +1212,7 @@ request cannot be read, the box shows `approval-unavailable` (why) with the meth
 and `approval-targets` the request carries. Then the reason field `approval-reason`, `approval-deny` (`d`),
 `approval-allow-session` (`s`) and `approval-allow` (`a`), each with its key on a keycap,
 and the footnote `approval-footnote`; with nothing pending,
-`approvals-empty`. With the list focused `j`/`k` and the arrows move, `a` allows once, `s`
+`approvals-empty` (its text wraps inside a narrow detail pane). With the list focused `j`/`k` and the arrows move, `a` allows once, `s`
 allows for this session and `d` denies; the reason field sits outside the list, so typing
 never answers. Escape answers
 nothing. Answering a call selects the next. A denial carries the trimmed reason in the
@@ -1248,7 +1248,9 @@ workspace id, ignoring case), the time range `audit-range` (`audit-range-15m`, `
 `-24h` by default, `-7d`; an entry whose time does not parse is always kept), `bolt`'s
 multi-selects `audit-class` (read, write, execute, destructive) and `audit-outcome` (allowed,
 refused), which keep the entries of any value they hold, all of them when they hold none, and
-say so on their trigger (`Class · all`, `Class · 2`), and, while a filter is set, `audit-clear`. Under it, `audit-timeline` draws 48 bars over the range, the refused calls
+say so on their trigger (`Class · all`, `Class · 2`), and, while a filter is set, `audit-clear`. The toolbar wraps onto more
+lines when the page is too narrow (its height is a minimum), so the time range, Class and Outcome stay inside the page
+at an 800 px window. Under it, `audit-timeline` draws 48 bars over the range, the refused calls
 stacked on the others. The table has a row per kept entry, `audit-row-<n>` from 1 at the top:
 `-time` (local), `-class` (badge), `-tool`, `-target` (the method and masked URL of an
 execute, else the target ids, named from the open workspace when the entry is its own),
@@ -1629,7 +1631,9 @@ pane that scrolls sideways (wheel or trackpad, no scrollbar), `response::chip_st
 selected chip is scrolled into view when the selection or the pane's width changes (the tab row
 by child index, the views row, one `bolt` control, in proportion to the selected segment's
 position), so every tab and view down to Timeline is reachable at 120 px. A viewport is inside
-the pane and a chip's drawn part is inside the viewport. `bolt`'s tab bar and segmented control
+the pane and a chip's drawn part is inside the viewport. The bottom bar's Pretty / Raw / Preview switch is
+the same kind of strip (`response-format-scroll`), so it stays inside the pane at 120 px and every
+segment is reachable. `bolt`'s tab bar and segmented control
 have no overflow behavior yet (`// bolt gap:` on `chip_strip::strip`). Under `RESPONSE_COMPACT_WIDTH` (360 px) Copy, Save as example and Export are
 icons with a tooltip; the pane measures its own width into `ViewState::pane_width`
 (design/response-views/04).
@@ -1663,6 +1667,10 @@ shows its path, line and column, the controls are dimmed and do not write, and `
 read: a page opened at a workspace section used to leave the App controls dimmed, with the font
 size select empty, until the rail's Settings was used.
 
+The section headers of Network and Cookies wrap their buttons under the title in a narrow
+window (the text column keeps `SETTINGS_HEADER_TEXT_MIN`, 240 px), and the two Network columns
+stack below `NETWORK_COLUMN_MIN` (340 px) in a vertically scrolling body (`network-scroll`); at an
+800 px window every control stays inside the page (`toolbar_narrow_tests`).
 App > Network writes the proxy beside the keyring: `network-proxy-mode` (System, None, Manual)
 writes `mode` of `[network.proxy]` and applies it to the open engine; Manual shows the field
 `network-proxy-url`, which writes `url` on Enter and when it loses focus (a password typed in it

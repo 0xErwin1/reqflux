@@ -50,6 +50,7 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
     let title = div()
         .flex_none()
         .flex()
+        .flex_wrap()
         .items_start()
         .gap(Spacing::MD)
         .pt(HeaderMetrics::SECTION_PADDING_TOP)
@@ -61,6 +62,7 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
         .child(
             div()
                 .flex_1()
+                .min_w(crate::tokens::SETTINGS_HEADER_TEXT_MIN)
                 .flex()
                 .flex_col()
                 .gap(HeaderMetrics::SECTION_GAP)
@@ -105,6 +107,7 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
     let body = shell.settings.network.model.as_ref().map(|model| {
         div()
             .flex()
+            .flex_wrap()
             .gap(COLUMN_GAP)
             .child(trust(model, editable, cx))
             .child(proxies(
@@ -125,9 +128,10 @@ pub(crate) fn content(shell: &Shell, window: &Window, cx: &mut Context<Shell>) -
         .children(banner)
         .child(
             div()
+                .id("network-scroll")
                 .flex_1()
                 .min_h_0()
-                .overflow_hidden()
+                .overflow_y_scroll()
                 .pl(HeaderMetrics::SECTION_PADDING_X)
                 .pr(HeaderMetrics::SECTION_PADDING_X)
                 .children(body),
@@ -374,7 +378,7 @@ fn trust(model: &NetworkModel, editable: bool, cx: &mut Context<Shell>) -> Div {
     });
     div()
         .flex_1()
-        .min_w_0()
+        .min_w(crate::tokens::NETWORK_COLUMN_MIN)
         .flex()
         .flex_col()
         .child(section("TRUST", "CA bundle", None, cx))
@@ -756,7 +760,7 @@ fn proxies(
         });
     div()
         .flex_1()
-        .min_w_0()
+        .min_w(crate::tokens::NETWORK_COLUMN_MIN)
         .flex()
         .flex_col()
         .child(section("EVERY WORKSPACE", "Proxy", None, cx))

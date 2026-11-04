@@ -220,3 +220,34 @@ fn the_cookies_table_scrolls_sideways_inside_a_narrow_pane(cx: &mut TestAppConte
         "the cells do not overlap"
     );
 }
+
+#[gpui::test]
+fn at_the_120_px_minimum_the_footer_switch_is_inside_the_pane_and_reachable(
+    cx: &mut TestAppContext,
+) {
+    let cx = sent(cx);
+    narrow_pane(cx, px(120.));
+    let pane = present(cx, "response-area");
+    let viewport = present(cx, "response-format-scroll");
+    assert!(
+        viewport.left() >= pane.left() && viewport.right() <= pane.right(),
+        "the footer switch spans {:?} to {:?} in a pane from {:?} to {:?}",
+        viewport.left(),
+        viewport.right(),
+        pane.left(),
+        pane.right()
+    );
+    for chip in ["response-view-pretty", "response-view-raw"] {
+        scroll_to(cx, "response-format-scroll", chip);
+        let target = shown(cx, "response-format-scroll", chip).center();
+        assert!(
+            present(cx, "response-format-scroll").contains(&target),
+            "{chip} has a part to click"
+        );
+    }
+    click(cx, "response-view-raw");
+    assert!(
+        in_view(cx, "response-format-scroll", "response-view-raw"),
+        "the selected format is in view"
+    );
+}

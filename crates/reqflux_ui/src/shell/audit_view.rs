@@ -17,7 +17,7 @@
 use bolt::composites::{EmptyState, Island};
 use bolt::controls::{Button, Input};
 use bolt::primitives::{BannerBlock, BannerVariant, Icon, SegmentedItem, TextVariant};
-use bolt::tokens::{Borders, DocumentMetrics, Feedback};
+use bolt::tokens::{Borders, DocumentMetrics, Feedback, Spacing};
 use gpui::{
     AnyElement, Context, FontWeight, IntoElement, ParentElement, Pixels, Styled, Window, div,
     prelude::*,
@@ -191,10 +191,12 @@ fn toolbar(
     );
     div()
         .flex_none()
-        .h(DocumentMetrics::TOOLBAR_HEIGHT)
+        .min_h(DocumentMetrics::TOOLBAR_HEIGHT)
         .flex()
+        .flex_wrap()
         .items_center()
         .gap(DocumentMetrics::GAP)
+        .py(Spacing::XXS)
         .pl(DocumentMetrics::PADDING_X)
         .pr(DocumentMetrics::PADDING_X)
         .border_b(Borders::THIN)
@@ -220,8 +222,16 @@ fn toolbar(
                 .mx(DocumentMetrics::TOOLBAR_RULE_MARGIN_X)
                 .bg(colors.line),
         )
-        .child(div().flex_none().child(controls.class.clone()))
-        .child(div().flex_none().child(controls.outcome.clone()))
+        .child(
+            region("audit-class-slot")
+                .flex_none()
+                .child(controls.class.clone()),
+        )
+        .child(
+            region("audit-outcome-slot")
+                .flex_none()
+                .child(controls.outcome.clone()),
+        )
         .child(div().flex_1())
         .when(shell.audit.filters.is_filtered(), |bar| {
             bar.child(

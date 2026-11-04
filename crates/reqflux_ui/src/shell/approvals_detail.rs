@@ -56,6 +56,9 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> AnyElement {
             .justify_center()
             .child(
                 ui::role(text_region("approvals-empty"), TextVariant::Body, cx)
+                    .min_w_0()
+                    .max_w_full()
+                    .text_center()
                     .aria_label(EMPTY)
                     .child(EMPTY),
             )

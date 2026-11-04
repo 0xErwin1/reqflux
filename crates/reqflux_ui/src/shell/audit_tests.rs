@@ -372,3 +372,17 @@ fn the_audit_target_keeps_its_minimum_in_a_narrow_page(cx: &mut TestAppContext) 
         crate::tokens::AUDIT_TARGET_MIN_COLUMN,
     );
 }
+
+#[gpui::test]
+fn the_audit_toolbar_wraps_inside_a_narrow_window(cx: &mut TestAppContext) {
+    let f = fixture(cx, Some(&lines()));
+    crate::shell::toolbar_narrow_tests::narrow_window(f.cx);
+    click(f.cx, "rail-audit");
+    let ranges: Vec<String> = crate::shell::audit_model::RANGES
+        .iter()
+        .map(|range| format!("audit-range-{}", range.label()))
+        .collect();
+    let mut ids: Vec<&str> = ranges.iter().map(String::as_str).collect();
+    ids.extend(["audit-search", "audit-class-slot", "audit-outcome-slot"]);
+    crate::shell::toolbar_narrow_tests::assert_inside(f.cx, "audit-view", &ids);
+}

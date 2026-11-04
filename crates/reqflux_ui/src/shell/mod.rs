@@ -797,6 +797,8 @@ mod tests;
 #[cfg(test)]
 mod theme_tests;
 #[cfg(test)]
+mod toolbar_narrow_tests;
+#[cfg(test)]
 mod tree_edit_tests;
 #[cfg(test)]
 mod tree_reorder_tests;

@@ -62,6 +62,7 @@ pub(crate) fn content(
     let title = div()
         .flex_none()
         .flex()
+        .flex_wrap()
         .items_start()
         .gap(Spacing::MD)
         .pt(HeaderMetrics::SECTION_PADDING_TOP)
@@ -73,6 +74,7 @@ pub(crate) fn content(
         .child(
             div()
                 .flex_1()
+                .min_w(crate::tokens::SETTINGS_HEADER_TEXT_MIN)
                 .flex()
                 .flex_col()
                 .gap(HeaderMetrics::SECTION_GAP)
