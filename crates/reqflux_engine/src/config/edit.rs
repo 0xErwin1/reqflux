@@ -144,6 +144,54 @@ pub fn set_proxy_url_with_secret(
     write_proxy_url(path, &parts.without_password, parts.username.as_deref())
 }
 
+/// Sets the proxy password to `password` in the keyring entry [`NetworkSecret::ProxyPassword`]
+/// and, when the file has no `username` for the proxy, takes it from the user of its `url`
+/// (the engine sends the keyring password only with a user name). An empty `password`
+/// removes the entry and leaves the file alone. The file is checked before the keyring is
+/// written, so a file that does not parse changes nothing; no error carries the password.
+pub fn set_proxy_password(
+    path: &Path,
+    password: &str,
+    secrets: &dyn SecretStore,
+) -> Result<(), ConfigError> {
+    let account = NetworkSecret::ProxyPassword { workspace: None }.account();
+    let text = read_text(path)?.unwrap_or_default();
+    parse_document(path, &text)?;
+    if password.is_empty() {
+        return secrets
+            .delete_account(&account)
+            .map_err(ConfigError::Keyring);
+    }
+    secrets
+        .set_account(&account, password)
+        .map_err(ConfigError::Keyring)?;
+    edit(path, |document| {
+        let proxy = document
+            .get("network")
+            .and_then(Item::as_table_like)
+            .and_then(|network| network.get("proxy"))
+            .and_then(Item::as_table_like);
+        let text_of = |key: &str| {
+            proxy
+                .and_then(|proxy| proxy.get(key))
+                .and_then(Item::as_str)
+                .map(str::trim)
+        };
+        if text_of("username").is_some_and(|name| !name.is_empty()) {
+            return Ok(());
+        }
+        let Some(username) = text_of("url")
+            .and_then(|url| split_url(url).username)
+            .filter(|name| !name.is_empty())
+        else {
+            return Ok(());
+        };
+        let proxy = proxy_table(path, document)?;
+        set_value(proxy, "username", Value::from(username));
+        Ok(())
+    })
+}
+
 /// `url` as typed with the `:password` of its userinfo removed, the text a front end keeps in
 /// a field after the password went to the keyring or was refused. A URL without a password
 /// comes back as it is.
