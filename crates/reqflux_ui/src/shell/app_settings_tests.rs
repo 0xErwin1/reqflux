@@ -10,12 +10,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, TestAppContext, VisualTestContext, px};
 use reqflux_engine::config::{self, Rule, UserConfig};
 use tempfile::TempDir;
 
 use crate::shell::Shell;
 use crate::shell::draft_tests::{bounds, click, present, render, state_file};
+use crate::shell::grid_resize_tests::{drag_edge, width};
 use crate::shell::send_tests::closed_port;
 use crate::shell::toasts::tests as toasts;
 use crate::shell::variables_tests::{DEV, variables_workspace};
@@ -403,5 +404,35 @@ fn a_file_the_os_cannot_open_shows_an_error_toast(cx: &mut TestAppContext) {
     assert_eq!(
         toasts::tree_label(cx, "toast-toggle-1").as_deref(),
         Some("Show details")
+    );
+}
+
+#[gpui::test]
+fn dragging_an_overrides_header_edge_resizes_only_that_column(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_config_dir, config_path) = config_home();
+    write(
+        &config_path,
+        &format!("[mcp.workspaces.\"{WORKSPACE_ID}\"]\nwrite = \"deny\"\n"),
+    );
+    let (shell, cx, _opened) = render_app(cx, &dir, &state_path, &config_path);
+    open_app(cx, &shell);
+    click(cx, "nav-mcp-policy");
+    let workspace = width(cx, "overrides-header-workspace");
+    let rule = width(cx, "overrides-header-read");
+    let read_left = present(cx, "overrides-header-read").origin.x;
+
+    drag_edge(cx, "overrides-header-workspace", px(40.));
+    assert_eq!(width(cx, "overrides-header-workspace"), workspace + px(40.));
+    assert_eq!(width(cx, "overrides-header-read"), rule);
+    assert_eq!(
+        present(cx, "overrides-header-read").origin.x,
+        read_left + px(40.)
+    );
+    assert_eq!(
+        read(&config_path),
+        format!("[mcp.workspaces.\"{WORKSPACE_ID}\"]\nwrite = \"deny\"\n"),
+        "a resize never writes the config"
     );
 }

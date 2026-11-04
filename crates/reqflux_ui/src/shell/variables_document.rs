@@ -34,6 +34,7 @@ use super::request::ui;
 use super::rows::{labeled_row, part};
 use super::variables_model::{Column, current_keys, empty_count, is_empty, undeclared};
 use super::variables_ops::copy;
+use super::variables_widths::{self, Resizable};
 use super::{Shell, region};
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
@@ -94,23 +95,29 @@ pub(super) fn render(
         .flex_col()
         .child(heading)
         .child(
-            region("variables-table")
-                .role(Role::Table)
-                .flex_none()
-                .flex()
-                .flex_col()
-                .child(header(shell, scope, &colors, cx))
-                .children(rows)
-                .child(add),
+            variables_widths::resizable(
+                region("variables-table")
+                    .role(Role::Table)
+                    .flex_none()
+                    .flex()
+                    .flex_col(),
+                cx,
+            )
+            .child(header(shell, scope, &colors, cx))
+            .children(rows)
+            .child(add),
         );
     if !extra_rows.is_empty() {
         column = column.child(undeclared_heading(cx)).child(
-            region("variables-undeclared")
-                .role(Role::Table)
-                .flex_none()
-                .flex()
-                .flex_col()
-                .children(extra_rows),
+            variables_widths::resizable(
+                region("variables-undeclared")
+                    .role(Role::Table)
+                    .flex_none()
+                    .flex()
+                    .flex_col(),
+                cx,
+            )
+            .children(extra_rows),
         );
     }
     column
@@ -215,20 +222,26 @@ fn header(shell: &Shell, scope: SecretScope, colors: &Colors, cx: &mut Context<S
         .child(copy::select_all_box(shell, scope, cx))
         .child(column(tokens::VARIABLES_NUMBER_COLUMN))
         .child(narrow(tokens::VARIABLES_ON_COLUMN).child("on"))
-        .child(column(tokens::VARIABLES_KEY_COLUMN).child("key"))
+        .child(Resizable::Key.header_cell("key", cx).child("key"))
         .child(
-            column(tokens::VARIABLES_VALUE_COLUMN)
+            Resizable::Value
+                .header_cell("value", cx)
                 .flex()
                 .child("initial value")
                 .child(hint("in file")),
         )
         .child(
-            column(tokens::VARIABLES_CURRENT_COLUMN)
+            Resizable::Current
+                .header_cell("current", cx)
                 .flex()
                 .child("current")
                 .child(hint("this machine")),
         )
-        .child(column(tokens::VARIABLES_STORED_COLUMN).child("stored in"))
+        .child(
+            Resizable::Stored
+                .header_cell("stored", cx)
+                .child("stored in"),
+        )
         .child(fill().child("description"))
 }
 
@@ -258,7 +271,7 @@ fn declared_row(
         scope,
         Column::Key,
         n,
-        tokens::VARIABLES_KEY_COLUMN,
+        Resizable::Key.width(cx),
         &variable.key,
         cx,
     ))
@@ -271,7 +284,7 @@ fn declared_row(
     let value = if variable.secret {
         dim(static_cell(
             Column::Value.element_id(n),
-            tokens::VARIABLES_VALUE_COLUMN,
+            Resizable::Value.width(cx),
             NOT_IN_FILE,
         ))
         .font_family(ui_family.clone())
@@ -291,7 +304,7 @@ fn declared_row(
             scope,
             Column::Value,
             n,
-            tokens::VARIABLES_VALUE_COLUMN,
+            Resizable::Value.width(cx),
             &initial,
             cx,
         ));
@@ -309,7 +322,7 @@ fn declared_row(
             scope,
             Column::Current,
             n,
-            tokens::VARIABLES_CURRENT_COLUMN,
+            Resizable::Current.width(cx),
             MASK,
             cx,
         ))
@@ -328,7 +341,7 @@ fn declared_row(
             scope,
             Column::Current,
             n,
-            tokens::VARIABLES_CURRENT_COLUMN,
+            Resizable::Current.width(cx),
             &shown,
             cx,
         ));
@@ -453,7 +466,7 @@ fn undeclared_row(
         scope,
         Column::Undeclared,
         n,
-        tokens::VARIABLES_CURRENT_COLUMN,
+        Resizable::Current.width(cx),
         value,
         cx,
     )
@@ -493,7 +506,7 @@ fn undeclared_row(
     .child(
         static_cell(
             format!("variables-undeclared-key-{n}"),
-            tokens::VARIABLES_KEY_COLUMN,
+            Resizable::Key.width(cx),
             key,
         )
         .text_color(colors.strong)
@@ -502,7 +515,7 @@ fn undeclared_row(
     .child(
         static_cell(
             format!("variables-undeclared-hint-{n}"),
-            tokens::VARIABLES_VALUE_COLUMN,
+            Resizable::Value.width(cx),
             "not declared",
         )
         .font_family(bolt::fonts::ui_family(cx))
@@ -758,7 +771,7 @@ fn stored_select(
     labeled_row(format!("variables-stored-{n}"), label.to_owned())
         .relative()
         .flex_none()
-        .w(tokens::VARIABLES_STORED_COLUMN)
+        .w(Resizable::Stored.width(cx))
         .h_full()
         .flex()
         .items_center()
@@ -881,9 +894,9 @@ fn add_row(scope: SecretScope, cx: &mut Context<Shell>) -> Stateful<Div> {
                 ),
         )
         .child(div().flex_none().w(tokens::VARIABLES_ON_COLUMN))
-        .child(column(tokens::VARIABLES_KEY_COLUMN).child("Variable"))
-        .child(column(tokens::VARIABLES_VALUE_COLUMN).child("Initial value"))
-        .child(column(tokens::VARIABLES_CURRENT_COLUMN).child("Current value"))
+        .child(column(Resizable::Key.width(cx)).child("Variable"))
+        .child(column(Resizable::Value.width(cx)).child("Initial value"))
+        .child(column(Resizable::Current.width(cx)).child("Current value"))
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.add_variable(scope, window, cx);
         }))

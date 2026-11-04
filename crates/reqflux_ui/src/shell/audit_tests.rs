@@ -3,13 +3,14 @@
 
 use std::path::{Path, PathBuf};
 
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, TestAppContext, VisualTestContext, px};
 use tempfile::TempDir;
 
 use super::Shell;
 use super::approvals_tests::label;
 use super::commands::{CommandId, command};
 use super::draft_tests::{bounds, click, present, render, state_file};
+use super::grid_resize_tests::{drag_edge, width};
 use crate::workspace_tests::demo_workspace;
 
 const WORKSPACE: &str = "01J00000000000000000000900";
@@ -333,4 +334,28 @@ fn the_other_rail_views_still_open_from_the_audit_view(cx: &mut TestAppContext) 
     click(f.cx, "rail-collections");
     assert!(bounds(f.cx, "audit-view").is_none());
     present(f.cx, "document");
+}
+
+#[gpui::test]
+fn dragging_an_audit_header_edge_resizes_only_that_column(cx: &mut TestAppContext) {
+    let f = fixture(cx, Some(&lines()));
+    click(f.cx, "rail-audit");
+    let tool = width(f.cx, "audit-header-tool");
+    let class = width(f.cx, "audit-header-class");
+    let target_left = present(f.cx, "audit-row-1-target").origin.x;
+    let workspace_left = present(f.cx, "audit-row-1-workspace").origin.x;
+
+    drag_edge(f.cx, "audit-header-tool", px(40.));
+    assert_eq!(width(f.cx, "audit-header-tool"), tool + px(40.));
+    assert_eq!(width(f.cx, "audit-header-class"), class);
+    assert_eq!(
+        present(f.cx, "audit-row-1-target").origin.x,
+        target_left + px(40.),
+        "the rows follow the header"
+    );
+    assert_eq!(
+        present(f.cx, "audit-row-1-workspace").origin.x,
+        workspace_left,
+        "the target column keeps filling the rest"
+    );
 }

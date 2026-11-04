@@ -1,12 +1,10 @@
 //! The resizable column widths of the request grids. A width belongs to the kind of grid, not
 //! to a request, so every request's Params grid shares one key width, every Headers grid
-//! another, and so on. They live in memory for the session; `bolt` holds no widths, only the
-//! drag and the clamp.
+//! another, and so on. They are kept by `table_widths`, the store every table uses.
 
-use bolt::components::grid::{ColumnResize, apply_column_resize};
-use gpui::{Context, Pixels};
+use gpui::{App, Pixels};
 
-use super::Shell;
+use super::table_widths;
 use crate::tokens;
 
 /// The kind of request grid whose widths are shared.
@@ -29,28 +27,40 @@ impl GridKind {
             _ => Self::Params,
         }
     }
-}
 
-/// The index of the key column in a [`GridWidths`] resize.
-pub(crate) const KEY: usize = 0;
-/// The index of the description column in a [`GridWidths`] resize.
-pub(crate) const DESCRIPTION: usize = 1;
-
-/// The widths of the resizable columns of a grid, key then description; the value column
-/// fills the rest.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct GridWidths([f32; 2]);
-
-impl Default for GridWidths {
-    fn default() -> Self {
-        Self([
-            tokens::GRID_CELL_KEY_COLUMN.into(),
-            tokens::GRID_DESCRIPTION_COLUMN.into(),
-        ])
+    /// The id the grid's widths go by in the shared table store.
+    pub(crate) fn table(self) -> &'static str {
+        match self {
+            Self::Params => "request-params",
+            Self::Headers => "request-headers",
+            Self::Urlencoded => "request-urlencoded",
+            Self::FormData => "request-form-data",
+        }
     }
 }
 
+/// The index of the key column of a request grid in the table store.
+pub(crate) const KEY: usize = 0;
+/// The index of the description column of a request grid in the table store.
+pub(crate) const DESCRIPTION: usize = 1;
+
+/// The widths of the resizable columns of a request grid, key then description, as the table
+/// store holds them; the value column fills the rest.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct GridWidths([f32; 2]);
+
 impl GridWidths {
+    /// The widths of the grids of `kind` as they are now.
+    pub(crate) fn of(kind: GridKind, cx: &App) -> Self {
+        let column = |column, default: Pixels| {
+            f32::from(table_widths::width(kind.table(), column, default, cx))
+        };
+        Self([
+            column(KEY, tokens::GRID_CELL_KEY_COLUMN),
+            column(DESCRIPTION, tokens::GRID_DESCRIPTION_COLUMN),
+        ])
+    }
+
     /// The width of column `column` ([`KEY`] or [`DESCRIPTION`]) as a number.
     pub(crate) fn get(self, column: usize) -> f32 {
         self.0.get(column).copied().unwrap_or_default()
@@ -62,31 +72,6 @@ impl GridWidths {
 
     pub(crate) fn description(self) -> Pixels {
         Pixels::from(self.get(DESCRIPTION))
-    }
-
-    /// Takes the requested width, clamped, and leaves the other column as it was.
-    fn apply(&mut self, resize: ColumnResize) -> bool {
-        apply_column_resize(&mut self.0, resize)
-    }
-}
-
-impl Shell {
-    /// The widths of the grids of `kind`.
-    pub(super) fn grid_widths(&self, kind: GridKind) -> GridWidths {
-        self.grid_widths.get(&kind).copied().unwrap_or_default()
-    }
-
-    /// Stores the width a drag asked for in the grids of `kind` and redraws.
-    pub(super) fn resize_grid_column(
-        &mut self,
-        kind: GridKind,
-        resize: ColumnResize,
-        cx: &mut Context<Self>,
-    ) {
-        let widths = self.grid_widths.entry(kind).or_default();
-        if widths.apply(resize) {
-            cx.notify();
-        }
     }
 }
 
@@ -103,14 +88,16 @@ mod tests {
     }
 
     #[test]
-    fn a_resize_changes_one_column_and_clamps() {
-        let mut widths = GridWidths::default();
-        let description = widths.get(DESCRIPTION);
-        assert!(widths.apply(ColumnResize {
-            column: KEY,
-            width: 1.0,
-        }));
-        assert_eq!(widths.get(KEY), bolt::components::grid::MIN_COLUMN_WIDTH);
-        assert_eq!(widths.get(DESCRIPTION), description);
+    fn each_kind_has_its_own_table_id() {
+        let ids = [
+            GridKind::Params,
+            GridKind::Headers,
+            GridKind::Urlencoded,
+            GridKind::FormData,
+        ]
+        .map(GridKind::table);
+        for (index, id) in ids.iter().enumerate() {
+            assert!(!ids.iter().skip(index + 1).any(|other| other == id));
+        }
     }
 }

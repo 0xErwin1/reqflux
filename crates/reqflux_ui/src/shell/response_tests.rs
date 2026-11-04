@@ -735,3 +735,52 @@ fn body_search_still_counts_the_body_beside_the_jsonpath_field(cx: &mut TestAppC
     press(cx, "enter");
     assert_eq!(label(cx, "response-search-count"), "2 / 2");
 }
+
+#[gpui::test]
+fn dragging_a_response_cookies_header_edge_resizes_only_that_column(cx: &mut TestAppContext) {
+    let port = serve_reply(
+        &[
+            ("content-type", "text/plain"),
+            ("set-cookie", "region=eu; Domain=.acme.com; Path=/"),
+        ],
+        b"ok".to_vec(),
+    );
+    let dir = demo_workspace();
+    write(
+        dir.path(),
+        "collections/api/collection.toml",
+        "id = \"01J00000000000000000000035\"\nname = \"API\"\n",
+    );
+    write(
+        dir.path(),
+        "collections/api/keyed.req.toml",
+        &format!(
+            "id = \"{KEYED}\"\nname = \"Keyed\"\nmethod = \"GET\"\n\
+             url = \"http://127.0.0.1:{port}/\"\n"
+        ),
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = super::draft_tests::render(cx, &dir, &state_path);
+    click_selector(cx, &format!("tree-row-{KEYED}"));
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, KEYED).as_deref(), Some("200 OK"));
+    click(cx, "response-tab-cookies");
+    let name = present(cx, "response-cookies-header-name").size.width;
+    let value = present(cx, "response-cookies-header-value").size.width;
+    let value_left = present(cx, "response-cookie-1-value").origin.x;
+
+    super::grid_resize_tests::drag_edge(cx, "response-cookies-header-name", gpui::px(40.));
+    assert_eq!(
+        present(cx, "response-cookies-header-name").size.width,
+        name + gpui::px(40.)
+    );
+    assert_eq!(
+        present(cx, "response-cookies-header-value").size.width,
+        value
+    );
+    assert_eq!(
+        present(cx, "response-cookie-1-value").origin.x,
+        value_left + gpui::px(40.),
+        "the rows follow the header"
+    );
+}

@@ -179,4 +179,4 @@ impl Shell {
 
 #[cfg(test)]
 #[path = "runner_tests.rs"]
-mod tests;
+pub(in crate::shell) mod tests;

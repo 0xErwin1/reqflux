@@ -11,7 +11,7 @@ use bolt::composites::ListRow;
 use bolt::primitives::{Icon, TextVariant, status_diamond};
 use bolt::tokens::{Borders, DocumentMetrics, Feedback};
 use gpui::{
-    AnyElement, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Styled,
+    AnyElement, App, Context, FontWeight, Hsla, IntoElement, ParentElement, Pixels, Role, Styled,
     Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
@@ -22,6 +22,7 @@ use super::approvals_view::class_badge;
 use super::audit_view::NO_MATCH;
 use super::request::ui;
 use super::rows::part;
+use super::table_widths;
 use super::tree_model::Node;
 use super::{Shell, region, text_region};
 use crate::workspace::OpenedWorkspace;
@@ -31,6 +32,9 @@ use crate::tokens::{
     AUDIT_OUTCOME_COLUMN as OUTCOME_WIDTH, AUDIT_TIME_COLUMN as TIME_WIDTH,
     AUDIT_TOOL_COLUMN as TOOL_WIDTH, AUDIT_WORKSPACE_COLUMN as WORKSPACE_WIDTH,
 };
+
+/// The id of the table in the table store; a column is resized by its index in `COLUMNS`.
+const TABLE: &str = "audit";
 
 /// The columns after the chevron, as the header names them.
 const COLUMNS: [(&str, Option<Pixels>); 6] = [
@@ -77,11 +81,7 @@ pub(super) fn render(
             rows = rows.child(detail(n, entry, cx));
         }
     }
-    div()
-        .flex_1()
-        .min_h_0()
-        .flex()
-        .flex_col()
+    table_widths::resizable(div().flex_1().min_h_0().flex().flex_col(), TABLE, cx)
         .child(header(cx))
         .child(rows)
         .into_any_element()
@@ -98,8 +98,13 @@ fn header(cx: &mut Context<Shell>) -> impl IntoElement {
         .border_b(Borders::THIN)
         .border_color(colors.line)
         .child(div().flex_none().w(CHEVRON_WIDTH));
-    for (name, width) in COLUMNS {
-        header = header.child(cell(div(), width).child(name));
+    for (column, (name, width)) in COLUMNS.into_iter().enumerate() {
+        let id = format!("audit-header-{}", name.to_lowercase());
+        let head = cell(part(id), column, cx).child(name);
+        header = header.child(match width {
+            Some(default) => table_widths::with_handle(head, TABLE, column, default, cx),
+            None => head,
+        });
     }
     header
 }
@@ -170,22 +175,22 @@ fn row(
                 .font_family(mono.clone())
                 .text_size(DocumentMetrics::TABLE_META_FONT)
                 .text_color(colors.muted),
-            Some(TIME_WIDTH),
+            0,
+            cx,
         ))
-        .child(
-            cell(div(), Some(CLASS_WIDTH)).child(class_badge(format!("{id}-class"), &entry.class)),
-        )
+        .child(cell(div(), 1, cx).child(class_badge(format!("{id}-class"), &entry.class)))
         .child(cell(
             text("tool", &tool)
                 .font_family(mono.clone())
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(colors.strong),
-            Some(TOOL_WIDTH),
+            2,
+            cx,
         ))
-        .child(cell(text("target", &target).font_family(mono), None))
-        .child(cell(text("workspace", &workspace), Some(WORKSPACE_WIDTH)))
+        .child(cell(text("target", &target).font_family(mono), 3, cx))
+        .child(cell(text("workspace", &workspace), 4, cx))
         .child(
-            cell(div(), Some(OUTCOME_WIDTH))
+            cell(div(), 5, cx)
                 .flex()
                 .items_center()
                 .gap(Feedback::STATUS_GAP)
@@ -292,10 +297,14 @@ fn cells() -> gpui::Div {
         .pr(DocumentMetrics::PADDING_X)
 }
 
-/// `element` as a cell `width` wide, or taking the rest of the row.
-fn cell<E: Styled>(element: E, width: Option<Pixels>) -> E {
-    match width {
-        Some(width) => element.flex_none().w(width).min_w_0(),
+/// `element` as the cell of column `column` of `COLUMNS`: as wide as the user left it, or
+/// taking the rest of the row when the column has no width.
+fn cell<E: Styled>(element: E, column: usize, cx: &App) -> E {
+    match COLUMNS.get(column).and_then(|(_, width)| *width) {
+        Some(default) => element
+            .flex_none()
+            .w(table_widths::width(TABLE, column, default, cx))
+            .min_w_0(),
         None => element.flex_1().min_w_0(),
     }
 }

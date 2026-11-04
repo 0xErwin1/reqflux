@@ -26,6 +26,7 @@ use reqflux_core::model::Workspace;
 use super::{CookieValue, JarRow, count_text};
 use crate::shell::request::{secret, ui};
 use crate::shell::rows::{labeled_row, part};
+use crate::shell::table_widths;
 use crate::shell::{Shell, region, text_region, toasts};
 use crate::tokens;
 
@@ -147,7 +148,7 @@ pub(crate) fn content(
                             .child(count),
                     ),
             )
-            .child(
+            .child(table_widths::resizable(
                 region("cookies-table")
                     .role(Role::Table)
                     .aria_label("Cookies")
@@ -159,7 +160,9 @@ pub(crate) fn content(
                     .child(header(cx))
                     .children(table_rows)
                     .children(no_match),
-            )
+                TABLE,
+                cx,
+            ))
             .into_any_element()
     };
     div()
@@ -222,9 +225,20 @@ fn empty(name: &str) -> AnyElement {
         .into_any_element()
 }
 
-/// The cell of a column `width` wide, or filling the rest when `None`.
-fn cell(width: Option<Pixels>) -> Div {
-    let cell = div()
+/// The id of the jar's table in the table store; a column is resized by its index in
+/// `COLUMNS`.
+const TABLE: &str = "cookies";
+
+/// The cell of column `column` of `COLUMNS`: as wide as the user left it, or filling the rest
+/// when the column has no width.
+fn cell(column: usize, cx: &App) -> Div {
+    shape(div(), column, cx)
+}
+
+/// `element` shaped as a cell of column `column`.
+fn shape<E: Styled>(element: E, column: usize, cx: &App) -> E {
+    let default = COLUMNS.get(column).and_then(|(_, width)| *width);
+    let cell = element
         .h_full()
         .flex()
         .items_center()
@@ -234,8 +248,10 @@ fn cell(width: Option<Pixels>) -> Div {
         .whitespace_nowrap()
         .pl(GridMetrics::CELL_PADDING_X)
         .pr(GridMetrics::CELL_PADDING_X);
-    match width {
-        Some(width) => cell.w(width).flex_none(),
+    match default {
+        Some(default) => cell
+            .w(table_widths::width(TABLE, column, default, cx))
+            .flex_none(),
         None => cell.flex_1(),
     }
 }
@@ -251,11 +267,13 @@ fn header(cx: &App) -> AnyElement {
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
         .child(div().w(GridMetrics::ROW_NUMBER_WIDTH).flex_none())
-        .children(
-            COLUMNS
-                .iter()
-                .map(|(name, width)| cell(*width).child(*name)),
-        )
+        .children(COLUMNS.iter().enumerate().map(|(column, (name, width))| {
+            let head = shape(part(format!("cookies-header-{name}")), column, cx).child(*name);
+            match width {
+                Some(default) => table_widths::with_handle(head, TABLE, column, *default, cx),
+                None => head,
+            }
+        }))
         .child(div().w(actions_width()).flex_none())
         .into_any_element()
 }
@@ -338,7 +356,7 @@ fn jar_row(row: JarRow, cx: &mut Context<Shell>) -> AnyElement {
         value_cell,
         expires_cell,
         flags_cell,
-    ] = COLUMNS.map(|(_, width)| cell(width));
+    ] = std::array::from_fn(|column| cell(column, cx));
     labeled_row(id.clone(), label)
         .role(Role::Row)
         .flex()

@@ -10,14 +10,19 @@ use bolt::data::{
     CellAlignment, CellTone, CellView, ColumnKind, ColumnView, RowVisualState, StaticRows,
 };
 use bolt::tokens::GridMetrics;
-use gpui::{App, Context, Div, ParentElement, Stateful, Styled, prelude::*, uniform_list};
+use gpui::{App, Context, Div, ParentElement, Pixels, Stateful, Styled, prelude::*, uniform_list};
 use gpui_kit_assets::IconName;
 
 use super::RunTab;
 use super::model::{GridRow, RowStatus, Tone, cells};
 use crate::shell::request::ui;
+use crate::shell::table_widths;
 use crate::shell::{Shell, region};
 use crate::tokens::RUNNER_COLUMNS;
+
+/// The id of the grid in the table store; a column is resized by its index in
+/// `RUNNER_COLUMNS`, and every column has a width, since `bolt`'s grid has none that fills.
+const TABLE: &str = "runner-grid";
 
 /// The grid: its header row over the rows.
 pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
@@ -35,15 +40,16 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         .and_then(|selected| steps.iter().position(|step| *step == Some(selected)))
         .map(|row| GridCellCoord::new(row, 1));
     let source = Arc::new(source(&rows, run));
-    let widths: Vec<f32> = RUNNER_COLUMNS
+    let defaults = RUNNER_COLUMNS.map(|(_, width)| width);
+    let current: Vec<Pixels> = defaults
         .iter()
-        .map(|(_, width)| f32::from(*width))
+        .enumerate()
+        .map(|(column, default)| table_widths::width(TABLE, column, *default, cx))
         .collect();
-    let total_width = RUNNER_COLUMNS
+    let widths: Vec<f32> = current.iter().copied().map(f32::from).collect();
+    let total_width = current
         .iter()
-        .fold(GridMetrics::ROW_NUMBER_WIDTH, |total, (_, width)| {
-            total + *width
-        });
+        .fold(GridMetrics::ROW_NUMBER_WIDTH, |total, width| total + *width);
     let total = f32::from(total_width);
     let count = rows.len();
     let shell = cx.entity().downgrade();
@@ -110,7 +116,7 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     )
     .flex_1()
     .min_h_0();
-    region("runner-grid")
+    table_widths::resizable(region("runner-grid"), TABLE, cx)
         .role(gpui::Role::Grid)
         .aria_label("Run results")
         .flex_1()
@@ -118,7 +124,17 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         .flex()
         .flex_col()
         .font_family(bolt::fonts::editor_family(cx))
-        .child(region("runner-grid-header").flex_none().child(header))
+        .child(
+            region("runner-grid-header")
+                .flex_none()
+                .child(table_widths::over_header(
+                    header,
+                    TABLE,
+                    &defaults,
+                    GridMetrics::ROW_NUMBER_WIDTH,
+                    cx,
+                )),
+        )
         .child(list)
 }
 

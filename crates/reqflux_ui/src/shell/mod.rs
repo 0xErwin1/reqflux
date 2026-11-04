@@ -57,6 +57,7 @@ mod sidebar_history;
 mod split;
 mod status_bar;
 mod syntax;
+mod table_widths;
 mod tabs;
 mod theme;
 mod title_bar;
@@ -69,6 +70,7 @@ mod variable_popover;
 mod variables_document;
 mod variables_model;
 mod variables_ops;
+mod variables_widths;
 mod workspace_menu;
 mod workspace_new;
 mod workspace_picker;
@@ -187,10 +189,6 @@ pub(crate) struct Shell {
     /// The cell field of the Params or Headers grid, the Settings timeout field or an Auth
     /// field, under edit, while it has focus.
     cell_edit: Option<CellEdit>,
-    /// The widths of the resizable request grid columns, per grid kind, for the session.
-    grid_widths: HashMap<grid_widths::GridKind, grid_widths::GridWidths>,
-    /// The column drag in progress in a request grid, shared by its header handles and root.
-    grid_resize: bolt::components::grid::ColumnResizeDrag,
     /// The input of the open cell field the shell listens to for its blur, with the
     /// subscription (see `cell_edit::watch_cell_blur`).
     cell_blur: Option<(Entity<gpui_component::input::InputState>, Subscription)>,
@@ -286,6 +284,7 @@ impl Shell {
         state: Option<AppState>,
         cx: &mut Context<Self>,
     ) -> Self {
+        table_widths::install(cx);
         let sidebar = cx.new(|cx| Sidebar::new(&workspace, cx));
         let roots = match &workspace {
             OpenedWorkspace::Loaded(engine) => tree_model::engine_nodes(engine),
@@ -327,8 +326,6 @@ impl Shell {
             export: export::Export::new(cx),
             curl_undo: None,
             cell_edit: None,
-            grid_widths: HashMap::new(),
-            grid_resize: bolt::components::grid::ColumnResizeDrag::new(),
             cell_blur: None,
             split: split::Split::new(cx.focus_handle()),
             body_edit: None,
@@ -787,6 +784,8 @@ mod settings_page_tests;
 mod sidebar_tests;
 #[cfg(test)]
 mod split_tests;
+#[cfg(test)]
+mod table_resize_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

@@ -17,7 +17,7 @@ use crate::shell::draft_tests::{bounds, click, present, render, state_file};
 use crate::shell::send_tests::{Server, closed_port, serve};
 use crate::workspace_tests::{demo_workspace, write};
 
-const COLLECTION: &str = "01J00000000000000000000701";
+pub(in crate::shell) const COLLECTION: &str = "01J00000000000000000000701";
 const FOLDER: &str = "01J00000000000000000000702";
 const FIRST: &str = "01J00000000000000000000703";
 const SECOND: &str = "01J00000000000000000000704";
@@ -33,7 +33,7 @@ const FAILING_TEST: &str =
 
 /// A workspace whose collection `API` holds `GET First` on `first` and, in the folder
 /// `later`, `POST Second` on `second`; `test` is the test script of First.
-fn workspace(first: u16, second: u16, test: &str) -> TempDir {
+pub(in crate::shell) fn workspace(first: u16, second: u16, test: &str) -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -66,7 +66,7 @@ fn workspace(first: u16, second: u16, test: &str) -> TempDir {
     dir
 }
 
-fn open_run(cx: &mut VisualTestContext, shell: &Entity<Shell>, target: &str) {
+pub(in crate::shell) fn open_run(cx: &mut VisualTestContext, shell: &Entity<Shell>, target: &str) {
     cx.update(|_, cx| shell.update(cx, |shell, cx| shell.open_run(target, cx)));
     cx.run_until_parked();
 }
@@ -79,7 +79,7 @@ fn phase(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<Phase> {
 /// `Finished` is terminal: the start click is handled on a later tick, so a helper that
 /// stopped at "not running" would return while the run is still on its setup form and the
 /// assertions after it would race the machine's load.
-fn settle_run(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
+pub(in crate::shell) fn settle_run(cx: &mut VisualTestContext, shell: &Entity<Shell>) {
     let deadline = Instant::now() + Duration::from_secs(10);
     loop {
         cx.executor().advance_clock(Duration::from_millis(50));

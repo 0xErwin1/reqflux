@@ -8,12 +8,12 @@ use super::draft_tests::{bounds, click, present, render, state_file};
 use super::grid_edit_tests::{grid_workspace, open_grid};
 
 /// The width of the element `selector` names.
-fn width(cx: &mut VisualTestContext, selector: &str) -> Pixels {
+pub(super) fn width(cx: &mut VisualTestContext, selector: &str) -> Pixels {
     present(cx, selector).size.width
 }
 
 /// Presses the right edge of the header cell `selector`, moves by `dx` and releases.
-fn drag_edge(cx: &mut VisualTestContext, selector: &str, dx: Pixels) {
+pub(super) fn drag_edge(cx: &mut VisualTestContext, selector: &str, dx: Pixels) {
     let cell = present(cx, selector);
     let start = point(cell.right() - px(2.), cell.center().y);
     let end = point(start.x + dx, start.y);

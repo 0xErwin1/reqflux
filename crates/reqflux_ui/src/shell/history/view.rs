@@ -21,6 +21,7 @@ use reqflux_engine::SentBody;
 use super::{HistoryTab, RESEND_NOTE, RecordedTab};
 use crate::shell::request::ui;
 use crate::shell::rows::{labeled_row, part};
+use crate::shell::table_widths;
 use crate::shell::{Shell, region, response, text_region};
 use crate::tokens::{self, method_hue};
 
@@ -379,6 +380,11 @@ fn pane(tab: &HistoryTab, cx: &App) -> AnyElement {
     }
 }
 
+/// The id of the recorded params and headers grid in the table store, and the index of its
+/// key column, the one that resizes; the value fills the rest.
+const TABLE: &str = "history-grid";
+const KEY: usize = 0;
+
 /// The grid of `rows`: `bolt`'s grid header and rows with the request grid's key column.
 fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
@@ -390,6 +396,7 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
             .into_any_element();
     }
     let mono = bolt::fonts::editor_family(cx);
+    let key_width = table_widths::width(TABLE, KEY, tokens::GRID_CELL_KEY_COLUMN, cx);
     let header = div()
         .flex()
         .items_center()
@@ -400,10 +407,10 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
         .child(div().flex_none().w(GridMetrics::ROW_NUMBER_WIDTH))
-        .child(
-            div()
+        .child(table_widths::with_handle(
+            part("history-grid-header-key".to_owned())
                 .flex_none()
-                .w(tokens::GRID_CELL_KEY_COLUMN)
+                .w(key_width)
                 .pl(GridMetrics::CELL_PADDING_X)
                 .pr(GridMetrics::CELL_PADDING_X)
                 .flex()
@@ -416,7 +423,11 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                         .text_color(colors.muted)
                         .child(kind.to_owned()),
                 ),
-        )
+            TABLE,
+            KEY,
+            tokens::GRID_CELL_KEY_COLUMN,
+            cx,
+        ))
         .child(
             div()
                 .flex_1()
@@ -424,58 +435,62 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                 .pr(GridMetrics::CELL_PADDING_X)
                 .child("value"),
         );
-    region("history-grid")
-        .flex_none()
-        .overflow_y_scroll()
-        .flex()
-        .flex_col()
-        .child(header)
-        .children(rows.iter().enumerate().map(|(index, (key, value))| {
-            let n = index + 1;
-            div()
-                .flex()
-                .items_center()
-                .h(GridMetrics::ROW_HEIGHT)
-                .border_b(Borders::THIN)
-                .border_color(colors.row_divider)
-                .font_family(mono.clone())
-                .text_size(GridMetrics::FONT)
-                .whitespace_nowrap()
-                .child(
-                    div()
-                        .flex_none()
-                        .w(GridMetrics::ROW_NUMBER_WIDTH)
-                        .pl(GridMetrics::CELL_PADDING_X)
-                        .pr(GridMetrics::CELL_PADDING_X)
-                        .text_color(colors.muted)
-                        .child(n.to_string()),
-                )
-                .child(
-                    part(format!("history-grid-key-{n}"))
-                        .role(Role::Label)
-                        .aria_label(key.clone())
-                        .flex_none()
-                        .w(tokens::GRID_CELL_KEY_COLUMN)
-                        .pl(GridMetrics::CELL_PADDING_X)
-                        .pr(GridMetrics::CELL_PADDING_X)
-                        .overflow_hidden()
-                        .text_color(colors.strong)
-                        .child(key.clone()),
-                )
-                .child(
-                    part(format!("history-grid-value-{n}"))
-                        .role(Role::Label)
-                        .aria_label(value.clone())
-                        .flex_1()
-                        .min_w_0()
-                        .pl(GridMetrics::CELL_PADDING_X)
-                        .pr(GridMetrics::CELL_PADDING_X)
-                        .overflow_hidden()
-                        .text_color(colors.foreground)
-                        .child(value.clone()),
-                )
-        }))
-        .into_any_element()
+    table_widths::resizable(
+        region("history-grid")
+            .flex_none()
+            .overflow_y_scroll()
+            .flex()
+            .flex_col(),
+        TABLE,
+        cx,
+    )
+    .child(header)
+    .children(rows.iter().enumerate().map(|(index, (key, value))| {
+        let n = index + 1;
+        div()
+            .flex()
+            .items_center()
+            .h(GridMetrics::ROW_HEIGHT)
+            .border_b(Borders::THIN)
+            .border_color(colors.row_divider)
+            .font_family(mono.clone())
+            .text_size(GridMetrics::FONT)
+            .whitespace_nowrap()
+            .child(
+                div()
+                    .flex_none()
+                    .w(GridMetrics::ROW_NUMBER_WIDTH)
+                    .pl(GridMetrics::CELL_PADDING_X)
+                    .pr(GridMetrics::CELL_PADDING_X)
+                    .text_color(colors.muted)
+                    .child(n.to_string()),
+            )
+            .child(
+                part(format!("history-grid-key-{n}"))
+                    .role(Role::Label)
+                    .aria_label(key.clone())
+                    .flex_none()
+                    .w(key_width)
+                    .pl(GridMetrics::CELL_PADDING_X)
+                    .pr(GridMetrics::CELL_PADDING_X)
+                    .overflow_hidden()
+                    .text_color(colors.strong)
+                    .child(key.clone()),
+            )
+            .child(
+                part(format!("history-grid-value-{n}"))
+                    .role(Role::Label)
+                    .aria_label(value.clone())
+                    .flex_1()
+                    .min_w_0()
+                    .pl(GridMetrics::CELL_PADDING_X)
+                    .pr(GridMetrics::CELL_PADDING_X)
+                    .overflow_hidden()
+                    .text_color(colors.foreground)
+                    .child(value.clone()),
+            )
+    }))
+    .into_any_element()
 }
 
 fn body(body: &SentBody, cx: &App) -> AnyElement {

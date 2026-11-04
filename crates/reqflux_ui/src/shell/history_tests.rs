@@ -72,7 +72,7 @@ fn history(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Vec<HistoryEntr
 }
 
 /// Opens the request `id` and sends it, waiting for the outcome.
-fn send(cx: &mut VisualTestContext, shell: &Entity<Shell>, id: &str) -> Option<String> {
+pub(super) fn send(cx: &mut VisualTestContext, shell: &Entity<Shell>, id: &str) -> Option<String> {
     click(cx, &format!("tree-row-{id}"));
     click(cx, "request-send");
     settle(cx, shell, id)

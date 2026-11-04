@@ -1447,11 +1447,46 @@ rest), description and delete columns with a line on every side of every cell, t
 column's kind and, with an active environment, `resolved in <environment>` beside the value
 column's name (`request-<table>-value-hint`); an open cell is a well with a tint focus ring.
 The key and description columns resize: their header cells (`request-<table>-header-key`,
-`request-<table>-header-description`) carry `bolt`'s `column_resize_handle` on the right edge,
-the grid root follows the drag with `track_column_resize`, and the widths (`shell::grid_widths`)
-are kept in the shell per grid kind (Params, Headers, urlencoded, form data), so every request
-shares them for the session; they are not persisted. `bolt` clamps a width to 50 px; the value
-column keeps filling the rest.
+`request-<table>-header-description`) carry the resize handle on the right edge, and the widths
+(`shell::grid_widths`, which maps the grid kind to a table id) are kept per grid kind (Params,
+Headers, urlencoded, form data), so every request shares them for the session. The value
+column keeps filling the rest. Every other table resizes the same way, see "Table column
+resize".
+
+### Table column resize
+
+Every table that has a header row with columns resizes through one mechanism,
+`shell::table_widths`. A table has a stable id and numbers its resizable columns from 0 in the
+order it lists them; the widths the user dragged live in a global (`TableWidths`) keyed by
+`(table id, column)`, for the session, never in a file. A view uses three functions and no
+drag code of its own: `width(table, column, default, cx)` for a column's width (the default is
+the view's token until the column is dragged), `resizable(root, table, cx)` on the element that
+holds the whole table, which follows the drag with `bolt`'s `track_column_resize` and redraws,
+and `with_handle(cell, table, column, default, cx)` on each fixed header cell, which adds
+`bolt`'s `column_resize_handle` on its right edge. The width is the same everywhere the table is
+drawn (the variables grid and the undeclared rows under it share one), a drag changes only that
+column and `bolt` clamps it to 50 px. The column that fills the rest stays flex and has no
+handle, as do the narrow fixed columns (row number, enable box, actions).
+
+The global rather than shell state is deliberate: the response Cookies table, the recorded
+history grid and the audit table draw from `&App`, with no shell to ask.
+
+| Table | Id | Resizable columns | Fills the rest |
+| --- | --- | --- | --- |
+| Request grids | `request-params`, `request-headers`, `request-urlencoded`, `request-form-data` | key, description | value |
+| Variables document | `variables` | key, initial value, current, stored in | description |
+| Cookie jar | `cookies` | domain, path, name, value, expires | flags |
+| Response cookies | `response-cookies` | name, value, domain, path, expires | flags |
+| Recorded request (history) | `history-grid` | key | value |
+| Runner results | `runner-grid` | all seven | none |
+| Audit log | `audit` | time, class, tool, workspace, outcome | target |
+| MCP policy overrides | `overrides` | workspace, the four rules | lists |
+
+Not column tables, so without handles: the response Headers and the example request and
+response grids (a name and a value list with no header row), and the keymap (commands grouped
+under folding contexts). The runner grid is drawn by `bolt`'s `render_header`, which has no
+slot for a handle, so `table_widths::over_header` lays the handles over its row
+(`// bolt gap:`); `bolt` should take them natively.
 The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem tokens, `Button`,
 `Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
 `field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL

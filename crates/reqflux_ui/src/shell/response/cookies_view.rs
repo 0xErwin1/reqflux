@@ -16,6 +16,7 @@ use crate::shell::region;
 use crate::shell::request::{Received, secret, ui};
 use crate::shell::rows::{labeled_row, part};
 use crate::shell::settings_page::cookie_jar::OpenCookieJar;
+use crate::shell::table_widths;
 use crate::tokens;
 
 /// What a hidden value shows.
@@ -94,23 +95,37 @@ pub(super) fn render(received: &Received, masker: &Masker, cx: &App) -> AnyEleme
             }
         }
     });
-    region("response-cookies")
-        .flex_1()
-        .min_h_0()
-        .overflow_y_scroll()
-        .border_t(Borders::THIN)
-        .border_color(colors.line)
-        .font_family(bolt::fonts::grid_family(cx))
-        .text_size(GridMetrics::FONT)
-        .child(bar)
-        .child(header(cx))
-        .children(rows)
-        .into_any_element()
+    table_widths::resizable(
+        region("response-cookies")
+            .flex_1()
+            .min_h_0()
+            .overflow_y_scroll()
+            .border_t(Borders::THIN)
+            .border_color(colors.line)
+            .font_family(bolt::fonts::grid_family(cx))
+            .text_size(GridMetrics::FONT)
+            .child(bar)
+            .child(header(cx))
+            .children(rows),
+        TABLE,
+        cx,
+    )
+    .into_any_element()
 }
 
-/// The cell of a column `width` wide, or filling the rest when `None`.
-fn cell(width: Option<Pixels>) -> Div {
-    let cell = div()
+/// The id of the table in the table store; a column is resized by its index in `COLUMNS`.
+const TABLE: &str = "response-cookies";
+
+/// The cell of column `column` of `COLUMNS`: as wide as the user left it, or filling the rest
+/// when the column has no width.
+fn cell(column: usize, cx: &App) -> Div {
+    shape(div(), column, cx)
+}
+
+/// `element` shaped as a cell of column `column`.
+fn shape<E: Styled>(element: E, column: usize, cx: &App) -> E {
+    let default = COLUMNS.get(column).and_then(|(_, width)| *width);
+    let cell = element
         .h_full()
         .flex()
         .items_center()
@@ -119,8 +134,10 @@ fn cell(width: Option<Pixels>) -> Div {
         .whitespace_nowrap()
         .pl(GridMetrics::CELL_PADDING_X)
         .pr(GridMetrics::CELL_PADDING_X);
-    match width {
-        Some(width) => cell.w(width).flex_none(),
+    match default {
+        Some(default) => cell
+            .w(table_widths::width(TABLE, column, default, cx))
+            .flex_none(),
         None => cell.flex_1(),
     }
 }
@@ -147,11 +164,14 @@ fn header(cx: &App) -> AnyElement {
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
         .child(div().w(GridMetrics::ROW_NUMBER_WIDTH).flex_none())
-        .children(
-            COLUMNS
-                .iter()
-                .map(|(name, width)| cell(*width).child(*name)),
-        )
+        .children(COLUMNS.iter().enumerate().map(|(column, (name, width))| {
+            let id = format!("response-cookies-header-{name}");
+            let head = shape(part(id), column, cx).child(*name);
+            match width {
+                Some(default) => table_widths::with_handle(head, TABLE, column, *default, cx),
+                None => head,
+            }
+        }))
         .into_any_element()
 }
 
@@ -200,7 +220,7 @@ fn row(n: usize, columns: CookieColumns, cx: &App) -> AnyElement {
                 .map(|flag| Badge::new(flag, BadgeTone::Neutral)),
         );
     let [name, value_cell, domain, path, expires, flags_cell] =
-        COLUMNS.map(|(_, width)| cell(width));
+        std::array::from_fn(|column| cell(column, cx));
     labeled_row(id.clone(), label)
         .flex()
         .items_center()

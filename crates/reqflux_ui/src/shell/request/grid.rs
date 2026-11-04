@@ -9,7 +9,6 @@
 //! empty state. Rows and the header take the heights and the face of `bolt`'s data
 //! grid.
 
-use bolt::components::grid::{ColumnResizeDrag, column_resize_handle, track_column_resize};
 use bolt::controls::{Button, Checkbox, GpuiInput, InputEnter, InputEscape};
 use bolt::primitives::{Badge, BadgeTone, Icon};
 use bolt::tokens::{Borders, Fields, FontSizes, GridMetrics, Spacing, TabMetrics};
@@ -27,6 +26,7 @@ use crate::shell::Shell;
 use crate::shell::cell_edit::{CellEdit, CellField};
 use crate::shell::grid_widths::{self, GridKind, GridWidths};
 use crate::shell::rows::{labeled_row, part};
+use crate::shell::table_widths;
 use crate::tokens;
 
 /// A grid column: fixed width (the key and description widths are the user's, see
@@ -109,7 +109,7 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> AnyElement {
     let grid_kind = GridKind::of(table, kind);
-    let widths = shell.grid_widths(grid_kind);
+    let widths = GridWidths::of(grid_kind, cx);
     let add = request_id.map(|id| add_row(id, table, kind, widths, cx));
     // An editable grid shows its columns and the add row even when empty, so a row is one
     // click away; only a read-only grid has nothing to add and shows the empty state.
@@ -122,33 +122,27 @@ pub(super) fn render(
         return div().flex().flex_col().child(empty).into_any_element();
     }
     let hint = value_hint(shell.environment_name().as_deref());
-    let header = header(table, kind, hint, widths, &shell.grid_resize, cx);
-    let root = div().flex().flex_col();
+    let header = header(table, kind, grid_kind, hint, widths, cx);
     // The drag follows the pointer over the whole grid; each move stores the width it asks
-    // for in the shell, which every grid of this kind reads.
-    let shell_entity = cx.entity();
-    track_column_resize(root, &shell.grid_resize, move |resize, _window, app| {
-        shell_entity.update(app, |this, cx| {
-            this.resize_grid_column(grid_kind, resize, cx)
-        });
-    })
-    .child(header)
-    .children(rows.iter().enumerate().map(|(index, row)| {
-        let file = files.get(index).copied().unwrap_or(false);
-        data_row(
-            inspection,
-            table,
-            request_id,
-            index + 1,
-            row,
-            file,
-            widths,
-            shell,
-            cx,
-        )
-    }))
-    .children(add)
-    .into_any_element()
+    // for in the table store, which every grid of this kind reads.
+    table_widths::resizable(div().flex().flex_col(), grid_kind.table(), cx)
+        .child(header)
+        .children(rows.iter().enumerate().map(|(index, row)| {
+            let file = files.get(index).copied().unwrap_or(false);
+            data_row(
+                inspection,
+                table,
+                request_id,
+                index + 1,
+                row,
+                file,
+                widths,
+                shell,
+                cx,
+            )
+        }))
+        .children(add)
+        .into_any_element()
 }
 
 /// The header row, element id `request-<table>-header`: the column names, the key's `kind`
@@ -158,9 +152,9 @@ pub(super) fn render(
 fn header(
     table: &str,
     kind: &'static str,
+    grid_kind: GridKind,
     value_hint: Option<String>,
     widths: GridWidths,
-    drag: &ColumnResizeDrag,
     cx: &App,
 ) -> Stateful<Div> {
     let colors = bolt::colors(cx);
@@ -173,8 +167,7 @@ fn header(
             .child(text)
     };
     let line = colors.line_2;
-    // The hover wash of the resize handle, as DBFlux's data table draws it.
-    let handle = bolt::brand::brand(cx).accent_tint.opacity(0.3);
+    let store = grid_kind.table();
     grid_text(part(format!("request-{table}-header")), cx)
         .flex()
         .items_center()
@@ -185,38 +178,32 @@ fn header(
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
         .child(Column::Enable.shape(part(format!("request-{table}-header-enable")), line, widths))
-        .child(
+        .child(table_widths::with_handle(
             Column::Key
                 .shape(part(format!("request-{table}-header-key")), line, widths)
-                .relative()
                 .child("key")
-                .child(note(kind.to_owned()))
-                .child(column_resize_handle(
-                    grid_widths::KEY,
-                    widths.get(grid_widths::KEY),
-                    drag,
-                    handle,
-                )),
-        )
+                .child(note(kind.to_owned())),
+            store,
+            grid_widths::KEY,
+            tokens::GRID_CELL_KEY_COLUMN,
+            cx,
+        ))
         .child(Column::Value.cell(line, widths).child("value").children(
             value_hint.map(|hint| part(format!("request-{table}-value-hint")).child(note(hint))),
         ))
-        .child(
+        .child(table_widths::with_handle(
             Column::Description
                 .shape(
                     part(format!("request-{table}-header-description")),
                     line,
                     widths,
                 )
-                .relative()
-                .child("description")
-                .child(column_resize_handle(
-                    grid_widths::DESCRIPTION,
-                    widths.get(grid_widths::DESCRIPTION),
-                    drag,
-                    handle,
-                )),
-        )
+                .child("description"),
+            store,
+            grid_widths::DESCRIPTION,
+            tokens::GRID_DESCRIPTION_COLUMN,
+            cx,
+        ))
         .child(Column::Actions.cell(line, widths))
 }
 

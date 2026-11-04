@@ -30,10 +30,11 @@ use reqflux_engine::config::{ConfigError, McpConfig, McpList, McpOverride, Rule,
 use reqflux_engine::policy::ToolClass;
 
 use super::super::request::{segmented, ui};
-use super::super::rows::labeled_row;
+use super::super::rows::{labeled_row, part};
 use super::super::settings_page::AppSection;
 use super::super::settings_page::app_settings::font_size_label;
 use super::super::settings_page::network_settings;
+use super::super::table_widths;
 use super::super::{Shell, region, text_region};
 use super::{caption, message};
 
@@ -691,13 +692,12 @@ fn list(
 fn overrides(mcp: &McpConfig, workspace: Option<&Workspace>, cx: &mut Context<Shell>) -> Div {
     let colors = bolt::colors(cx);
     let open_id = workspace.map(|workspace| workspace.manifest.id.to_string());
-    let header_cell = |text: &'static str, width: Option<Pixels>| {
-        div()
-            .pl(GridMetrics::CELL_PADDING_X)
-            .pr(GridMetrics::CELL_PADDING_X)
-            .when_some(width, |cell, width| cell.flex_none().w(width))
-            .when(width.is_none(), |cell| cell.flex_1())
-            .child(text)
+    let header_cell = |text: &'static str, column: usize| {
+        let cell = override_cell(part(format!("overrides-header-{text}")), column, cx).child(text);
+        match override_default(column) {
+            Some(default) => table_widths::with_handle(cell, OVERRIDES, column, default, cx),
+            None => cell,
+        }
     };
     let header = div()
         .flex()
@@ -709,13 +709,14 @@ fn overrides(mcp: &McpConfig, workspace: Option<&Workspace>, cx: &mut Context<Sh
         .text_size(GridMetrics::FONT)
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(colors.strong)
-        .child(header_cell("workspace", Some(OVERRIDE_WORKSPACE_WIDTH)))
+        .child(header_cell("workspace", 0))
         .children(
             RULES
                 .iter()
-                .map(|(class, _, _)| header_cell(class.name(), Some(OVERRIDE_RULE_WIDTH))),
+                .enumerate()
+                .map(|(index, (class, _, _))| header_cell(class.name(), index + 1)),
         )
-        .child(header_cell("lists", None));
+        .child(header_cell("lists", RULES.len() + 1));
     let rows: Vec<_> = mcp
         .workspaces
         .iter()
@@ -758,14 +759,18 @@ fn overrides(mcp: &McpConfig, workspace: Option<&Workspace>, cx: &mut Context<Sh
                 ),
         )
         .child(
-            region("overrides-table")
-                .role(Role::Table)
-                .aria_label("Workspace overrides")
-                .flex()
-                .flex_col()
-                .child(header)
-                .children(rows)
-                .children(empty),
+            table_widths::resizable(
+                region("overrides-table")
+                    .role(Role::Table)
+                    .aria_label("Workspace overrides")
+                    .flex()
+                    .flex_col(),
+                OVERRIDES,
+                cx,
+            )
+            .child(header)
+            .children(rows)
+            .children(empty),
         )
         .child(
             ui::role(div(), TextVariant::Caption, cx)
@@ -775,6 +780,35 @@ fn overrides(mcp: &McpConfig, workspace: Option<&Workspace>, cx: &mut Context<Sh
                      restrict the rules above; \"\u{2013}\" keeps them.",
                 ),
         )
+}
+
+/// The id of the overrides table in the table store. Column 0 is the workspace, 1 to 4 the
+/// rules in the order of `RULES`, and the last the lists, which fills the rest.
+const OVERRIDES: &str = "overrides";
+
+/// The width column `column` of the overrides table has until it is dragged; `None` for the
+/// column that fills the rest.
+fn override_default(column: usize) -> Option<Pixels> {
+    match column {
+        0 => Some(OVERRIDE_WORKSPACE_WIDTH),
+        1..=4 => Some(OVERRIDE_RULE_WIDTH),
+        _ => None,
+    }
+}
+
+/// `element` as the cell of column `column` of the overrides table.
+fn override_cell<E: Styled>(element: E, column: usize, cx: &App) -> E {
+    let cell = element
+        .pl(GridMetrics::CELL_PADDING_X)
+        .pr(GridMetrics::CELL_PADDING_X)
+        .overflow_hidden()
+        .whitespace_nowrap();
+    match override_default(column) {
+        Some(default) => cell
+            .flex_none()
+            .w(table_widths::width(OVERRIDES, column, default, cx)),
+        None => cell.flex_1(),
+    }
 }
 
 /// One row of the overrides table, `overrides-row-<key>`, named by everything it shows.
@@ -800,23 +834,15 @@ fn override_row(key: &str, name: &str, level: &McpOverride, cx: &App) -> AnyElem
         .map(|((class, _, _), rule)| format!("{} {}", class.name(), rule.map_or(dash, rule_id)))
         .collect();
     let label = format!("{name}: {}, {lists}", spoken.join(", "));
-    let cell = |width: Option<Pixels>| {
-        div()
-            .pl(GridMetrics::CELL_PADDING_X)
-            .pr(GridMetrics::CELL_PADDING_X)
-            .overflow_hidden()
-            .whitespace_nowrap()
-            .when_some(width, |cell, width| cell.flex_none().w(width))
-            .when(width.is_none(), |cell| cell.flex_1())
-    };
-    let rule_cell = |rule: Option<Rule>| {
+    let cell = |column: usize| override_cell(div(), column, cx);
+    let rule_cell = |column: usize, rule: Option<Rule>| {
         let color = match rule {
             None => colors.muted,
             Some(Rule::Allow) => colors.success,
             Some(Rule::Ask) => colors.warning,
             Some(Rule::Deny) => colors.danger,
         };
-        cell(Some(OVERRIDE_RULE_WIDTH))
+        cell(column)
             .text_color(color)
             .child(rule.map_or(dash, rule_id))
     };
@@ -829,12 +855,13 @@ fn override_row(key: &str, name: &str, level: &McpOverride, cx: &App) -> AnyElem
         .border_color(colors.row_divider)
         .font_family(bolt::fonts::editor_family(cx))
         .text_size(GridMetrics::FONT)
-        .child(
-            cell(Some(OVERRIDE_WORKSPACE_WIDTH))
-                .text_color(colors.strong)
-                .child(name.to_owned()),
+        .child(cell(0).text_color(colors.strong).child(name.to_owned()))
+        .children(
+            rules
+                .into_iter()
+                .enumerate()
+                .map(|(index, rule)| rule_cell(index + 1, rule)),
         )
-        .children(rules.into_iter().map(rule_cell))
-        .child(cell(None).text_color(colors.muted).child(lists))
+        .child(cell(rules.len() + 1).text_color(colors.muted).child(lists))
         .into_any_element()
 }
