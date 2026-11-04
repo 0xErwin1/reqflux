@@ -19,7 +19,6 @@ use reqflux_core::model::{
     Auth, Body, CollectionNode, Example, ExampleBody, FolderNode, FormPart, Id, Item, KeyValue,
     RawLanguage, RequestNode,
 };
-use serde_json::Value;
 
 use crate::engine::Engine;
 use crate::error::DocsError;
@@ -134,7 +133,7 @@ fn blocks<'a>(node: &'a CollectionNode, examples: &ExamplesOf<'a>) -> Vec<Block>
         anchor: format!("c-{}", collection.id),
         text: collection.name.clone(),
     }];
-    push_description(&mut out, &collection.extensions);
+    push_description(&mut out, collection.description_text());
     if !matches!(collection.auth, Auth::Inherit) {
         out.push(Block::Text(format!("Auth: {}", collection.auth.kind())));
     }
@@ -195,7 +194,7 @@ fn folder_blocks<'a>(
         anchor: format!("f-{}", node.folder.id),
         text: node.folder.name.clone(),
     });
-    push_description(out, &node.folder.extensions);
+    push_description(out, node.folder.description_text());
     if !matches!(node.folder.auth, Auth::Inherit) {
         out.push(Block::Text(format!("Auth: {}", node.folder.auth.kind())));
     }
@@ -222,7 +221,7 @@ fn request_blocks<'a>(
         request.method.as_str(),
         url_with_params(&request.url, &request.params)
     )));
-    push_description(out, &request.extensions);
+    push_description(out, request.description_text());
     out.push(Block::Text(auth_text(&request.auth, chain)));
     push_rows(out, "Query parameters", &request.params);
     push_rows(out, "Headers", &request.headers);
@@ -418,25 +417,10 @@ fn push_example(out: &mut Vec<Block>, example: &Example, level: usize) {
     }
 }
 
-/// The description the import kept from Postman, a string or `{content}`.
-fn push_description(out: &mut Vec<Block>, extensions: &toml::Table) {
-    let Some(rest) = extensions
-        .get("postman")
-        .and_then(toml::Value::as_str)
-        .and_then(|text| serde_json::from_str::<Value>(text).ok())
-    else {
-        return;
-    };
-    let text = match rest.get("description") {
-        Some(Value::String(text)) => text.clone(),
-        Some(Value::Object(object)) => object
-            .get("content")
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned(),
-        _ => return,
-    };
-    if !text.trim().is_empty() {
+/// The description of the entity (the field, else the text a Postman import kept), as a
+/// paragraph of its own.
+fn push_description(out: &mut Vec<Block>, description: Option<String>) {
+    if let Some(text) = description {
         out.push(Block::Text(text));
     }
 }

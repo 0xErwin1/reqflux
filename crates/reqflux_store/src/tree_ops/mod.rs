@@ -30,6 +30,7 @@
 //! - Slugs are ASCII only: non-ASCII letters become `-`, so a name without ASCII
 //!   alphanumerics slugs to `item`.
 
+mod description;
 mod environments;
 mod examples;
 mod files;
@@ -52,6 +53,7 @@ use files::Shape;
 use locate::{Container, Entity, find, find_container};
 use naming::{SlugFor, ensure_free, named, numbered};
 
+pub use description::set_description;
 pub use environments::{create_environment, delete_environment, rename_environment};
 pub use examples::{
     StoredExample, create_example, create_example_at, delete_example, example_files_at, examples,
@@ -77,6 +79,7 @@ pub struct Placed {
 pub fn create_collection(root: &Path) -> Result<Placed, StoreError> {
     let (name, slug) = numbered(&collections_dir(root), "New collection", SlugFor::Container)?;
     let collection = Collection {
+        description: None,
         id: Id::new(),
         name,
         environments: Vec::new(),
@@ -106,6 +109,7 @@ pub fn create_folder(root: &Path, loaded: &Loaded, parent: Id) -> Result<Placed,
     container.check(root, loaded)?;
     let (name, slug) = numbered(&container.dir(root), "New folder", SlugFor::Container)?;
     let folder = Folder {
+        description: None,
         id: Id::new(),
         name,
         order: Vec::new(),

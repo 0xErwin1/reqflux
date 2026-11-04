@@ -60,6 +60,7 @@ pub fn collection(slug: &str, items: Vec<Item>) -> CollectionNode {
     CollectionNode {
         slug: slug.to_owned(),
         collection: Collection {
+            description: None,
             id: Id::new(),
             name: format!("{slug} name"),
             environments: Vec::new(),
@@ -77,6 +78,7 @@ pub fn folder(slug: &str, auth: Auth, items: Vec<Item>) -> Item {
     Item::Folder(FolderNode {
         slug: slug.to_owned(),
         folder: Folder {
+            description: None,
             id: Id::new(),
             name: slug.to_owned(),
             order: Vec::new(),

@@ -58,6 +58,9 @@ pub struct Collection {
     pub id: Id,
     /// The display name.
     pub name: String,
+    /// Markdown documentation shown on the Docs tab; absent when there is none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Workspace environments that apply to this collection. Empty means all of them.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub environments: Vec<Id>,
@@ -82,6 +85,9 @@ pub struct Folder {
     pub id: Id,
     /// The display name.
     pub name: String,
+    /// Markdown documentation shown on the Docs tab; absent when there is none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// Child slugs in display order. Unlisted children append sorted by name.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub order: Vec<String>,
@@ -100,6 +106,9 @@ pub struct Request {
     pub id: Id,
     /// The display name.
     pub name: String,
+    /// Markdown documentation shown on the Docs tab; absent when there is none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
     /// The HTTP method.
     pub method: Method,
     /// The URL without its query string; the query lives in `params`.
@@ -132,6 +141,7 @@ impl Request {
         Self {
             id,
             name: name.into(),
+            description: None,
             method,
             url: url.into(),
             params: Vec::new(),

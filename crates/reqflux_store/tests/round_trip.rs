@@ -40,7 +40,7 @@ fn fixture(root: &Path) -> Vec<(String, String)> {
         (
             "collections/api/collection.toml",
             format!(
-                "id = \"{}\"\nname = \"API\"\nenvironments = [\"{}\"]\norder = [\"invoices\", \"raw\"]\n\n[auth]\ntype = \"bearer\"\ntoken = \"{{{{token}}}}\"\n\n[[variables]]\nkey = \"version\"\nvalue = \"v1\"\n",
+                "id = \"{}\"\nname = \"API\"\ndescription = \"\"\"\n# API\n\nBilling endpoints.\n\"\"\"\nenvironments = [\"{}\"]\norder = [\"invoices\", \"raw\"]\n\n[auth]\ntype = \"bearer\"\ntoken = \"{{{{token}}}}\"\n\n[[variables]]\nkey = \"version\"\nvalue = \"v1\"\n",
                 id_text(3),
                 id_text(2)
             ),
@@ -67,7 +67,7 @@ fn fixture(root: &Path) -> Vec<(String, String)> {
         (
             "collections/api/invoices/nested/folder.toml",
             format!(
-                "id = \"{}\"\nname = \"Nested\"\n\n[auth]\ntype = \"digest\"\nrealm = \"r\"\nalgorithm = \"MD5\"\n\n[extensions]\nfuture = \"kept\"\n",
+                "id = \"{}\"\nname = \"Nested\"\ndescription = \"Deeply nested.\"\n\n[auth]\ntype = \"digest\"\nrealm = \"r\"\nalgorithm = \"MD5\"\n\n[extensions]\nfuture = \"kept\"\n",
                 id_text(5)
             ),
         ),
@@ -115,7 +115,11 @@ fn fixture(root: &Path) -> Vec<(String, String)> {
             "collections/api/raw.req.toml",
             format!(
                 "{}\n[body]\nmode = \"raw\"\nlanguage = \"json\"\ntext = '{{\"a\": 1}}'\n\n[extensions.plugin]\nlevel = 3\n",
-                head(10, "Raw", "PURGE")
+                head(10, "Raw", "PURGE").replacen(
+                    "method =",
+                    "description = \"\"\"\nSends raw JSON.\n\nSecond paragraph.\n\"\"\"\nmethod =",
+                    1
+                )
             ),
         ),
         // Not listed in the collection order: appended by name.

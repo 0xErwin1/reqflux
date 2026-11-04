@@ -110,6 +110,7 @@ fn creating_an_entity_whose_file_exists_fails_and_leaves_it_untouched() {
     let theirs = folder_toml(3, "Theirs", "");
     write(root, "collections/api/f/folder.toml", &theirs);
     let folder = Folder {
+        description: None,
         id: id(4),
         name: "Mine".into(),
         order: Vec::new(),
@@ -132,6 +133,7 @@ fn creating_new_entities_creates_their_directories() {
     let root = dir.path();
     let nested = parent().child("f");
     let collection = reqflux_core::model::Collection {
+        description: None,
         id: id(1),
         name: "API".into(),
         environments: Vec::new(),
@@ -141,6 +143,7 @@ fn creating_new_entities_creates_their_directories() {
         extensions: toml::Table::new(),
     };
     let folder = Folder {
+        description: None,
         id: id(2),
         name: "F".into(),
         order: Vec::new(),
@@ -249,6 +252,7 @@ fn a_reserved_request_slug_is_rejected_without_writing() {
 
 fn folder(id_n: u32, name: &str) -> Folder {
     Folder {
+        description: None,
         id: id(id_n),
         name: name.into(),
         order: Vec::new(),
@@ -331,6 +335,7 @@ fn saving_a_folder_whose_slug_is_already_a_request_fails_without_writing() {
 
 fn collection() -> reqflux_core::model::Collection {
     reqflux_core::model::Collection {
+        description: None,
         id: id(1),
         name: "API".into(),
         environments: Vec::new(),

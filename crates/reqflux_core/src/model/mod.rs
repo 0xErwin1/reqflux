@@ -8,6 +8,7 @@
 mod auth;
 mod auth_kinds;
 mod body;
+mod description;
 mod documents;
 mod example;
 mod extensions;
@@ -23,6 +24,7 @@ pub use auth_kinds::{
     OAUTH2, OAuth2Auth, OAuth2Grant, TokenLocation, TypedAuth, secret_fields,
 };
 pub use body::{Body, FormPart, RawLanguage, Settings};
+pub use description::postman_description;
 pub use documents::{Collection, Environment, Folder, Request, WorkspaceManifest};
 pub use example::{Example, ExampleBody, ExampleRequest, ExampleResponse};
 pub use id::Id;
@@ -33,5 +35,7 @@ pub use tree::{
 };
 pub use variable::{KeyValue, Variable, strip_secret_values};
 
+#[cfg(test)]
+mod description_tests;
 #[cfg(test)]
 mod tests;
