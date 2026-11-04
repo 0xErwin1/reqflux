@@ -170,6 +170,146 @@ pub(super) const PRELUDE: &str = r#"
     };
   }
 
+  // `pm.response.to`: Postman's chai-style assertions on the response. `not` flips the
+  // verdict for everything after it; a failure carries the positive or the negated message.
+  function makeResponseChain(response, rawHeaders, negate) {
+    function verify(pass, positive, negative) {
+      if (pass === negate) throw new Error(negate ? negative : positive);
+      return makeResponseChain(response, rawHeaders, negate);
+    }
+    function parsedBody() {
+      try { return { ok: true, value: response.json() }; } catch (e) { return { ok: false }; }
+    }
+    function headerValue(name) {
+      const lower = String(name).toLowerCase();
+      const key = Object.keys(rawHeaders).find((k) => k.toLowerCase() === lower);
+      return key === undefined ? undefined : rawHeaders[key];
+    }
+    function status(expected) {
+      if (typeof expected === "number") {
+        return verify(
+          response.code === expected,
+          "expected response to have status code " + expected + " but got " + response.code,
+          "expected response to not have status code " + expected);
+      }
+      return verify(
+        response.status === String(expected),
+        "expected response to have status reason '" + expected + "' but got '" + response.status + "'",
+        "expected response to not have status reason '" + expected + "'");
+    }
+    function header(name, value) {
+      const actual = headerValue(name);
+      if (arguments.length < 2) {
+        return verify(
+          actual !== undefined,
+          "expected response to have header with key '" + name + "'",
+          "expected response to not have header with key '" + name + "'");
+      }
+      const base = "header with key '" + name + "' and value '" + value + "'";
+      return verify(
+        actual === String(value),
+        "expected response to have " + base + (actual === undefined ? "" : ", got '" + actual + "'"),
+        "expected response to not have " + base);
+    }
+    function body(expected) {
+      const text = response._text;
+      if (expected instanceof RegExp) {
+        return verify(
+          expected.test(text),
+          "expected response body to match " + String(expected) + " but got '" + text + "'",
+          "expected response body to not match " + String(expected));
+      }
+      return verify(
+        text === String(expected),
+        "expected response body to equal '" + expected + "' but got '" + text + "'",
+        "expected response body to not equal '" + expected + "'");
+    }
+    function jsonBody(path, value) {
+      const parsed = parsedBody();
+      if (!parsed.ok) {
+        return verify(false, "expected response body to be valid JSON", "expected response body to not be valid JSON");
+      }
+      if (arguments.length === 0) {
+        return verify(true, "", "expected response body to not be valid JSON");
+      }
+      if (typeof path !== "string") {
+        return verify(
+          deepEq(parsed.value, path),
+          "expected response json body to equal " + stringify(path) + " but got " + stringify(parsed.value),
+          "expected response json body to not equal " + stringify(path));
+      }
+      let found = parsed.value;
+      for (const part of path.split(".")) {
+        if (found === null || found === undefined || !Object.hasOwn(Object(found), part)) {
+          found = undefined;
+          break;
+        }
+        found = found[part];
+      }
+      if (arguments.length < 2) {
+        return verify(
+          found !== undefined,
+          "expected response json body to have '" + path + "'",
+          "expected response json body to not have '" + path + "'");
+      }
+      return verify(
+        deepEq(found, value),
+        "expected response json body at '" + path + "' to equal " + stringify(value) + " but got " + stringify(found),
+        "expected response json body at '" + path + "' to not equal " + stringify(value));
+    }
+    const flags = {
+      ok: () => verify(
+        response.code === 200,
+        "expected response to be ok (status 200) but got " + response.code,
+        "expected response to not be ok (status 200)"),
+      success: () => verify(
+        response.code >= 200 && response.code < 300,
+        "expected response to be successful (status 2xx) but got " + response.code,
+        "expected response to not be successful (status 2xx)"),
+      error: () => verify(
+        response.code >= 400 && response.code < 600,
+        "expected response to be an error (status 4xx or 5xx) but got " + response.code,
+        "expected response to not be an error (status 4xx or 5xx)"),
+      clientError: () => verify(
+        response.code >= 400 && response.code < 500,
+        "expected response to be a client error (status 4xx) but got " + response.code,
+        "expected response to not be a client error (status 4xx)"),
+      serverError: () => verify(
+        response.code >= 500 && response.code < 600,
+        "expected response to be a server error (status 5xx) but got " + response.code,
+        "expected response to not be a server error (status 5xx)"),
+      json: () => verify(
+        parsedBody().ok,
+        "expected response body to be valid JSON",
+        "expected response body to not be valid JSON"),
+    };
+    return new Proxy({}, {
+      get(_target, prop) {
+        const name = String(prop);
+        switch (name) {
+          case "status": return status;
+          case "header": return header;
+          case "body": return body;
+          case "jsonBody": return jsonBody;
+          case "not": return makeResponseChain(response, rawHeaders, !negate);
+          case "to":
+          case "be":
+          case "been":
+          case "is":
+          case "have":
+          case "has":
+          case "and":
+          case "with":
+          case "that":
+          case "which": return makeResponseChain(response, rawHeaders, negate);
+          default:
+            if (Object.hasOwn(flags, name)) return flags[name]();
+            throw new Error("unknown matcher: to." + name);
+        }
+      },
+    });
+  }
+
   function makeSendResponse(data) {
     const response = { code: data.code, status: data.status, headers: makeHeaders(data.headers) };
     response.text = function () { return data.text; };
@@ -273,7 +413,8 @@ pub(super) const PRELUDE: &str = r#"
   }
   if (init.response != null) {
     const response = init.response;
-    response.headers = makeHeaders(response.headers);
+    const rawHeaders = response.headers;
+    response.headers = makeHeaders(rawHeaders);
     response.text = function () { return response._text; };
     let cached;
     response.json = function () {
@@ -282,6 +423,7 @@ pub(super) const PRELUDE: &str = r#"
       }
       return cached;
     };
+    response.to = makeResponseChain(response, rawHeaders, false);
     pm.response = response;
   }
   globalThis.pm = pm;
