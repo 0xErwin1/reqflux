@@ -154,3 +154,34 @@ fn the_open_app_settings_show_the_zoomed_size(cx: &mut TestAppContext) {
     press(cx, "ctrl-=");
     assert_eq!(shown(cx).as_deref(), Some("14 px"));
 }
+
+#[gpui::test]
+fn a_zoom_that_cannot_save_shows_the_applied_size_in_the_open_settings(cx: &mut TestAppContext) {
+    let dir = demo_workspace();
+    let (_state_dir, state_path) = state_file();
+    // A directory where the config file should be: reading and writing it fail.
+    let config = match TempDir::new() {
+        Ok(dir) => dir,
+        Err(error) => panic!("temp dir: {error}"),
+    };
+    let (shell, cx) = render_with_config(cx, &dir, &state_path, config.path());
+    cx.update(|window, cx| shell.update(cx, |shell, cx| shell.open_app_settings(window, cx)));
+    cx.run_until_parked();
+
+    press(cx, "ctrl-=");
+    assert_eq!(size(cx), 14.0);
+    let shown = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .settings
+            .app
+            .font_size_control()
+            .and_then(|dropdown| dropdown.read(cx).selected_label())
+            .map(|label| label.to_string())
+    });
+    assert_eq!(
+        shown.as_deref(),
+        Some("14 px"),
+        "the select shows the size in use"
+    );
+}

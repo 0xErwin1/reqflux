@@ -150,6 +150,12 @@ impl Shell {
             .as_ref()
             .map_or(config::DEFAULT_FONT_SIZE, UserConfig::interface_font_size);
         self.settings.app.loaded = Some(loaded);
+        self.show_app_font_size(size, editable, cx);
+        cx.notify();
+    }
+
+    /// Shows `size` in the App > General font size select, enabled when `editable`.
+    pub(crate) fn show_app_font_size(&mut self, size: f32, editable: bool, cx: &mut Context<Self>) {
         if let Some(controls) = &mut self.settings.app.controls {
             let sizes = font_sizes(size);
             let index = sizes.iter().position(|candidate| *candidate == size);
@@ -163,7 +169,6 @@ impl Shell {
                 dropdown.set_disabled(!editable, cx);
             });
         }
-        cx.notify();
     }
 
     /// Runs `edit` on `config.toml` when the section is editable, then reads the file back;

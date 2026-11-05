@@ -491,6 +491,12 @@ fn a_menu_open_when_the_form_locks_closes_with_it(cx: &mut TestAppContext) {
         "a locked row takes no click"
     );
     click(cx, "request-auth-token-cancel");
+    // The lock closed the menu, it did not only hide it: unlocked, it stays closed.
+    cx.run_until_parked();
+    assert!(
+        bounds(cx, "auth-type-menu").is_none(),
+        "the menu stays closed once the form unlocks"
+    );
 }
 
 /// The shell over an OAuth 2.0 authorization code request whose browser never comes back, its

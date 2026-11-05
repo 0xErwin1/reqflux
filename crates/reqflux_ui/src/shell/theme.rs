@@ -49,12 +49,16 @@ impl Shell {
         }
         crate::theme::set_font_size(size, cx);
         if let Some(path) = self.config_path.clone() {
-            if let Err(error) = config::set_font_size(&path, size) {
-                super::toasts::failure("Cannot save the interface size", error.to_string(), cx);
-            }
-            // The App > General select shows the saved size.
-            if self.settings.app.controls.is_some() {
-                self.read_app_config(cx);
+            match config::set_font_size(&path, size) {
+                // The App > General select shows the saved size.
+                Ok(()) if self.settings.app.controls.is_some() => self.read_app_config(cx),
+                Ok(()) => {}
+                Err(error) => {
+                    super::toasts::failure("Cannot save the interface size", error.to_string(), cx);
+                    // Unsaved, the select still shows the size in use, not the file's.
+                    let editable = self.settings.app.editable();
+                    self.show_app_font_size(size, editable, cx);
+                }
             }
         }
         cx.notify();
