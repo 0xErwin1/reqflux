@@ -12,11 +12,11 @@ use std::rc::Rc;
 
 use bolt::composites::EmptyState;
 use bolt::controls::{Button, InputEscape};
-use bolt::primitives::{Chamfer, ChamferRing, Icon, TextVariant};
+use bolt::primitives::{Chamfer, ChamferRing, Icon, MarkdownView, TextVariant};
 use bolt::tokens::{ChamferCut, Spacing};
 use gpui::{
     AnyElement, App, AppContext as _, ClickEvent, Context, ElementId, Entity, InteractiveElement,
-    ParentElement, SharedString, Styled, Subscription, Window, div, prelude::*,
+    ParentElement, Styled, Subscription, Window, div, prelude::*,
 };
 use gpui_component::input::{EditorState, InputEvent};
 use gpui_kit_assets::IconName;
@@ -90,8 +90,9 @@ fn button(id: String, label: &'static str, act: Act) -> Button {
 }
 
 /// The documentation block: its header with the Edit button, then the rendered markdown,
-/// the editor or the empty state. Element ids are `<prefix>-header`, `-edit`, `-view`,
-/// `-input`, `-done`, `-cancel`, `-empty` and `-add`.
+/// the editor or the empty state. Element ids are `<prefix>-header`, `-edit`, `-view` (the
+/// `bolt` markdown document, its text the element `-view-body`), `-input`, `-done`, `-cancel`,
+/// `-empty` and `-add`.
 pub(crate) fn render(docs: Docs<'_>, cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
     let prefix = docs.prefix;
@@ -138,7 +139,7 @@ pub(crate) fn render(docs: Docs<'_>, cx: &App) -> AnyElement {
         .child(actions);
     let body = match (docs.edit, docs.text) {
         (Some(edit), _) => editor(&docs, edit, cx),
-        (None, Some(text)) => view(prefix, text, cx),
+        (None, Some(text)) => view(prefix, text),
         (None, None) => empty(&docs, cx),
     };
     region_of(prefix)
@@ -170,17 +171,10 @@ fn well(id: String, cx: &App) -> gpui::Stateful<gpui::Div> {
         )
 }
 
-/// The rendered markdown, selectable.
-fn view(prefix: &str, text: &str, cx: &App) -> AnyElement {
-    // bolt gap: bolt has no markdown view; gpui-component's `TextView` renders the text with
-    // the theme `bolt` installs, until DBFlux's bolt carries a document component.
-    let markdown = gpui_component::text::TextView::markdown(
-        ElementId::Name(format!("{prefix}-markdown").into()),
-        SharedString::from(text.to_owned()),
-    )
-    .selectable(true);
-    well(format!("{prefix}-view"), cx)
-        .child(markdown)
+/// The rendered markdown, selectable, in its well.
+fn view(prefix: &str, text: &str) -> AnyElement {
+    MarkdownView::new(format!("{prefix}-view"), text)
+        .well(true)
         .into_any_element()
 }
 

@@ -16,11 +16,13 @@
 
 use bolt::composites::{EmptyState, Island};
 use bolt::controls::{Button, Input};
-use bolt::primitives::{BannerBlock, BannerVariant, Icon, SegmentedItem, TextVariant};
-use bolt::tokens::{Borders, DocumentMetrics, Feedback, Spacing};
+use bolt::primitives::{
+    BadgeTone, BannerBlock, BannerVariant, Icon, SegmentedItem, TextVariant, TimelineBucket,
+    TimelineHistogram, TimelineLegend,
+};
+use bolt::tokens::{Borders, DocumentMetrics, Spacing};
 use gpui::{
-    AnyElement, Context, FontWeight, IntoElement, ParentElement, Pixels, Styled, Window, div,
-    prelude::*,
+    AnyElement, Context, FontWeight, IntoElement, ParentElement, Styled, Window, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 
@@ -249,80 +251,26 @@ fn toolbar(
 
 /// The timeline strip `audit-timeline`: a bar per bucket, the refused calls stacked on the
 /// others, and the legend.
-// bolt gap: no timeline (histogram) strip; DBFlux's audit document draws its own from these
-// `DocumentMetrics` tokens.
 fn timeline(buckets: &[Bucket], cx: &mut Context<Shell>) -> impl IntoElement {
     let colors = bolt::colors(cx);
-    let calls = bolt::brand::brand(cx).accent;
-    let peak = buckets
-        .iter()
-        .map(|bucket| bucket.total)
-        .max()
-        .unwrap_or(0)
-        .max(1);
-    let height = |count: usize| {
-        if count == 0 {
-            Pixels::ZERO
-        } else {
-            #[allow(clippy::cast_precision_loss)]
-            let share = count as f32 / peak as f32;
-            // A bar with any call is at least a hairline high.
-            (DocumentMetrics::TIMELINE_BAR_HEIGHT * share).max(Borders::THIN)
-        }
-    };
-    let bars = buckets.iter().map(|bucket| {
-        div()
-            .flex_1()
-            .flex()
-            .flex_col()
-            .justify_end()
-            .h(DocumentMetrics::TIMELINE_BAR_HEIGHT)
-            .child(div().h(height(bucket.refused)).bg(colors.danger))
-            .child(div().h(height(bucket.total - bucket.refused)).bg(calls))
-    });
-    let swatch = |color| {
-        div()
-            .flex_none()
-            .size(DocumentMetrics::TIMELINE_SWATCH)
-            .bg(color)
-    };
-    let legend = |swatch: gpui::Div, label: &'static str| {
-        div()
-            .flex()
-            .items_center()
-            .gap(Feedback::STATUS_GAP)
-            .child(swatch)
-            .child(label)
-    };
     region("audit-timeline")
         .flex_none()
-        .flex()
-        .items_end()
-        .gap(DocumentMetrics::TIMELINE_LEGEND_GAP)
         .pl(DocumentMetrics::PADDING_X)
         .pr(DocumentMetrics::PADDING_X)
-        .py(DocumentMetrics::TIMELINE_PADDING_Y)
         .bg(colors.background)
         .border_b(Borders::THIN)
         .border_color(colors.line)
         .child(
-            div()
-                .flex_1()
-                .flex()
-                .items_end()
-                .gap(DocumentMetrics::TIMELINE_BAR_GAP)
-                .children(bars),
-        )
-        .child(
-            div()
-                .flex_none()
-                .flex()
-                .flex_col()
-                .gap(DocumentMetrics::TIMELINE_LEGEND_ROW_GAP)
-                .text_size(DocumentMetrics::TIMELINE_LEGEND_FONT)
-                .text_color(colors.muted)
-                .child(legend(swatch(calls), "calls"))
-                .child(legend(swatch(colors.danger), "refused")),
+            TimelineHistogram::new("audit-histogram")
+                .buckets(
+                    buckets.iter().map(|bucket| {
+                        TimelineBucket::new(bucket.total as i64, bucket.refused as i64)
+                    }),
+                )
+                .legend([
+                    TimelineLegend::new("calls", BadgeTone::Accent),
+                    TimelineLegend::new("refused", BadgeTone::Danger),
+                ]),
         )
 }
 

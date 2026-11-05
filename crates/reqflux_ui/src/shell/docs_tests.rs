@@ -100,6 +100,7 @@ fn a_documented_request_shows_its_markdown_and_an_edit_button(cx: &mut TestAppCo
     open_docs(cx, DOCUMENTED);
 
     present(cx, "request-docs-view");
+    present(cx, "request-docs-view-body");
     present(cx, "request-docs-edit");
     assert!(bounds(cx, "request-docs-empty").is_none());
     assert!(bounds(cx, "request-docs-input").is_none());
@@ -233,6 +234,7 @@ fn the_collection_section_adds_documentation_through_the_engine(cx: &mut TestApp
     assert!(file.contains("description = \"AboutTheAPI\""), "{file}");
     assert!(bounds(cx, "collection-docs-input").is_none());
     present(cx, "collection-docs-view");
+    present(cx, "collection-docs-view-body");
     present(cx, "collection-docs-edit");
 }
 

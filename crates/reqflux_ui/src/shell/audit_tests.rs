@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
+use bolt::tokens::DocumentMetrics;
 use gpui::{Entity, TestAppContext, VisualTestContext, px};
 use tempfile::TempDir;
 
@@ -30,6 +31,27 @@ fn lines() -> String {
             "\n"
         ),
         old = at(2 * 86_400_000),
+        new = at(60_000),
+        ws = WORKSPACE,
+    )
+}
+
+/// Three calls in the last day: a refused one and an allowed one in the same half-hour
+/// bucket, and an allowed one a minute ago.
+fn stacked_lines() -> String {
+    let now = super::history::now_millis();
+    let at = |ago: i64| time(now - ago);
+    format!(
+        concat!(
+            r#"{{"time":"{denied}","tool":"item_delete","class":"destructive","decision":"refused","reason":"destructive calls are denied","workspace_id":"{ws}","targets":["01A"]}}"#,
+            "\n",
+            r#"{{"time":"{older}","tool":"request_execute","class":"execute","decision":"allowed","workspace_id":"{ws}","targets":["01R"]}}"#,
+            "\n",
+            r#"{{"time":"{new}","tool":"request_execute","class":"execute","decision":"allowed","workspace_id":"{ws}","targets":["01R"]}}"#,
+            "\n"
+        ),
+        denied = at(31 * 60_000),
+        older = at(45 * 60_000),
         new = at(60_000),
         ws = WORKSPACE,
     )
@@ -125,6 +147,47 @@ fn the_rail_opens_the_log_newest_first(cx: &mut TestAppContext) {
         f.label("audit-path").as_deref(),
         Some(f.path.display().to_string().as_str())
     );
+}
+
+/// The height of `selector`, zero when the element is not drawn, as a segment with no count.
+fn height(cx: &mut VisualTestContext, selector: &str) -> gpui::Pixels {
+    bounds(cx, selector).map_or(px(0.0), |bounds| bounds.size.height)
+}
+
+#[gpui::test]
+fn the_timeline_draws_one_bar_per_bucket_with_the_refused_stacked_over_the_calls(
+    cx: &mut TestAppContext,
+) {
+    let f = fixture(cx, Some(&stacked_lines()));
+    click(f.cx, "rail-audit");
+
+    let region = present(f.cx, "audit-timeline");
+    present(f.cx, "audit-histogram");
+    for bar in 0..super::audit_model::BUCKETS {
+        let bar = present(f.cx, &format!("audit-histogram-bar-{bar}"));
+        assert!(
+            region.contains(&bar.origin),
+            "bar {bar} is inside the timeline strip"
+        );
+    }
+
+    // The two calls half an hour ago share a bucket, one of them refused: the busiest bucket
+    // and the refused half split its bar.
+    let rest = height(f.cx, "audit-histogram-bar-46-rest");
+    let highlight = height(f.cx, "audit-histogram-bar-46-highlight");
+    assert_eq!(rest + highlight, DocumentMetrics::TIMELINE_BAR_HEIGHT);
+    assert_eq!(highlight, DocumentMetrics::TIMELINE_BAR_HEIGHT / 2.0);
+    assert_eq!(rest, DocumentMetrics::TIMELINE_BAR_HEIGHT / 2.0);
+    // A call with no refusal is the whole count in the calls tone.
+    assert_eq!(
+        height(f.cx, "audit-histogram-bar-47-rest"),
+        DocumentMetrics::TIMELINE_BAR_HEIGHT / 2.0
+    );
+    assert_eq!(height(f.cx, "audit-histogram-bar-47-highlight"), px(0.0));
+
+    present(f.cx, "audit-histogram-legend");
+    present(f.cx, "audit-histogram-swatch-0");
+    present(f.cx, "audit-histogram-swatch-1");
 }
 
 #[gpui::test]

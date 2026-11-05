@@ -18,15 +18,14 @@
   Rules
     - Docs is the first sub-tab, before Params. The default sub-tab of an opened request does not
       change.
-    - The description is markdown. Rendered with gpui-component's text view until bolt has a
-      document component (// bolt gap: markdown view).
+    - The description is markdown, drawn by `bolt`'s `MarkdownView`: the interface face for
+      prose, headings a step of the token scale, fenced code in the mono face, and the text
+      selectable, in a well with `Spacing::MD` sides and `Spacing::SM` above and below.
     - Escape closes the editor: Done for a request (the text stays in the draft), Cancel for a
       collection (the text is dropped).
     - Text is stored in `description` of the .req.toml / collection.toml / folder.toml, a TOML
       multi-line string when it has several lines. Postman imports fill it from info.description,
       the folders' and the requests' description; the export writes it back.
-
-  bolt gaps: markdown view (stand-in: gpui-component TextView).
 -->
 <style>
 body{margin:0;background:#050507}
@@ -56,8 +55,8 @@ body{margin:0;background:#050507}
 .btn{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;font-size:12px;color:var(--fg)}
 .btn.ghost{background:rgba(255,255,255,.04)}
 .btn.primary{background:var(--accent);color:#fff}
-.well{position:relative;margin-top:8px;padding:10px 14px;background:var(--bg);border:1px solid var(--line);line-height:1.55}
-.well h4{margin:0 0 6px;font-size:16px;color:var(--strong)}
+.well{position:relative;margin-top:8px;padding:8px 12px;background:var(--bg);border:1px solid var(--line);line-height:1.55}
+.well h4{margin:0 0 8px;font-size:13px;color:var(--strong)}
 .well p{color:var(--fg);font-size:13px;margin:0 0 8px}
 .well code{font-family:"JetBrains Mono",monospace;font-size:12px;background:var(--raised);padding:1px 5px}
 .well ul{margin:0 0 4px;padding-left:20px}

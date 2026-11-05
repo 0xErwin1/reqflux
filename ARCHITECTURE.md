@@ -1254,8 +1254,10 @@ multi-selects `audit-class` (read, write, execute, destructive) and `audit-outco
 refused), which keep the entries of any value they hold, all of them when they hold none, and
 say so on their trigger (`Class · all`, `Class · 2`), and, while a filter is set, `audit-clear`. The toolbar wraps onto more
 lines when the page is too narrow (its height is a minimum), so the time range, Class and Outcome stay inside the page
-at an 800 px window. Under it, `audit-timeline` draws 48 bars over the range, the refused calls
-stacked on the others. The table has a row per kept entry, `audit-row-<n>` from 1 at the top:
+at an 800 px window. Under it, `audit-timeline` (the strip's region, with its own ground and
+border) holds `bolt`'s `TimelineHistogram` `audit-histogram`: 48 bars over the range
+(`audit-histogram-bar-<n>`, its `-rest` and `-highlight` segments), the refused calls stacked on
+the others, and the legend (`audit-histogram-legend`, its `-swatch-<n>`). The table has a row per kept entry, `audit-row-<n>` from 1 at the top:
 `-time` (local), `-class` (badge), `-tool`, `-target` (the method and masked URL of an
 execute, else the target ids, named from the open workspace when the entry is its own),
 `-workspace` (the open workspace's name, else the id) and `-outcome` ("Allowed" or
@@ -1388,8 +1390,9 @@ description with the request (design/docs/01, `shell/docs.rs`). The collection's
 carries the same Documentation block (`collection-docs-*`) between the Environments block and the
 variables; it has no draft, so Save writes `collection.toml` through `Engine::set_description` and
 Cancel or Escape drops the text. A folder has no settings page yet: its description is edited
-through the engine and the Postman import only. Its `// bolt gap:` stand-in is the markdown view,
-gpui-component's `TextView`, since `bolt` has none. What it shows comes from `Engine::inspect` with the window's
+through the engine and the Postman import only. The rendered description is `bolt`'s
+`MarkdownView` under the block's `-view` id, its text the element `-view-body`, selectable by
+default and in a well of `Spacing::MD` sides and `Spacing::SM` above and below. What it shows comes from `Engine::inspect` with the window's
 active environment, which lives in memory, starts as none and re-inspects every open request
 when it changes, keeping its sub-tab: variables are styled as resolved or unresolved, the
 number of unresolved ones is shown in the sub-tab bar, or the inspection `problem` in its
