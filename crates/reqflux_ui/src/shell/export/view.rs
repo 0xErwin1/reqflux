@@ -1,8 +1,9 @@
 //! The Export… dialog, `export-dialog`, and the Replace API docs question,
 //! `export-replace-dialog`, as design/export/01-one-export-dialog draws them: the format
-//! control `export-format` with a segment `export-format-<postman|bundle|docs>` per format the
-//! scope takes, then the options of the format, then Cancel (`export-cancel`) and the primary
-//! button (`export-confirm`) whose label names the next step.
+//! control `export-format` with a segment `export-format-<postman|bundle|docs>` per format, the
+//! ones the scope cannot take drawn disabled with the reason, then the options of the format,
+//! then Cancel (`export-cancel`) and the primary button (`export-confirm`) whose label names
+//! the next step.
 
 use bolt::controls::{Button, Checkbox, Input, InputState};
 use bolt::modals::{Modal, modal_field};
@@ -153,17 +154,20 @@ fn dialog_modal(dialog: &Dialog, shell: &Shell, cx: &mut Context<Shell>) -> AnyE
         .into_any_element()
 }
 
-/// The format control with the formats the scope takes.
-// bolt gap: `SegmentedItem` has no disabled state with a tooltip, so a format the scope
-// cannot take ("API docs cover a whole collection") is left out instead of drawn disabled.
+/// The format control: every format, the ones the scope cannot take disabled with the reason
+/// why, so the dialog says what each scope exports instead of hiding it. A disabled segment
+/// takes no click, so the dialog stays on a format the scope takes.
 fn format_control(dialog: &Dialog, cx: &mut Context<Shell>) -> SegmentedControl {
-    let items = dialog
-        .scope
-        .formats()
-        .iter()
+    let items = Format::ALL
+        .into_iter()
         .map(|format| {
-            SegmentedItem::new(format.slug(), format.label())
-                .element_id(format!("export-format-{}", format.slug()))
+            let item = SegmentedItem::new(format.slug(), format.label())
+                .element_id(format!("export-format-{}", format.slug()));
+            if dialog.scope.supports(format) {
+                item
+            } else {
+                item.disabled_reason(dialog.scope.unsupported_reason(format))
+            }
         })
         .collect();
     let shell = cx.entity().downgrade();

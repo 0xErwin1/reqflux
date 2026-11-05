@@ -409,7 +409,8 @@ fn field_row(
         .child(div().flex_1().min_w_0().flex().child(control))
 }
 
-/// A control drawn dimmed while the file is read-only.
+/// A control drawn dimmed while the file is read-only. A segmented control dims itself
+/// (`SegmentedControl::disabled`), so this wraps the fields that are not segments.
 fn dimmed(editable: bool, control: impl IntoElement) -> Div {
     div()
         .flex_none()
@@ -472,7 +473,7 @@ fn general(shell: &Shell, _window: &Window, cx: &mut Context<Shell>) -> Div {
             "Theme",
             "System follows the OS appearance".to_owned(),
             GENERAL_LABEL_WIDTH,
-            dimmed(editable, control),
+            div().flex_none().child(control.disabled(!editable)),
             cx,
         ))
         .child(field_row(

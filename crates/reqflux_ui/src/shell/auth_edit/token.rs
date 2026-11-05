@@ -141,6 +141,9 @@ impl Shell {
         if self.auth_pane.tokens.fetches.contains_key(id) {
             return;
         }
+        // The form locks for as long as the fetch runs, so a menu it had open closes with it
+        // instead of reopening over the locked rows when the fetch ends.
+        self.close_auth_menu(window, cx);
         let OpenedWorkspace::Loaded(engine) = &self.workspace else {
             return;
         };

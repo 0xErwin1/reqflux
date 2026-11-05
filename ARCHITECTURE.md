@@ -594,7 +594,10 @@ exists:
   Grant type (`request-auth-grant`) are selects. An OAuth 2.0 auth adds the Token row: the kept
   token's state from `Engine::oauth_token_state` (never the token), Get new token
   (`Engine::fetch_oauth_token`, refresh token first, no send) and Clear
-  (`Engine::forget_oauth_token_of`). While Get new token runs the form is locked; the
+  (`Engine::forget_oauth_token_of`). While Get new token runs the form is locked: every row
+  draws `bolt`'s disabled field row (`FieldRow::disabled`: dimmed at `Fields::DISABLED_OPACITY`,
+  not-allowed cursor, its own content out of the pointer's reach), the selects under them are
+  disabled and the menu the form had open closes with the lock. The Token row stays live:
   authorization code grant shows its loopback redirect with Open browser again and Cancel. Auth
   types ReqFlux does not support stay read-only and masked.
 - **Settings.** The timeout opens a field (`request-setting-timeout-input`) that takes a
@@ -1578,9 +1581,11 @@ bold warning (`highlights_with_tone`, `BadgeTone::Warning`) when they do not.
 `Engine::export_postman`, `Engine::bundle` and `Engine::docs`, the calls the CLI makes. A tree
 row's `Export…`, the workspace menu's `Export workspace…`, an environment's `Export…` and the
 palette (`export`: the selected tree row, else the active request; `export-workspace`) open it,
-and the title names the scope. The format control offers what the scope takes: Postman v2.1,
-ReqFlux bundle and API docs for a collection, no API docs for a folder or request, only the
-bundle for the workspace and only Postman for an environment. Include secret values shows the
+and the title names the scope. The format control draws every format: Postman v2.1, ReqFlux
+bundle and API docs, the ones the scope cannot take disabled (`SegmentedItem::disabled_reason`)
+with a tooltip that says which scope takes it (API docs cover a whole collection, a Postman file
+holds one collection, folder or request, a bundle holds requests and not an environment), so the
+dialog shows what each scope exports instead of hiding it. Include secret values shows the
 plaintext warning; a bundle leaves secrets out by default and lists them, or encrypts them with a
 passphrase typed twice in masked fields (empty and mismatched are refused under the field before
 the save dialog; the passphrase never reaches a log, a toast or an error). The primary button
@@ -1591,8 +1596,7 @@ secrets in clear is 0600, a replaced one included. The passphrase fields stay se
 while Show draws their text, so it never reaches the automation tree either. API docs that exist ask `Replace API docs?` once and Replace files writes with
 force. The success toast carries the path and Show in folder (`App::reveal_path`; Open
 index.html for docs, `App::open_with_system`); a failure keeps the error and offers Try again….
-Its `// bolt gap:` stand-ins: a segmented item cannot be disabled with a tooltip (formats the
-scope cannot take are left out), there is no radio group (two checkboxes act as one) and `Input`
+Its `// bolt gap:` stand-ins: there is no radio group (two checkboxes act as one) and `Input`
 has no inline error slot (a danger caption).
 `shell/curl_paste.rs` catches the URL field's Paste action: a curl command goes through
 `reqflux_core::curl::parse` and `Parsed::apply` onto the draft, a toast lists what was imported
@@ -1662,7 +1666,9 @@ install); MCP policy holds `rule-read|write|execute|destructive` (Allow, Ask, De
 `hosts-list`, `environments-list` (Enter in their field adds, like the button) and the read-only `overrides-table` (`overrides-open-config`
 opens `config.toml` with the OS handler, `open_file.rs`). Every control writes `config.toml` at
 once (General and MCP policy say so under their title); while it does not parse, `config-error`
-shows its path, line and column, the controls are dimmed and do not write, and `config-open` and
+shows its path, line and column, the controls are dimmed and do not write (the theme and proxy
+mode controls through `SegmentedControl::disabled`, the fields through `READ_ONLY_OPACITY`), and
+`config-open` and
 `config-reload` act. Every way into an App section (the rail, the nav entries, Network) reads
 `config.toml` first (`Shell::prepare_app_section`), so a control never shows before the file was
 read: a page opened at a workspace section used to leave the App controls dimmed, with the font

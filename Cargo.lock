@@ -963,7 +963,7 @@ dependencies = [
 [[package]]
 name = "bolt"
 version = "0.10.0-dev.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "bolt_keys",
  "chrono",
@@ -986,7 +986,7 @@ dependencies = [
 [[package]]
 name = "bolt_keys"
 version = "0.10.0-dev.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "log",
 ]
@@ -2973,7 +2973,7 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.7.3"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3013,7 +3013,7 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.7.3"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3089,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp"
 version = "0.1.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "async-channel",
  "gpui-mcp-protocol",
@@ -3110,7 +3110,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp-protocol"
 version = "0.1.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "directories",
  "schemars",
@@ -3122,7 +3122,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre"
 version = "0.3.9"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -3273,7 +3273,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre-linux"
 version = "0.3.9"
-source = "git+https://github.com/0xErwin1/dbflux?rev=f44bb7839958e581cd54808d133afd3f409104f6#f44bb7839958e581cd54808d133afd3f409104f6"
+source = "git+https://github.com/0xErwin1/dbflux?rev=a5d197035187cb24555d4974c8ba1431950fbb44#a5d197035187cb24555d4974c8ba1431950fbb44"
 dependencies = [
  "accesskit",
  "accesskit_unix",

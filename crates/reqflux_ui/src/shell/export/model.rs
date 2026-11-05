@@ -84,6 +84,27 @@ impl Scope {
         self.formats().first().copied().unwrap_or(Format::Bundle)
     }
 
+    /// Whether the scope can be exported as `format`.
+    pub(crate) fn supports(&self, format: Format) -> bool {
+        self.formats().contains(&format)
+    }
+
+    /// Why the scope cannot be exported as `format`: the scope that does, in the dialog's
+    /// voice. A format the scope takes has none.
+    pub(crate) fn unsupported_reason(&self, format: Format) -> &'static str {
+        if self.supports(format) {
+            return "";
+        }
+        match format {
+            Format::Postman => {
+                "A Postman file holds one collection, one folder or one request. \
+                 Export one of them from its menu."
+            }
+            Format::Bundle => "A bundle holds requests and folders, not an environment.",
+            Format::Docs => "API docs cover a whole collection; export the collection.",
+        }
+    }
+
     /// Where the secrets the bundle counts live, for `Secrets · 3 in this collection`.
     pub(crate) fn place(&self) -> &'static str {
         match self {
@@ -105,6 +126,9 @@ pub(crate) enum Format {
 }
 
 impl Format {
+    /// Every format, in the control's order.
+    pub(crate) const ALL: [Self; 3] = [Self::Postman, Self::Bundle, Self::Docs];
+
     pub(crate) fn slug(self) -> &'static str {
         match self {
             Self::Postman => "postman",
@@ -270,5 +294,83 @@ mod tests {
         assert_eq!(check_passphrase("", "x"), Err(PassphraseError::Empty));
         assert_eq!(check_passphrase("a", "b"), Err(PassphraseError::Mismatch));
         assert_eq!(check_passphrase("a", "a"), Ok(()));
+    }
+
+    /// Every scope the dialog opens on.
+    fn scopes() -> Vec<Scope> {
+        vec![
+            Scope::Workspace {
+                name: "billing".to_owned(),
+            },
+            Scope::Collection {
+                id: String::new(),
+                name: "Billing API".to_owned(),
+            },
+            Scope::Folder {
+                id: String::new(),
+                name: "invoices".to_owned(),
+            },
+            Scope::Request {
+                id: String::new(),
+                name: "Create invoice".to_owned(),
+            },
+            Scope::Environment {
+                id: String::new(),
+                name: "staging".to_owned(),
+            },
+        ]
+    }
+
+    #[test]
+    fn every_format_is_offered_and_a_scope_keeps_the_ones_it_takes() {
+        for scope in scopes() {
+            assert_eq!(Format::ALL.len(), 3, "the control draws every format");
+            for format in Format::ALL {
+                assert_eq!(
+                    scope.supports(format),
+                    scope.formats().contains(&format),
+                    "{} as {}",
+                    scope.name(),
+                    format.slug()
+                );
+                let reason = scope.unsupported_reason(format);
+                assert_eq!(
+                    reason.is_empty(),
+                    scope.supports(format),
+                    "a format the scope takes has no reason: {} as {}",
+                    scope.name(),
+                    format.slug()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_reason_names_the_scope_that_takes_the_format() {
+        let folder = Scope::Folder {
+            id: String::new(),
+            name: "invoices".to_owned(),
+        };
+        assert_eq!(
+            folder.unsupported_reason(Format::Docs),
+            "API docs cover a whole collection; export the collection."
+        );
+        let environment = Scope::Environment {
+            id: String::new(),
+            name: "staging".to_owned(),
+        };
+        assert_eq!(
+            environment.unsupported_reason(Format::Bundle),
+            "A bundle holds requests and folders, not an environment."
+        );
+        let workspace = Scope::Workspace {
+            name: "billing".to_owned(),
+        };
+        assert_eq!(
+            workspace.unsupported_reason(Format::Postman),
+            "A Postman file holds one collection, one folder or one request. Export one of them \
+             from its menu."
+        );
+        assert!(!workspace.supports(Format::Docs));
     }
 }

@@ -7,15 +7,21 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use gpui::{Entity, Modifiers, MouseButton, TestAppContext, VisualTestContext};
+use gpui::{
+    AccessibilityFrame, AppContext as _, Entity, FrameObserver, Modifiers, MouseButton,
+    TestAppContext, VisualTestContext,
+};
+use reqflux_engine::state::AppState;
 use reqflux_engine::{Engine, SecretKey, SecretScope};
 use tempfile::TempDir;
 
 use super::{ExportHost, TestExportHost};
 use crate::shell::Shell;
 use crate::shell::draft_tests::{bounds, click, present, render, state_file};
-use crate::shell::toasts::tests::{click_node, error, pushed, success, tree_label, warning};
+use crate::shell::toasts::tests::{click_node, error, pushed, success, tree, tree_label, warning};
 use crate::workspace::OpenedWorkspace;
 use crate::workspace_tests::{demo_workspace, write};
 
@@ -76,9 +82,23 @@ pub(crate) struct Fixture<'a> {
 }
 
 pub(crate) fn fixture(cx: &mut TestAppContext) -> Fixture<'_> {
+    fixture_in(cx, false)
+}
+
+/// [`fixture`] with the shell inside `gpui_component`'s `Root`, which draws the window's
+/// overlays; a tooltip is one.
+fn rooted_fixture(cx: &mut TestAppContext) -> Fixture<'_> {
+    fixture_in(cx, true)
+}
+
+fn fixture_in(cx: &mut TestAppContext, rooted: bool) -> Fixture<'_> {
     let dir = export_workspace();
     let (state, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
+    let (shell, cx) = if rooted {
+        render_rooted(cx, &dir, &state_path)
+    } else {
+        render(cx, &dir, &state_path)
+    };
     let out = match TempDir::new() {
         Ok(out) => out,
         Err(failure) => panic!("temp dir: {failure}"),
@@ -94,6 +114,32 @@ pub(crate) fn fixture(cx: &mut TestAppContext) -> Fixture<'_> {
         host,
         cx,
     }
+}
+
+/// The window over `dir` with the shell inside `gpui_component`'s `Root`.
+fn render_rooted<'a>(
+    cx: &'a mut TestAppContext,
+    dir: &TempDir,
+    state_path: &Path,
+) -> (Entity<Shell>, &'a mut VisualTestContext) {
+    cx.executor().allow_parking();
+    cx.update(|cx| crate::theme::install(crate::theme::PaletteMode::Dark, cx));
+    let state = match AppState::open(state_path) {
+        Ok(state) => state,
+        Err(error) => panic!("open state: {error}"),
+    };
+    cx.update(crate::shell::bind_keys);
+    let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
+    let (root, cx) = cx.add_window_view(|window, cx| {
+        let shell = cx.new(|cx| Shell::with_state(workspace, Some(state), cx));
+        gpui_component::Root::new(shell, window, cx)
+    });
+    let shell = match cx.update(|_, cx| root.read(cx).view().clone().downcast::<Shell>()) {
+        Ok(shell) => shell,
+        Err(_) => panic!("the root view is not the shell"),
+    };
+    cx.run_until_parked();
+    (shell, cx)
 }
 
 impl Fixture<'_> {
@@ -168,6 +214,45 @@ fn postman_text(fixture: &mut Fixture<'_>, selector: &str, include: bool) -> Str
     })
 }
 
+/// Whether the control `id` takes input, as the automation tree reports it.
+fn enabled(cx: &mut VisualTestContext, id: &str) -> bool {
+    tree(cx)
+        .nodes
+        .get(id)
+        .is_some_and(|node| node.state.enabled)
+}
+
+/// Keeps the latest accessibility frame of the window that draws it, so a test can read what a
+/// tooltip says: the automation tree carries no text for one.
+#[derive(Default)]
+struct Frames(Mutex<Option<AccessibilityFrame>>);
+
+impl FrameObserver for Frames {
+    fn accessibility_updated(&self, frame: &AccessibilityFrame) {
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(frame.clone());
+    }
+}
+
+impl Frames {
+    /// The latest frame of `cx`, drawn after the pointer moved.
+    fn latest(&self, cx: &mut VisualTestContext) -> AccessibilityFrame {
+        cx.update(|window, _| window.refresh());
+        cx.run_until_parked();
+        match self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+        {
+            Some(frame) => frame,
+            None => panic!("the window drew no frame"),
+        }
+    }
+}
+
 #[gpui::test]
 fn the_tree_menu_opens_the_dialog_with_the_row_as_its_scope(cx: &mut TestAppContext) {
     let mut f = fixture(cx);
@@ -187,13 +272,53 @@ fn the_tree_menu_opens_the_dialog_with_the_row_as_its_scope(cx: &mut TestAppCont
         f.label("export-dialog").as_deref(),
         Some("Export invoices · folder")
     );
-    assert!(
-        bounds(f.cx, "export-format-docs").is_none(),
-        "API docs cover a whole collection"
-    );
+    present(f.cx, "export-format-docs");
     f.cx.simulate_keystrokes("escape");
     f.cx.run_until_parked();
     assert!(bounds(f.cx, "export-dialog").is_none());
+}
+
+#[gpui::test]
+fn an_unavailable_format_is_disabled_with_its_reason(cx: &mut TestAppContext) {
+    let mut f = rooted_fixture(cx);
+    f.export_row(FOLDER);
+    let docs = present(f.cx, "export-format-docs");
+    assert!(
+        !enabled(f.cx, "export-format-docs"),
+        "API docs is drawn disabled, not left out"
+    );
+    present(f.cx, "export-format-postman");
+    present(f.cx, "export-format-bundle");
+    assert!(
+        enabled(f.cx, "export-format-postman") && enabled(f.cx, "export-format-bundle"),
+        "the formats the folder takes stay clickable"
+    );
+
+    let frames = Arc::new(Frames::default());
+    let observed = frames.clone();
+    f.cx.update(|window, _| window.observe_frames(&observed));
+    f.cx.simulate_mouse_move(docs.center(), None, Modifiers::default());
+    f.cx.run_until_parked();
+    f.cx.executor().advance_clock(Duration::from_millis(800));
+    let frame = frames.latest(f.cx);
+    let (_node, tooltip) = frame
+        .nodes()
+        .find(|(_, node)| node.id() == "tooltip-popup")
+        .expect("hovering a disabled format draws its reason");
+    assert_eq!(
+        tooltip.content_text(),
+        "API docs cover a whole collection; export the collection.",
+        "the tooltip says why the format is disabled"
+    );
+
+    assert_eq!(f.label("export-confirm").as_deref(), Some("Save as…"));
+    click(f.cx, "export-format-docs");
+    assert_eq!(
+        f.label("export-confirm").as_deref(),
+        Some("Save as…"),
+        "a disabled segment takes no click"
+    );
+    assert!(bounds(f.cx, "export-dialog").is_some());
 }
 
 #[gpui::test]
@@ -352,8 +477,10 @@ fn an_environment_exports_from_its_menu_as_a_postman_environment(cx: &mut TestAp
         f.label("export-dialog").as_deref(),
         Some("Export staging · environment")
     );
-    assert!(bounds(f.cx, "export-format-bundle").is_none());
-    assert!(bounds(f.cx, "export-format-docs").is_none());
+    assert!(
+        !enabled(f.cx, "export-format-bundle") && !enabled(f.cx, "export-format-docs"),
+        "an environment takes a Postman environment file only"
+    );
     assert_eq!(
         f.label("export-secrets-note").as_deref(),
         Some("Off: api_key is exported with an empty value.")
@@ -385,8 +512,10 @@ fn the_workspace_menu_exports_the_whole_workspace_as_a_bundle(cx: &mut TestAppCo
         Some("Export Demo · whole workspace")
     );
     present(f.cx, "export-format-bundle");
-    assert!(bounds(f.cx, "export-format-postman").is_none());
-    assert!(bounds(f.cx, "export-format-docs").is_none());
+    assert!(
+        !enabled(f.cx, "export-format-postman") && !enabled(f.cx, "export-format-docs"),
+        "the whole workspace is a bundle only"
+    );
 }
 
 #[gpui::test]

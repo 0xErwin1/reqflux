@@ -442,40 +442,10 @@ fn get_new_token_stores_a_token_and_clear_drops_it(cx: &mut TestAppContext) {
 
 #[gpui::test]
 fn the_pkce_wait_locks_the_form_until_cancel(cx: &mut TestAppContext) {
-    let dir = auth_workspace(
-        "type = \"oauth2\"\ngrant_type = \"authorization_code\"\nauth_url = \"https://id.example/authorize\"\ntoken_url = \"https://id.example/token\"\nclient_id = \"app\"\n",
-    );
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open_auth(cx);
-    // The test never opens a real browser: this one does not come back.
-    cx.update(|_, cx| {
-        shell.update(cx, |shell, _| {
-            let OpenedWorkspace::Loaded(engine) = &mut shell.workspace else {
-                panic!("no workspace");
-            };
-            let Some(engine) = Arc::get_mut(engine) else {
-                panic!("the engine is shared");
-            };
-            engine.set_browser(Arc::new(SilentBrowser));
-        });
-    });
+    let (_dir, _state_dir, _shell, cx) = pkce(cx);
 
     click(cx, "request-auth-token-get");
-    let mut waiting = String::new();
-    for _ in 0..1000 {
-        // The pane redraws on a timer while the fetch runs.
-        cx.executor().advance_clock(Duration::from_millis(250));
-        cx.run_until_parked();
-        if bounds(cx, "request-auth-token-reopen").is_some() {
-            waiting = label(cx, "request-auth-token-waiting");
-            break;
-        }
-        thread::sleep(Duration::from_millis(10));
-    }
-    if waiting.is_empty() {
-        waiting = all_labels(cx);
-    }
+    let waiting = wait_until_locked(cx);
     assert!(
         waiting.starts_with(
             "Waiting for the browser. Sign in at id.example. ReqFlux listens on http://127.0.0.1:"
@@ -495,4 +465,68 @@ fn the_pkce_wait_locks_the_form_until_cancel(cx: &mut TestAppContext) {
     assert_eq!(label(cx, "request-auth-token"), "Token: No token");
     click(cx, "request-auth-field-client-id");
     assert!(bounds(cx, "request-auth-input").is_some(), "unlocked");
+}
+
+#[gpui::test]
+fn a_menu_open_when_the_form_locks_closes_with_it(cx: &mut TestAppContext) {
+    let (_dir, _state_dir, shell, cx) = pkce(cx);
+    click(cx, "request-auth-type");
+    present(cx, "auth-type-menu");
+
+    // The click that starts the fetch would close the menu through its own backdrop, so the
+    // fetch starts here as the Token row's button starts it.
+    cx.update(|window, cx| {
+        shell.update(cx, |shell, cx| shell.get_new_token(GUARDED, window, cx));
+    });
+    let waiting = wait_until_locked(cx);
+    assert!(waiting.starts_with("Waiting for the browser."), "{waiting}");
+    assert!(
+        bounds(cx, "auth-type-menu").is_none(),
+        "the locked form draws no menu over its rows"
+    );
+
+    click(cx, "request-auth-field-client-id");
+    assert!(
+        bounds(cx, "request-auth-input").is_none(),
+        "a locked row takes no click"
+    );
+    click(cx, "request-auth-token-cancel");
+}
+
+/// The shell over an OAuth 2.0 authorization code request whose browser never comes back, its
+/// Auth pane open, with the state directory the shell keeps its file in.
+fn pkce(cx: &mut TestAppContext) -> (TempDir, TempDir, Entity<Shell>, &mut VisualTestContext) {
+    let dir = auth_workspace(
+        "type = \"oauth2\"\ngrant_type = \"authorization_code\"\nauth_url = \"https://id.example/authorize\"\ntoken_url = \"https://id.example/token\"\nclient_id = \"app\"\n",
+    );
+    let (state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+    // The test never opens a real browser: this one does not come back.
+    cx.update(|_, cx| {
+        shell.update(cx, |shell, _| {
+            let OpenedWorkspace::Loaded(engine) = &mut shell.workspace else {
+                panic!("no workspace");
+            };
+            let Some(engine) = Arc::get_mut(engine) else {
+                panic!("the engine is shared");
+            };
+            engine.set_browser(Arc::new(SilentBrowser));
+        });
+    });
+    (dir, state_dir, shell, cx)
+}
+
+/// Waits for Get new token to lock the form and returns the line the Token row shows.
+fn wait_until_locked(cx: &mut VisualTestContext) -> String {
+    for _ in 0..1000 {
+        // The pane redraws on a timer while the fetch runs.
+        cx.executor().advance_clock(Duration::from_millis(250));
+        cx.run_until_parked();
+        if bounds(cx, "request-auth-token-reopen").is_some() {
+            return label(cx, "request-auth-token-waiting");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+    all_labels(cx)
 }

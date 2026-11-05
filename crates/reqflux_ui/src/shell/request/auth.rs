@@ -4,13 +4,14 @@
 //! with the SECRET badge, on screen and in the automation label. Username, Key and the
 //! secrets open a field; Add to is a segmented control. Digest, AWS SigV4 and OAuth 2.0
 //! fields open a field too, Algorithm and Grant type are selects, and OAuth 2.0 adds the
-//! Token row ([`token_view`]). While Get new token runs the form is locked. Every edit lands
-//! in the request's draft. Other auth types stay read-only.
+//! Token row ([`token_view`]). While Get new token runs the form is locked: every row draws
+//! `bolt`'s disabled field row and the menus they had open close. Every edit lands in the
+//! request's draft. Other auth types stay read-only.
 
 mod token_model;
 mod token_view;
 
-use bolt::composites::field_row as bolt_field_row;
+use bolt::composites::FieldRow;
 use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
 use bolt::primitives::{SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ModalMetrics, Spacing};
@@ -33,8 +34,16 @@ use crate::shell::documents::locate;
 use crate::shell::rows::{labeled_row, part};
 use crate::tokens;
 
-/// A form row: `bolt`'s field row of `label` over `content` and the hints under it.
-fn form_row(row: Stateful<Div>, label: &str, content: Vec<AnyElement>, cx: &App) -> Stateful<Div> {
+/// A form row: `bolt`'s field row of `label` over `content` and the hints under it. `locked`
+/// draws it as `bolt`'s locked row: dimmed at `Fields::DISABLED_OPACITY` with the not-allowed
+/// cursor, its own content out of the pointer's reach.
+fn form_row(
+    row: Stateful<Div>,
+    label: &str,
+    content: Vec<AnyElement>,
+    locked: bool,
+    cx: &App,
+) -> Stateful<Div> {
     let control = div()
         .min_w_0()
         .flex()
@@ -42,8 +51,11 @@ fn form_row(row: Stateful<Div>, label: &str, content: Vec<AnyElement>, cx: &App)
         .items_start()
         .gap(Spacing::XXS)
         .children(content);
-    row.py(ModalMetrics::FORM_ROW_PADDING_Y)
-        .child(bolt_field_row(label.to_owned(), control, cx))
+    row.py(ModalMetrics::FORM_ROW_PADDING_Y).child(
+        FieldRow::new(label.to_owned(), control)
+            .disabled(locked)
+            .build(cx),
+    )
 }
 
 /// A muted hint `text` under a control, element `id`.
@@ -120,6 +132,7 @@ fn source_row(request_id: &str, auth: &Auth, shell: &Shell, cx: &mut Context<She
         part("request-auth-source-row".to_owned()),
         "Source",
         content,
+        false,
         cx,
     )
     .into_any_element()
@@ -154,7 +167,7 @@ fn type_row(
     let control = div()
         .relative()
         .child(div().w(tokens::AUTH_MENU_WIDTH).child(trigger))
-        .when(menu_open(shell, AuthMenu::Type), |anchor| {
+        .when(!locked && menu_open(shell, AuthMenu::Type), |anchor| {
             anchor.child(auth_menu::render(request_id, auth, shell, window, cx))
         })
         .into_any_element();
@@ -162,6 +175,7 @@ fn type_row(
         part("request-auth-type-row".to_owned()),
         "Type",
         vec![control],
+        locked,
         cx,
     )
     .into_any_element()
@@ -265,22 +279,28 @@ fn select_row(
             this.toggle_auth_select(menu, window, cx);
         }))
     };
-    let open = match (menu_open(shell, menu), auth.typed()) {
-        (true, Some(Ok(TypedAuth::Digest(digest)))) => Some(auth_menu::algorithm(
-            request_id,
-            digest.algorithm,
-            shell,
-            window,
-            cx,
-        )),
-        (true, Some(Ok(TypedAuth::OAuth2(oauth)))) => Some(auth_menu::grant(
-            request_id,
-            oauth.grant_type,
-            shell,
-            window,
-            cx,
-        )),
-        _ => None,
+    // A menu the row opened is drawn outside it, where the locked plate does not reach: the
+    // row closes it instead, and the select under it takes no click while locked.
+    let open = if locked {
+        None
+    } else {
+        match (menu_open(shell, menu), auth.typed()) {
+            (true, Some(Ok(TypedAuth::Digest(digest)))) => Some(auth_menu::algorithm(
+                request_id,
+                digest.algorithm,
+                shell,
+                window,
+                cx,
+            )),
+            (true, Some(Ok(TypedAuth::OAuth2(oauth)))) => Some(auth_menu::grant(
+                request_id,
+                oauth.grant_type,
+                shell,
+                window,
+                cx,
+            )),
+            _ => None,
+        }
     };
     let control = div()
         .relative()
@@ -300,6 +320,7 @@ fn select_row(
         ),
         &field.label,
         content,
+        locked,
         cx,
     )
     .into_any_element()
@@ -347,6 +368,7 @@ fn field_row(
                 labeled_row(id, format!("{}: {}", field.label, field.value)),
                 &field.label,
                 vec![control],
+                locked,
                 cx,
             )
             .into_any_element();
@@ -374,6 +396,7 @@ fn field_row(
             labeled_row(id, format!("{}: ", field.label)),
             &field.label,
             std::iter::once(control).chain(hints).collect(),
+            locked,
             cx,
         )
         .into_any_element();
@@ -424,6 +447,7 @@ fn field_row(
         labeled_row(id, format!("{}: {shown}", field.label)),
         &field.label,
         std::iter::once(control).chain(hints).collect(),
+        locked,
         cx,
     );
     let (key, secret) = match field.edit {
@@ -432,7 +456,9 @@ fn field_row(
         _ => return row.into_any_element(),
     };
     if locked {
-        return row.opacity(LOCKED_OPACITY).into_any_element();
+        // The locked row draws `bolt`'s disabled look and takes no click; the field it holds
+        // is not one the form can open while Get new token runs.
+        return row.into_any_element();
     }
     let request = request_id.to_owned();
     let typed = matches!(auth, Auth::Other { .. });
@@ -446,10 +472,6 @@ fn field_row(
         }))
         .into_any_element()
 }
-
-/// The opacity of a field row while Get new token locks the form.
-// bolt gap: no disabled or locked state for a form field row.
-const LOCKED_OPACITY: f32 = 0.5;
 
 /// The pane of `auth` of the request `request_id`, the draft's when the request has one,
 /// else the saved file's.

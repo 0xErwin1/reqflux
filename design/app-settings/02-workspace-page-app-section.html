@@ -66,7 +66,7 @@ button{font:inherit;white-space:nowrap;cursor:pointer}
 
 <!-- Direction 2: the built workspace settings page (design/variables/01-settings-page.html, drawn beside the activity rail in place of the sidebar and document islands) gains an App section above Workspace. The rail's Settings button opens it on App > General. Like variables, every control writes at once through the format-preserving editor (no Save footer). Per-workspace overrides are read-only here: the table shows what config.toml says and "Open config.toml" edits it.
      Frame A: App > MCP policy. Frame B: App > General while config.toml does not parse.
-     bolt: activity_rail, island, tree_nav, field_row, segmented_control, dropdown, input, list_row, button, badge, banner. bolt gap: SegmentedControl has no disabled state, so the read-only state dims it and ignores clicks.
+     bolt: activity_rail, island, tree_nav, field_row, segmented_control, dropdown, input, list_row, button, badge, banner. While config.toml does not parse the segmented controls are SegmentedControl::disabled (every segment at Fields::DISABLED_OPACITY, no hover wash, no click) and the fields are dimmed.
      Built (app-pending T5): the overrides table shows every rule (destructive included); a row names the open workspace "<name> (open)" and any other by its id. Element ids beyond the ones drawn: theme-dark|light|system, rule-<class>-allow|ask|deny, hosts-add / environments-add (fields), hosts-add-button / environments-add-button, hosts-row-<i> / environments-row-<i>, hosts-remove-<i> / environments-remove-<i>, overrides-row-<workspace id>. The App header shows "Settings"; the workspace sections keep the "Workspace settings" breadcrumb. -->
 
 <main>

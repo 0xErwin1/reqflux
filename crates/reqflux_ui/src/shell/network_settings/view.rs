@@ -36,7 +36,6 @@ use crate::shell::{Shell, region, text_region};
 use crate::tokens::{
     APP_SETTINGS_COLUMN_GAP as COLUMN_GAP, APP_SETTINGS_OVERRIDE_RULE as KIND_WIDTH,
     APP_SETTINGS_RULE_LABEL_WIDTH as LABEL_WIDTH, COOKIE_DOMAIN_COLUMN as HOST_WIDTH,
-    READ_ONLY_OPACITY,
 };
 
 const DESCRIPTION: &str = "Used by every send on this machine: requests, auth requests and \
@@ -493,7 +492,8 @@ fn mode_name(mode: ProxyMode) -> &'static str {
 }
 
 /// The System / None / Manual control `<id>`: choosing a mode writes `mode` of
-/// `[network.proxy]`. Drawn dimmed, and inert, while config.toml does not parse.
+/// `[network.proxy]`. Disabled while config.toml does not parse, so it looks and answers
+/// like the file's other read-only controls.
 fn mode_control(id: &str, mode: ProxyMode, editable: bool, cx: &mut Context<Shell>) -> Div {
     let shell = cx.entity().downgrade();
     let items = [ProxyMode::System, ProxyMode::None, ProxyMode::Manual]
@@ -503,10 +503,8 @@ fn mode_control(id: &str, mode: ProxyMode, editable: bool, cx: &mut Context<Shel
             SegmentedItem::new(name, name).element_id(format!("{id}-{}", name.to_lowercase()))
         })
         .collect();
-    div()
-        .flex_none()
-        .when(!editable, |control| control.opacity(READ_ONLY_OPACITY))
-        .child(segmented::control(
+    div().flex_none().child(
+        segmented::control(
             id,
             Some("Proxy mode".into()),
             false,
@@ -524,7 +522,9 @@ fn mode_control(id: &str, mode: ProxyMode, editable: bool, cx: &mut Context<Shel
                     log::warn!("the proxy mode control outlived the shell: {error}");
                 }
             },
-        ))
+        )
+        .disabled(!editable),
+    )
 }
 
 /// The Manual proxy's URL: the field `<prefix>-url` for the app proxy, which Enter and

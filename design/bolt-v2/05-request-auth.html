@@ -85,7 +85,9 @@ button{font:inherit;white-space:nowrap}
 .mask{flex-grow:1;color:#8E8996;letter-spacing:.1em}
 .pri{background:#2B45B8;color:#FFF;font-weight:600}
 .opt{display:flex;align-items:center;gap:10px;height:30px;padding:0 12px;color:#C6C3CC;font-size:12.5px}
-.dim{opacity:.5}
+/* A locked row: bolt's FieldRow::disabled, dimmed at Fields::DISABLED_OPACITY and out of the
+   pointer's reach. A menu the row had opened closes with the lock. */
+.dim{opacity:.45;cursor:not-allowed}
 </style></head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -651,7 +653,7 @@ button{font:inherit;white-space:nowrap}
   </div>
 </div></div>
 
-<div class="state"><div class="state-head"><h3>OAuth 2.0 · authorization code with PKCE, waiting for the browser</h3><p>Get new token opened the system browser; ReqFlux listens on a loopback redirect. The form is locked until the browser returns or you cancel.</p></div>
+<div class="state"><div class="state-head"><h3>OAuth 2.0 · authorization code with PKCE, waiting for the browser</h3><p>Get new token opened the system browser; ReqFlux listens on a loopback redirect. The form is locked until the browser returns or you cancel: every row draws FieldRow's disabled look, the Grant type select is disabled and any menu the form had open closed with the lock. The Token row stays live, with Open browser again and Cancel.</p></div>
 <div class="frame">
   <div style="padding:2px 16px 8px">
     <div class="frow"><span class="lb">Grant type</span>

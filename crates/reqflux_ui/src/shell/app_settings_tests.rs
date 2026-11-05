@@ -79,6 +79,15 @@ fn label(automation: &gpui_mcp::Automation, id: &str) -> Option<String> {
         .and_then(|node| node.label.clone())
 }
 
+/// Whether the control `id` takes input, as the automation tree reports it.
+fn enabled(automation: &gpui_mcp::Automation, id: &str) -> bool {
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .is_some_and(|node| node.state.enabled)
+}
+
 /// The files the OS handler was asked to open.
 type Opened = Rc<RefCell<Vec<PathBuf>>>;
 
@@ -354,6 +363,14 @@ fn a_file_that_does_not_parse_is_read_only_until_reloaded(cx: &mut TestAppContex
     let shown = label(&automation, "config-error").unwrap_or_default();
     assert!(shown.contains("line 2"), "{shown}");
     assert!(!shown.contains("SECRET123"), "{shown}");
+    present(cx, "theme-dark");
+    for segment in ["theme-dark", "theme-light", "theme-system"] {
+        present(cx, segment);
+        assert!(
+            !enabled(&automation, segment),
+            "{segment} is drawn disabled while the file does not parse"
+        );
+    }
     click(cx, "theme-dark");
     click(cx, "nav-mcp-policy");
     click(cx, "rule-read-deny");
@@ -366,6 +383,11 @@ fn a_file_that_does_not_parse_is_read_only_until_reloaded(cx: &mut TestAppContex
     write(&config_path, "theme = \"light\"\nfont_size = 15\n");
     click(cx, "config-reload");
     assert!(bounds(cx, "config-error").is_none());
+    present(cx, "theme-dark");
+    assert!(
+        enabled(&automation, "theme-dark"),
+        "a file that parses gives the theme control its clicks back"
+    );
     assert_eq!(
         cx.update(|_, cx| crate::theme::mode(cx)),
         PaletteMode::Light

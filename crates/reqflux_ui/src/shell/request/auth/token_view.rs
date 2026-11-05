@@ -131,6 +131,7 @@ pub(super) fn render(
             ),
             "Token",
             vec![banner],
+            false,
             cx,
         )
         .into_any_element();
@@ -144,6 +145,7 @@ pub(super) fn render(
             ),
             "Token",
             vec![banner],
+            false,
             cx,
         )
         .into_any_element();
@@ -153,6 +155,7 @@ pub(super) fn render(
             labeled_row("request-auth-token".to_owned(), "Token: unknown".to_owned()),
             "Token",
             vec![get_button(request_id, true, cx).into_any_element()],
+            false,
             cx,
         )
         .into_any_element();
@@ -227,6 +230,7 @@ pub(super) fn render(
         labeled_row("request-auth-token".to_owned(), label),
         "Token",
         vec![line],
+        false,
         cx,
     )
     .into_any_element()
