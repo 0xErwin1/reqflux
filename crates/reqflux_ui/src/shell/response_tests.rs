@@ -406,7 +406,8 @@ pub(super) fn sent(cx: &mut TestAppContext) -> &mut VisualTestContext {
 #[gpui::test]
 fn ctrl_f_in_the_response_searches_the_body(cx: &mut TestAppContext) {
     let cx = sent(cx);
-    present(cx, "response-search-keycap");
+    // The closed field is `bolt`'s `SearchTrigger`: the shortcut keycap is `<id>-key`.
+    present(cx, "response-search-key");
     assert!(absent(cx, "response-search-count"));
 
     click(cx, "response-body");
@@ -445,7 +446,7 @@ fn escape_closes_the_search_and_its_highlights(cx: &mut TestAppContext) {
     press(cx, "escape");
     assert!(absent(cx, "response-search-count"));
     assert!(absent(cx, "response-body-hit-1"));
-    present(cx, "response-search-keycap");
+    present(cx, "response-search-key");
     present(cx, "response-body-line-1");
 }
 

@@ -29,12 +29,14 @@
   secret is not masked here (the response Cookies view masks it through the send's masker). Not
   drawn until the engine can say which jar values are secrets.
 
-  bolt: activity_rail, island, tree_nav, field_row, segmented_control, input, list_row, data grid,
+  bolt: activity_rail, island, tree_nav, field_row, segmented_control, input, value_field,
+  field_well, list_row, data grid,
   button, badge, banner, dialog, toast, chip.
   Hierarchy (feedback-nov3 S14): a section title is an accent kicker over a heading on a line
   (.sec), a field label is muted and its value strong, a value the page cannot change sits on an
-  inset surface with the plain line (.field.ro, a disabled input), an editable control keeps the
-  stronger edge (.field.ed) and the raised fill of a button. The proxy mode control writes
+  inset surface with the plain line (.field.ro, bolt's ValueField, or a FieldWell when the row
+  holds more than one part), an editable control keeps
+  the stronger edge (.field.ed) and the raised fill of a button. The proxy mode control writes
   [network.proxy] mode in config.toml at once (format-preserving, like the theme); Manual shows the
   URL as an editable field that writes url on Enter and on blur. The control is dimmed (.seg.dis)
   and inert only while config.toml does not parse. Nothing that looks editable answers with an
@@ -48,7 +50,6 @@
   a toast titled after the cause, without the password. The URL field keeps splitting a typed
   user:password and says to use this field instead. Workspace proxies and certificate
   passphrases keep the keyring badge and dialog.
-  bolt gap: no read-only value field; the .field.ro surface is a stand-in.
   bolt gap: list row with trailing badge plus actions and a second muted line (certificate rows).
 -->
 <style>

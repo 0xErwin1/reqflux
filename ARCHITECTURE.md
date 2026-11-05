@@ -470,7 +470,8 @@ request above its response across the draggable split; Side by side, the request
 response in columns with the splitter standing vertically between them (`bolt`'s
 `SplitAxis::Horizontal`); and Document, which draws no split at all, the active request's folder
 as one `.http` document (`document-view`, numbered `document-line-<n>` rows grouped in
-`document-section-<n>`, editable and synced with the request files; see the `.http` document
+`document-section-<n>`, each line `bolt`'s `CodeView` inside one `FieldWell`, editable and
+synced with the request files; see the `.http` document
 paragraph below). Collapsing the response shows its bar across the island in both
 split-based modes. The mode is `layout` in the user's config.toml (`"stacked"` by default,
 `"side-by-side"`, `"document"`), read at startup and written by the same format-preserving
@@ -1534,7 +1535,7 @@ The request and response panes draw with DBFlux's `bolt` (`bolt::colors`, rem to
 `Badge`, `Checkbox`, `BannerBlock`, `EmptyState`, document tabs, `menu_frame`/`menu_row`,
 `field_row`), so their sizes are DBFlux's: grid header 40 and rows 31, code lines 22, URL
 field and Send 30, result rows 28, body-format footer 36. The closed body search and JSONPath
-triggers are the only `// bolt gap:` stand-ins (`SearchField` has no closed state).
+fields are `bolt`'s `SearchTrigger`, so the views row has no `// bolt gap:` stand-in left.
 
 The views and overlays draw with DBFlux's `bolt` too. The MCP approvals view uses
 `ApprovalsMetrics`, DBFlux's own approvals sizes (pending list 380 wide, 52 px detail title,
@@ -1710,6 +1711,8 @@ the password without it. A URL the
 keyring refused stays in the field minus its password (`config::url_without_password`), so only
 the password is typed again. The CA
 bundle, the certificates, the bypass list and a workspace's own proxy are read from the file. A
+value the page cannot change draws in `bolt`'s read-only field (`ValueField`, a path in the
+editor face) or, when the row holds more than one part, in a `FieldWell`. A
 write that fails raises an error toast, titled after the cause (`Cannot save the proxy password`
 for the keyring, `Cannot write config.toml` otherwise); with a file that does not parse the mode control is
 dimmed and inert, so nothing that looks editable answers with an error.

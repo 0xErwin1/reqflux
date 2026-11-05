@@ -48,6 +48,22 @@ fn read(path: &Path) -> String {
     }
 }
 
+/// The accessible label of element `id`, if it is shown.
+fn label(cx: &mut VisualTestContext, id: &str) -> Option<String> {
+    bounds(cx, id)?;
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    automation
+        .snapshot()
+        .nodes
+        .get(id)
+        .and_then(|node| node.label.clone())
+}
+
 /// Renders the shell over `config_path` and opens App > Network.
 fn render_network<'a>(
     cx: &'a mut TestAppContext,
@@ -99,6 +115,11 @@ fn the_section_lists_what_network_holds(cx: &mut TestAppContext) {
     let (shell, cx) = render_network(cx, &dir, &state_path, &config_path);
     present(cx, "network-ca-bundle");
     present(cx, "network-proxy-url");
+    assert_eq!(
+        label(cx, "network-ca-bundle-value").as_deref(),
+        Some("/etc/ssl/corp-ca.pem"),
+        "the value draws in the read-only value field"
+    );
     let model = shell.read_with(cx, |shell, _| {
         shell.settings.network.model.clone().expect("a model")
     });

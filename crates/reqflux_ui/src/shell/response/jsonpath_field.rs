@@ -4,10 +4,13 @@
 //! `response-jsonpath-count` (`<n> matches`, or `error` with the ring in danger). Under the
 //! views row, the danger banner `response-jsonpath-error` carries the engine's message
 //! while the body shows unfiltered.
+//!
+//! Closed it is `bolt`'s `SearchTrigger`, open `bolt`'s `SearchField`: the two states of one
+//! `bolt` control.
 
-use bolt::controls::{InputEscape, SearchCount, SearchField};
-use bolt::primitives::{BadgeTone, BannerBlock, BannerVariant, Chamfer, Icon};
-use bolt::tokens::{ChamferCut, Fields, ResultMetrics, Spacing};
+use bolt::controls::{InputEscape, SearchCount, SearchField, SearchTrigger};
+use bolt::primitives::{BadgeTone, BannerBlock, BannerVariant};
+use bolt::tokens::{ResultMetrics, Spacing};
 use gpui::{AnyElement, App, ClickEvent, Context, ParentElement, Role, Styled, div, prelude::*};
 use gpui_kit_assets::IconName;
 
@@ -57,45 +60,21 @@ pub(super) fn render(
         .into_any_element()
 }
 
-/// The closed field: the funnel icon and the placeholder, opening the filter when clicked.
-// bolt gap: `SearchField` has no closed (trigger) state; drawn with its frame and metrics.
+/// The closed field, `bolt`'s `SearchTrigger`: the funnel icon, the placeholder and the same
+/// frame as the open field, opening the filter when clicked. The field fills the width the
+/// views row gives it, so it narrows with the row as the open field does.
 fn closed(id: &str, cx: &mut Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
     let request = id.to_owned();
-    region("response-jsonpath")
-        .relative()
-        .flex()
-        .items_center()
-        .gap(Fields::GAP)
+    div()
         .w(ResultMetrics::SEARCH_WIDTH)
         .min_w_0()
-        .h(Fields::HEIGHT)
-        .pl(Fields::PADDING_X)
-        .pr(Fields::PADDING_X)
-        .font_family(bolt::fonts::ui_family(cx))
-        .text_size(Fields::TEXT)
-        .cursor_pointer()
-        .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
-            this.open_response_jsonpath(&request, window, cx);
-        }))
         .child(
-            Chamfer::new(ChamferCut::CONTROL)
-                .fill(colors.background)
-                .border(colors.line),
-        )
-        .child(
-            Icon::new(ui::icon(IconName::Funnel))
-                .size(Fields::LEADING_ICON)
-                .color(colors.muted),
-        )
-        .child(
-            div()
-                .flex_1()
-                .min_w_0()
-                .overflow_hidden()
-                .whitespace_nowrap()
-                .text_color(colors.muted)
-                .child(JSONPATH_PLACEHOLDER),
+            SearchTrigger::new("response-jsonpath", JSONPATH_PLACEHOLDER)
+                .icon(ui::icon(IconName::Funnel))
+                .aria_label(JSONPATH_PLACEHOLDER)
+                .on_open(cx.listener(move |this, _: &ClickEvent, window, cx| {
+                    this.open_response_jsonpath(&request, window, cx);
+                })),
         )
         .into_any_element()
 }

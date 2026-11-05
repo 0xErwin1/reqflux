@@ -1,29 +1,27 @@
 //! The Document layout's view (v1-features S7, design/layouts/02): the active request's
 //! folder as one `.http` document, the sections `reqflux_core::http_document` writes from
 //! the saved requests (the draft's text when a request has one). The lines draw like the
-//! response body's, one `document-section-<n>` per request and a `document-line-<n>` per
-//! line; a section's method line takes the method colour the request line uses and its
-//! `###` line is muted. Clicking the document swaps it for the multi-line editor the raw
-//! body uses (`document-editor`), seeded from `write` of the folder and refreshed
-//! underneath while the text is not dirty. Ctrl+Enter or `document-send` sends the
-//! section the cursor is in through the engine, its response under that section
-//! (`document-section-<n>-response`, see `response::document_block`); Ctrl+S or
-//! `document-save` parses the text and saves it through the engine (see
+//! response body's — `bolt`'s `CodeView` at its own code metrics, in the gutter numbered
+//! across the whole document — one `document-section-<n>` per request and a
+//! `document-line-<n>` per line, in a `bolt` `FieldWell`; a section's method line takes the
+//! method colour the request line uses and its `###` line is muted. Clicking the document
+//! swaps it for the multi-line editor the raw body uses (`document-editor`), seeded from
+//! `write` of the folder and refreshed underneath while the text is not dirty. Ctrl+Enter
+//! or `document-send` sends the section the cursor is in through the engine, its response
+//! under that section (`document-section-<n>-response`, see `response::document_block`);
+//! Ctrl+S or `document-save` parses the text and saves it through the engine (see
 //! `save_document`), `document-discard` drops the edit, and `document-warnings` shows what
 //! a broken section blocks. A dirty text is stored per folder in the app state (see
 //! `document_drafts`), so it comes back after a folder switch or a restart, and a section
 //! keeps its request across an unsaved rename (see `document_sections`). Without an open
 //! request the view shows an empty state.
-// bolt gap: `bolt` has no read-only code view with line numbers and no plain field well
-// outside the request module; the lines are drawn as the Body pane draws its code and the
-// wells as its `text_well`.
 
 use std::str::FromStr;
 use std::sync::Arc;
 
 use bolt::controls::{Button, InputEnter};
-use bolt::primitives::{BannerBlock, BannerVariant, Chamfer};
-use bolt::tokens::{ChamferCut, EditorMetrics, GridMetrics, Spacing};
+use bolt::primitives::{BannerBlock, BannerVariant, CodeView, FieldWell};
+use bolt::tokens::{EditorMetrics, GridMetrics, Spacing};
 use gpui::{
     AnyElement, App, Context, Div, Entity, IntoElement, ParentElement, Point, Role, Stateful,
     Styled, Subscription, Window, anchored, deferred, div, prelude::*,
@@ -38,7 +36,7 @@ use crate::shell::{
     Shell, history, region,
     request::ui,
     response,
-    rows::{labeled_row, part},
+    rows::part,
     send::RequestSend,
     toasts, tree_model,
     tree_model::{Node, NodeKind},
@@ -121,10 +119,19 @@ pub(crate) fn render(
     let text = http_document::write(&plain(&sections));
     let shown = shown_response(shell, &sections, cx);
     view.child(
-        document_well("document-text", cx)
+        part("document-text".to_owned())
+            .flex_1()
+            .min_h_0()
+            .flex()
+            .flex_col()
             .cursor_text()
             .on_click(cx.listener(|this, _event, window, cx| this.start_document_edit(window, cx)))
-            .children(section_groups(&sections, &text, shown, cx)),
+            .child(
+                well()
+                    .flex_1()
+                    .min_h_0()
+                    .children(section_groups(&sections, &text, shown, cx)),
+            ),
     )
 }
 
@@ -142,23 +149,10 @@ fn centered(message: &str) -> impl IntoElement {
         ))
 }
 
-/// A field well `id`, drawn as the Body pane draws its raw text (see
-/// `request/body/controls`).
-fn document_well(id: &str, cx: &App) -> Stateful<Div> {
-    let colors = bolt::colors(cx);
-    part(id.to_owned())
-        .relative()
-        .mx(Spacing::MD)
-        .my(Spacing::SM)
-        .flex_1()
-        .min_h_0()
-        .flex()
-        .flex_col()
-        .child(
-            Chamfer::new(ChamferCut::CONTROL)
-                .fill(colors.background)
-                .border(colors.line),
-        )
+/// A field well, `bolt`'s `FieldWell`: the inset ground fill and plain line the read-only
+/// document and its editor sit in, as the Body pane's raw text does.
+fn well() -> FieldWell {
+    FieldWell::new().mx(Spacing::MD).my(Spacing::SM)
 }
 
 /// The document under edit: the toolbar (dirty marker, Discard, Save), the editor and the
@@ -254,7 +248,11 @@ fn document_editor(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         return part("document-editor".to_owned());
     };
     let input = edit.input.clone();
-    document_well("document-editor", cx)
+    part("document-editor".to_owned())
+        .flex_1()
+        .min_h_0()
+        .flex()
+        .flex_col()
         // Ctrl+Enter sends the section the cursor is in; the editor would otherwise
         // consume the secondary Enter as its own, as the GraphQL editor's does.
         .capture_action(cx.listener(|this, action: &InputEnter, window, cx| {
@@ -264,12 +262,14 @@ fn document_editor(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
             }
         }))
         .child(
-            Textarea::new(&input)
-                .appearance(false)
-                .bordered(false)
-                .text_size(EditorMetrics::CODE_FONT)
-                .font_family(bolt::fonts::editor_family(cx))
-                .text_color(bolt::colors(cx).foreground),
+            well().flex_1().min_h_0().child(
+                Textarea::new(&input)
+                    .appearance(false)
+                    .bordered(false)
+                    .text_size(EditorMetrics::CODE_FONT)
+                    .font_family(bolt::fonts::editor_family(cx))
+                    .text_color(bolt::colors(cx).foreground),
+            ),
         )
 }
 
@@ -920,20 +920,26 @@ fn section_groups(
     rows
 }
 
-/// One numbered line of the document, as the response body draws its lines: the number in
-/// the gutter and the text beside it, a section line muted, a method line in the method's
-/// hue and everything else in the foreground.
-fn line_row(number: usize, text: &str, kind: LineKind, method: &str, cx: &App) -> Stateful<Div> {
+/// One numbered line of the document: the gutter number and the line as `bolt`'s `CodeView`
+/// draws code, a section line muted, a method line in the method's hue and everything else in
+/// the foreground.
+///
+/// Each line is its own `CodeView` because the document numbers its lines across the whole
+/// text — `document-warnings` quotes those numbers — and puts each section's response block
+/// inside its section, which one numbered block cannot draw; `CodeView` also draws a range
+/// bold in the tint or a tone, never the muted grey a `###` line takes.
+fn line_row(number: usize, text: &str, kind: LineKind, method: &str, cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
     let color = match kind {
         LineKind::Section => colors.muted,
         LineKind::Method => method_hue(method, cx),
         LineKind::Text => colors.foreground,
     };
-    labeled_row(format!("document-line-{number}"), text.to_owned())
+    div()
         .flex()
         .items_center()
         .h(EditorMetrics::CODE_LINE_HEIGHT)
+        .text_color(color)
         .child(
             div()
                 .w(GridMetrics::ROW_NUMBER_WIDTH)
@@ -945,12 +951,15 @@ fn line_row(number: usize, text: &str, kind: LineKind, method: &str, cx: &App) -
         )
         .child(
             div()
+                .flex_1()
                 .min_w_0()
-                .flex()
                 .whitespace_nowrap()
-                .text_color(color)
-                .child(text.to_owned()),
+                .child(CodeView::new(
+                    format!("document-line-{number}"),
+                    text.to_owned(),
+                )),
         )
+        .into_any_element()
 }
 
 #[cfg(test)]

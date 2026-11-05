@@ -12,18 +12,19 @@
 //! Set and Change dialog is `network-secret-dialog` with the masked field
 //! `network-secret-input`, `network-secret-cancel` and `network-secret-save`.
 //!
-//! It draws with `bolt`: `SegmentedControl`, `Badge`, `Button`, `Input`, `BannerBlock` and
-//! `Modal`. No value of a secret is drawn: a keyring badge says `SET` or `NOT SET`.
+//! It draws with `bolt`: `SegmentedControl`, `Badge`, `Button`, `Input`, `ValueField`,
+//! `FieldWell`, `BannerBlock` and `Modal`. No value of a secret is drawn: a keyring badge says
+//! `SET` or `NOT SET`.
 
-use bolt::controls::{Button, Input, InputEnter, InputState};
+use bolt::controls::{Button, Input, InputEnter, InputState, ValueField};
 use bolt::modals::{Modal, modal_field, modal_lead};
 use bolt::primitives::{
-    Badge, BadgeTone, BannerBlock, BannerVariant, Icon, SegmentedItem, TextVariant,
+    Badge, BadgeTone, BannerBlock, BannerVariant, FieldWell, Icon, SegmentedItem, TextVariant,
 };
 use bolt::tokens::{Borders, Fields, HeaderMetrics, ModalMetrics, Spacing};
 use gpui::{
     AnyElement, App, Context, Div, Entity, IntoElement, ParentElement, Point, Role, SharedString,
-    Stateful, Styled, Window, anchored, deferred, div, prelude::*,
+    Styled, Window, anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
 use reqflux_engine::config::{self, ProxyMode};
@@ -208,19 +209,15 @@ fn section(
         )
 }
 
-/// A value the page shows but cannot change, on its own inset surface with the plain line, as
-/// a disabled input draws; an editable control keeps the stronger edge of `bolt`'s fields.
-// bolt gap: no read-only value field; an `Input` would need an `InputState` per value.
-fn read_only<E: Styled>(value: E, cx: &App) -> E {
-    let colors = bolt::colors(cx);
-    value
+/// A read-only block of the page on `bolt`'s `FieldWell`: the inset ground fill and plain line a
+/// text field draws, holding whatever the row puts in it.
+fn well() -> FieldWell {
+    FieldWell::new()
         .min_h(Fields::HEIGHT)
-        .text_size(Fields::TEXT)
         .pl(Fields::PADDING_X)
         .pr(Fields::PADDING_X)
-        .bg(colors.background)
-        .border_1()
-        .border_color(colors.line)
+        .flex_row()
+        .items_center()
 }
 
 /// A field row: the label and its note on the left, the value on the right.
@@ -250,19 +247,19 @@ fn field_row(label: String, note: Option<String>, value: impl IntoElement, cx: &
         .child(div().flex_1().min_w_0().flex().flex_col().child(value))
 }
 
-/// A value as written in the file, in the editor face.
-fn mono(id: String, text: String, struck: bool, cx: &App) -> Stateful<Div> {
+/// A value as written in the file, in the editor face, `id`, drawn by `bolt`'s `ValueField` like
+/// a text field; a skipped value draws in the muted color with a line through it, the way the
+/// entry reads in the file.
+fn mono(id: String, text: String, struck: bool, cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
-    read_only(labeled_row(id, text.clone()), cx)
-        .flex()
-        .items_center()
-        .overflow_hidden()
-        .whitespace_nowrap()
-        .font_family(bolt::fonts::editor_family(cx))
-        .text_size(Fields::TEXT)
-        .text_color(if struck { colors.muted } else { colors.strong })
-        .when(struck, |text| text.line_through())
-        .child(text)
+    let field = ValueField::new(text)
+        .id(id)
+        .mono(true)
+        .text_color(if struck { colors.muted } else { colors.strong });
+    match struck {
+        true => div().line_through().child(field).into_any_element(),
+        false => field.into_any_element(),
+    }
 }
 
 /// The warnings of an entry, `<prefix>-warning-<m>`, in the warning tone.
@@ -547,7 +544,7 @@ fn proxy_url(
             .into_any_element(),
         None => {
             let url = row.url.clone().unwrap_or_else(|| "not set".to_owned());
-            mono(format!("{prefix}-url"), url, false, cx).into_any_element()
+            mono(format!("{prefix}-url"), url, false, cx)
         }
     }
 }
@@ -670,12 +667,8 @@ fn proxy_rows(
             rows.push(field_row(
                 "Bypass".to_owned(),
                 Some("NO_PROXY syntax".to_owned()),
-                read_only(labeled_row(format!("{prefix}-bypass"), bypass), cx)
-                    .flex()
-                    .flex_wrap()
-                    .items_center()
-                    .gap(Spacing::XS)
-                    .children(pills),
+                labeled_row(format!("{prefix}-bypass"), bypass)
+                    .child(well().flex_wrap().gap(Spacing::XS).children(pills)),
                 cx,
             ));
         }
@@ -711,21 +704,18 @@ fn proxies(
                 ),
             };
             let colors = bolt::colors(cx);
-            let value = read_only(
-                labeled_row("network-workspace-proxy".to_owned(), summary),
-                cx,
-            )
-            .flex()
-            .items_center()
-            .gap(Spacing::SM)
-            .child(badge)
-            .child(div().text_color(colors.strong).child(mode_name(mode)))
-            .children(url.filter(|_| mode == ProxyMode::Manual).map(|url| {
-                div()
-                    .font_family(bolt::fonts::editor_family(cx))
-                    .text_color(colors.muted)
-                    .child(url)
-            }));
+            let value = labeled_row("network-workspace-proxy".to_owned(), summary).child(
+                well()
+                    .gap(Spacing::SM)
+                    .child(badge)
+                    .child(div().text_color(colors.strong).child(mode_name(mode)))
+                    .children(url.filter(|_| mode == ProxyMode::Manual).map(|url| {
+                        div()
+                            .font_family(bolt::fonts::editor_family(cx))
+                            .text_color(colors.muted)
+                            .child(url)
+                    })),
+            );
             let own_rows = workspace.own.as_ref().map(|own| {
                 let password = own.password.as_ref().map(|password| {
                     field_row(
