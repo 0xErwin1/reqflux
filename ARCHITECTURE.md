@@ -1590,8 +1590,13 @@ with a tooltip that says which scope takes it (API docs cover a whole collection
 holds one collection, folder or request, a bundle holds requests and not an environment), so the
 dialog shows what each scope exports instead of hiding it. Include secret values shows the
 plaintext warning; a bundle leaves secrets out by default and lists them, or encrypts them with a
-passphrase typed twice in masked fields (empty and mismatched are refused under the field before
-the save dialog; the passphrase never reaches a log, a toast or an error). The primary button
+passphrase typed twice in masked fields. The secrets choice is one `OptionGroup`
+(`option-group:export-secrets`, named "Secrets in a bundle", its options
+`option-group:export-secrets:<omit|encrypt>` and a `:description` under each), which the arrow
+keys move and assistive technology reads as a radio group. An empty or mismatched passphrase is
+the field's own error (`Input::error`, the danger frame line and the alert caption
+`export-passphrase-error` or `export-passphrase-confirm-error`) and is refused before the save
+dialog; the passphrase never reaches a log, a toast or an error. The primary button
 closes the dialog and asks the `ExportHost` seam (the OS save or folder dialog; tests answer it)
 where to write. Files go through `write_export_file` with force, since the OS save dialog has
 already asked before replacing a file (the CLI still refuses without `--force`); a file with
@@ -1599,8 +1604,7 @@ secrets in clear is 0600, a replaced one included. The passphrase fields stay se
 while Show draws their text, so it never reaches the automation tree either. API docs that exist ask `Replace API docs?` once and Replace files writes with
 force. The success toast carries the path and Show in folder (`App::reveal_path`; Open
 index.html for docs, `App::open_with_system`); a failure keeps the error and offers Try again….
-Its `// bolt gap:` stand-ins: there is no radio group (two checkboxes act as one) and `Input`
-has no inline error slot (a danger caption).
+Every control it draws comes from `bolt`; no `// bolt gap:` stand-in remains here.
 `shell/curl_paste.rs` catches the URL field's Paste action: a curl command goes through
 `reqflux_core::curl::parse` and `Parsed::apply` onto the draft, a toast lists what was imported
 and the options that were ignored, and its Undo action restores the previous draft. Any other

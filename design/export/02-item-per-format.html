@@ -11,12 +11,12 @@
   refused, no plaintext mode), Engine::docs(collection).write(dir, force).
   The file step is the OS native save dialog (prompt_for_new_path) or directory picker
   (prompt_for_paths); neither is drawn.
-  bolt components: Modal (dialog + scrim), Input (masked, with reveal), BannerBlock (info,
+  bolt components: Modal (dialog + scrim), Input (masked, with reveal, and its own inline
+  error: the danger frame line and an alert caption under the field), BannerBlock (info,
   warning, danger), Button (primary, secondary, danger-styled primary not used), Toast
   (success, warning, danger, with action), context menu (tree, workspace, environment),
   command palette rows.
   bolt gap: context menu has no submenu, so the three export items sit flat in a group.
-  bolt gap: Input has no inline error text slot (drawn as a danger caption under the field).
 -->
   Undo shows the key of the Undo curl paste command (Ctrl+Alt+Z by default, rebindable in
   Settings > Keymap) as a keycap inside the button (ToastAction::key_hint); the button keeps
@@ -116,12 +116,6 @@ button{font:inherit;white-space:nowrap}
 .field.bad{box-shadow:#FF6B5E 0 0 0 1px inset}
 .field.foc{box-shadow:#9DB1FF 0 0 0 1px inset}
 .ferr{font-size:12px;color:#FF6B5E}
-.opt{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;box-shadow:#232128 0 0 0 1px inset;background:#09090B}
-.opt.on{box-shadow:#9DB1FF 0 0 0 1px inset;background:rgba(157,177,255,.06)}
-.rd{width:14px;height:14px;flex-shrink:0;margin-top:1px;border-radius:50%;box-shadow:#37333D 0 0 0 1.5px inset}
-.rd.on{box-shadow:#9DB1FF 0 0 0 4px inset}
-.opt .t{font-size:13px;color:#F7F4F7;font-weight:600}
-.opt .d{font-size:12px;color:#8E8996;line-height:1.45}
 .dlg{background:#100F13;box-shadow:#37333D 0 0 0 1px,rgba(0,0,0,.6) 0 30px 80px}
 .dh{display:flex;align-items:center;gap:10px;height:46px;padding:0 18px;border-bottom:1px solid #232128}
 .dh .tt{font-size:14px;font-weight:700;color:#F7F4F7}

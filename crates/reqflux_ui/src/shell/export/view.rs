@@ -1,16 +1,17 @@
 //! The Export… dialog, `export-dialog`, and the Replace API docs question,
 //! `export-replace-dialog`, as design/export/01-one-export-dialog draws them: the format
 //! control `export-format` with a segment `export-format-<postman|bundle|docs>` per format, the
-//! ones the scope cannot take drawn disabled with the reason, then the options of the format,
-//! then Cancel (`export-cancel`) and the primary button (`export-confirm`) whose label names
-//! the next step.
+//! ones the scope cannot take drawn disabled with the reason, then the options of the format
+//! (`export-include-secrets`, or the bundle's `option-group:export-secrets` radio group and the
+//! passphrase fields, whose error is the field's own `<id>-error` caption), then Cancel
+//! (`export-cancel`) and the primary button (`export-confirm`) whose label names the next step.
 
-use bolt::controls::{Button, Checkbox, Input, InputState};
+use bolt::controls::{Button, Checkbox, Input, InputState, OptionGroup, OptionGroupItem};
 use bolt::modals::{Modal, modal_field};
 use bolt::primitives::{BannerBlock, BannerVariant, SegmentedControl, SegmentedItem, TextVariant};
 use bolt::tokens::{ModalMetrics, Spacing};
 use gpui::{
-    AnyElement, App, Context, Div, Entity, IntoElement, ParentElement, Point, Role, SharedString,
+    AnyElement, App, Context, Entity, IntoElement, ParentElement, Point, Role, SharedString,
     Styled, Window, anchored, deferred, div, prelude::*,
 };
 use gpui_kit_assets::IconName;
@@ -224,10 +225,30 @@ fn postman_options(dialog: &Dialog, environment: bool, cx: &mut Context<Shell>) 
     options
 }
 
-/// The secrets choice of a bundle and, when encrypting, the passphrase fields.
-// bolt gap: no radio or option group; the two choices are `bolt` checkboxes that act as one.
+/// The secrets choice of a bundle and, when encrypting, the passphrase fields. The choice is
+/// one radio group, so the arrow keys move it and assistive technology reads which one is on.
 fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
     let secrets = &dialog.bundle_secrets;
+    let shell = cx.entity().downgrade();
+    let choice = OptionGroup::new(
+        "export-secrets",
+        vec![
+            OptionGroupItem::new("omit", "Leave secrets out").description(
+                "The bundle lists them by name, empty. Whoever imports it fills them in.",
+            ),
+            OptionGroupItem::new("encrypt", "Encrypt secrets with a passphrase").description(
+                "Values are sealed with age (scrypt). Share the passphrase another way.",
+            ),
+        ],
+        if dialog.encrypt { "encrypt" } else { "omit" },
+        move |id, _window, cx| {
+            let encrypt = id.as_ref() == "encrypt";
+            if let Err(error) = shell.update(cx, |this, cx| this.set_encrypt(encrypt, cx)) {
+                log::warn!("export secrets choice: {error}");
+            }
+        },
+    )
+    .aria_label("Secrets in a bundle");
     let mut options = vec![
         caption(
             "export-secrets-count",
@@ -235,28 +256,7 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
             cx,
         )
         .into_any_element(),
-        Checkbox::new("export-secrets-omit")
-            .label("Leave secrets out")
-            .checked(!dialog.encrypt)
-            .on_click(cx.listener(|this, _: &bool, _window, cx| this.set_encrypt(false, cx)))
-            .into_any_element(),
-        caption(
-            "export-secrets-omit-note",
-            "The bundle lists them by name, empty. Whoever imports it fills them in.",
-            cx,
-        )
-        .into_any_element(),
-        Checkbox::new("export-secrets-encrypt")
-            .label("Encrypt secrets with a passphrase")
-            .checked(dialog.encrypt)
-            .on_click(cx.listener(|this, _: &bool, _window, cx| this.set_encrypt(true, cx)))
-            .into_any_element(),
-        caption(
-            "export-secrets-encrypt-note",
-            "Values are sealed with age (scrypt). Share the passphrase another way.",
-            cx,
-        )
-        .into_any_element(),
+        choice.into_any_element(),
     ];
     if !dialog.encrypt && !secrets.is_empty() {
         let warning = omitted_warning(secrets);
@@ -280,7 +280,7 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
         let second_error = error.filter(|error| *error == super::PassphraseError::Mismatch);
         options.push(
             passphrase_field(
-                ("export-passphrase", "export-passphrase-error"),
+                "export-passphrase",
                 "Passphrase",
                 first,
                 first_error.map(super::PassphraseError::message),
@@ -290,10 +290,7 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
         );
         options.push(
             passphrase_field(
-                (
-                    "export-passphrase-confirm",
-                    "export-passphrase-confirm-error",
-                ),
+                "export-passphrase-confirm",
                 "Confirm passphrase",
                 second,
                 second_error.map(super::PassphraseError::message),
@@ -328,35 +325,25 @@ fn bundle_options(dialog: &Dialog, cx: &mut Context<Shell>) -> Vec<AnyElement> {
     options
 }
 
-/// A masked passphrase field `id` under `label`, its error under it as `error_id`. It stays a
-/// secret field while Show draws its text, so the passphrase never reaches the automation
-/// tree.
-// bolt gap: `Input` has no inline error slot; the error is a caption in the danger color.
+/// A masked passphrase field `id` under `label`, whose error the field itself draws: the
+/// danger frame line and an alert caption `<id>-error` under it. It stays a secret field while
+/// Show draws its text, so the passphrase never reaches the automation tree.
 fn passphrase_field(
-    (id, error_id): (&'static str, &'static str),
+    id: &'static str,
     label: &'static str,
     input: &Entity<InputState>,
     error: Option<&'static str>,
     cx: &App,
-) -> Div {
-    let field = region(id)
-        .role(Role::TextInput)
-        .aria_label(label)
-        .child(Input::new(input).secret(true));
-    let mut column = div()
-        .flex()
-        .flex_col()
-        .gap(Spacing::XS)
-        .child(modal_field(label, field, cx));
-    if let Some(error) = error {
-        column = column.child(
-            text_region(error_id)
-                .aria_label(error)
-                .text_color(bolt::colors(cx).danger)
-                .child(error),
-        );
-    }
-    column
+) -> impl IntoElement {
+    modal_field(
+        label,
+        Input::new(input)
+            .id(id)
+            .aria_label(label)
+            .secret(true)
+            .error(error),
+        cx,
+    )
 }
 
 /// Replace API docs?, over the files that exist.

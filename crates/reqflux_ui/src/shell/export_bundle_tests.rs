@@ -10,7 +10,7 @@ use reqflux_engine::{BundleImport, BundleSecrets, MemorySecretStore, import_bund
 
 use super::tests::{COLLECTION, fixture, read};
 use crate::shell::draft_tests::{bounds, click, present};
-use crate::shell::toasts::tests::{click_node, pushed, success, warning};
+use crate::shell::toasts::tests::{click_node, pushed, success, tree, warning};
 use crate::workspace_tests::demo_workspace;
 
 /// Types `text` into the field `id`.
@@ -20,6 +20,14 @@ fn type_into(cx: &mut gpui::VisualTestContext, id: &str, text: &str) {
     cx.run_until_parked();
 }
 
+/// The node `id` of `frame`, or a panic naming it.
+fn node<'a>(frame: &'a gpui_mcp::UiTree, id: &str) -> &'a gpui_mcp::UiNode {
+    frame
+        .nodes
+        .get(id)
+        .unwrap_or_else(|| panic!("{id} is missing"))
+}
+
 #[gpui::test]
 fn a_bundle_leaves_secrets_out_by_default_and_lists_them(cx: &mut TestAppContext) {
     let mut f = fixture(cx);
@@ -27,7 +35,7 @@ fn a_bundle_leaves_secrets_out_by_default_and_lists_them(cx: &mut TestAppContext
     f.export_row(COLLECTION);
     click(f.cx, "export-format-bundle");
     assert_eq!(
-        f.label("export-secrets-omit").as_deref(),
+        f.label("option-group:export-secrets:omit").as_deref(),
         Some("Leave secrets out")
     );
     assert_eq!(
@@ -35,6 +43,7 @@ fn a_bundle_leaves_secrets_out_by_default_and_lists_them(cx: &mut TestAppContext
         Some("2 secrets will be empty in the bundle: access_token and client_secret.")
     );
     assert!(bounds(f.cx, "export-passphrase").is_none());
+    assert_choice(f.cx, "omit");
     click(f.cx, "export-confirm");
 
     assert_eq!(
@@ -66,7 +75,7 @@ fn an_empty_or_mismatched_passphrase_is_refused_before_the_save_dialog(cx: &mut 
     f.save_to("billing.reqflux");
     f.export_row(COLLECTION);
     click(f.cx, "export-format-bundle");
-    click(f.cx, "export-secrets-encrypt");
+    click(f.cx, "option-group:export-secrets:encrypt");
     present(f.cx, "export-passphrase");
     present(f.cx, "export-passphrase-confirm");
 
@@ -74,6 +83,13 @@ fn an_empty_or_mismatched_passphrase_is_refused_before_the_save_dialog(cx: &mut 
     assert_eq!(
         f.label("export-passphrase-error").as_deref(),
         Some("Enter a passphrase to encrypt the secrets.")
+    );
+    let frame = tree(f.cx);
+    let caption = node(&frame, "export-passphrase-error");
+    assert_eq!(
+        caption.role,
+        gpui_mcp::Role::Alert,
+        "the field's error is the caption the input draws as an alert"
     );
     assert!(f.host.suggested.borrow().is_empty());
 
@@ -98,7 +114,7 @@ fn an_encrypted_bundle_opens_with_its_passphrase(cx: &mut TestAppContext) {
     let path = f.save_to("billing.reqflux");
     f.export_row(COLLECTION);
     click(f.cx, "export-format-bundle");
-    click(f.cx, "export-secrets-encrypt");
+    click(f.cx, "option-group:export-secrets:encrypt");
     type_into(f.cx, "export-passphrase", "correct horse");
     type_into(f.cx, "export-passphrase-confirm", "correct horse");
     click(f.cx, "export-confirm");
@@ -174,6 +190,78 @@ fn api_docs_refuse_to_overwrite_until_replace_files(cx: &mut TestAppContext) {
     assert_eq!(f.host.opened.borrow().as_slice(), [docs.join("index.html")]);
 }
 
+/// Asserts the bundle secrets group has `id` chosen, through the automation tree.
+fn assert_choice(cx: &mut gpui::VisualTestContext, id: &str) {
+    let frame = tree(cx);
+    for option in ["omit", "encrypt"] {
+        let node = node(&frame, &format!("option-group:export-secrets:{option}"));
+        assert_eq!(
+            node.state.checked,
+            Some(option == id),
+            "{option} is chosen only when the group reports {id}"
+        );
+    }
+}
+
+/// The bundle secrets choice is one radio group: two options, each named and described, and no
+/// checkbox standing in for a radio.
+#[gpui::test]
+fn the_secrets_choice_is_one_radio_group_of_two_options(cx: &mut TestAppContext) {
+    let mut f = fixture(cx);
+    f.export_row(COLLECTION);
+    click(f.cx, "export-format-bundle");
+
+    let frame = tree(f.cx);
+    let group = node(&frame, "option-group:export-secrets");
+    assert_eq!(group.role, gpui_mcp::Role::Group);
+    assert_eq!(group.label.as_deref(), Some("Secrets in a bundle"));
+
+    let omit = node(&frame, "option-group:export-secrets:omit");
+    assert_eq!(omit.role, gpui_mcp::Role::Radio);
+    assert_eq!(omit.label.as_deref(), Some("Leave secrets out"));
+    assert_eq!(omit.state.checked, Some(true));
+    assert_eq!(
+        omit.description.as_deref(),
+        Some("The bundle lists them by name, empty. Whoever imports it fills them in.")
+    );
+
+    let encrypt = node(&frame, "option-group:export-secrets:encrypt");
+    assert_eq!(encrypt.role, gpui_mcp::Role::Radio);
+    assert_eq!(
+        encrypt.label.as_deref(),
+        Some("Encrypt secrets with a passphrase")
+    );
+    assert_eq!(encrypt.state.checked, Some(false));
+
+    assert!(
+        bounds(f.cx, "export-secrets-omit").is_none()
+            && bounds(f.cx, "export-secrets-encrypt").is_none(),
+        "the two checkboxes that acted as one are gone"
+    );
+    present(f.cx, "option-group:export-secrets:omit:description");
+    present(f.cx, "option-group:export-secrets:encrypt:description");
+}
+
+/// Each option reports the choice it lands on, and the keyboard moves it: the group is one
+/// focusable stop, so the arrow key that chose Encrypt takes it back to Leave secrets out.
+#[gpui::test]
+fn the_secrets_choice_reports_the_option_it_lands_on(cx: &mut TestAppContext) {
+    let mut f = fixture(cx);
+    f.export_row(COLLECTION);
+    click(f.cx, "export-format-bundle");
+
+    click(f.cx, "option-group:export-secrets:encrypt");
+    present(f.cx, "export-passphrase");
+    assert!(bounds(f.cx, "export-omitted").is_none());
+    assert_choice(f.cx, "encrypt");
+
+    f.cx.simulate_keystrokes("up");
+    f.cx.run_until_parked();
+    assert!(bounds(f.cx, "export-passphrase").is_none());
+    present(f.cx, "export-omitted");
+    assert_choice(f.cx, "omit");
+}
+
 /// The window's automation tree as text, read after a fresh frame.
 fn automation_dump(cx: &mut gpui::VisualTestContext) -> String {
     let automation = gpui_mcp::Automation::isolated();
@@ -190,7 +278,7 @@ fn the_passphrase_never_reaches_the_automation_tree_even_revealed(cx: &mut TestA
     let mut f = fixture(cx);
     f.export_row(COLLECTION);
     click(f.cx, "export-format-bundle");
-    click(f.cx, "export-secrets-encrypt");
+    click(f.cx, "option-group:export-secrets:encrypt");
     type_into(f.cx, "export-passphrase", "zebra-pass-77");
     type_into(f.cx, "export-passphrase-confirm", "zebra-pass-77");
     assert!(!automation_dump(f.cx).contains("zebra-pass-77"));
@@ -206,12 +294,12 @@ fn cancel_drops_the_passphrase(cx: &mut TestAppContext) {
     let mut f = fixture(cx);
     f.export_row(COLLECTION);
     click(f.cx, "export-format-bundle");
-    click(f.cx, "export-secrets-encrypt");
+    click(f.cx, "option-group:export-secrets:encrypt");
     type_into(f.cx, "export-passphrase", "zebra-pass-77");
     click(f.cx, "export-cancel");
     f.export_row(COLLECTION);
     click(f.cx, "export-format-bundle");
-    click(f.cx, "export-secrets-encrypt");
+    click(f.cx, "option-group:export-secrets:encrypt");
     let shell = f.shell.clone();
     let held = f.cx.update(|_, cx| {
         shell
