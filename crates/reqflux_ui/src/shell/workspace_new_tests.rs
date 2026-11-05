@@ -181,7 +181,9 @@ fn the_empty_state_offers_new_by_name(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn the_popover_sits_beside_the_menu_with_its_title_hint_and_buttons(cx: &mut TestAppContext) {
+fn the_popover_sits_beside_and_below_the_menu_with_its_title_hint_and_buttons(
+    cx: &mut TestAppContext,
+) {
     let pair = pair("https://first/x");
     let (_shell, cx) = render(
         cx,
@@ -200,6 +202,10 @@ fn the_popover_sits_beside_the_menu_with_its_title_hint_and_buttons(cx: &mut Tes
         popover.left() >= menu.right(),
         "{popover:?} beside {menu:?}"
     );
+    assert!(
+        popover.top() >= menu.bottom(),
+        "{popover:?} under {menu:?}, not over it"
+    );
     for id in [
         "workspace-new-name",
         "workspace-new-cancel",
@@ -210,8 +216,9 @@ fn the_popover_sits_beside_the_menu_with_its_title_hint_and_buttons(cx: &mut Tes
             "{id} in the popover"
         );
     }
+    // `bolt`'s surface names its dialog after its title, which is what a screen reader hears.
     assert_eq!(
-        label(&automation, "workspace-new-title").as_deref(),
+        label(&automation, "workspace-new-popover").as_deref(),
         Some(POPOVER_TITLE)
     );
     assert_eq!(

@@ -76,15 +76,17 @@ mod workspace_new;
 mod workspace_picker;
 mod workspace_switch;
 
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::time::Duration;
 
+use bolt::composites::PopoverState;
 use bolt::tokens::IslandMetrics;
 use gpui::{
-    App, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Render, Role,
-    Stateful, Styled, Subscription, Task, Window, deferred, div, prelude::*,
+    App, Bounds, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Pixels,
+    Render, Role, Stateful, Styled, Subscription, Task, Window, deferred, div, prelude::*,
 };
 use reqflux_engine::CurrentValues;
 use reqflux_engine::state::{AppState, RecentWorkspace};
@@ -142,6 +144,9 @@ pub(crate) struct Shell {
     workspace_menu_open: bool,
     /// The name field of `New workspace…`, while it is open in the workspace menu.
     new_workspace_name: Option<Entity<gpui_component::input::InputState>>,
+    /// `bolt`'s surface of that name popover, while it is open, and what drops its draft
+    /// once `bolt` closes it on its own (Escape, or a click away).
+    new_workspace_surface: Option<workspace_new::NamePopover>,
     /// Where `New workspace…` creates workspaces the app keeps, which recent rows read
     /// `In ReqFlux` under; `None` when there is no data directory, and in tests unless set.
     managed_dir: Option<PathBuf>,
@@ -172,8 +177,16 @@ pub(crate) struct Shell {
     url_edit: Option<UrlEdit>,
     /// The variable popover over a `{{name}}` mark, while open (see [`variable_popover`]).
     variable_popover: Option<variable_popover::VariablePopover>,
-    /// The mark the pointer rests on, until the hover delay opens its popover.
-    variable_hover: Option<variable_popover::PendingHover>,
+    /// `bolt`'s surface of the variable popover: its open flag, the rectangle it points at,
+    /// its focus and its hover timers. One per shell, so a surface dismissed on its mark
+    /// waits for the pointer to leave before it opens again.
+    variable_popover_state: Entity<PopoverState>,
+    /// What keeps the shell drawing that surface: `bolt` closes it on its own, when Escape
+    /// reaches it, when a click lands away from it or when the pointer leaves its mark.
+    _variable_popover_surface: Subscription,
+    /// The window rectangle of each element a variable popover opens from, by element id: a
+    /// mark or the field under edit, recorded as the element is laid out.
+    variable_anchors: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
     /// The re-inspection each edited request waits for, until its edits settle; a newer
     /// edit replaces the task.
     reinspections: HashMap<String, Task<()>>,
@@ -295,6 +308,8 @@ impl Shell {
             OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => None,
         };
         let sidebar_events = subscribe_sidebar(&sidebar, cx);
+        let variable_popover_state = cx.new(|cx| PopoverState::new(cx).hover_intent(true));
+        let variable_popover_surface = cx.observe(&variable_popover_state, |_, _, cx| cx.notify());
         let mut shell = Self {
             workspace,
             workspace_path: None,
@@ -304,6 +319,7 @@ impl Shell {
             picker: Rc::new(OsPicker),
             workspace_menu_open: false,
             new_workspace_name: None,
+            new_workspace_surface: None,
             managed_dir: workspace_new::default_managed_dir(),
             workspace_menu_focus: cx.focus_handle(),
             recent_focus: workspace_menu::RecentFocus::default(),
@@ -318,7 +334,9 @@ impl Shell {
             save_errors: HashMap::new(),
             url_edit: None,
             variable_popover: None,
-            variable_hover: None,
+            variable_popover_state,
+            _variable_popover_surface: variable_popover_surface,
+            variable_anchors: Rc::new(RefCell::new(HashMap::new())),
             reinspections: HashMap::new(),
             #[cfg(test)]
             reinspection_runs: 0,
@@ -598,6 +616,10 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.watch_cell_blur(window, cx);
+        // A surface `bolt` closed on its own drops its draft here, and the frame after
+        // settles what the popover held open.
+        self.dismiss_variable_popover(window, cx);
+        self.dismiss_new_workspace(window, cx);
         let root = div()
             .key_context(SHELL_CONTEXT)
             .track_focus(&self.focus)
@@ -802,6 +824,8 @@ mod toolbar_narrow_tests;
 mod tree_edit_tests;
 #[cfg(test)]
 mod tree_reorder_tests;
+#[cfg(test)]
+mod variable_popover_add_tests;
 #[cfg(test)]
 mod variable_popover_tests;
 #[cfg(test)]

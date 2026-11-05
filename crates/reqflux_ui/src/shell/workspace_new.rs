@@ -1,26 +1,27 @@
 //! Creating a workspace the app keeps from the workspace menu (standalone-workspaces S3, S4;
 //! app-pending S6): `New workspace…` opens the name popover beside the menu,
-//! `workspace-new-popover`, as workspace-menu/01 draws it: the title, the `Name` field
-//! `workspace-new-name`, the hint, `Cancel` (`workspace-new-cancel`) and `Create`
-//! (`workspace-new-create`). Enter or Create makes a managed workspace with that name and
-//! opens it; Escape, Cancel or a click outside the popover closes it and creates nothing.
-//! Recent rows of managed workspaces read `In ReqFlux` in place of their path.
+//! `workspace-new-popover`, as workspace-menu/01 draws it: `bolt`'s form popover, titled
+//! `New workspace`, with the `Name` field `workspace-new-name`, the hint, `Cancel`
+//! (`workspace-new-cancel`) and `Create` (`workspace-new-create`). Enter or Create makes a
+//! managed workspace with that name and opens it; Escape, Cancel or a click outside the
+//! popover closes it and creates nothing. Recent rows of managed workspaces read `In ReqFlux`
+//! in place of their path.
 
 use std::path::PathBuf;
 
-use bolt::composites::menu_frame;
-use bolt::controls::{Button, Input, InputEnter as Enter, InputEscape as Escape, InputState};
+use bolt::composites::{Popover, PopoverState};
+use bolt::controls::{Button, Input, InputEvent, InputState};
 use bolt::modals::modal_field;
-use bolt::primitives::{Chamfer, TextVariant};
-use bolt::tokens::{ChamferCut, Fields, ModalMetrics, Spacing};
+use bolt::primitives::TextVariant;
+use bolt::tokens::PopoverMetrics;
 use gpui::{
-    AnyElement, AppContext as _, Context, FontWeight, InteractiveElement, IntoElement,
-    ParentElement, Pixels, Role, Styled, Window, div, prelude::*,
+    AnyElement, AppContext as _, Context, Entity, Focusable as _, IntoElement, ParentElement,
+    Styled, Subscription, Window, div, prelude::*,
 };
 use reqflux_engine::state::RecentWorkspace;
 
 use super::request::ui;
-use super::{Shell, region, text_region};
+use super::{Shell, text_region};
 use crate::tokens;
 
 /// What a recent row shows in place of the path of a managed workspace.
@@ -28,6 +29,9 @@ pub(crate) const IN_REQFLUX: &str = "In ReqFlux";
 
 /// The title of the name popover.
 pub(crate) const POPOVER_TITLE: &str = "New workspace";
+
+/// The element id of the name popover.
+pub(crate) const POPOVER_ID: &str = "workspace-new-popover";
 
 /// The label of the name field.
 const NAME_LABEL: &str = "Name";
@@ -54,15 +58,40 @@ pub(super) fn default_managed_dir() -> Option<PathBuf> {
     }
 }
 
+/// The surface of the name popover, `bolt`'s, and what the shell keeps of it: the field's
+/// Enter and the surface closing itself on Escape or on a click away both reach the shell
+/// through them.
+pub(super) struct NamePopover {
+    pub(super) surface: Entity<PopoverState>,
+    _changes: Subscription,
+    _events: Subscription,
+}
+
 impl Shell {
     /// Opens the workspace menu with a focused, empty name field.
     pub(super) fn start_new_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.environment_menu_open = false;
         self.workspace_menu_open = true;
         self.refresh_recents();
+        self.new_workspace_surface = None;
         let input = cx.new(|cx| InputState::new(window, cx).placeholder(NAME_PLACEHOLDER));
-        input.update(cx, |state, cx| state.focus(window, cx));
+        let focus = input.focus_handle(cx);
+        let surface = cx.new(|cx| {
+            let mut surface = PopoverState::new(cx);
+            surface.set_initial_focus(Some(focus));
+            surface
+        });
+        self.new_workspace_surface = Some(NamePopover {
+            surface: surface.clone(),
+            _changes: cx.observe(&surface, |_, _, cx| cx.notify()),
+            _events: cx.subscribe_in(&input, window, |this, _, event: &InputEvent, window, cx| {
+                if matches!(event, InputEvent::PressEnter { .. }) {
+                    this.commit_new_workspace(window, cx);
+                }
+            }),
+        });
         self.new_workspace_name = Some(input);
+        surface.update(cx, |surface, cx| surface.open(window, cx));
         cx.notify();
     }
 
@@ -80,6 +109,7 @@ impl Shell {
         match created {
             Ok((_, dir)) => {
                 self.new_workspace_name = None;
+                self.new_workspace_surface = None;
                 self.switch_workspace(Some(dir), window, cx);
             }
             Err(error) => {
@@ -98,10 +128,26 @@ impl Shell {
         if self.new_workspace_name.take().is_none() {
             return false;
         }
+        self.new_workspace_surface = None;
         self.workspace_error = None;
         self.workspace_menu_focus.focus(window, cx);
         cx.notify();
         true
+    }
+
+    /// Drops the name popover once `bolt`'s surface closed itself, or with the menu it sits
+    /// beside.
+    pub(super) fn dismiss_new_workspace(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(popover) = self.new_workspace_surface.as_ref() else {
+            return;
+        };
+        let open = self.workspace_menu_open
+            && self.new_workspace_name.is_some()
+            && popover.surface.read(cx).is_open();
+        if open {
+            return;
+        }
+        self.cancel_new_workspace(window, cx);
     }
 
     /// The text under the name of `recent`: `In ReqFlux` for a managed workspace, else its
@@ -118,39 +164,15 @@ impl Shell {
         }
     }
 
-    /// The name popover, `workspace-new-popover`, while it is open: `bolt`'s menu chrome
-    /// holding the title, the name field, the hint and the buttons.
-    // bolt gap: no form popover; the popover is `menu_frame` with dialog parts inside.
+    /// The name popover, `workspace-new-popover`, while it is open: `bolt`'s form popover
+    /// beside the workspace menu, its bottom on the menu's bottom.
     pub(super) fn new_workspace_popover(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
         let input = self.new_workspace_name.as_ref()?;
-        let colors = bolt::colors(cx);
-        let field = region("workspace-new-name")
-            .role(Role::TextInput)
-            .relative()
-            .h(Fields::HEIGHT)
-            .flex()
-            .items_center()
-            .pl(Fields::PADDING_X)
-            .pr(Fields::PADDING_X)
-            .child(
-                Chamfer::new(ChamferCut::CONTROL)
-                    .fill(colors.background)
-                    .border(colors.line),
-            )
-            .on_action(cx.listener(|this, _: &Enter, window, cx| {
-                this.commit_new_workspace(window, cx);
-            }))
-            .on_action(cx.listener(|this, _: &Escape, window, cx| {
-                this.cancel_new_workspace(window, cx);
-            }))
-            .text_color(colors.strong)
-            .child(
-                Input::new(input)
-                    .appearance(false)
-                    .font_weight(FontWeight::NORMAL)
-                    .padding(Pixels::ZERO, Pixels::ZERO)
-                    .text_size(Fields::TEXT),
-            );
+        let surface = self.new_workspace_surface.as_ref()?;
+        let name = Input::new(input)
+            .id("workspace-new-name")
+            .aria_label(NAME_LABEL)
+            .w_full();
         let cancel = Button::new("workspace-new-cancel", "Cancel")
             .secondary()
             .on_click(cx.listener(|this, _event, window, cx| {
@@ -162,37 +184,29 @@ impl Shell {
             .on_click(cx.listener(|this, _event, window, cx| {
                 this.commit_new_workspace(window, cx);
             }));
+        let body = div()
+            .flex()
+            .flex_col()
+            .gap(PopoverMetrics::GAP)
+            .child(modal_field(NAME_LABEL, name, cx))
+            .child(
+                ui::role(text_region("workspace-new-hint"), TextVariant::Caption, cx)
+                    .aria_label(POPOVER_HINT)
+                    .child(POPOVER_HINT),
+            );
         Some(
-            menu_frame(cx)
-                .id("workspace-new-popover")
-                .debug_selector(|| "workspace-new-popover".to_owned())
-                .role(Role::Dialog)
-                .aria_label(POPOVER_TITLE)
-                .occlude()
-                .w(tokens::NEW_WORKSPACE_POPOVER_WIDTH)
-                .p(Spacing::MD)
-                .gap(ModalMetrics::HEADER_GAP)
-                .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
-                    this.cancel_new_workspace(window, cx);
-                }))
+            // Beside the menu, its top at the menu's bottom: the surface places itself, so it
+            // takes no room in the menu's row.
+            div()
+                .absolute()
+                .top_full()
+                .left_full()
                 .child(
-                    ui::role(text_region("workspace-new-title"), TextVariant::Heading, cx)
-                        .aria_label(POPOVER_TITLE)
-                        .child(POPOVER_TITLE),
-                )
-                .child(modal_field(NAME_LABEL, field, cx))
-                .child(
-                    ui::role(text_region("workspace-new-hint"), TextVariant::Caption, cx)
-                        .aria_label(POPOVER_HINT)
-                        .child(POPOVER_HINT),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .justify_end()
-                        .gap(Spacing::XXS)
-                        .child(cancel)
-                        .child(create),
+                    Popover::new(POPOVER_ID, surface.surface.clone())
+                        .title(POPOVER_TITLE)
+                        .body(body)
+                        .footer(vec![cancel, create])
+                        .width(tokens::NEW_WORKSPACE_POPOVER_WIDTH),
                 )
                 .into_any_element(),
         )

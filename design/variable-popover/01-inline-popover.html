@@ -17,19 +17,19 @@
       INITIAL value (a new variable must exist in the workspace file); secret checkbox sends the
       value to the keyring instead and the file holds only the key.
 
-  bolt components used: Popover (overlay, cut 12), Field / TextInput (30 px), Badge (scope, SECRET),
-    Button (primary, ghost), IconButton (reveal, copy), SelectTrigger + menu rows (Add to dropdown),
-    Checkbox, KeyHint (keycap), Link-style ghost button, environment diamond.
-  bolt gaps:
-    - bolt gap: Popover anchored to a text range inside an input (needs the anchor rect of a
-      token span, not of an element). Stand-in in reqflux_ui computes the bounds from the
-      input's text layout.
-    - bolt gap: hover-intent delay on Popover (open after 400 ms, keep open while the pointer
-      travels into it).
+  bolt components used: Popover (overlay, cut 12, with its own click-away layer, focus and hover
+    timers), Input (30 px), Badge (scope, SECRET), Dropdown (Add to), Button (primary, secondary,
+    ghost), IconButton (reveal, copy), Checkbox, Keycap, Link-style ghost button, environment
+    diamond. No bolt gap: the surface, its anchor rectangle, the hover delay and the grace are
+    bolt's.
 
-  As built (T12): environments carry no color in the workspace model, so the environment
-  diamonds of state e draw in the brand tint, not per environment. The popover stays open
-  until Escape, Enter or a click outside; leaving the mark does not close it.
+  As built: environments carry no color in the workspace model, so the environment diamonds of
+  state e draw in the brand tint, not per environment. The surface keeps bolt's chrome: 14 px
+  of padding, 10 px between the parts, and a footer row of buttons with no divider. It opens
+  400 ms after the pointer rests on the mark, stays open while the pointer is on the mark or the
+  surface, and closes 120 ms after it leaves both; Escape closes it at once. The "Add to"
+  dropdown draws its list as a bolt Dropdown menu over the body (state d still draws the list
+  inline), so the rows cover the value field while the list is open.
 -->
 <style>
 body{margin:0;background:#050507;color:#C6C3CC;font-family:'Archivo',system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;font-size:13px}
@@ -61,7 +61,7 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
 .unres{color:#FF6B5E;background:rgba(255,107,94,.12);box-shadow:inset 0 -1px 0 #FF6B5E}
 .caret{display:inline-block;width:1.5px;height:15px;background:#9DB1FF;vertical-align:middle;margin:0 -1px}
 .anchor{position:relative}
-.pop{position:absolute;top:36px;width:340px;background:#1A181E;box-shadow:inset 0 0 0 1px #37333D;padding:12px 14px 12px;z-index:2}
+.pop{position:absolute;top:36px;width:340px;background:#1A181E;box-shadow:inset 0 0 0 1px #37333D;padding:14px;display:flex;flex-direction:column;gap:10px;z-index:2}
 .ph{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 .ph .nm{color:#F7F4F7;font-size:12.5px;font-weight:600}
 .badge{display:inline-flex;align-items:center;gap:5px;height:20px;padding:0 7px;background:#09090B;color:#C6C3CC;font-size:11px;font-weight:600;white-space:nowrap}
@@ -73,7 +73,7 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
 .field .grow{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ro{font-size:12.5px;color:#8E8996;padding:2px 0}
 .ib{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:0;background:transparent;color:#8E8996}
-.foot{display:flex;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid #232128;font-size:11.5px;color:#8E8996}
+.foot{display:flex;align-items:center;gap:8px;font-size:11.5px;color:#8E8996}
 .kc{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;padding:1px 5px;background:#100F13;color:#8E8996;box-shadow:#37333D 0 -1px 0 inset}
 .link{margin-left:auto;display:inline-flex;align-items:center;gap:5px;border:0;background:transparent;color:#9DB1FF;font-size:11.5px;padding:0}
 .ov{color:#8E8996;font-size:11.5px;margin-top:6px}
@@ -181,7 +181,7 @@ h2{margin:4px 0 4px;font-size:15px;font-weight:600;color:#F7F4F7}
 <section class="st c14" aria-labelledby="d-h">
   <div class="cap">State d</div>
   <h2 id="d-h">Unresolved variable: quick add</h2>
-  <p class="note">"Not defined" in the danger red, with an inline add. "Add to" is a dropdown that lists every environment the collection allows (the active one first, marked, and preselected), then the collection and Globals; with no active environment it starts on the collection. The list opens inside the popover, so a click on a row is a click inside it. Unresolved marks use the danger role, not warning. The value becomes the initial value of the new variable; "Secret" sends it to the keyring instead.</p>
+  <p class="note">"Not defined" in the danger red, with an inline add. "Add to" is a bolt Dropdown that lists every environment the collection allows (the active one first, marked, and preselected), then the collection and Globals; with no active environment it starts on the collection. Its menu is a layer above the surface, so a click on a row is a click inside the popover and still selects the row. Unresolved marks use the danger role, not warning. The value becomes the initial value of the new variable; "Secret" sends it to the keyring instead.</p>
   <div class="urlbar">
     <span class="meth c6 m" style="color:#FFC23D">POST</span>
     <div class="url c8 m">https://api.staging.acme.dev/v2/tenants/<span class="anchor"><span class="unres">{{tenant_id}}</span>

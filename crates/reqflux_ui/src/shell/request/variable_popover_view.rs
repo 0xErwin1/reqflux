@@ -1,20 +1,18 @@
 //! The variable popover as design/variable-popover/01-inline-popover.html draws it, on
-//! `bolt`'s menu frame: the name with the winning scope badge, the value field, the initial
+//! `bolt`'s form popover: the name with the winning scope badge, the value field, the initial
 //! value and the scope it overrides, and a footer with the Enter and Esc keycaps and
 //! Open in Environments. A secret shows its SECRET badge and a reveal eye; an undefined name
 //! the quick add (the "Add to" dropdown, value, Secret box); with no active environment, the
 //! environments that declare it.
 
-use bolt::composites::{MenuItem, menu_frame, menu_row};
-use bolt::controls::{
-    Button, ButtonSize, Checkbox, Input, InputEnter, InputEscape, InputState, SelectTrigger,
-};
+use bolt::composites::Popover;
+use bolt::controls::{Button, ButtonSize, Checkbox, Input, InputEnter, InputEscape, InputState};
 use bolt::primitives::{Badge, BadgeTone, Icon, Kbd, TextVariant, status_diamond};
-use bolt::tokens::{Borders, Feedback, Spacing};
+use bolt::tokens::{Feedback, PopoverMetrics, Spacing};
 use gpui::{
-    AnyElement, Context, Div, Entity, Hsla, InteractiveElement, IntoElement, KeyDownEvent,
-    MouseButton, MouseUpEvent, ParentElement, Role, SharedString, Stateful, Styled, Window,
-    anchored, deferred, div, prelude::*,
+    AnyElement, Bounds, Context, Div, Entity, Hsla, InteractiveElement, IntoElement, KeyDownEvent,
+    MouseButton, MouseUpEvent, ParentElement, Pixels, SharedString, Stateful, Styled, Window, div,
+    size,
 };
 use gpui_kit_assets::IconName;
 use reqflux_engine::{SecretScope, VariableScopeRef};
@@ -24,69 +22,80 @@ use crate::shell::variable_popover::{Mode, POPOVER_ID, VariablePopover};
 use crate::shell::{Shell, region};
 use crate::tokens;
 
-/// The popover, when it is open over `anchor`: an absolute child of the anchor, drawn under
-/// it above the islands.
-// bolt gap: Popover cannot anchor to a text range inside a field; the anchor is the mark's
-// own element (or the field under edit), which the popover hangs under.
+/// The rectangle of the element `anchor` in window coordinates, recorded as it is laid out,
+/// and, while the popover over it is open, the surface itself: `bolt`'s form popover, placed
+/// under that rectangle, flipping above it when there is no room below.
 pub(crate) fn anchored_at(
     anchor: &str,
     shell: &Shell,
     cx: &mut Context<Shell>,
 ) -> Option<AnyElement> {
-    let popover = shell
+    let tracker = tracker(anchor, shell);
+    let surface = shell
         .variable_popover
         .as_ref()
-        .filter(|popover| popover.anchor == anchor)?;
-    Some(
-        div()
-            .absolute()
-            .top_full()
-            .left_0()
-            .child(deferred(anchored().snap_to_window().child(frame(popover, cx))).with_priority(3))
-            .into_any_element(),
-    )
+        .filter(|popover| popover.anchor == anchor)
+        .map(|popover| surface(popover, cx));
+    let placed = div().absolute().top_full().left_0().child(tracker);
+    Some(match surface {
+        Some(surface) => placed.child(surface).into_any_element(),
+        None => placed.into_any_element(),
+    })
 }
 
-fn frame(popover: &VariablePopover, cx: &mut Context<Shell>) -> Stateful<Div> {
-    let body = match popover.mode() {
+/// Records the origin of the element it is laid out in, so the surface opens under it: the
+/// mark, or the field under edit.
+fn tracker(anchor: &str, shell: &Shell) -> AnyElement {
+    let anchors = shell.variable_anchors.clone();
+    let key = anchor.to_owned();
+    gpui::canvas(
+        move |bounds, _window, _cx| {
+            if let Ok(mut anchors) = anchors.try_borrow_mut() {
+                let nothing = size(Pixels::ZERO, Pixels::ZERO);
+                anchors.insert(key.clone(), Bounds::new(bounds.origin, nothing));
+            }
+        },
+        |_, _, _, _| {},
+    )
+    .into_any_element()
+}
+
+/// `bolt`'s surface over `popover`, with the parts of its mode.
+fn surface(popover: &VariablePopover, cx: &mut Context<Shell>) -> AnyElement {
+    let (body, footer) = match popover.mode() {
         Mode::Edit => edit(popover, cx),
         Mode::Secret => secret(popover, cx),
         Mode::Add => add(popover, cx),
         Mode::NoEnvironment => no_environment(popover, cx),
     };
-    let colors = bolt::colors(cx);
-    menu_frame(cx)
-        .id(POPOVER_ID)
-        .debug_selector(|| POPOVER_ID.to_owned())
-        .role(Role::Dialog)
-        .aria_label(format!("Variable {}", popover.info.name))
-        .track_focus(&popover.focus)
-        .occlude()
-        .w(tokens::VARIABLE_POPOVER_WIDTH)
-        .pl(Spacing::MD)
-        .pr(Spacing::MD)
-        .gap(Spacing::SM)
-        .text_color(colors.foreground)
-        .on_mouse_down_out(cx.listener(|this, _event, window, cx| {
-            this.close_variable_popover(window, cx);
-        }))
+    let body = div()
+        .flex()
+        .flex_col()
+        .gap(PopoverMetrics::GAP)
         .on_action(cx.listener(|this, action: &InputEnter, window, cx| {
             cx.stop_propagation();
             if !action.secondary {
                 this.save_variable_popover(window, cx);
             }
         }))
+        // A press inside the surface keeps the focus where it was, in the value field: the
+        // surface would take it, and Escape is the input's key, not a bare surface's.
+        .on_mouse_down(MouseButton::Left, |_event, window, _cx| {
+            window.prevent_default()
+        })
         .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
+            // An action stops at its first handler, so the key never reaches the surface:
+            // Escape closes the "Add to" list, and the surface with the next one.
             cx.stop_propagation();
             this.escape_variable_popover(window, cx);
         }))
-        .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
-            if event.keystroke.key == "escape" {
-                cx.stop_propagation();
-                this.escape_variable_popover(window, cx);
-            }
-        }))
-        .children(body)
+        .children(body);
+    Popover::new(POPOVER_ID, popover.state.clone())
+        .aria_label(format!("Variable {}", popover.info.name))
+        .body(body)
+        .footer(footer)
+        .width(tokens::VARIABLE_POPOVER_WIDTH)
+        .into_any_element()
 }
 
 /// The name row: the name in the data face, then `trailing`.
@@ -164,12 +173,8 @@ fn icon_button(
 
 /// The footer: `Enter <verb>`, `Esc close`, then `trailing`.
 fn footer(verb: &str, trailing: Vec<AnyElement>, cx: &Context<Shell>) -> AnyElement {
-    let colors = bolt::colors(cx);
     div()
-        .mt(Spacing::XS)
-        .pt(Spacing::SM)
-        .border_t(Borders::THIN)
-        .border_color(colors.line)
+        .w_full()
         .flex()
         .items_center()
         .gap(Spacing::SM)
@@ -214,9 +219,9 @@ fn alert(id: &'static str, text: &'static str, color: Hsla, cx: &Context<Shell>)
 
 /// States a and b: the current value of the winning scope, its initial value and the scope
 /// it overrides.
-fn edit(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
+fn edit(popover: &VariablePopover, cx: &mut Context<Shell>) -> (Vec<AnyElement>, Vec<AnyElement>) {
     let Some(winner) = &popover.info.winner else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let copy = icon_button(
         "variable-popover-copy",
@@ -262,7 +267,7 @@ fn edit(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
             )
             .into_any_element()
     });
-    vec![
+    let body = vec![
         header(
             &popover.info.name,
             vec![
@@ -282,14 +287,17 @@ fn edit(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
     ]
     .into_iter()
     .chain(overrides)
-    .chain([footer("save", vec![open_settings(cx)], cx)])
-    .collect()
+    .collect();
+    (body, vec![footer("save", vec![open_settings(cx)], cx)])
 }
 
 /// State c: a secret, masked until the eye reads its keyring value.
-fn secret(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
+fn secret(
+    popover: &VariablePopover,
+    cx: &mut Context<Shell>,
+) -> (Vec<AnyElement>, Vec<AnyElement>) {
     let Some(winner) = &popover.info.winner else {
-        return Vec::new();
+        return (Vec::new(), Vec::new());
     };
     let reveal = (!popover.revealed).then(|| {
         icon_button(
@@ -302,7 +310,7 @@ fn secret(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement>
             cx,
         )
     });
-    vec![
+    let body = vec![
         header(
             &popover.info.name,
             vec![scope_badge(&winner.at), super::secret().into_any_element()],
@@ -314,87 +322,26 @@ fn secret(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement>
             "Never written to the workspace file, logs or MCP responses.",
             cx,
         ),
-        footer("save to keyring", vec![open_settings(cx)], cx),
-    ]
+    ];
+    (
+        body,
+        vec![footer("save to keyring", vec![open_settings(cx)], cx)],
+    )
 }
 
-/// The label of the quick-add scope `target`: an environment by name, marked when it is the
-/// active one, the collection as `Collection · <name>`, or `Globals`.
-fn target_label(target: &VariableScopeRef, popover: &VariablePopover) -> String {
-    match target.scope {
-        SecretScope::Collection(_) => format!("Collection · {}", target.name),
-        SecretScope::Global => target.name.clone(),
-        SecretScope::Environment(_) if popover.info.active_target == Some(target.scope) => {
-            format!("{} · active", target.name)
-        }
-        SecretScope::Environment(_) => target.name.clone(),
-    }
-}
-
-/// The "Add to" dropdown: `bolt`'s select trigger, element id `variable-popover-target`, and,
-/// while open, its list of rows `variable-popover-target-<n>` under it. The list is part of the
-/// popover, not a layer over it, so a click on a row is a click inside the popover.
-// bolt gap: Dropdown draws its list in a layer above the window; the popover treats a
-// click outside its own frame as a dismissal, so the list stays in the frame.
-fn target_dropdown(popover: &VariablePopover, cx: &mut Context<Shell>) -> AnyElement {
-    let tint = bolt::brand::brand(cx).accent_tint;
-    let label = popover
-        .info
-        .targets
-        .get(popover.target)
-        .map(|target| target_label(target, popover))
-        .unwrap_or_default();
-    let trigger = SelectTrigger::new("variable-popover-target", label.clone())
-        .aria_label(format!("Add to: {label}"))
-        .focus_ring(popover.target_menu.then_some(tint))
-        .on_click(cx.listener(|this, _event, _window, cx| {
-            this.toggle_variable_target_menu(cx);
-        }));
-    let rows = popover
-        .info
-        .targets
-        .iter()
-        .enumerate()
-        .map(|(index, target)| {
-            let name = target_label(target, popover);
-            let selected = index == popover.target;
-            let id = format!("variable-popover-target-{}", index + 1);
-            let selector = id.clone();
-            menu_row(
-                id,
-                &MenuItem::new(name.clone()).checked(selected),
-                selected,
-                cx,
-            )
-            .debug_selector(move || selector)
-            .aria_label(name)
-            .aria_selected(selected)
-            .on_click(cx.listener(move |this, _event, _window, cx| {
-                this.pick_variable_target(index, cx);
-            }))
-            .into_any_element()
-        });
-    let list = popover.target_menu.then(|| {
-        menu_frame(cx)
-            .id("variable-popover-target-list")
-            .role(Role::Menu)
-            .max_h(tokens::VARIABLE_POPOVER_TARGET_LIST_HEIGHT)
-            .overflow_y_scroll()
-            .children(rows.collect::<Vec<_>>())
-    });
+/// The "Add to" dropdown, element id `variable-popover-target`: `bolt`'s `Dropdown` over every
+/// scope a quick add can pick, its selection the scope. Its menu is a layer `bolt` draws above
+/// the surface, so a click on a row is a click inside the popover.
+fn target_dropdown(popover: &VariablePopover) -> AnyElement {
     div()
-        .flex()
-        .flex_col()
-        .gap(Spacing::XS)
         .w_full()
-        .child(trigger)
-        .children(list)
+        .child(popover.target_select.clone())
         .into_any_element()
 }
 
 /// State d: not defined; the "Add to" dropdown, the value and the Secret box.
-fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
-    let picker = target_dropdown(popover, cx);
+fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> (Vec<AnyElement>, Vec<AnyElement>) {
+    let picker = target_dropdown(popover);
     let secret_box = Checkbox::new("variable-popover-secret")
         .checked(popover.secret)
         .label("Secret (store in OS keyring)")
@@ -417,7 +364,7 @@ fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
             )
             .into_any_element(),
     ];
-    vec![
+    let body = vec![
         header(
             &popover.info.name,
             vec![alert(
@@ -433,12 +380,15 @@ fn add(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
         caption("Value", cx),
         field(popover, popover.secret, Vec::new(), cx),
         secret_box.into_any_element(),
-        footer("add", buttons, cx),
-    ]
+    ];
+    (body, vec![footer("add", buttons, cx)])
 }
 
 /// State e: no active environment, and only environments declare the name.
-fn no_environment(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<AnyElement> {
+fn no_environment(
+    popover: &VariablePopover,
+    cx: &mut Context<Shell>,
+) -> (Vec<AnyElement>, Vec<AnyElement>) {
     let tint = bolt::brand::brand(cx).accent_tint;
     let environments: Vec<AnyElement> = popover
         .info
@@ -474,7 +424,7 @@ fn no_environment(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<Any
     .on_click(cx.listener(|this, _event, window, cx| this.add_variable_instead(window, cx)))
     .into_any_element();
     let colors = bolt::colors(cx);
-    vec![
+    let body = vec![
         header(
             &popover.info.name,
             vec![alert(
@@ -496,19 +446,17 @@ fn no_environment(popover: &VariablePopover, cx: &mut Context<Shell>) -> Vec<Any
             .children(environments)
             .into_any_element(),
         caption("Pick one to activate it for this workspace.", cx),
-        div()
-            .mt(Spacing::XS)
-            .pt(Spacing::SM)
-            .border_t(Borders::THIN)
-            .border_color(colors.line)
-            .flex()
-            .items_center()
-            .gap(Spacing::SM)
-            .child(instead)
-            .child(div().flex_1())
-            .child(open_settings(cx))
-            .into_any_element(),
-    ]
+    ];
+    let footer = div()
+        .w_full()
+        .flex()
+        .items_center()
+        .gap(Spacing::SM)
+        .child(instead)
+        .child(div().flex_1())
+        .child(open_settings(cx))
+        .into_any_element();
+    (body, vec![footer])
 }
 
 /// `field`, the field `anchor` of the request `request_id` under edit over `input`, with

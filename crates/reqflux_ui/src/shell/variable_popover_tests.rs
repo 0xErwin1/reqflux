@@ -23,7 +23,7 @@ const WORKSPACE: &str = "01J00000000000000000000900";
 /// `base` and the secret `token`, whose environment Production declares nothing, and whose request `GET Vars` goes to
 /// `{{base}}/ok/{{token}}/{{tenant}}` with the header `X-Base: {{base}}`; `tenant` is
 /// defined nowhere.
-fn popover_workspace() -> TempDir {
+pub(super) fn popover_workspace() -> TempDir {
     let dir = demo_workspace();
     let root = dir.path();
     write(
@@ -61,7 +61,7 @@ fn popover_workspace() -> TempDir {
 }
 
 /// Opens the request and, with `environment`, makes it active.
-fn open(cx: &mut VisualTestContext, shell: &Entity<Shell>, environment: Option<&str>) {
+pub(super) fn open(cx: &mut VisualTestContext, shell: &Entity<Shell>, environment: Option<&str>) {
     click(cx, &format!("tree-row-{REQUEST}"));
     if let Some(slug) = environment {
         shell.update(cx, |shell, cx| {
@@ -71,7 +71,7 @@ fn open(cx: &mut VisualTestContext, shell: &Entity<Shell>, environment: Option<&
     }
 }
 
-fn popover_open(cx: &mut VisualTestContext) -> bool {
+pub(super) fn popover_open(cx: &mut VisualTestContext) -> bool {
     bounds(cx, "variable-popover").is_some()
 }
 
@@ -79,7 +79,7 @@ fn url_editing(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
     cx.update(|_, cx| shell.read(cx).url_edit.is_some())
 }
 
-fn type_text(cx: &mut VisualTestContext, text: &str) {
+pub(super) fn type_text(cx: &mut VisualTestContext, text: &str) {
     let typed = text
         .chars()
         .map(|character| character.to_string())
@@ -122,7 +122,7 @@ fn current(
     })
 }
 
-fn unresolved(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Vec<String> {
+pub(super) fn unresolved(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Vec<String> {
     cx.update(|_, cx| {
         shell
             .read(cx)
@@ -267,31 +267,6 @@ fn a_secret_stays_masked_and_saves_to_the_keyring(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn quick_add_creates_the_variable_in_the_chosen_scope(cx: &mut TestAppContext) {
-    let dir = popover_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open(cx, &shell, Some("staging"));
-    assert!(unresolved(cx, &shell).contains(&"tenant".to_owned()));
-
-    click(cx, "request-url-var-3");
-    assert!(bounds(cx, "variable-popover-not-defined").is_some());
-    // Targets: Staging, Production, API, Globals.
-    click(cx, "variable-popover-target");
-    click(cx, "variable-popover-target-4");
-    click(cx, "variable-popover-input");
-    type_text(cx, "tnt_7f2a");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-
-    assert!(!popover_open(cx));
-    let manifest = std::fs::read_to_string(dir.path().join("reqflux.toml")).unwrap_or_default();
-    assert!(manifest.contains("key = \"tenant\""), "{manifest}");
-    assert!(manifest.contains("value = \"tnt_7f2a\""), "{manifest}");
-    assert!(!unresolved(cx, &shell).contains(&"tenant".to_owned()));
-}
-
-#[gpui::test]
 fn escape_closes_the_popover_without_writing(cx: &mut TestAppContext) {
     let dir = popover_workspace();
     let (_state_dir, state_path) = state_file();
@@ -400,7 +375,7 @@ fn the_mark_keeps_its_own_label_while_its_popover_is_open(cx: &mut TestAppContex
 }
 
 /// The accessible label of element `id`, if it is shown.
-fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
+pub(super) fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
     bounds(cx, id)?;
     let automation = gpui_mcp::Automation::isolated();
     cx.update(|window, _| {
@@ -413,16 +388,6 @@ fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
         .nodes
         .get(id)
         .and_then(|node| node.label.clone())
-}
-
-fn target_index(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<usize> {
-    cx.update(|_, cx| {
-        shell
-            .read(cx)
-            .variable_popover
-            .as_ref()
-            .map(|popover| popover.target)
-    })
 }
 
 fn shell_focused(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> bool {
@@ -457,74 +422,6 @@ fn draw_frame(cx: &mut VisualTestContext) {
 fn empty_area(cx: &mut VisualTestContext) -> Point<gpui::Pixels> {
     let pane = present(cx, "request-pane");
     Point::new(pane.right() - px(30.), pane.bottom() - px(30.))
-}
-
-#[gpui::test]
-fn the_add_to_dropdown_lists_every_environment_and_preselects_the_active_one(
-    cx: &mut TestAppContext,
-) {
-    let dir = popover_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open(cx, &shell, Some("staging"));
-
-    click(cx, "request-url-var-3");
-    assert!(bounds(cx, "variable-popover-target").is_some());
-    assert!(bounds(cx, "variable-popover-target-1").is_none(), "closed");
-    assert_eq!(target_index(cx, &shell), Some(0), "Staging is active");
-
-    click(cx, "variable-popover-target");
-    for row in 1..=4 {
-        assert!(
-            bounds(cx, &format!("variable-popover-target-{row}")).is_some(),
-            "row {row}"
-        );
-    }
-    assert!(popover_open(cx));
-    click(cx, "variable-popover-target-2");
-    assert!(
-        bounds(cx, "variable-popover-target-1").is_none(),
-        "picking closes the list"
-    );
-    assert!(popover_open(cx));
-    assert_eq!(target_index(cx, &shell), Some(1));
-}
-
-#[gpui::test]
-fn quick_add_creates_the_variable_in_an_environment_that_is_not_active(cx: &mut TestAppContext) {
-    let dir = popover_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open(cx, &shell, Some("staging"));
-
-    click(cx, "request-url-var-3");
-    click(cx, "variable-popover-target");
-    click(cx, "variable-popover-target-2");
-    click(cx, "variable-popover-input");
-    type_text(cx, "tnt_p");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-
-    let production = std::fs::read_to_string(dir.path().join("environments/production.env.toml"))
-        .unwrap_or_default();
-    assert!(production.contains("key = \"tenant\""), "{production}");
-    assert!(production.contains("value = \"tnt_p\""), "{production}");
-    let staging = std::fs::read_to_string(dir.path().join("environments/staging.env.toml"))
-        .unwrap_or_default();
-    assert!(!staging.contains("tenant"), "{staging}");
-}
-
-#[gpui::test]
-fn with_no_active_environment_the_quick_add_defaults_to_the_collection(cx: &mut TestAppContext) {
-    let dir = popover_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open(cx, &shell, None);
-
-    click(cx, "request-url-var-3");
-
-    // Targets: Production, Staging, API, Globals.
-    assert_eq!(target_index(cx, &shell), Some(2));
 }
 
 #[gpui::test]
@@ -825,32 +722,6 @@ fn escape_in_the_popover_gives_the_focus_back_to_the_field(cx: &mut TestAppConte
 }
 
 #[gpui::test]
-fn escape_closes_the_add_to_list_first_and_the_popover_second(cx: &mut TestAppContext) {
-    let dir = popover_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open(cx, &shell, Some("staging"));
-    click(cx, "request-url-var-3");
-    click(cx, "variable-popover-target");
-    assert!(
-        bounds(cx, "variable-popover-target-1").is_some(),
-        "list open"
-    );
-
-    cx.simulate_keystrokes("escape");
-    cx.run_until_parked();
-    assert!(
-        bounds(cx, "variable-popover-target-1").is_none(),
-        "list closed"
-    );
-    assert!(popover_open(cx), "the first Escape keeps the popover");
-
-    cx.simulate_keystrokes("escape");
-    cx.run_until_parked();
-    assert!(!popover_open(cx), "the second Escape closes it");
-}
-
-#[gpui::test]
 fn the_url_field_closes_the_same_way_on_blur_and_on_enter(cx: &mut TestAppContext) {
     let dir = popover_workspace();
     let (_state_dir, state_path) = state_file();
@@ -897,36 +768,6 @@ fn a_click_back_into_the_field_closes_the_popover_and_keeps_the_field(cx: &mut T
     assert!(!popover_open(cx));
     assert!(url_editing(cx, &shell), "the press landed in the field");
     assert!(url_field_focused(cx, &shell));
-}
-
-#[gpui::test]
-fn adding_to_an_inactive_environment_leaves_the_unresolved_count_as_it_was(
-    cx: &mut TestAppContext,
-) {
-    let dir = popover_workspace();
-    let (_state_dir, state_path) = state_file();
-    let (shell, cx) = render(cx, &dir, &state_path);
-    open(cx, &shell, None);
-    let before = unresolved(cx, &shell);
-    assert_eq!(before, ["token", "tenant"]);
-
-    click(cx, "request-url-var-3");
-    // Targets: Production, Staging, API, Globals.
-    click(cx, "variable-popover-target");
-    click(cx, "variable-popover-target-1");
-    click(cx, "variable-popover-input");
-    type_text(cx, "tnt_p");
-    cx.simulate_keystrokes("enter");
-    cx.run_until_parked();
-
-    let production = std::fs::read_to_string(dir.path().join("environments/production.env.toml"))
-        .unwrap_or_default();
-    assert!(production.contains("key = \"tenant\""), "{production}");
-    assert_eq!(unresolved(cx, &shell), before, "no environment is active");
-    assert_eq!(
-        label_of(cx, "request-unresolved").as_deref(),
-        Some("2 unresolved variables")
-    );
 }
 
 #[gpui::test]
@@ -986,4 +827,54 @@ fn typing_inspects_once_after_the_edits_settle(cx: &mut TestAppContext) {
         label_of(cx, "request-unresolved").as_deref(),
         Some("3 unresolved variables")
     );
+}
+
+#[gpui::test]
+fn the_pointer_leaving_the_mark_and_the_surface_closes_the_popover(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+
+    let mark = present(cx, "request-url-var-1");
+    cx.simulate_mouse_move(mark.center(), None, Modifiers::none());
+    advance(cx, bolt::composites::HOVER_DELAY);
+    assert!(popover_open(cx), "the hover opened the popover");
+
+    // Over the surface it stays open, however long the pointer rests there.
+    let surface = present(cx, "variable-popover-input");
+    cx.simulate_mouse_move(surface.center(), None, Modifiers::none());
+    advance(cx, bolt::composites::HOVER_GRACE * 4);
+    assert!(popover_open(cx), "the pointer rests on the surface");
+
+    // Off both, it closes once the grace is over.
+    let away = empty_area(cx);
+    cx.simulate_mouse_move(away, None, Modifiers::none());
+    advance(cx, bolt::composites::HOVER_GRACE - Duration::from_millis(1));
+    assert!(popover_open(cx), "the grace keeps it open for a moment");
+    advance(cx, Duration::from_millis(1));
+    draw_frame(cx);
+    assert!(!popover_open(cx), "the pointer left both");
+    assert!(!url_editing(cx, &shell), "no field is left open");
+}
+
+/// Moves the test clock forward by `duration` and draws what it wakes.
+fn advance(cx: &mut VisualTestContext, duration: Duration) {
+    cx.executor().advance_clock(duration);
+    cx.run_until_parked();
+}
+#[gpui::test]
+fn a_click_in_the_value_field_edits_it_and_keeps_the_popover_open(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, Some("staging"));
+    click(cx, "request-url-var-1");
+
+    click(cx, "variable-popover-input");
+    cx.simulate_keystrokes("end");
+    type_text(cx, "z");
+
+    assert!(popover_open(cx), "a click in the field is not a click away");
+    assert_eq!(popover_value(cx, &shell), "https://stagingz");
 }

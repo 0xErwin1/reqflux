@@ -107,9 +107,6 @@ pub(crate) const EMPTY_STATE_WIDTH: Pixels = px(420.0);
 /// The width of the variable popover (variable-popover/01).
 pub(crate) const VARIABLE_POPOVER_WIDTH: Pixels = px(340.0);
 
-/// The tallest the "Add to" list of the variable popover grows before it scrolls.
-pub(crate) const VARIABLE_POPOVER_TARGET_LIST_HEIGHT: Pixels = px(160.0);
-
 /// The width of the Auth pane type menu.
 pub(crate) const AUTH_MENU_WIDTH: Pixels = px(240.0);
 

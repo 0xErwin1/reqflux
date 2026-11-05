@@ -1295,8 +1295,9 @@ selector (`workspace-selector`) opens a menu (`workspace-menu`) with the recent 
 for a directory, the current one marked; `workspace-recent-remove-<n>`, shown while its row is
 hovered or holds the keyboard focus and always on a row that did not load, drops one from the
 list and deletes nothing), `New workspace…` (`workspace-new`, the name popover
-`workspace-new-popover` beside the menu with the field `workspace-new-name`,
-`workspace-new-cancel` and `workspace-new-create`; Enter or Create makes a workspace kept by the
+`workspace-new-popover` beside the menu, its top at the menu's bottom, with the title, the field
+`workspace-new-name`, the hint `workspace-new-hint`, `workspace-new-cancel` and
+`workspace-new-create`; Enter or Create makes a workspace kept by the
 app and opens it, Escape, Cancel or a click outside closes it and creates nothing),
 `New workspace in folder…` (`workspace-new-folder`, the OS save dialog;
 `reqflux_engine::create_workspace` writes a `reqflux.toml` named after the directory into a
@@ -1408,8 +1409,14 @@ and a JSON body inside a section needs an injection or a head/body split: later)
 Each `{{name}}` mark in the URL (`request-url-var-<n>`), a Params, Headers or form value cell
 (`request-<table>-value-<row>-var-<n>`) and an auth field opens the variable popover
 (`variable-popover`, design/variable-popover/01; `shell/variable_popover.rs` and
-`request/variable_popover_view.rs`) after a 400 ms hover or on a click; a click on a mark
-opens it instead of editing the field, and a click elsewhere in the field still edits it.
+`request/variable_popover_view.rs`) after `bolt`'s 400 ms hover delay or on a click; a click on
+a mark opens it instead of editing the field, and a click elsewhere in the field still edits it.
+The surface is `bolt`'s `Popover`, whose state the shell owns: it points at the mark's
+rectangle in window coordinates (each mark's layout records it), lands one `ANCHOR_GAP` under
+it, flips above it near the window's bottom edge and keeps a margin from the edges. `bolt` also
+owns Escape, the click-away layer under the surface (so a click inside it, or on a list opened
+from its body, is not outside), the focus in and back, and the 120 ms grace that closes a hover
+after the pointer leaves both the mark and the surface.
 While the field is edited, F2 or Alt+click on a reference under the caret opens it under the
 field. It shows what `Engine::variable_info` reports: the winning scope's badge, its current
 value in a focused field (`variable-popover-input`), the initial value read-only and the
@@ -1418,15 +1425,15 @@ Environments, which opens the settings page at that scope. Enter saves the field
 current value of the winning scope (an empty field clears it); a secret shows its SECRET
 badge and an empty masked field, the eye (`variable-popover-reveal`) reads its keyring value
 in, and Enter writes the keyring. An undefined name offers the quick add: the "Add to"
-dropdown (`variable-popover-target`, a `bolt` select trigger; its list `variable-popover-target-<n>`
-opens inside the popover) over every environment the collection allows (`VariableInfo::targets`:
+dropdown (`variable-popover-target`, `bolt`'s `Dropdown`; its menu `variable-popover-target-menu`
+opens above the surface) over every environment the collection allows (`VariableInfo::targets`:
 the active one first, marked "active" and preselected, then the others by name), then the
 collection (the default with no active environment) and the globals, the value, which becomes
 the initial value, and the Secret box; "Not defined" is danger red. With no active
 environment, a name only environments declare lists them to activate, with an "Add to
 collection or globals instead". Escape closes the "Add to" list first, then the popover, and a
-click outside closes it without writing; a click inside it, or on its list, is not outside; after a write every open
-request is inspected again, so the marks follow. A cell whose value references a secret stays
+click outside closes it without writing; after a write every open request is inspected again,
+so the marks follow. A cell whose value references a secret stays
 masked and has no marks; F2 while editing it still opens the popover.
 
 The marks stay while the URL field, a value cell field or a plain auth field is edited
