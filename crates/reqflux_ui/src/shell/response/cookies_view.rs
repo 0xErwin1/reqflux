@@ -99,17 +99,29 @@ pub(super) fn render(received: &Received, masker: &Masker, cx: &App) -> AnyEleme
         region("response-cookies")
             .flex_1()
             .min_h_0()
-            .overflow_y_scroll()
+            .flex()
+            .flex_col()
             .border_t(Borders::THIN)
             .border_color(colors.line)
             .font_family(bolt::fonts::grid_family(cx))
             .text_size(GridMetrics::FONT)
             .child(bar)
-            .child(table_widths::scrollable(
-                "response-cookies-scroll".to_owned(),
-                div().flex().flex_col().child(header(cx)).children(rows),
-                min_width(cx),
-            )),
+            .child(
+                table_widths::overflow("response-cookies-scroll".to_owned(), min_width(cx), cx)
+                    .header(header(cx))
+                    .rows(
+                        region("response-cookies-rows")
+                            .flex_1()
+                            .min_h_0()
+                            .overflow_y_scroll()
+                            .flex()
+                            .flex_col()
+                            .children(rows),
+                    )
+                    .flex_1()
+                    .min_h_0()
+                    .w_full(),
+            ),
         TABLE,
         cx,
     )

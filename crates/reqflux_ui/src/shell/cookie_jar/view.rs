@@ -157,19 +157,27 @@ pub(crate) fn content(
                     .aria_label("Cookies")
                     .flex_1()
                     .min_h_0()
-                    .overflow_y_scroll()
+                    .flex()
+                    .flex_col()
                     .font_family(bolt::fonts::grid_family(cx))
                     .text_size(GridMetrics::FONT)
-                    .child(table_widths::scrollable(
-                        "cookies-scroll".to_owned(),
-                        div()
-                            .flex()
-                            .flex_col()
-                            .child(header(cx))
-                            .children(table_rows)
-                            .children(no_match),
-                        min_width(cx),
-                    )),
+                    .child(
+                        table_widths::overflow("cookies-scroll".to_owned(), min_width(cx), cx)
+                            .header(header(cx))
+                            .rows(
+                                region("cookies-rows")
+                                    .flex_1()
+                                    .min_h_0()
+                                    .overflow_y_scroll()
+                                    .flex()
+                                    .flex_col()
+                                    .children(table_rows)
+                                    .children(no_match),
+                            )
+                            .flex_1()
+                            .min_h_0()
+                            .w_full(),
+                    ),
                 TABLE,
                 cx,
             ))

@@ -1505,12 +1505,20 @@ handle, as do the narrow fixed columns (row number, enable box, actions).
 A table never lets the column that fills the rest collapse: it gives that column a minimum
 (`GRID_VALUE_MIN_COLUMN`, `COOKIE_FLAGS_MIN_COLUMN`, `VARIABLES_DESCRIPTION_MIN_COLUMN`,
 `AUDIT_TARGET_MIN_COLUMN`, `APP_SETTINGS_OVERRIDE_LISTS_MIN`), sums it with the other columns as
-the user left them, and wraps its content in `table_widths::scrollable` (or `scrollable_fill`
-for a table that takes the page's height) with that width. The viewport (`<table>-scroll`,
-`request-<table>-scroll`) scrolls on the horizontal axis only, so a vertical wheel stays with
-the pane or page; the vertical scroll stays with the table's own rows. `bolt`'s grid has no
-horizontal overflow (`// bolt gap:` on `scrollable`). The runner grid has no column that fills
-the rest, so it needs none.
+the user left them, and puts its header and rows in `table_widths::overflow` with that width:
+`bolt`'s `GridOverflow`, one viewport (`<table>-scroll`, `request-<table>-scroll`) that scrolls
+the two sideways together on a handle the store keeps, so a column stays over its own cells at
+every offset. While the columns are wider than the pane the rows end one
+`GridMetrics::SCROLLBAR_WIDTH` (12 px) above the viewport's edge and the horizontal bar draws in
+the strip left free, the way DBFlux's data table draws it; a table that fits reserves nothing
+and keeps its full height. Only the horizontal axis belongs to the viewport, so a vertical
+wheel stays with the pane or page and the vertical scroll stays with the table's own rows. The
+audit table, the runner results grid, the cookie jar and the response Cookies table take it,
+since each is drawn in a pane that has a height of its own. `GridOverflow` sizes its viewport
+from the height it is given (`size_full` under a `flex_1().min_h_0()` wrapper), so the pages
+that take their content's height — the request grids, the variables page, the app settings
+page, the history grid — still draw their viewport with `table_widths::scrollable`, the
+`// bolt gap:` until `bolt` has an overflow that takes its content's height.
 
 The global rather than shell state is deliberate: the response Cookies table, the recorded
 history grid and the audit table draw from `&App`, with no shell to ask.
@@ -1542,7 +1550,9 @@ The views and overlays draw with DBFlux's `bolt` too. The MCP approvals view use
 22 px between sections, 14 by 16 payload padding), `ListRow` rows with the selection bar,
 `Badge` for the class and `Pending`, `Kbd`, `Input` for the reason field and `Button` for
 Refresh, Deny, Allow for this session and Allow once. The history tab is a document tab, its
-banner DBFlux's 34 px editor banner, its grid `GridMetrics` (header 40, rows 31); the History
+banner DBFlux's 34 px editor banner, its grid `GridMetrics` (header 40, rows 31), the table's
+header and rows in `table_widths::scrollable` (the `// bolt gap:`: the history page takes its
+content's height); the History
 panel uses the tree's `ShellMetrics` and `TreeMetrics` (header and footer 46, rows 26) and
 `EmptyState`. The command palette is DBFlux's (`PaletteMetrics`: 56 px query row, 38 px rows
 and footer) with document tabs as scope tabs. The settings page draws `Island`s, `ListRow`
@@ -1550,7 +1560,7 @@ nav entries and environment rows, the variables grid at `GridMetrics`, `Checkbox
 `SelectTrigger` with `menu_frame`/`menu_row` (a `MenuItem::detail` line per option) for
 `stored in`, and `Button`. The workspace and environment menus are
 `menu_frame`/`menu_row` (30 px rows, 44 px recent rows) with `render_menu_header`. No
-`// bolt gap:` stand-in remains outside the run grid's column widths (below).
+`// bolt gap:` stand-in remains in them.
 `reqflux_ui::theme`
 installs `bolt`'s `ModalSeams` as DBFlux's theme does: ReqFlux's modal actions bound in the
 `Modal` key context (Escape cancels, Enter confirms, the arrows, Page Up, Page Down, Home and
@@ -1564,7 +1574,10 @@ requests. Run calls `Engine::run_collection` on a thread of its own with a secon
 the app state (`AppState::path`), so every send is recorded in history; its events reach the
 window through a channel the document polls. Stop cancels the run's token. The results grid is
 `bolt`'s grid, its header cells column headers named by their columns
-(`runner-grid-header-cell-<n>`), under `bolt`'s determinate `Progress`;
+(`runner-grid-header-cell-<n>`), under `bolt`'s determinate `Progress`; the header and the
+`uniform_list` of rows sit in `table_widths::overflow`'s viewport (`runner-grid-scroll`), so a
+document narrower than the seven fixed columns scrolls them sideways together and keeps the
+last column reachable, with `bolt`'s bar in a 12 px strip under the rows.
 selecting a finished row shows its tests beside the response history recorded for that send
 (the last send when a jump ran it twice), and names the variables that step sent unresolved
 above its tests. The setup's order list heads each folder's requests with the folder and its

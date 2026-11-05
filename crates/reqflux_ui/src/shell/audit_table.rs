@@ -83,10 +83,15 @@ pub(super) fn render(
         }
     }
     let min_width = min_width(cx);
-    let table = table_widths::resizable(div().flex().flex_col(), TABLE, cx)
-        .child(header(cx))
-        .child(rows);
-    table_widths::scrollable_fill("audit-scroll".to_owned(), table, min_width).into_any_element()
+    let table = table_widths::overflow("audit-scroll".to_owned(), min_width, cx)
+        .header(header(cx))
+        .rows(rows)
+        .flex_1()
+        .min_h_0()
+        .w_full();
+    table_widths::resizable(div().flex().flex_col().flex_1().min_h_0(), TABLE, cx)
+        .child(table)
+        .into_any_element()
 }
 
 /// The narrowest the table gets: the chevron, every column with a width as the user left it,

@@ -434,6 +434,55 @@ fn the_audit_target_keeps_its_minimum_in_a_narrow_page(cx: &mut TestAppContext) 
         "audit-header-target",
         crate::tokens::AUDIT_TARGET_MIN_COLUMN,
     );
+    // The table fills the page's height, so the strip for its bar comes out of the rows.
+    assert_eq!(
+        present(f.cx, "audit-rows").bottom() + bolt::tokens::GridMetrics::SCROLLBAR_WIDTH,
+        present(f.cx, "audit-scroll").bottom(),
+        "the rows end above the strip"
+    );
+}
+
+#[gpui::test]
+fn a_wide_audit_table_reserves_no_strip_for_a_bar(cx: &mut TestAppContext) {
+    let f = fixture(cx, Some(&lines()));
+    click(f.cx, "rail-audit");
+    let viewport = present(f.cx, "audit-scroll");
+    // A table that fits reserves nothing: the rows keep the viewport's full height.
+    assert_eq!(
+        present(f.cx, "audit-rows").bottom(),
+        viewport.bottom(),
+        "a grid that fits keeps the full height"
+    );
+    let strip = present(f.cx, "audit-scroll-scrollbar");
+    assert_eq!(
+        strip.size.height,
+        bolt::tokens::GridMetrics::SCROLLBAR_WIDTH
+    );
+}
+
+#[gpui::test]
+fn a_scrolled_audit_table_keeps_its_offset_across_a_redraw(cx: &mut TestAppContext) {
+    let f = fixture(cx, Some(&lines()));
+    f.cx.simulate_resize(gpui::size(gpui::px(1000.), gpui::px(700.)));
+    click(f.cx, "rail-audit");
+    let viewport = present(f.cx, "audit-scroll");
+    let before = present(f.cx, "audit-header-time").origin.x;
+    f.cx.simulate_event(gpui::ScrollWheelEvent {
+        position: viewport.center(),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(gpui::px(-80.), gpui::px(0.))),
+        modifiers: gpui::Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    f.cx.run_until_parked();
+    let scrolled = present(f.cx, "audit-header-time").origin.x;
+    assert!(scrolled < before, "the table scrolled sideways");
+    f.cx.update(|_, cx| cx.refresh_windows());
+    f.cx.run_until_parked();
+    assert_eq!(
+        present(f.cx, "audit-header-time").origin.x,
+        scrolled,
+        "the viewport kept its offset across a redraw"
+    );
 }
 
 #[gpui::test]

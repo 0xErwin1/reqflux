@@ -6,7 +6,7 @@
 use std::thread;
 use std::time::{Duration, Instant};
 
-use gpui::{Entity, TestAppContext, VisualTestContext};
+use gpui::{Entity, TestAppContext, VisualTestContext, px};
 use reqflux_engine::SecretScope;
 use reqflux_engine::state::AppState;
 use tempfile::TempDir;
@@ -202,6 +202,60 @@ fn the_order_heads_folders_only_and_root_requests_sit_under_no_header(cx: &mut T
         "First sits at the collection root"
     );
     present(cx, "runner-order-folder-1");
+}
+
+#[gpui::test]
+fn the_run_grid_scrolls_sideways_to_its_last_column(cx: &mut TestAppContext) {
+    let port = serve(Server::Ok);
+    let dir = workspace(port, port, FIRST_TEST);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_run(cx, &shell, COLLECTION);
+    click(cx, "runner-start");
+    settle_run(cx, &shell);
+    // A window too narrow for the grid's seven fixed columns.
+    cx.simulate_resize(gpui::size(px(760.), px(700.)));
+    cx.run_until_parked();
+    let grid = present(cx, "runner-grid");
+    let viewport = present(cx, "runner-grid-scroll");
+    assert!(
+        viewport.left() >= grid.left() && viewport.right() <= grid.right(),
+        "the viewport stays inside the grid"
+    );
+    let last = present(cx, "runner-grid-header-cell-6");
+    assert!(last.right() > viewport.right(), "it starts cut off");
+    let strip = present(cx, "runner-grid-scroll-scrollbar");
+    assert_eq!(
+        strip.size.height,
+        bolt::tokens::GridMetrics::SCROLLBAR_WIDTH
+    );
+    assert_eq!(
+        strip.bottom(),
+        viewport.bottom(),
+        "the strip sits on the edge"
+    );
+
+    for _ in 0..3 {
+        cx.simulate_event(gpui::ScrollWheelEvent {
+            position: viewport.center(),
+            delta: gpui::ScrollDelta::Pixels(gpui::point(px(-2000.), px(0.))),
+            modifiers: gpui::Modifiers::none(),
+            touch_phase: gpui::TouchPhase::Moved,
+        });
+        cx.run_until_parked();
+    }
+    let last = present(cx, "runner-grid-header-cell-6");
+    assert!(
+        last.right() <= viewport.right() + px(0.5),
+        "the last column scrolled into view: {:?} in {:?}",
+        last.right(),
+        viewport.right()
+    );
+    let first = present(cx, "runner-grid-header-cell-0");
+    assert!(
+        first.right() <= viewport.left() + px(0.5),
+        "the header scrolled with the rows"
+    );
 }
 
 #[gpui::test]

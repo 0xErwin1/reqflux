@@ -305,8 +305,9 @@ pub(crate) const SETTING_NUMBER_FIELD: Pixels = px(160.0);
 /// The status column of a History panel row (history/01).
 pub(crate) const HISTORY_STATUS_COLUMN: Pixels = px(26.0);
 
-/// The audit table's columns (bolt-v2/13); bolt gap: `DocumentMetrics` has no audit column
-/// widths. The target column fills the rest.
+/// The audit table's columns (bolt-v2/13): ReqFlux's own layout, not `DocumentMetrics` sizes.
+/// DBFlux's audit table draws chevron, time, level, category, summary, actor, duration and
+/// outcome, a different design, so no shared token exists. The target column fills the rest.
 pub(crate) const AUDIT_CHEVRON_COLUMN: Pixels = px(24.0);
 pub(crate) const AUDIT_TIME_COLUMN: Pixels = px(110.0);
 pub(crate) const AUDIT_CLASS_COLUMN: Pixels = px(100.0);
@@ -325,8 +326,8 @@ pub(crate) const NEW_WORKSPACE_POPOVER_WIDTH: Pixels = px(340.0);
 pub(crate) const RUNNER_FIELD_WIDTH: Pixels = px(360.0);
 pub(crate) const RUNNER_ORDER_WIDTH: Pixels = px(340.0);
 pub(crate) const RUNNER_TESTS_WIDTH: Pixels = px(420.0);
-/// The run results grid's columns after the row number, as the header names them; bolt gap:
-/// `GridMetrics` has no run results column widths.
+/// The run results grid's columns after the row number, as the header names them: one ReqFlux
+/// screen's layout (runner/01), not a `GridMetrics` size.
 pub(crate) const RUNNER_COLUMNS: [(&str, Pixels); 7] = [
     ("method", px(80.0)),
     ("request", px(240.0)),

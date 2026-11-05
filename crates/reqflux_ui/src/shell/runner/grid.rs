@@ -120,6 +120,14 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
     )
     .flex_1()
     .min_h_0();
+    // The header and the rows scroll sideways together on the one handle the table store keeps,
+    // so a column stays over its own cells at every offset.
+    let overflow = table_widths::overflow("runner-grid-scroll".to_owned(), total_width, cx)
+        .header(region("runner-grid-header").flex_none().child(header))
+        .rows(list)
+        .flex_1()
+        .min_h_0()
+        .w_full();
     table_widths::resizable(region("runner-grid"), TABLE, cx)
         .role(gpui::Role::Grid)
         .aria_label("Run results")
@@ -128,8 +136,7 @@ pub(super) fn render(run: &RunTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         .flex()
         .flex_col()
         .font_family(bolt::fonts::editor_family(cx))
-        .child(region("runner-grid-header").flex_none().child(header))
-        .child(list)
+        .child(overflow)
 }
 
 /// The grid's rows as `bolt`'s row source: a failed step is an error row and the request
