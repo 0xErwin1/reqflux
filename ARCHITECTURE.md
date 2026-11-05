@@ -1054,7 +1054,8 @@ as redacted stays withheld, and a bridge failure is a tool error, never a panic.
 The user's configuration is `$XDG_CONFIG_HOME/reqflux/config.toml` (`~/.config/reqflux/config.toml`
 when unset; `reqflux_engine::config`). It holds `theme` (`dark`, `light` or `system`, written by
 `Toggle theme` with a format-preserving editor that keeps comments, order and unknown keys),
-`font_size` (the interface font size in px, 13 by default, clamped to 8..=32 as in DBFlux) and
+`font_size` (the interface font size in px, 13 by default, clamped to 8..=32 as in DBFlux; App >
+General and the interface size commands write it) and
 `[mcp]` and `[network]` (certificates and proxies are per user and machine, never in a
 workspace file; see below). `reqflux_engine::config` edits `font_size`, the `[mcp]` rules and the
 `hosts`/`environments` lists the same way (`set_font_size`, `set_rule`, `add_list_entry`,
@@ -1792,6 +1793,7 @@ field takes keys first. `[keymap]` in the user's config.toml rebinds any command
 | Close tab, Next tab, Previous tab | Ctrl+W, Ctrl+Tab, Ctrl+Shift+Tab | a request, the history tab or the run document is open (Next and Previous skip the run document) |
 | Show Collections, History | Ctrl+1, Ctrl+2 | a workspace is open |
 | Toggle theme | Ctrl+Shift+T | always |
+| Increase, Decrease, Reset interface size | Ctrl+= (also Ctrl++, Ctrl+Shift+=, Ctrl+Shift++), Ctrl+-, Ctrl+0 | always (one pixel per step within 8..=32, reset to 13, saved as `font_size`; a step at a limit saves nothing) |
 | Open MCP approvals | Ctrl+Shift+M | always |
 
 Every region and tree row has a stable element id (`title-bar`, `sidebar`, `document`,

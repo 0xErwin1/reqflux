@@ -67,6 +67,9 @@ fn command_icon(id: CommandId) -> IconName {
         CommandId::NextTab | CommandId::PreviousTab => IconName::Columns2,
         CommandId::ShowHistory => IconName::RotateCcwClock,
         CommandId::ToggleTheme => IconName::Eye,
+        CommandId::IncreaseInterfaceSize
+        | CommandId::DecreaseInterfaceSize
+        | CommandId::ResetInterfaceSize => IconName::ALargeSmall,
         CommandId::LayoutStacked => IconName::Rows2,
         CommandId::LayoutSideBySide => IconName::Columns2,
         CommandId::LayoutDocument => IconName::File,

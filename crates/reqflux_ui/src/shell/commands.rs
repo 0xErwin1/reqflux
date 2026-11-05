@@ -166,6 +166,9 @@ commands! {
     ShowHistory: ShowHistory, "show-history", "Show History", "ctrl-2", View, loaded;
     ShowEnvironments: ShowEnvironments, "show-environments", "Show Environments", "ctrl-3", Environment, loaded;
     ToggleTheme: ToggleTheme, "toggle-theme", "Toggle theme", "ctrl-shift-t", View, always;
+    IncreaseInterfaceSize: IncreaseInterfaceSize, "increase-interface-size", "Increase interface size", "ctrl-=", View, always;
+    DecreaseInterfaceSize: DecreaseInterfaceSize, "decrease-interface-size", "Decrease interface size", "ctrl--", View, always;
+    ResetInterfaceSize: ResetInterfaceSize, "reset-interface-size", "Reset interface size", "ctrl-0", View, always;
     LayoutStacked: LayoutStacked, "layout-stacked", "Layout: Stacked", "ctrl-alt-1", View, always;
     LayoutSideBySide: LayoutSideBySide, "layout-side-by-side", "Layout: Side by side", "ctrl-alt-2", View, always;
     LayoutDocument: LayoutDocument, "layout-document", "Layout: Document", "ctrl-alt-3", View, always;
@@ -187,12 +190,20 @@ pub(crate) const PALETTE_KEYS: [&str; 2] = ["ctrl-k", "ctrl-p"];
 /// The extra keys that redo a draft edit, beside the redo command's own key.
 pub(crate) const REDO_KEYS: [&str; 1] = ["ctrl-y"];
 
-/// Binds every command's key, the palette keys and the extra redo keys. Focused text
+/// The extra keys that increase the interface size, beside the command's own `ctrl-=`:
+/// `+` shares the key with `=` on common layouts, and some platforms report the chord with
+/// Shift held, so every form of that key zooms in, as in DBFlux.
+pub(crate) const ZOOM_IN_KEYS: [&str; 3] = ["ctrl-+", "ctrl-shift-=", "ctrl-shift-+"];
+
+/// Binds every command's key, the palette keys and the extra redo and zoom keys. Focused text
 /// editors bind Ctrl+Z themselves in a deeper key context, so the draft keys only reach
 /// the shell while no editor has the focus.
 pub(super) fn bind_keys(cx: &mut App) {
     bind_commands(cx);
     cx.bind_keys(REDO_KEYS.map(|key| KeyBinding::new(key, RedoDraft, Some(SHELL_CONTEXT))));
+    cx.bind_keys(
+        ZOOM_IN_KEYS.map(|key| KeyBinding::new(key, IncreaseInterfaceSize, Some(SHELL_CONTEXT))),
+    );
     cx.bind_keys(PALETTE_KEYS.map(|key| KeyBinding::new(key, OpenPalette, Some(SHELL_CONTEXT))));
 }
 
@@ -216,6 +227,10 @@ pub(crate) fn effective_key(cx: &App, id: CommandId) -> String {
 
 /// `key` as the palette prints it: `ctrl-shift-tab` is `Ctrl+Shift+Tab`.
 pub(crate) fn key_label(key: &str) -> String {
+    // `ctrl--` is Ctrl and the `-` key, which a plain split would lose.
+    if let Some(modifiers) = key.strip_suffix("--") {
+        return format!("{}+-", key_label(modifiers));
+    }
     key.split('-')
         .map(|part| match part {
             "ctrl" => "Ctrl".to_owned(),
@@ -402,6 +417,9 @@ impl Shell {
                 self.restore_focus(window, cx);
             }
             CommandId::ToggleTheme => self.toggle_theme(window, cx),
+            CommandId::IncreaseInterfaceSize => self.change_interface_size(Some(1.0), cx),
+            CommandId::DecreaseInterfaceSize => self.change_interface_size(Some(-1.0), cx),
+            CommandId::ResetInterfaceSize => self.change_interface_size(None, cx),
             CommandId::LayoutStacked => self.set_layout(LayoutMode::Stacked, cx),
             CommandId::LayoutSideBySide => self.set_layout(LayoutMode::SideBySide, cx),
             CommandId::LayoutDocument => self.set_layout(LayoutMode::Document, cx),

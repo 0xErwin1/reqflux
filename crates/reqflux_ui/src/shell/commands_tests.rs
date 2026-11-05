@@ -2,11 +2,11 @@
 
 use std::collections::HashSet;
 
-use super::{COMMANDS, PALETTE_KEYS, REDO_KEYS, key_label};
+use super::{COMMANDS, PALETTE_KEYS, REDO_KEYS, ZOOM_IN_KEYS, key_label};
 use crate::shell::send::SHELL_CONTEXT;
 
 /// The palette commands of command-palette S4, by stable id.
-const EXPECTED: [&str; 31] = [
+const EXPECTED: [&str; 34] = [
     "send-request",
     "cancel-send",
     "save-request",
@@ -33,6 +33,9 @@ const EXPECTED: [&str; 31] = [
     "show-history",
     "show-environments",
     "toggle-theme",
+    "increase-interface-size",
+    "decrease-interface-size",
+    "reset-interface-size",
     "layout-stacked",
     "layout-side-by-side",
     "layout-document",
@@ -64,6 +67,12 @@ fn every_command_has_a_key_and_no_two_share_one_in_a_context() {
         assert!(
             seen.insert((SHELL_CONTEXT, key)),
             "the redo key {key} is taken by a command"
+        );
+    }
+    for key in ZOOM_IN_KEYS {
+        assert!(
+            seen.insert((SHELL_CONTEXT, key)),
+            "the zoom key {key} is taken by a command"
         );
     }
     for key in PALETTE_KEYS {
@@ -110,6 +119,10 @@ fn the_spec_keys_are_the_defaults() {
     assert_eq!(key("undo-draft"), Some("ctrl-z"));
     assert_eq!(key("redo-draft"), Some("ctrl-shift-z"));
     assert_eq!(REDO_KEYS, ["ctrl-y"]);
+    assert_eq!(key("increase-interface-size"), Some("ctrl-="));
+    assert_eq!(key("decrease-interface-size"), Some("ctrl--"));
+    assert_eq!(key("reset-interface-size"), Some("ctrl-0"));
+    assert_eq!(ZOOM_IN_KEYS, ["ctrl-+", "ctrl-shift-=", "ctrl-shift-+"]);
 }
 
 #[test]
@@ -128,6 +141,9 @@ fn keys_print_as_the_palette_shows_them() {
     assert_eq!(key_label("escape"), "Esc");
     assert_eq!(key_label("ctrl-1"), "Ctrl+1");
     assert_eq!(key_label("ctrl-w"), "Ctrl+W");
+    assert_eq!(key_label("ctrl-="), "Ctrl+=");
+    assert_eq!(key_label("ctrl--"), "Ctrl+-");
+    assert_eq!(key_label("ctrl-shift--"), "Ctrl+Shift+-");
 }
 
 #[test]

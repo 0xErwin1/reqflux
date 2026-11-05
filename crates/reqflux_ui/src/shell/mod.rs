@@ -812,3 +812,5 @@ mod variables_tests;
 mod workspace_new_tests;
 #[cfg(test)]
 mod workspace_switch_tests;
+#[cfg(test)]
+mod zoom_tests;

@@ -1,9 +1,11 @@
 //! The `Toggle theme` command (light-theme S4): cycles Dark, Light and System and saves the
-//! choice in the user's config file (user-config-mcp-policy S2).
+//! choice in the user's config file (user-config-mcp-policy S2). The interface size commands
+//! (bolt-gaps S2) step or reset `font_size` the same way.
 
 use std::path::PathBuf;
 
 use gpui::{Context, Window};
+use reqflux_engine::config;
 
 use super::Shell;
 use crate::theme::{ConfigReport, save_mode};
@@ -29,6 +31,31 @@ impl Shell {
         crate::theme::set_mode(mode, window.appearance(), cx);
         if let Err(error) = save_mode(self.config_path.as_deref(), mode) {
             super::toasts::failure("Cannot save the theme", error.to_string(), cx);
+        }
+        cx.notify();
+    }
+
+    /// Zoom: steps the interface size by `step` pixels within the config file's bounds, or
+    /// resets it to the default without one, and saves it as `font_size`. A change that
+    /// leaves the size where it was (a step at a limit, a reset at the default) saves
+    /// nothing; a save that fails shows in an error toast and the size still applies.
+    pub(super) fn change_interface_size(&mut self, step: Option<f32>, cx: &mut Context<Self>) {
+        let current = bolt::fonts::current(cx).ui_size;
+        let size = step.map_or(config::DEFAULT_FONT_SIZE, |step| {
+            config::clamp_font_size(current + step)
+        });
+        if size == current {
+            return;
+        }
+        crate::theme::set_font_size(size, cx);
+        if let Some(path) = self.config_path.clone() {
+            if let Err(error) = config::set_font_size(&path, size) {
+                super::toasts::failure("Cannot save the interface size", error.to_string(), cx);
+            }
+            // The App > General select shows the saved size.
+            if self.settings.app.controls.is_some() {
+                self.read_app_config(cx);
+            }
         }
         cx.notify();
     }
