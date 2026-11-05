@@ -15,10 +15,7 @@ use bolt::components::grid::{
     ColumnResize, ColumnResizeDrag, GridOverflow, clamp_column_width, column_resize_handle,
     track_column_resize,
 };
-use gpui::{
-    App, Div, Global, InteractiveElement, ParentElement, Pixels, ScrollHandle, SharedString,
-    Stateful, StatefulInteractiveElement, Styled, div,
-};
+use gpui::{App, Global, InteractiveElement, ParentElement, Pixels, ScrollHandle, Styled};
 
 /// The widths the user dragged, per table and column, the drag in progress, and the sideways
 /// scroll of each table's viewport, so it keeps its offset across renders.
@@ -99,41 +96,21 @@ pub(crate) fn with_handle<E: Styled + ParentElement>(
         .child(column_resize_handle(column, current, &drag, wash))
 }
 
-// The sideways viewport of a table whose pane has a height of its own, or `scrollable` below
-// where the height is the content's. `bolt`'s `GridOverflow` keeps no widths and no offset of
+// The sideways viewport of a table. `bolt`'s `GridOverflow` keeps no widths and no offset of
 // its own: the handle and the widths stay here.
 /// `table`'s header and rows inside `bolt`'s `GridOverflow`: a viewport `id` that scrolls them
 /// sideways together, for a pane narrower than `total_width`, the width the columns add up to.
 /// While the columns overflow, the rows end one `GridMetrics::SCROLLBAR_WIDTH` above the
 /// viewport's bottom so its bar covers no row; a table that fits draws as it would without the
-/// wrapper. It needs a pane with a height of its own: chain `.flex_1().min_h_0()` on it, as a
-/// flex item of a column that has one.
+/// wrapper. A table in a pane with a height of its own chains `.flex_1().min_h_0()` on it, as a
+/// flex item of a column that has one; a table in a page that takes its content's height takes
+/// `.content_height()` instead and chains no height at all.
 pub(crate) fn overflow(id: String, total_width: Pixels, cx: &App) -> GridOverflow {
     let handle = cx
         .try_global::<TableWidths>()
         .map(|store| store.viewport(&id))
         .unwrap_or_default();
     GridOverflow::new(id, &handle, f32::from(total_width))
-}
-
-// bolt gap: `GridOverflow` takes its height from the pane it is given (its viewport is
-// `size_full` under a `flex_1().min_h_0()` wrapper), so a page that takes its content's height
-// — the request panes, the variables page, the app settings page, the history page — collapses
-// it to nothing. This viewport stands in for the tables drawn there until `bolt` has an overflow
-// that takes its content's height.
-/// `table`, a table that needs `min_width`, in a viewport `id` that scrolls sideways when its
-/// pane is narrower. Columns that fill the rest (a value, a URL) keep their minimum instead of
-/// collapsing under the cells beside them. A vertical wheel stays with the pane.
-pub(crate) fn scrollable(id: String, table: Div, min_width: Pixels) -> Stateful<Div> {
-    let selector = id.clone();
-    div()
-        .id(SharedString::from(id))
-        .debug_selector(move || selector)
-        .flex_none()
-        .w_full()
-        .overflow_x_scroll()
-        .restrict_scroll_to_axis()
-        .child(table.min_w(min_width))
 }
 
 /// The drag every table shares and the wash its handles take, for a header `bolt` draws

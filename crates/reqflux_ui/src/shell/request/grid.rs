@@ -124,9 +124,12 @@ pub(super) fn render(
     let hint = value_hint(shell.environment_name().as_deref());
     let header = header(table, kind, grid_kind, hint, widths, cx);
     // The drag follows the pointer over the whole grid; each move stores the width it asks
-    // for in the table store, which every grid of this kind reads.
-    let grid = table_widths::resizable(div().flex().flex_col(), grid_kind.table(), cx)
-        .child(header)
+    // for in the table store, which every grid of this kind reads. The header and the rows sit
+    // in one sideways viewport that takes the height of its own header and rows, since the
+    // request pane scrolls as a whole instead of giving the grid a height of its own.
+    let rows = div()
+        .flex()
+        .flex_col()
         .children(rows.iter().enumerate().map(|(index, row)| {
             let file = files.get(index).copied().unwrap_or(false);
             data_row(
@@ -143,7 +146,19 @@ pub(super) fn render(
         }))
         .children(add);
     let min_width = widths.min_width();
-    table_widths::scrollable(format!("request-{table}-scroll"), grid, min_width).into_any_element()
+    let overflow = table_widths::overflow(format!("request-{table}-scroll"), min_width, cx)
+        .header(header)
+        .rows(rows)
+        .content_height()
+        .flex_none()
+        .w_full();
+    table_widths::resizable(
+        div().flex().flex_col().flex_none().w_full(),
+        grid_kind.table(),
+        cx,
+    )
+    .child(overflow)
+    .into_any_element()
 }
 
 /// The header row, element id `request-<table>-header`: the column names, the key's `kind`

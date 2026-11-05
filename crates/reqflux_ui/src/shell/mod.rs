@@ -66,6 +66,7 @@ mod tree_drag;
 mod tree_model;
 mod tree_ops;
 mod url_edit;
+mod variable_anchors;
 mod variable_popover;
 mod variables_document;
 mod variables_model;
@@ -76,7 +77,6 @@ mod workspace_new;
 mod workspace_picker;
 mod workspace_switch;
 
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -85,8 +85,8 @@ use std::time::Duration;
 use bolt::composites::PopoverState;
 use bolt::tokens::IslandMetrics;
 use gpui::{
-    App, Bounds, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Pixels,
-    Render, Role, Stateful, Styled, Subscription, Task, Window, deferred, div, prelude::*,
+    App, Context, Div, ElementId, Entity, FocusHandle, IntoElement, ParentElement, Render, Role,
+    Stateful, Styled, Subscription, Task, Window, deferred, div, prelude::*,
 };
 use reqflux_engine::CurrentValues;
 use reqflux_engine::state::{AppState, RecentWorkspace};
@@ -108,6 +108,7 @@ use self::sidebar_edit::{DeletePrompted, TreeCommand};
 use self::sidebar_history::{OpenHistory, Panel};
 use self::tree_model::Node;
 use self::url_edit::UrlEdit;
+use self::variable_anchors::VariableAnchors;
 use self::workspace_picker::{OsPicker, WorkspacePicker};
 
 use crate::workspace::OpenedWorkspace;
@@ -185,8 +186,9 @@ pub(crate) struct Shell {
     /// reaches it, when a click lands away from it or when the pointer leaves its mark.
     _variable_popover_surface: Subscription,
     /// The window rectangle of each element a variable popover opens from, by element id: a
-    /// mark or the field under edit, recorded as the element is laid out.
-    variable_anchors: Rc<RefCell<HashMap<String, Bounds<Pixels>>>>,
+    /// mark or the field under edit, recorded as the element is drawn, and dropped once the
+    /// frame that draws it no longer does.
+    variable_anchors: Rc<VariableAnchors>,
     /// The re-inspection each edited request waits for, until its edits settle; a newer
     /// edit replaces the task.
     reinspections: HashMap<String, Task<()>>,
@@ -336,7 +338,7 @@ impl Shell {
             variable_popover: None,
             variable_popover_state,
             _variable_popover_surface: variable_popover_surface,
-            variable_anchors: Rc::new(RefCell::new(HashMap::new())),
+            variable_anchors: Rc::new(VariableAnchors::default()),
             reinspections: HashMap::new(),
             #[cfg(test)]
             reinspection_runs: 0,
@@ -620,9 +622,14 @@ impl Render for Shell {
         // settles what the popover held open.
         self.dismiss_variable_popover(window, cx);
         self.dismiss_new_workspace(window, cx);
+        // Every mark this frame draws records its rectangle under this frame's number, and the
+        // frame drops the anchors no mark drew, so a closed request leaves none behind.
+        self.variable_anchors.begin_frame();
+        let anchors = self.variable_anchors.clone();
         let root = div()
             .key_context(SHELL_CONTEXT)
             .track_focus(&self.focus)
+            .on_children_prepainted(move |_, _window, _cx| anchors.retain_current_frame())
             .on_action(cx.listener(|this, _: &OpenPalette, window, cx| {
                 this.open_palette(window, cx);
             }));

@@ -2,10 +2,11 @@
 //! dropdown over every scope the collection allows, adding to one of them, and the two-level
 //! Escape over its list.
 
-use gpui::{Entity, Modifiers, Point, TestAppContext, VisualTestContext};
+use gpui::{Entity, TestAppContext, VisualTestContext};
 
 use super::Shell;
 use super::draft_tests::{bounds, click, present, render, state_file};
+use super::variable_popover::TARGET_ID;
 use super::variable_popover_tests::{
     label_of, open, popover_open, popover_workspace, type_text, unresolved,
 };
@@ -46,22 +47,10 @@ fn target_index(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<usi
 }
 
 /// Picks row `index` (1-based, as the "Add to" list draws it) of the open list: `bolt`'s
-/// dropdown menu lays its rows out one `Fields::MENU_ROW_HEIGHT` apart under
-/// `Fields::MENU_PADDING_Y`.
+/// dropdown draws row `n` from 0 as `<dropdown id>-item-<n>`, so the row is picked by id and
+/// never by where it landed.
 fn pick_target(cx: &mut VisualTestContext, index: usize) {
-    let menu = present(cx, "variable-popover-target-menu");
-    let (row, padding) = cx.update(|window, _| {
-        (
-            bolt::tokens::Fields::MENU_ROW_HEIGHT.to_pixels(window.rem_size()),
-            bolt::tokens::Fields::MENU_PADDING_Y,
-        )
-    });
-    let row = Point::new(
-        menu.center().x,
-        menu.top() + padding + row * (index as f32 - 0.5),
-    );
-    cx.simulate_click(row, Modifiers::none());
-    cx.run_until_parked();
+    click(cx, &format!("{TARGET_ID}-item-{}", index - 1));
 }
 
 #[gpui::test]

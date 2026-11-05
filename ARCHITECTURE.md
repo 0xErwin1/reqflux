@@ -1412,11 +1412,16 @@ Each `{{name}}` mark in the URL (`request-url-var-<n>`), a Params, Headers or fo
 `request/variable_popover_view.rs`) after `bolt`'s 400 ms hover delay or on a click; a click on
 a mark opens it instead of editing the field, and a click elsewhere in the field still edits it.
 The surface is `bolt`'s `Popover`, whose state the shell owns: it points at the mark's
-rectangle in window coordinates (each mark's layout records it), lands one `ANCHOR_GAP` under
-it, flips above it near the window's bottom edge and keeps a margin from the edges. `bolt` also
-owns Escape, the click-away layer under the surface (so a click inside it, or on a list opened
-from its body, is not outside), the focus in and back, and the 120 ms grace that closes a hover
-after the pointer leaves both the mark and the surface.
+rectangle in window coordinates (each mark's layout records it, and the shell keeps one anchor
+per mark the frame draws: a mark records its rectangle with the frame's number and the frame,
+which ends after its children are laid out, drops every anchor no mark recorded, so a closed
+request or a tab that left the screen leaves none behind), lands one `ANCHOR_GAP` under it,
+flips above it near the window's bottom edge and keeps a margin from the edges. `bolt` owns the
+click-away layer under the surface (so a click inside it, or on a list opened from its body, is
+not outside), the focus in and back, and the 120 ms grace that closes a hover after the pointer
+leaves both the mark and the surface. ReqFlux answers Escape itself, on the surface's body: it
+installs no `bolt` `CommandSet`, and its fields bind Escape to gpui-component's `InputEscape`,
+a binding that consumes the key before any key listener of the surface runs.
 While the field is edited, F2 or Alt+click on a reference under the caret opens it under the
 field. It shows what `Engine::variable_info` reports: the winning scope's badge, its current
 value in a focused field (`variable-popover-input`), the initial value read-only and the
@@ -1426,7 +1431,8 @@ current value of the winning scope (an empty field clears it); a secret shows it
 badge and an empty masked field, the eye (`variable-popover-reveal`) reads its keyring value
 in, and Enter writes the keyring. An undefined name offers the quick add: the "Add to"
 dropdown (`variable-popover-target`, `bolt`'s `Dropdown`; its menu `variable-popover-target-menu`
-opens above the surface) over every environment the collection allows (`VariableInfo::targets`:
+opens above the surface, its scrolling column of rows `variable-popover-target-menu-rows` and
+its row `n` from 0 `variable-popover-target-item-<n>`) over every environment the collection allows (`VariableInfo::targets`:
 the active one first, marked "active" and preselected, then the others by name), then the
 collection (the default with no active environment) and the globals, the value, which becomes
 the initial value, and the Secret box; "Not defined" is danger red. With no active
@@ -1520,12 +1526,17 @@ every offset. While the columns are wider than the pane the rows end one
 the strip left free, the way DBFlux's data table draws it; a table that fits reserves nothing
 and keeps its full height. Only the horizontal axis belongs to the viewport, so a vertical
 wheel stays with the pane or page and the vertical scroll stays with the table's own rows. The
-audit table, the runner results grid, the cookie jar and the response Cookies table take it,
-since each is drawn in a pane that has a height of its own. `GridOverflow` sizes its viewport
-from the height it is given (`size_full` under a `flex_1().min_h_0()` wrapper), so the pages
-that take their content's height — the request grids, the variables page, the app settings
-page, the history grid — still draw their viewport with `table_widths::scrollable`, the
-`// bolt gap:` until `bolt` has an overflow that takes its content's height.
+audit table, the runner results grid, the cookie jar and the response Cookies table take it
+with the height of the pane they are given (`GridOverflow`'s viewport is `size_full` under a
+`flex_1().min_h_0()` wrapper), since each is drawn in a pane that has a height of its own. The
+pages that take their content's height — the request grids, the variables page, the app settings
+page, the history grid — take it with `.content_height()` and chain no height instead: the
+viewport then takes the height of its header and rows, still scrolls them sideways on the same
+handle, still reserves the strip only while the columns overflow, and lets a vertical wheel
+scroll the page around the grid, because the rows do not scroll vertically on their own there.
+A viewport with no pane to measure reads the width it was given from the frame just drawn, so
+the strip settles in the frame after the page's width first reaches the grid — the frame gpui's
+own scrollbar settles in — and a grid that fits draws as it does unwrapped on every frame.
 
 The global rather than shell state is deliberate: the response Cookies table, the recorded
 history grid and the audit table draw from `&App`, with no shell to ask.
@@ -1558,8 +1569,8 @@ The views and overlays draw with DBFlux's `bolt` too. The MCP approvals view use
 `Badge` for the class and `Pending`, `Kbd`, `Input` for the reason field and `Button` for
 Refresh, Deny, Allow for this session and Allow once. The history tab is a document tab, its
 banner DBFlux's 34 px editor banner, its grid `GridMetrics` (header 40, rows 31), the table's
-header and rows in `table_widths::scrollable` (the `// bolt gap:`: the history page takes its
-content's height); the History
+header and rows in `table_widths::overflow` with `.content_height()`, since the history page
+takes its content's height; the History
 panel uses the tree's `ShellMetrics` and `TreeMetrics` (header and footer 46, rows 26) and
 `EmptyState`. The command palette is DBFlux's (`PaletteMetrics`: 56 px query row, 38 px rows
 and footer) with document tabs as scope tabs. The settings page draws `Island`s, `ListRow`
@@ -1838,7 +1849,10 @@ Every region and tree row has a stable element id (`title-bar`, `sidebar`, `docu
 `response-meta`, `response-body-line-<n>`, `response-headers-row-<n>`, `response-error`,
 `response-retry`, `status-last-request`), and text that automation must read carries a label role,
 because the gpui-mcp bridge only reports text for nodes with a text role. Tree rows report
-`selected` and `expanded`; tabs and sub-tabs report `selected`. On Wayland a window renders
+`selected` and `expanded`; tabs and sub-tabs report `selected`. `bolt`'s `Dropdown` numbers its
+rows from 0 in the order it was built: an open menu `<id>-menu` holds its scrolling column
+`<id>-menu-rows` and each row `<id>-item-<n>`, so automation and tests pick a row by name
+instead of by where it landed. On Wayland a window renders
 and handles input only while its workspace is on screen, so automation needs the window
 visible.
 
@@ -1896,7 +1910,7 @@ scrollbars, the code editor) is DBFlux's palette with ReqFlux's accent.
 | What ReqFlux passes in | `reqflux_ui::brand::reqflux()`, the `Brand` (cobalt accent fill, hover, pressed, tint, text on accent, app name), and its own tokens in `reqflux_ui::tokens` (method hues, ReqFlux-only widths); syntax colors are `bolt`'s `SyntaxColors` roles. |
 | Install | `reqflux_ui::theme::install` loads `bolt`'s bundled fonts (Archivo, Archivo Expanded, JetBrains Mono) at the default interface size (13), so a rem is 16 px and `bolt::tokens` sizes are DBFlux's pixels; then the default density and `bolt::theme::install` with the brand and the mode from `config.toml`. It also installs `bolt`'s modal seams: Escape cancels, Enter confirms, the scroll keys scroll; and ReqFlux's translator into `bolt::strings` (`reqflux_ui::strings`), which answers in English every key `bolt`'s surfaces read (dropdown and multi-select, toasts, command palette, chart legend), interpolating `%{name}`, and answers an unknown key with the key itself so a missing one shows instead of rendering blank. A test lists every key `bolt` uses at the pinned rev. The first install registers the Tree-sitter grammars `bolt` bundles behind the `syntax-*` features ReqFlux enables (json, javascript, bash, python, xml, html) with `bolt::syntax::register_bundled`; a theme switch does not register them again. |
 | Icons | The Lucide catalog of `gpui-kit-assets` (the one gpui-component bundles), drawn through `bolt`'s `IconSource::Svg`; `reqflux_ui::assets()` is its asset source. |
-| Screens | Use `bolt` roles (`bolt::colors(cx)`, `bolt::brand::brand(cx)`) and components, never gpui-component `Theme` fields or raw colors. A guardrail test rejects color literals and bare pixel values outside `tokens.rs` and `brand.rs`, as DBFlux does. A control `bolt` lacks is added to `bolt` in DBFlux; until then the stand-in carries a `// bolt gap:` comment that says what is missing. |
+| Screens | Use `bolt` roles (`bolt::colors(cx)`, `bolt::brand::brand(cx)`) and components, never gpui-component `Theme` fields or raw colors. A guardrail test rejects color literals and bare pixel values outside `tokens.rs` and `brand.rs`, as DBFlux does. A control `bolt` lacks is added to `bolt` in DBFlux; nothing in `reqflux_ui` is left as a stand-in. |
 | Theme parity | A test compares the gpui-component theme ReqFlux installs with `bolt::theme::install` alone (DBFlux's install) with ReqFlux's brand, in dark and light and after a switch: ReqFlux overrides no field. |
 
 **Palettes.** `bolt::Colors::dark()` and `Colors::light()` are DBFlux's. `PaletteMode::{Dark,

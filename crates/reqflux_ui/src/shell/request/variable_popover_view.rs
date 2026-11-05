@@ -44,16 +44,15 @@ pub(crate) fn anchored_at(
 }
 
 /// Records the origin of the element it is laid out in, so the surface opens under it: the
-/// mark, or the field under edit.
+/// mark, or the field under edit. The rectangle carries the frame that drew it, so the shell
+/// drops the ones no mark drew any more.
 fn tracker(anchor: &str, shell: &Shell) -> AnyElement {
     let anchors = shell.variable_anchors.clone();
     let key = anchor.to_owned();
     gpui::canvas(
         move |bounds, _window, _cx| {
-            if let Ok(mut anchors) = anchors.try_borrow_mut() {
-                let nothing = size(Pixels::ZERO, Pixels::ZERO);
-                anchors.insert(key.clone(), Bounds::new(bounds.origin, nothing));
-            }
+            let nothing = size(Pixels::ZERO, Pixels::ZERO);
+            anchors.record(&key, Bounds::new(bounds.origin, nothing));
         },
         |_, _, _, _| {},
     )
@@ -84,8 +83,9 @@ fn surface(popover: &VariablePopover, cx: &mut Context<Shell>) -> AnyElement {
             window.prevent_default()
         })
         .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
-            // An action stops at its first handler, so the key never reaches the surface:
-            // Escape closes the "Add to" list, and the surface with the next one.
+            // ReqFlux installs no `bolt` `CommandSet` and binds Escape to `InputEscape` in its
+            // fields, so that binding consumes the key before the surface sees it and the body
+            // answers the action instead, closing the "Add to" list first and itself next.
             cx.stop_propagation();
             this.escape_variable_popover(window, cx);
         }))
@@ -331,7 +331,8 @@ fn secret(
 
 /// The "Add to" dropdown, element id `variable-popover-target`: `bolt`'s `Dropdown` over every
 /// scope a quick add can pick, its selection the scope. Its menu is a layer `bolt` draws above
-/// the surface, so a click on a row is a click inside the popover.
+/// the surface, so a click on a row is a click inside the popover; the rows carry `bolt`'s ids
+/// (`variable-popover-target-item-<n>`, numbered from 0), so a test picks a scope by name.
 fn target_dropdown(popover: &VariablePopover) -> AnyElement {
     div()
         .w_full()

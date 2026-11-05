@@ -95,37 +95,36 @@ pub(super) fn render(
         .flex()
         .flex_col()
         .child(heading);
-    let mut tables = div().flex().flex_col().child(
-        variables_widths::resizable(
-            region("variables-table")
-                .role(Role::Table)
-                .flex_none()
-                .flex()
-                .flex_col(),
-            cx,
-        )
-        .child(header(shell, scope, &colors, cx))
+    let declared = region("variables-table")
+        .role(Role::Table)
+        .flex_none()
+        .flex()
+        .flex_col()
         .children(rows)
-        .child(add),
-    );
-    if !extra_rows.is_empty() {
-        tables = tables.child(undeclared_heading(cx)).child(
-            variables_widths::resizable(
-                region("variables-undeclared")
-                    .role(Role::Table)
-                    .flex_none()
-                    .flex()
-                    .flex_col(),
-                cx,
-            )
-            .children(extra_rows),
-        );
-    }
-    let tables = table_widths::scrollable(
+        .child(add);
+    let undeclared = (!extra_rows.is_empty()).then(|| {
+        region("variables-undeclared")
+            .role(Role::Table)
+            .flex_none()
+            .flex()
+            .flex_col()
+            .child(undeclared_heading(cx))
+            .children(extra_rows)
+    });
+    // The page scrolls as a whole, so the viewport takes the height of the header and rows it
+    // holds instead of a height of its own.
+    let overflow = table_widths::overflow(
         "variables-scroll".to_owned(),
-        tables,
         variables_widths::min_width(cx),
-    );
+        cx,
+    )
+    .header(header(shell, scope, &colors, cx))
+    .rows(div().flex().flex_col().child(declared).children(undeclared))
+    .content_height()
+    .flex_none()
+    .w_full();
+    let tables = variables_widths::resizable(div().flex().flex_col().flex_none().w_full(), cx)
+        .child(overflow);
     column
         .child(tables)
         .child(notes(shell, scope, &variables, !extra.is_empty(), file, cx))

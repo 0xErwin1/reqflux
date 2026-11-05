@@ -507,6 +507,15 @@ fn the_overrides_lists_keep_their_minimum_in_a_narrow_page(cx: &mut TestAppConte
         "overrides-header-lists",
         crate::tokens::APP_SETTINGS_OVERRIDE_LISTS_MIN,
     );
+    // The rows lay out at their height and end above the strip the bar draws in.
+    crate::shell::table_narrow_tests::settle(cx);
+    let viewport = present(cx, "overrides-scroll");
+    let row = present(cx, &format!("overrides-row-{WORKSPACE_ID}"));
+    assert!(row.size.height > px(0.), "the row laid out: {row:?}");
+    assert!(
+        row.bottom() <= viewport.bottom() - bolt::tokens::GridMetrics::SCROLLBAR_WIDTH + px(0.5),
+        "the rows end above the strip: {row:?} in {viewport:?}"
+    );
 }
 
 /// Opens the page the way the workspace menu does, at a workspace section, so the App

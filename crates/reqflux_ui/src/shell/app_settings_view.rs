@@ -760,25 +760,27 @@ fn overrides(mcp: &McpConfig, workspace: Option<&Workspace>, cx: &mut Context<Sh
                 ),
         )
         .child(
+            // The settings page scrolls as a whole, so the viewport takes the height of the
+            // header and rows it holds instead of a height of its own.
             table_widths::resizable(
                 region("overrides-table")
                     .role(Role::Table)
                     .aria_label("Workspace overrides")
                     .flex()
-                    .flex_col(),
+                    .flex_col()
+                    .flex_none()
+                    .w_full(),
                 OVERRIDES,
                 cx,
             )
-            .child(table_widths::scrollable(
-                "overrides-scroll".to_owned(),
-                div()
-                    .flex()
-                    .flex_col()
-                    .child(header)
-                    .children(rows)
-                    .children(empty),
-                overrides_min_width(cx),
-            )),
+            .child(
+                table_widths::overflow("overrides-scroll".to_owned(), overrides_min_width(cx), cx)
+                    .header(header)
+                    .rows(div().flex().flex_col().children(rows).children(empty))
+                    .content_height()
+                    .flex_none()
+                    .w_full(),
+            ),
         )
         .child(
             ui::role(div(), TextVariant::Caption, cx)

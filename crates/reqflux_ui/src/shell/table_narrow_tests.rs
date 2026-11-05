@@ -13,9 +13,21 @@ use crate::shell::Shell;
 use crate::tokens;
 use crate::workspace::OpenedWorkspace;
 
+/// The strip `bolt`'s sideways viewport reserves under the rows while the columns overflow,
+/// where its bar draws.
+const STRIP: Pixels = bolt::tokens::GridMetrics::SCROLLBAR_WIDTH;
+
 /// A window narrow enough for none of the tables to fit its columns beside the sidebar.
 fn narrow_window(cx: &mut VisualTestContext) {
     cx.simulate_resize(gpui::size(px(700.), px(700.)));
+    settle(cx);
+}
+
+/// Draws a frame, the way the app's own window does: a content-height grid reads the width it
+/// was given from the frame just drawn, so its strip settles one frame after the page's width
+/// first reaches it.
+pub(super) fn settle(cx: &mut VisualTestContext) {
+    cx.update(|window, cx| window.draw(cx).clear(cx));
     cx.run_until_parked();
 }
 
@@ -56,6 +68,68 @@ fn the_variables_description_keeps_its_minimum_in_a_narrow_page(cx: &mut TestApp
     );
 }
 
+/// A narrow page still lays out the rows of the grids that take their content's height, ends
+/// them above the strip the bar draws in, and scrolls them sideways to the last column.
+#[gpui::test]
+fn a_narrow_variables_page_draws_its_rows_above_the_strip_and_scrolls_sideways(
+    cx: &mut TestAppContext,
+) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    narrow_window(cx);
+    click(cx, "rail-environments");
+    click(cx, "variables-scope-globals");
+    settle(cx);
+
+    let viewport = present(cx, "variables-scroll");
+    let row = present(cx, "variables-description-1");
+    assert!(row.size.height > px(0.), "the row laid out: {row:?}");
+    let last = present(cx, "variables-add");
+    assert!(
+        last.top() >= viewport.top() && last.bottom() <= viewport.bottom() - STRIP + px(0.5),
+        "the rows end above the strip: {last:?} in {viewport:?}"
+    );
+    assert!(
+        row.right() > viewport.right(),
+        "the last column starts cut off"
+    );
+
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: viewport.center(),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(px(-600.), px(0.))),
+        modifiers: gpui::Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    settle(cx);
+    let row = present(cx, "variables-description-1");
+    assert!(
+        row.right() <= viewport.right() + px(0.5),
+        "the last column scrolled into view: {:?} in {:?}",
+        row.right(),
+        viewport.right()
+    );
+}
+
+/// A page wide enough for the variables columns reserves no strip and keeps the grid's full
+/// height, as a grid that fits draws without the sideways viewport at all.
+#[gpui::test]
+fn a_wide_variables_page_keeps_the_full_height_of_its_rows(cx: &mut TestAppContext) {
+    let dir = variables_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    click(cx, "rail-environments");
+    click(cx, "variables-scope-globals");
+    settle(cx);
+
+    let viewport = present(cx, "variables-scroll");
+    let add = present(cx, "variables-add");
+    assert!(
+        (viewport.bottom() - add.bottom()).abs() <= px(0.5),
+        "the grid keeps its full height: {add:?} in {viewport:?}"
+    );
+}
+
 #[gpui::test]
 fn the_history_value_keeps_its_minimum_in_a_narrow_page(cx: &mut TestAppContext) {
     let dir = history_workspace(serve(Server::Ok));
@@ -71,6 +145,14 @@ fn the_history_value_keeps_its_minimum_in_a_narrow_page(cx: &mut TestAppContext)
         "history-grid-scroll",
         "history-grid-value-1",
         tokens::GRID_VALUE_MIN_COLUMN,
+    );
+    settle(cx);
+    let viewport = present(cx, "history-grid-scroll");
+    let row = present(cx, "history-grid-key-1");
+    assert!(row.size.height > px(0.), "the row laid out: {row:?}");
+    assert!(
+        row.bottom() <= viewport.bottom() - STRIP + px(0.5),
+        "the rows end above the strip: {row:?} in {viewport:?}"
     );
 }
 

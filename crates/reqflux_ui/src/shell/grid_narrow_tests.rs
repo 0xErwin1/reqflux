@@ -4,9 +4,13 @@
 use gpui::{Bounds, Pixels, TestAppContext, VisualTestContext, px};
 
 use super::draft_tests::{click, present};
+use super::grid_resize_tests::{drag_edge, width};
 use super::response_narrow_tests::{drag_split, side_by_side};
 use super::response_tests::sent;
 use crate::tokens;
+
+/// The strip `bolt`'s sideways viewport reserves under the rows while the columns overflow.
+const STRIP: Pixels = bolt::tokens::GridMetrics::SCROLLBAR_WIDTH;
 
 /// The cells of the Headers grid's header row and of its first row, left to right.
 const CELLS: [&str; 6] = [
@@ -104,6 +108,14 @@ fn a_narrow_grid_scrolls_sideways_to_its_last_column(cx: &mut TestAppContext) {
         viewport.left() >= pane.left() && viewport.right() <= pane.right(),
         "the grid's viewport stays inside the pane"
     );
+    // The rows keep their height and end above the strip the bar draws in, instead of
+    // collapsing under a viewport with no height of its own.
+    let row = present(cx, "request-headers-key-1");
+    assert!(row.size.height > px(0.), "the row laid out: {row:?}");
+    assert!(
+        present(cx, "request-headers-add").bottom() <= viewport.bottom() - STRIP + px(0.5),
+        "the rows end above the strip: {viewport:?}"
+    );
     let description = present(cx, "request-headers-description-1");
     assert!(description.right() > viewport.right(), "it starts cut off");
 
@@ -120,5 +132,39 @@ fn a_narrow_grid_scrolls_sideways_to_its_last_column(cx: &mut TestAppContext) {
         "the last column scrolled into view: {:?} in {:?}",
         description.right(),
         viewport.right()
+    );
+}
+
+/// A resize still works while the grid is scrolled sideways: the handle moves with the header
+/// and the drag resizes by pointer delta, so the scroll offset never enters the width.
+#[gpui::test]
+fn a_column_resizes_while_the_grid_is_scrolled_sideways(cx: &mut TestAppContext) {
+    let cx = sent(cx);
+    headers_in_pane(cx, px(405.));
+    let viewport = present(cx, "request-headers-scroll");
+    cx.simulate_event(gpui::ScrollWheelEvent {
+        position: viewport.center(),
+        delta: gpui::ScrollDelta::Pixels(gpui::point(px(-400.), px(0.))),
+        modifiers: gpui::Modifiers::none(),
+        touch_phase: gpui::TouchPhase::Moved,
+    });
+    cx.run_until_parked();
+    let before = width(cx, "request-headers-description-1");
+    let scrolled = present(cx, "request-headers-description-1");
+    assert!(
+        scrolled.right() <= viewport.right() + px(0.5),
+        "the column is in view: {scrolled:?} in {viewport:?}"
+    );
+
+    drag_edge(cx, "request-headers-header-description", px(30.));
+    assert_eq!(
+        width(cx, "request-headers-description-1"),
+        before + px(30.),
+        "the drag changed the column by its own delta"
+    );
+    assert_eq!(
+        present(cx, "request-headers-header-description").left(),
+        present(cx, "request-headers-description-1").left(),
+        "the column stays under its header"
     );
 }

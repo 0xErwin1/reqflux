@@ -12,11 +12,13 @@
 //!   only its key in the file.
 //! - With no active environment, a name only environments declare lists them to activate.
 //!
-//! The surface is `bolt`'s form popover ([`VariablePopover::state`]): it owns Escape, a click
-//! away, the focus in and back, the hover delay and the grace that keeps it open while the
-//! pointer travels into it. Escape is two-level while the "Add to" list is open (the first
-//! closes the list). A field under edit whose blur arrived while the popover was open commits
-//! when the popover closes with the focus elsewhere. After a write the open requests are
+//! The surface is `bolt`'s form popover ([`VariablePopover::state`]): it owns a click away,
+//! the focus in and back, the hover delay and the grace that keeps it open while the pointer
+//! travels into it. ReqFlux handles Escape itself, since it installs no `bolt` `CommandSet` and
+//! its fields' Escape binding consumes the key before the surface sees it: the body of the
+//! surface answers the field's `InputEscape`, so Escape is two-level while the "Add to" list is
+//! open (the first closes the list). A field under edit whose blur arrived while the popover was
+//! open commits when the popover closes with the focus elsewhere. After a write the open requests are
 //! inspected again, so their marks show the new state. No value reaches a log.
 
 use bolt::composites::PopoverState;
@@ -267,7 +269,7 @@ impl Shell {
                 .aria_label("Add to")
         });
         let initial_focus = (shown != Mode::NoEnvironment).then(|| input.focus_handle(cx));
-        let bounds = self.variable_anchors.borrow().get(anchor).copied();
+        let bounds = self.variable_anchors.bounds(anchor);
         let state = self.variable_popover_state.clone();
         state.update(cx, |state, _cx| {
             state.set_initial_focus(initial_focus);

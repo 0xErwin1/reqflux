@@ -481,20 +481,24 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                     .child(value.clone()),
             )
     });
+    // The history page scrolls as a whole, so the viewport takes the height of the header
+    // and rows it holds instead of a height of its own.
+    let overflow = table_widths::overflow("history-grid-scroll".to_owned(), min_width, cx)
+        .header(header)
+        .rows(div().flex().flex_col().children(rows))
+        .content_height()
+        .flex_none()
+        .w_full();
     table_widths::resizable(
         region("history-grid")
             .flex_none()
-            .overflow_y_scroll()
             .flex()
-            .flex_col(),
+            .flex_col()
+            .w_full(),
         TABLE,
         cx,
     )
-    .child(table_widths::scrollable(
-        "history-grid-scroll".to_owned(),
-        div().flex().flex_col().child(header).children(rows),
-        min_width,
-    ))
+    .child(overflow)
     .into_any_element()
 }
 

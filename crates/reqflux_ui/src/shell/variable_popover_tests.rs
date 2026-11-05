@@ -374,6 +374,56 @@ fn the_mark_keeps_its_own_label_while_its_popover_is_open(cx: &mut TestAppContex
     );
 }
 
+/// The id of the second request the anchor test opens, with one mark of its own.
+const OTHER: &str = "01J000000000000000000000V5";
+
+/// The rectangles the surface points at are the marks the frame draws: switching requests drops
+/// the anchors of the marks that left the screen instead of keeping one per mark ever seen.
+#[gpui::test]
+fn the_anchors_keep_only_the_marks_the_frame_draws(cx: &mut TestAppContext) {
+    let dir = popover_workspace();
+    write(
+        dir.path(),
+        "collections/api/other.req.toml",
+        &format!(
+            "id = \"{OTHER}\"\nname = \"Other\"\nmethod = \"GET\"\n\
+             url = \"http://h/{{{{tenant}}}}\"\n"
+        ),
+    );
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open(cx, &shell, None);
+
+    /// The anchors the last frame kept, sorted.
+    fn anchors(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Vec<String> {
+        let mut ids = cx.update(|_, cx| shell.read(cx).variable_anchors.ids());
+        ids.sort();
+        ids
+    }
+
+    let before = anchors(cx, &shell);
+    assert_eq!(
+        before,
+        [
+            "request-headers-value-1-var-1",
+            "request-url-var-1",
+            "request-url-var-2",
+            "request-url-var-3",
+        ],
+        "one anchor per mark the frame draws"
+    );
+    for id in &before {
+        assert!(bounds(cx, id).is_some(), "{id} is still drawn");
+    }
+
+    click(cx, &format!("tree-row-{OTHER}"));
+    assert_eq!(
+        anchors(cx, &shell),
+        ["request-url-var-1"],
+        "the marks of the request it left are gone"
+    );
+}
+
 /// The accessible label of element `id`, if it is shown.
 pub(super) fn label_of(cx: &mut VisualTestContext, id: &str) -> Option<String> {
     bounds(cx, id)?;
