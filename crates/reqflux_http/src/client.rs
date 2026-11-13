@@ -469,17 +469,17 @@ async fn with_body(
                     path: path.clone(),
                     source,
                 })?;
-            let length = file
+            let metadata = file
                 .metadata()
                 .await
-                .map_err(|source| HttpError::File { path, source })?
-                .len();
+                .map_err(|source| HttpError::File { path, source })?;
             // A streamed body has no size hint, so without this the request goes chunked,
-            // which some servers and gateways refuse. A request's own Content-Length stays.
-            let builder = if has_content_length {
+            // which some servers and gateways refuse. A request's own Content-Length stays,
+            // and a pipe or device, whose metadata has no real length, still goes chunked.
+            let builder = if has_content_length || !metadata.is_file() {
                 builder
             } else {
-                builder.header(CONTENT_LENGTH, length)
+                builder.header(CONTENT_LENGTH, metadata.len())
             };
             builder.body(reqwest::Body::wrap_stream(ReaderStream::new(file)))
         }

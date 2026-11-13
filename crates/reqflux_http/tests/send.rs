@@ -328,6 +328,33 @@ async fn a_request_content_length_is_not_repeated_for_a_file_body() {
     assert_eq!(received.body, b"12345");
 }
 
+/// A pipe has no length to declare: its body still goes chunked, whole.
+#[cfg(unix)]
+#[tokio::test]
+async fn a_pipe_body_goes_chunked_and_whole() {
+    let dir = tempfile::tempdir().unwrap();
+    let fifo = dir.path().join("body.fifo");
+    let made = std::process::Command::new("mkfifo")
+        .arg(&fifo)
+        .status()
+        .unwrap();
+    assert!(made.success());
+    let writer_path = fifo.clone();
+    let writer = std::thread::spawn(move || std::fs::write(writer_path, b"from a pipe").unwrap());
+    let server = ok_server().await;
+    let mut prepared = request("POST", format!("{}/echo", server.uri()));
+    prepared.body = PreparedBody::File(fifo);
+    send(prepared).await.unwrap();
+    writer.join().unwrap();
+    let received = only_request(&server).await;
+    assert!(header_values(&received, "content-length").is_empty());
+    assert_eq!(
+        header_values(&received, "transfer-encoding"),
+        vec!["chunked"]
+    );
+    assert_eq!(received.body, b"from a pipe");
+}
+
 #[tokio::test]
 async fn an_empty_file_body_sends_a_zero_length() {
     let dir = tempfile::tempdir().unwrap();
