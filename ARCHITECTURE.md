@@ -424,7 +424,9 @@ masks them again. A password typed in the URL's user info (`user:pass@host`) is 
 in the recorded request's URL, and every `Masker::mask` call masks the user-info password of
 each URL in its text (a URL in free text ends at whitespace, a quote, `<`, `>` or `,`, so an
 address that follows a URL in a body is left alone), so a failed send's error and the MCP
-audit and approval lines never hold it; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
+audit and approval lines do not hold it, unless the password itself has whitespace, a quote,
+`<`, `>` or a comma. Since the masker also runs on recorded bodies and headers, a URL with a
+password in a response (a connection string) is recorded with the password masked; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
 `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back

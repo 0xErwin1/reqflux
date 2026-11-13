@@ -319,8 +319,10 @@ fn mask_url_passwords_in_text(text: &str) -> String {
                 at = end;
             }
             None => {
-                masked.push_str(text.get(at..authority_start).unwrap_or_default());
-                at = authority_start;
+                // Resume after the scanned authority, so the pass stays linear.
+                let end = authority_start + authority_end;
+                masked.push_str(text.get(at..end).unwrap_or_default());
+                at = end;
             }
         }
     }
