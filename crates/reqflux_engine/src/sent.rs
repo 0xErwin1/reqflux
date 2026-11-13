@@ -160,7 +160,7 @@ impl Masker {
         let masked = self.patterns.iter().fold(text.to_owned(), |text, pattern| {
             text.replace(pattern.as_str(), MASK)
         });
-        mask_url_password(&masked)
+        mask_url_passwords_in_text(&masked)
     }
 
     /// The header `name: value` as a recorded request or response shows it: a credential
@@ -288,6 +288,46 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
     }
 }
 
+/// `text` with the user-info password of every URL in it replaced by [`MASK`]. Unlike
+/// [`mask_url_password`], which reads a whole string as one URL, a URL in free text (an error,
+/// a log line, a body) ends at whitespace, a quote, `<`, `>` or `,` as well as at its path, so
+/// text that only looks like user info (an address after a URL) is left alone.
+fn mask_url_passwords_in_text(text: &str) -> String {
+    let mut masked = String::with_capacity(text.len());
+    let mut at = 0;
+    while let Some(found) = text.get(at..).and_then(|rest| rest.find("://")) {
+        let authority_start = at + found + 3;
+        let rest = text.get(authority_start..).unwrap_or_default();
+        let authority_end = rest
+            .find(|c: char| {
+                matches!(c, '/' | '?' | '#' | '"' | '\'' | '<' | '>' | ',' | '`')
+                    || c.is_whitespace()
+            })
+            .unwrap_or(rest.len());
+        let authority = rest.get(..authority_end).unwrap_or_default();
+        let password = authority.rfind('@').and_then(|at_sign| {
+            let user_info = authority.get(..at_sign)?;
+            let colon = user_info.find(':')?;
+            let password = user_info.get(colon + 1..)?;
+            (!password.is_empty() && password != MASK)
+                .then_some((authority_start + colon + 1, authority_start + at_sign))
+        });
+        match password {
+            Some((start, end)) => {
+                masked.push_str(text.get(at..start).unwrap_or_default());
+                masked.push_str(MASK);
+                at = end;
+            }
+            None => {
+                masked.push_str(text.get(at..authority_start).unwrap_or_default());
+                at = authority_start;
+            }
+        }
+    }
+    masked.push_str(text.get(at..).unwrap_or_default());
+    masked
+}
+
 /// `url` with a password in its user info replaced by [`MASK`]. A password typed in the URL
 /// is not a secret variable, but the transport sends it as Basic auth, so it is a credential.
 /// It works on the text as typed, not the parsed URL, whose password is re-encoded: the user
@@ -357,7 +397,7 @@ pub(crate) fn redact(request: &PreparedRequest, masker: &Masker) -> SentRequest 
     let mask = |text: &str| masker.mask(text);
     SentRequest {
         method: request.method.clone(),
-        url: mask(&request.url),
+        url: mask_url_password(&mask(&request.url)),
         headers: request
             .headers
             .iter()

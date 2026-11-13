@@ -419,3 +419,36 @@ fn a_secret_whose_url_form_is_empty_does_not_mask_everything() {
     assert_eq!(sent.url, "https://api.test/v1");
     assert_eq!(header(&sent, "X-Plain"), "visible");
 }
+
+#[test]
+fn the_masker_leaves_text_that_only_looks_like_user_info_alone() {
+    let masker = reqflux_engine::Masker::default();
+    for text in [
+        "{\"url\":\"https://api.example.com\",\"user\":\"a@b.com\"}",
+        "see https://example.com and mail user:me@example.org",
+        "time https://h 10:30 by bob@x",
+        "http://h/a:b@c",
+        "http://h?q=a:b@c",
+        "mailto:a:b@c.com",
+        "git@github.com:org/repo.git",
+    ] {
+        assert_eq!(masker.mask(text), text);
+    }
+}
+
+#[test]
+fn the_masker_cuts_every_url_password_in_a_text() {
+    let masker = reqflux_engine::Masker::default();
+    assert_eq!(
+        masker.mask("http://u:first@a/ then http://v:second@b/"),
+        format!("http://u:{MASK}@a/ then http://v:{MASK}@b/")
+    );
+    assert_eq!(
+        masker.mask("http://u:p@[::1]:8080/"),
+        format!("http://u:{MASK}@[::1]:8080/")
+    );
+    assert_eq!(
+        masker.mask("invalid URL http://ana:bad;x@127.0.0.1:99999/x: invalid port number"),
+        format!("invalid URL http://ana:{MASK}@127.0.0.1:99999/x: invalid port number")
+    );
+}

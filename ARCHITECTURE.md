@@ -421,7 +421,9 @@ the transport lowercases the host, which reaches `Host` and a redirect's `Refere
 non-ASCII secret in a host goes out as punycode and is not masked), so `Execution.handle`, `Engine::wait`, the
 runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
 masks them again. A password typed in the URL's user info (`user:pass@host`) is masked as typed
-by every `Masker::mask` call, so the recorded request's URL, a failed send's error and the MCP
+in the recorded request's URL, and every `Masker::mask` call masks the user-info password of
+each URL in its text (a URL in free text ends at whitespace, a quote, `<`, `>` or `,`, so an
+address that follows a URL in a body is left alone), so a failed send's error and the MCP
 audit and approval lines never hold it; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
 `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The

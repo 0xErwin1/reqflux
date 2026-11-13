@@ -343,3 +343,40 @@ fn a_url_password_is_masked_when_the_url_does_not_parse() {
     assert!(!error.contains("bad-x15"), "{error}");
     assert!(error.contains("invalid port"), "{error}");
 }
+
+#[test]
+fn a_body_with_a_url_and_an_email_still_follows_a_cross_origin_redirect() {
+    let body = "{\"url\":\"https://api.example.com\",\"user\":\"a@b.com\"}";
+    let runtime = runtime();
+    let other = start(
+        &runtime,
+        vec![
+            Mock::given(path("/landing"))
+                .respond_with(ResponseTemplate::new(200).set_body_string(body)),
+        ],
+    );
+    let server = start(
+        &runtime,
+        vec![
+            Mock::given(path("/p")).respond_with(
+                ResponseTemplate::new(307)
+                    .insert_header("location", format!("{}/landing", other.uri()).as_str()),
+            ),
+        ],
+    );
+    let dir = temp_dir();
+    let engine = engine(
+        dir.path(),
+        &format!(
+            "url = \"{}/p\"\n\n[body]\nmode = \"raw\"\nlanguage = \"json\"\ntext = '{body}'\n",
+            server.uri()
+        ),
+    );
+    let executed = run(&engine, "unused");
+    assert_eq!(executed.response.status, 200);
+    let recorded = RecordedResponse::from_response_masked(
+        &executed.response,
+        &reqflux_engine::Masker::default(),
+    );
+    assert_eq!(recorded.body, body.as_bytes());
+}
