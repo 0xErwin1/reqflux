@@ -420,7 +420,9 @@ masks every hop's `wire` before the response leaves it (`Masker::timings`: each 
 the transport lowercases the host, which reaches `Host` and a redirect's `Referer`; a
 non-ASCII secret in a host goes out as punycode and is not masked), so `Execution.handle`, `Engine::wait`, the
 runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
-masks them again. `PreparedRequest`'s `Debug` prints no URL, header value or body.
+masks them again. A password typed in the URL's user info (`user:pass@host`) is masked in the
+recorded request's URL too; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
+`Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back
   and returns the new file hash, and `Engine::request_base_hash`, which reports the hash
@@ -751,7 +753,8 @@ measurably demand it, and then by one-way layers.
   `Proxy-Authorization` and `WWW-Authenticate`, plus every header, `Referer` included, whose
   name or value holds a secret of the send. The engine passes the send's `Masker` as that
   predicate for the main request and every script `pm.sendRequest` in every front end, with or
-  without a host guard. A 307 or 308 to another origin whose body holds a secret is not
+  without a host guard; an OAuth 2.0 send adds its access token to it, since the token joins
+  the request inside the send (a query token would otherwise leave in the `Referer`). A 307 or 308 to another origin whose body holds a secret is not
   followed: the send fails with `a redirect to <target, masked> was not followed: the request
   body holds a secret`. A same-origin hop keeps every header.
 - Responses keep the raw bytes. Pretty-printing, JSON paths and previews are views over them.

@@ -286,6 +286,20 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
     }
 }
 
+/// `url` with a password in its user info replaced by [`MASK`]. A password typed in the URL
+/// is not a secret variable, but the transport sends it as Basic auth, so it is a credential.
+fn mask_url_password(url: &str) -> String {
+    let Ok(parsed) = url::Url::parse(url) else {
+        return url.to_owned();
+    };
+    match parsed.password() {
+        Some(password) if !password.is_empty() && password != MASK => {
+            url.replacen(&format!(":{password}@"), &format!(":{MASK}@"), 1)
+        }
+        _ => url.to_owned(),
+    }
+}
+
 /// `text` with every occurrence of `pattern`, in any ASCII case, replaced by [`MASK`].
 /// ASCII lowercasing keeps byte offsets, so matches found in the lowered copy cut the original.
 fn replace_ignoring_ascii_case(text: &str, pattern: &str) -> String {
@@ -322,7 +336,7 @@ pub(crate) fn redact(request: &PreparedRequest, masker: &Masker) -> SentRequest 
     let mask = |text: &str| masker.mask(text);
     SentRequest {
         method: request.method.clone(),
-        url: mask(&request.url),
+        url: mask_url_password(&mask(&request.url)),
         headers: request
             .headers
             .iter()

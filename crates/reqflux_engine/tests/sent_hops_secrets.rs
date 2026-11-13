@@ -191,3 +191,82 @@ fn a_mixed_case_host_secret_is_masked_in_a_redirect_referer() {
     assert_eq!(executed.response.timings.hops.len(), 2);
     assert_clean(&executed, &["redirsecretk", "RedirSecretK"]);
 }
+
+#[test]
+fn an_oauth_query_token_never_reaches_another_origin_in_the_referer() {
+    let runtime = runtime();
+    let other = start(
+        &runtime,
+        vec![
+            Mock::given(method("GET"))
+                .and(path("/done"))
+                .respond_with(ResponseTemplate::new(200)),
+        ],
+    );
+    let server = start(
+        &runtime,
+        vec![
+            Mock::given(method("POST"))
+                .and(path("/token"))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(serde_json::json!({"access_token": "cross-origin-token-1"})),
+                ),
+            Mock::given(method("GET")).and(path("/api")).respond_with(
+                ResponseTemplate::new(302)
+                    .insert_header("Location", format!("{}/done", other.uri()).as_str()),
+            ),
+        ],
+    );
+    let dir = temp_dir();
+    let engine = engine(
+        dir.path(),
+        &format!(
+            "url = \"{u}/api\"\n\n[auth]\ntype = \"oauth2\"\ntoken_url = \"{u}/token\"\n\
+             grant_type = \"client_credentials\"\nclient_id = \"app\"\nclient_secret = \"cs\"\n\
+             client_auth = \"header\"\ntoken_location = \"query\"\nquery_param = \"token\"\n",
+            u = server.uri()
+        ),
+    );
+    let executed = run(&engine, "unused");
+    assert_eq!(executed.response.status, 200);
+    let received = runtime.block_on(other.received_requests()).unwrap();
+    assert_eq!(received.len(), 1);
+    let sent: Vec<String> = received[0]
+        .headers
+        .iter()
+        .map(|(name, value)| format!("{name}: {}", value.to_str().unwrap_or_default()))
+        .collect();
+    assert!(
+        sent.iter()
+            .all(|line| !line.contains("cross-origin-token-1")),
+        "the other origin received the token: {sent:?}"
+    );
+    assert!(received[0].url.query().is_none());
+}
+
+#[test]
+fn a_literal_password_in_the_url_is_masked_in_the_recorded_request() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![Mock::given(method("GET")).respond_with(ResponseTemplate::new(200))],
+    );
+    let dir = temp_dir();
+    let port = server.address().port();
+    let engine = engine(
+        dir.path(),
+        &format!("url = \"http://ana:lit-pass-42@127.0.0.1:{port}/x\"\n"),
+    );
+    let executed = run(&engine, "unused");
+    assert!(
+        !executed.sent.url.contains("lit-pass-42"),
+        "{}",
+        executed.sent.url
+    );
+    assert_eq!(
+        executed.sent.url,
+        format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK)
+    );
+    assert_clean(&executed, &["lit-pass-42"]);
+}

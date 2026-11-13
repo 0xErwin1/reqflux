@@ -131,7 +131,7 @@ pub(crate) async fn send(
                 add_token(&mut attempt, &config, &access);
                 let result = context
                     .client
-                    .send_with(attempt, cancel.clone(), rules.clone())
+                    .send_with(attempt, cancel.clone(), with_token(&rules, &access))
                     .await;
                 if !matches!(&result, Ok(response) if response.status == 401) {
                     return scrub(result, &access);
@@ -214,6 +214,28 @@ fn add_token(request: &mut PreparedRequest, config: &OAuth2Auth, token: &str) {
             let separator = if request.url.contains('?') { '&' } else { '?' };
             request.url = format!("{}{separator}{encoded}", request.url);
         }
+    }
+}
+
+/// `rules` whose secrets also hold `token`, so a redirect to another origin drops a header
+/// that repeats it, such as the `Referer` of a URL carrying a query token. The token is added
+/// inside the send, after the rules were built from the request's own secrets.
+fn with_token(rules: &RedirectRules, token: &str) -> RedirectRules {
+    let token = token.to_owned();
+    let encoded: String = url::form_urlencoded::byte_serialize(token.as_bytes()).collect();
+    let inner = rules.mask.clone();
+    RedirectRules {
+        check: rules.check.clone(),
+        mask: Some(Arc::new(move |text: &str| {
+            let text = match &inner {
+                Some(inner) => inner(text),
+                None => text.to_owned(),
+            };
+            if token.is_empty() {
+                return text;
+            }
+            text.replace(&token, MASK).replace(&encoded, MASK)
+        })),
     }
 }
 
