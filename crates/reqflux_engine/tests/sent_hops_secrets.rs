@@ -166,3 +166,28 @@ fn a_mixed_case_secret_in_the_host_is_masked_on_the_wire() {
     assert!(!wire.contains("hostsecretq7"), "{wire}");
     assert!(wire.contains(".localhost"), "{wire}");
 }
+
+#[test]
+fn a_mixed_case_host_secret_is_masked_in_a_redirect_referer() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![
+            Mock::given(method("GET"))
+                .and(path("/r"))
+                .respond_with(ResponseTemplate::new(302).insert_header("Location", "/done")),
+            Mock::given(method("GET"))
+                .and(path("/done"))
+                .respond_with(ResponseTemplate::new(200)),
+        ],
+    );
+    let dir = temp_dir();
+    let port = server.address().port();
+    let engine = engine(
+        dir.path(),
+        &format!("url = \"http://{{{{token}}}}.localhost:{port}/r\"\n"),
+    );
+    let executed = run(&engine, "RedirSecretK");
+    assert_eq!(executed.response.timings.hops.len(), 2);
+    assert_clean(&executed, &["redirsecretk", "RedirSecretK"]);
+}

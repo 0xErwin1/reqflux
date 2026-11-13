@@ -17,7 +17,10 @@
 //! any other text, such as the error of a failed send. Text replacement masks a secret also where something
 //! else produced the same characters, so a very short secret value can mask more than it
 //! produced; that is the safe side and there is no length floor. Only an empty value is
-//! skipped, since it occurs everywhere and masks nothing.
+//! skipped, since it occurs everywhere and masks nothing. A hop's wire record
+//! ([`Masker::wire`]) and recorded header names are also masked ignoring ASCII case, since the
+//! transport lowercases hosts and header names; there a secret also masks the same letters in
+//! another case. A non-ASCII secret in a host is sent as punycode, which is not masked.
 
 use std::fmt;
 use std::sync::Arc;
@@ -179,8 +182,9 @@ impl Masker {
     }
 
     /// The request a hop sent with its secrets masked (sent-headers S4): every header through
-    /// [`Masker::header`] and the URL through [`Masker::mask`]. The URL and the `Host` header
-    /// are also masked ignoring ASCII case, because the URL parser lowercases the host.
+    /// [`Masker::header`] and the URL through [`Masker::mask`]. The URL and every header value
+    /// are also masked ignoring ASCII case, because the URL parser lowercases the host, which
+    /// then reaches the `Host` header and a redirect's `Referer`.
     #[must_use]
     pub fn wire(&self, wire: &WireRequest) -> WireRequest {
         WireRequest {
@@ -191,12 +195,7 @@ impl Masker {
                 .iter()
                 .map(|(name, value)| {
                     let (name, value) = self.header(name, value);
-                    if name.eq_ignore_ascii_case("host") {
-                        let value = self.mask_ignoring_ascii_case(&value);
-                        (name, value)
-                    } else {
-                        (name, value)
-                    }
+                    (name, self.mask_ignoring_ascii_case(&value))
                 })
                 .collect(),
         }
@@ -287,8 +286,6 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
     }
 }
 
-/// The recorded name of a header: [`MASK`] when it carries a secret of two or more
-/// characters, else the name as sent.
 /// `text` with every occurrence of `pattern`, in any ASCII case, replaced by [`MASK`].
 /// ASCII lowercasing keeps byte offsets, so matches found in the lowered copy cut the original.
 fn replace_ignoring_ascii_case(text: &str, pattern: &str) -> String {
@@ -309,6 +306,8 @@ fn replace_ignoring_ascii_case(text: &str, pattern: &str) -> String {
     masked
 }
 
+/// The recorded name of a header: [`MASK`] when it carries a secret of two or more
+/// characters in any case, else the name as sent.
 fn header_name(name: &str, masker: &Masker) -> String {
     // Header names are case-insensitive and the wire record lowercases them.
     if masker.contains_long(name) || masker.contains_long_ignoring_case(name) {

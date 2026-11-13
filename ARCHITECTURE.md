@@ -416,7 +416,9 @@ microseconds); rows recorded before it read as no timings. Each hop object also 
 sent (`method`, `url`, `headers` as `[name, value]` pairs in wire order), masked; the fields are
 optional, so no schema bump: a row without them decodes with an empty wire. The send task
 masks every hop's `wire` before the response leaves it (`Masker::timings`: each header through
-`Masker::header`, the URL through `Masker::mask`), so `Execution.handle`, `Engine::wait`, the
+`Masker::header`, the URL through `Masker::mask`, and both again ignoring ASCII case, because
+the transport lowercases the host, which reaches `Host` and a redirect's `Referer`; a
+non-ASCII secret in a host goes out as punycode and is not masked), so `Execution.handle`, `Engine::wait`, the
 runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
 masks them again. `PreparedRequest`'s `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
