@@ -298,3 +298,48 @@ fn a_url_password_needing_percent_encoding_is_masked_in_the_recorded_request() {
         format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK)
     );
 }
+
+#[test]
+fn every_typed_url_password_is_masked_in_the_recorded_request() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![Mock::given(method("GET")).respond_with(ResponseTemplate::new(200))],
+    );
+    let port = server.address().port();
+    for password in ["pa=ss", "pa:ss", "contraseña", "a;b|c^", "p%40ss"] {
+        let dir = temp_dir();
+        let engine = engine(
+            dir.path(),
+            &format!("url = \"http://ana:{password}@127.0.0.1:{port}/x\"\n"),
+        );
+        let executed = run(&engine, "unused");
+        assert_eq!(
+            executed.sent.url,
+            format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK),
+            "{password}"
+        );
+    }
+}
+
+#[test]
+fn a_url_password_is_masked_when_the_url_does_not_parse() {
+    let dir = temp_dir();
+    let engine = engine(
+        dir.path(),
+        "url = \"http://ana:bad-x15@127.0.0.1:99999/x\"\n",
+    );
+    let mut options = ExecuteOptions::default();
+    options.vars.push(("token".to_owned(), "unused".to_owned()));
+    let execution = engine.execute("api/r", &options).unwrap();
+    assert!(
+        !execution.sent.url.contains("bad-x15"),
+        "{}",
+        execution.sent.url
+    );
+    // Front ends record a failed send's error through the send's masker.
+    let masker = execution.masker();
+    let error = masker.mask(&engine.wait(execution).unwrap_err().to_string());
+    assert!(!error.contains("bad-x15"), "{error}");
+    assert!(error.contains("invalid port"), "{error}");
+}

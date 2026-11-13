@@ -153,12 +153,14 @@ impl Masker {
         })
     }
 
-    /// `text` with every secret value replaced by [`MASK`].
+    /// `text` with every secret value replaced by [`MASK`], and the password of a URL's user
+    /// info as well (see `mask_url_password`), so a URL in an error or a log line is safe too.
     #[must_use]
     pub fn mask(&self, text: &str) -> String {
-        self.patterns.iter().fold(text.to_owned(), |text, pattern| {
+        let masked = self.patterns.iter().fold(text.to_owned(), |text, pattern| {
             text.replace(pattern.as_str(), MASK)
-        })
+        });
+        mask_url_password(&masked)
     }
 
     /// The header `name: value` as a recorded request or response shows it: a credential
@@ -355,7 +357,7 @@ pub(crate) fn redact(request: &PreparedRequest, masker: &Masker) -> SentRequest 
     let mask = |text: &str| masker.mask(text);
     SentRequest {
         method: request.method.clone(),
-        url: mask_url_password(&mask(&request.url)),
+        url: mask(&request.url),
         headers: request
             .headers
             .iter()

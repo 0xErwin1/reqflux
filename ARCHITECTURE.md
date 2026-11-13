@@ -420,8 +420,9 @@ masks every hop's `wire` before the response leaves it (`Masker::timings`: each 
 the transport lowercases the host, which reaches `Host` and a redirect's `Referer`; a
 non-ASCII secret in a host goes out as punycode and is not masked), so `Execution.handle`, `Engine::wait`, the
 runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
-masks them again. A password typed in the URL's user info (`user:pass@host`) is masked in the
-recorded request's URL too; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
+masks them again. A password typed in the URL's user info (`user:pass@host`) is masked as typed
+by every `Masker::mask` call, so the recorded request's URL, a failed send's error and the MCP
+audit and approval lines never hold it; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
 `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back
