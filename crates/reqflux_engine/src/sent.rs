@@ -288,16 +288,35 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
 
 /// `url` with a password in its user info replaced by [`MASK`]. A password typed in the URL
 /// is not a secret variable, but the transport sends it as Basic auth, so it is a credential.
+/// It works on the text as typed, not the parsed URL, whose password is re-encoded: the user
+/// info runs from `://` to the last `@` before the path, query or fragment, and the password
+/// follows its first `:`.
 fn mask_url_password(url: &str) -> String {
-    let Ok(parsed) = url::Url::parse(url) else {
+    let Some(scheme_end) = url.find("://") else {
         return url.to_owned();
     };
-    match parsed.password() {
-        Some(password) if !password.is_empty() && password != MASK => {
-            url.replacen(&format!(":{password}@"), &format!(":{MASK}@"), 1)
-        }
-        _ => url.to_owned(),
+    let authority_start = scheme_end + 3;
+    let rest = url.get(authority_start..).unwrap_or_default();
+    let authority_end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = rest.get(..authority_end).unwrap_or_default();
+    let Some(at) = authority.rfind('@') else {
+        return url.to_owned();
+    };
+    let user_info = authority.get(..at).unwrap_or_default();
+    let Some(colon) = user_info.find(':') else {
+        return url.to_owned();
+    };
+    let password = user_info.get(colon + 1..).unwrap_or_default();
+    if password.is_empty() || password == MASK {
+        return url.to_owned();
     }
+    let password_start = authority_start + colon + 1;
+    let password_end = authority_start + at;
+    format!(
+        "{}{MASK}{}",
+        url.get(..password_start).unwrap_or_default(),
+        url.get(password_end..).unwrap_or_default()
+    )
 }
 
 /// `text` with every occurrence of `pattern`, in any ASCII case, replaced by [`MASK`].

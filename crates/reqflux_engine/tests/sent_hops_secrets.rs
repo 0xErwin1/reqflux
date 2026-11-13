@@ -210,7 +210,7 @@ fn an_oauth_query_token_never_reaches_another_origin_in_the_referer() {
                 .and(path("/token"))
                 .respond_with(
                     ResponseTemplate::new(200)
-                        .set_body_json(serde_json::json!({"access_token": "cross-origin-token-1"})),
+                        .set_body_json(serde_json::json!({"access_token": "cross+origin/token=1"})),
                 ),
             Mock::given(method("GET")).and(path("/api")).respond_with(
                 ResponseTemplate::new(302)
@@ -230,6 +230,13 @@ fn an_oauth_query_token_never_reaches_another_origin_in_the_referer() {
     );
     let executed = run(&engine, "unused");
     assert_eq!(executed.response.status, 200);
+    // The first hop carried the token in its query, encoded, so its URL is what a Referer repeats.
+    let first = runtime.block_on(server.received_requests()).unwrap();
+    let api = first
+        .iter()
+        .find(|request| request.url.path() == "/api")
+        .unwrap();
+    assert_eq!(api.url.query(), Some("token=cross%2Borigin%2Ftoken%3D1"));
     let received = runtime.block_on(other.received_requests()).unwrap();
     assert_eq!(received.len(), 1);
     let sent: Vec<String> = received[0]
@@ -239,7 +246,8 @@ fn an_oauth_query_token_never_reaches_another_origin_in_the_referer() {
         .collect();
     assert!(
         sent.iter()
-            .all(|line| !line.contains("cross-origin-token-1")),
+            .all(|line| !line.contains("cross+origin/token=1")
+                && !line.contains("cross%2Borigin%2Ftoken%3D1")),
         "the other origin received the token: {sent:?}"
     );
     assert!(received[0].url.query().is_none());
@@ -269,4 +277,24 @@ fn a_literal_password_in_the_url_is_masked_in_the_recorded_request() {
         format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK)
     );
     assert_clean(&executed, &["lit-pass-42"]);
+}
+
+#[test]
+fn a_url_password_needing_percent_encoding_is_masked_in_the_recorded_request() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![Mock::given(method("GET")).respond_with(ResponseTemplate::new(200))],
+    );
+    let dir = temp_dir();
+    let port = server.address().port();
+    let engine = engine(
+        dir.path(),
+        &format!("url = \"http://ana:p@ss^w|rd@127.0.0.1:{port}/x\"\n"),
+    );
+    let executed = run(&engine, "unused");
+    assert_eq!(
+        executed.sent.url,
+        format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK)
+    );
 }
