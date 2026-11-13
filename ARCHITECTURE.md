@@ -420,13 +420,10 @@ masks every hop's `wire` before the response leaves it (`Masker::timings`: each 
 the transport lowercases the host, which reaches `Host` and a redirect's `Referer`; a
 non-ASCII secret in a host goes out as punycode and is not masked), so `Execution.handle`, `Engine::wait`, the
 runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
-masks them again. A password typed in the URL's user info (`user:pass@host`) is masked as typed
-in the recorded request's URL, and every `Masker::mask` call masks the user-info password of
-each URL in its text (a URL in free text ends at whitespace, a quote, `<`, `>` or `,`, so an
-address that follows a URL in a body is left alone), so a failed send's error and the MCP
-audit and approval lines do not hold it, unless the password itself has whitespace, a quote,
-`<`, `>` or a comma. Since the masker also runs on recorded bodies and headers, a URL with a
-password in a response (a connection string) is recorded with the password masked; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
+masks them again. A password typed in the URL's user info (`user:pass@host`) joins the send's masked values, as
+typed and percent-decoded, so it is masked like any secret value wherever the send's masker runs
+(the recorded URL, hop records, errors, MCP audit and approval lines, and a cross-origin
+redirect drops a header or refuses a body that repeats it); the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
 `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back

@@ -91,6 +91,28 @@ impl Prepared {
     }
 }
 
+/// The password of `url`'s user info as typed: from `://` to the last `@` before the path,
+/// query or fragment, after the first `:`. The text is read as typed, not parsed, because the
+/// URL parser re-encodes the password.
+fn url_password(url: &str) -> Option<&str> {
+    let start = url.find("://")? + 3;
+    let rest = url.get(start..)?;
+    let authority = rest.get(..rest.find(['/', '?', '#']).unwrap_or(rest.len()))?;
+    let user_info = authority.get(..authority.rfind('@')?)?;
+    let password = user_info.get(user_info.find(':')? + 1..)?;
+    (!password.is_empty()).then_some(password)
+}
+
+/// `text` with its `%XX` escapes decoded, as the transport reads a URL password.
+fn percent_decode(text: &str) -> String {
+    ::url::form_urlencoded::parse(
+        format!("p={}", text.replace('+', "%2B").replace('&', "%26")).as_bytes(),
+    )
+    .next()
+    .map(|(_, value)| value.into_owned())
+    .unwrap_or_default()
+}
+
 /// Percent-encodes `text` the way the query string carries it.
 pub(crate) fn percent_encode(text: &str) -> String {
     url::encode(text)
@@ -211,6 +233,12 @@ pub(crate) fn prepare_target(
     )?;
     let body = body::prepare(&request.body, root, &headers, &mut resolver)?;
     resolver.add_secret_values(&names, &mut secrets);
+    // A password typed in the URL's user info is a credential the transport sends as Basic
+    // auth, so it is masked like any secret value: as typed and percent-decoded.
+    if let Some(password) = url_password(&base) {
+        secrets.add(password);
+        secrets.add(percent_decode(password));
+    }
 
     Ok(Prepared {
         request: PreparedRequest {

@@ -327,20 +327,20 @@ fn a_url_password_is_masked_when_the_url_does_not_parse() {
     let dir = temp_dir();
     let engine = engine(
         dir.path(),
-        "url = \"http://ana:bad-x15@127.0.0.1:99999/x\"\n",
+        "url = \"http://ana:bad,x 15@127.0.0.1:99999/x\"\n",
     );
     let mut options = ExecuteOptions::default();
     options.vars.push(("token".to_owned(), "unused".to_owned()));
     let execution = engine.execute("api/r", &options).unwrap();
     assert!(
-        !execution.sent.url.contains("bad-x15"),
+        !execution.sent.url.contains("bad,x 15"),
         "{}",
         execution.sent.url
     );
     // Front ends record a failed send's error through the send's masker.
     let masker = execution.masker();
     let error = masker.mask(&engine.wait(execution).unwrap_err().to_string());
-    assert!(!error.contains("bad-x15"), "{error}");
+    assert!(!error.contains("bad,x 15"), "{error}");
     assert!(error.contains("invalid port"), "{error}");
 }
 
@@ -379,4 +379,22 @@ fn a_body_with_a_url_and_an_email_still_follows_a_cross_origin_redirect() {
         &reqflux_engine::Masker::default(),
     );
     assert_eq!(recorded.body, body.as_bytes());
+}
+
+#[test]
+fn a_query_holding_a_url_is_recorded_as_typed() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![Mock::given(method("GET")).respond_with(ResponseTemplate::new(200))],
+    );
+    let url = format!(
+        "{}/x?next=https://app.test&at=10:30&by=bob@x.org",
+        server.uri()
+    );
+    let dir = temp_dir();
+    let engine = engine(dir.path(), &format!("url = \"{url}\"\n"));
+    let executed = run(&engine, "unused");
+    assert_eq!(executed.sent.url, url);
+    assert_eq!(executed.response.timings.hops[0].wire.url, url);
 }
