@@ -661,6 +661,83 @@ fn a_history_entry_shows_its_recorded_timeline(cx: &mut TestAppContext) {
     present(cx, "response-timeline-1-first-byte-bar");
 }
 
+/// A port whose first connection answers `302` to `/final` and every later one `200 OK`.
+fn redirecting_port() -> u16 {
+    let listener = match TcpListener::bind("127.0.0.1:0") {
+        Ok(listener) => listener,
+        Err(error) => panic!("bind: {error}"),
+    };
+    let port = match listener.local_addr() {
+        Ok(address) => address.port(),
+        Err(error) => panic!("address: {error}"),
+    };
+    thread::spawn(move || {
+        for (n, mut stream) in listener.incoming().flatten().enumerate() {
+            thread::spawn(move || {
+                let mut head = Vec::new();
+                let mut byte = [0_u8; 1];
+                while !head.ends_with(b"\r\n\r\n")
+                    && let Ok(1) = stream.read(&mut byte)
+                {
+                    head.extend_from_slice(&byte);
+                }
+                let reply = if n == 0 {
+                    "HTTP/1.1 302 Found\r\nlocation: /final\r\ncontent-length: 0\r\nconnection: close\r\n\r\n"
+                } else {
+                    "HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\n{}"
+                };
+                if let Err(error) = stream.write_all(reply.as_bytes()) {
+                    eprintln!("write: {error}");
+                }
+            });
+        }
+    });
+    port
+}
+
+#[gpui::test]
+fn the_timeline_shows_the_request_headers_each_hop_sent(cx: &mut TestAppContext) {
+    let port = redirecting_port();
+    let (shell, cx) = render(cx, port);
+    click(cx, "request-send");
+    assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
+    click(cx, "response-tab-timeline");
+    assert_eq!(
+        label(cx, "response-timeline-summary"),
+        "2 hops · 1 redirect followed"
+    );
+
+    for (h, path) in [(1, "/ping"), (2, "/final")] {
+        let block = format!("response-timeline-hop-{h}-request");
+        assert_eq!(label(cx, &block), "Request headers");
+        assert_eq!(
+            label(cx, &format!("{block}-line")),
+            format!("GET http://127.0.0.1:{port}{path}")
+        );
+        let mut headers = Vec::new();
+        for n in 1..=12 {
+            let id = format!("{block}-header-{n}");
+            if absent_dyn(cx, &id) {
+                break;
+            }
+            headers.push(label(cx, &id));
+        }
+        assert!(
+            headers.iter().any(|row| row.starts_with("user-agent: ")),
+            "hop {h}: {headers:?}"
+        );
+        assert!(
+            headers.contains(&format!("host: 127.0.0.1:{port}")),
+            "hop {h}: {headers:?}"
+        );
+    }
+}
+
+fn absent_dyn(cx: &mut VisualTestContext, selector: &str) -> bool {
+    cx.debug_bounds(Box::leak(selector.to_owned().into_boxed_str()))
+        .is_none()
+}
+
 /// Opens the JSONPath field and types `expression` into it.
 fn filter_body(cx: &mut VisualTestContext, expression: &str) {
     click(cx, "response-jsonpath");

@@ -3,7 +3,10 @@
 //! `response-timeline-note`), one group header `response-timeline-hop-<h>` per hop when the
 //! send followed redirects, the phase rows `response-timeline-<h>-<phase>` with their bars
 //! `response-timeline-<h>-<phase>-bar` on one time axis (`bolt`'s `TimelineStrip`,
-//! `response-timeline-<h>-<phase>-strip`), and the total
+//! `response-timeline-<h>-<phase>-strip`), under them the hop's `Request headers` block
+//! `response-timeline-hop-<h>-request` (its request line `...-request-line`, then one row
+//! `...-request-header-<n>` per header sent, in wire order; none for a hop that recorded no
+//! request), and the total
 //! `response-timeline-total`. A send without timings says so in `response-timeline-none`.
 
 use std::time::Duration;
@@ -12,7 +15,7 @@ use bolt::primitives::{BadgeTone, TimelineBar, TimelineStrip};
 use bolt::tokens::{Borders, GridMetrics, Heights, ResultMetrics, Spacing};
 use gpui::{AnyElement, App, Div, FontWeight, ParentElement, Stateful, Styled, div, prelude::*};
 
-use super::timeline_model::{Hop, NO_TIMINGS, Phase, Row, TLS_NOTE, Timeline};
+use super::timeline_model::{Hop, NO_TIMINGS, Phase, Row, SentBlock, TLS_NOTE, Timeline};
 use crate::shell::request::{Received, elapsed_text, size_text};
 use crate::shell::rows::labeled_row;
 use crate::shell::{region, text_region};
@@ -54,6 +57,11 @@ pub(super) fn render(received: &Received, cx: &App) -> AnyElement {
                     hop.rows
                         .iter()
                         .map(move |row| phase_row(h, row, timeline.total, cx)),
+                )
+                .chain(
+                    hop.request
+                        .iter()
+                        .flat_map(move |block| request_block(h, block, cx)),
                 )
                 .collect::<Vec<_>>()
         });
@@ -178,6 +186,91 @@ fn phase_row(h: usize, row: &Row, span: Duration, cx: &App) -> AnyElement {
                 .child(row.value.clone()),
         )
         .into_any_element()
+}
+
+/// The `Request headers` block of hop `h`: its title, the request line and the headers sent,
+/// as the response Headers view draws its rows.
+fn request_block(h: usize, block: &SentBlock, cx: &App) -> Vec<AnyElement> {
+    let colors = bolt::colors(cx);
+    let id = format!("response-timeline-hop-{h}-request");
+    let mono = bolt::fonts::editor_family(cx);
+    let title = labeled_row(id.clone(), "Request headers".to_owned())
+        .flex()
+        .items_center()
+        .gap(Spacing::SM)
+        .h(Heights::ROW)
+        .pl(tokens::RESULTS_BAR_PADDING_X)
+        .pr(tokens::RESULTS_BAR_PADDING_X)
+        .border_b(Borders::THIN)
+        .border_color(colors.row_divider)
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(colors.strong)
+        .child("Request headers")
+        .child(div().flex_1())
+        .child(
+            div()
+                .font_weight(FontWeight::NORMAL)
+                .text_color(colors.muted)
+                .child(block.headers.len().to_string()),
+        )
+        .into_any_element();
+    let line = block.line();
+    let request_line = labeled_row(format!("{id}-line"), line.clone())
+        .flex()
+        .items_center()
+        .h(Heights::ROW)
+        .pl(tokens::RESULTS_BAR_PADDING_X)
+        .pr(tokens::RESULTS_BAR_PADDING_X)
+        .border_b(Borders::THIN)
+        .border_color(colors.row_divider)
+        .font_family(mono.clone())
+        .text_size(GridMetrics::FONT)
+        .overflow_hidden()
+        .whitespace_nowrap()
+        .text_color(colors.foreground)
+        .child(line)
+        .into_any_element();
+    let rows = block
+        .headers
+        .iter()
+        .enumerate()
+        .map(|(index, (name, value))| {
+            labeled_row(
+                format!("{id}-header-{}", index + 1),
+                format!("{name}: {value}"),
+            )
+            .flex()
+            .items_center()
+            .h(Heights::ROW)
+            .border_b(Borders::THIN)
+            .border_color(colors.row_divider)
+            .font_family(mono.clone())
+            .text_size(GridMetrics::FONT)
+            .child(
+                div()
+                    .w(tokens::GRID_KEY_COLUMN)
+                    .flex_none()
+                    .pl(Spacing::MD)
+                    .pr(Spacing::MD)
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(colors.strong)
+                    .child(name.clone()),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .min_w_0()
+                    .pr(Spacing::MD)
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_color(colors.foreground)
+                    .child(value.clone()),
+            )
+            .into_any_element()
+        });
+    [title, request_line].into_iter().chain(rows).collect()
 }
 
 /// The last row: `Total`, the response size and the sum of every phase.

@@ -366,7 +366,7 @@ fn a_row_opens_the_read_only_history_tab(cx: &mut TestAppContext) {
     click(cx, "history-tab-headers");
     assert_eq!(
         label(cx, "history-tabs-note"),
-        "Values as sent; variables already resolved"
+        "Headers as put on the wire (first hop); variables already resolved"
     );
     let mut headers = Vec::new();
     for n in 1..=8 {
@@ -397,6 +397,83 @@ fn a_row_opens_the_read_only_history_tab(cx: &mut TestAppContext) {
     assert!(bounds(cx, "doc-tab-history").is_none());
     assert!(bounds(cx, "history-banner").is_none());
     assert_eq!(active_request(cx, &shell).as_deref(), Some(PING));
+}
+
+/// The keys of the recorded headers grid on screen, top first.
+fn grid_keys(cx: &mut VisualTestContext) -> Vec<String> {
+    let mut keys = Vec::new();
+    for n in 1..=20 {
+        let id = format!("history-grid-key-{n}");
+        if bounds(cx, &id).is_none() {
+            break;
+        }
+        keys.push(label(cx, &id));
+    }
+    keys
+}
+
+#[gpui::test]
+fn the_headers_tab_shows_what_reached_the_wire_when_it_was_recorded(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    open_top_row(cx);
+    click(cx, "history-tab-headers");
+
+    let keys = grid_keys(cx);
+    assert!(keys.iter().any(|key| key == "user-agent"), "{keys:?}");
+    assert!(keys.iter().any(|key| key == "host"), "{keys:?}");
+    assert_eq!(
+        label(cx, "history-tabs-note"),
+        "Headers as put on the wire (first hop); variables already resolved"
+    );
+    // The count follows the grid.
+    assert_eq!(
+        label(cx, "history-tab-headers-count"),
+        keys.len().to_string()
+    );
+    // The secret stays masked on the wire too.
+    let Some(n) = keys.iter().position(|key| key == "authorization") else {
+        panic!("no authorization in {keys:?}");
+    };
+    let value = label(cx, &format!("history-grid-value-{}", n + 1));
+    assert_eq!(value, format!("Bearer {MASK}"));
+
+    // Params keeps the plain caption.
+    click(cx, "history-tab-params");
+    assert_eq!(
+        label(cx, "history-tabs-note"),
+        "Values as sent; variables already resolved"
+    );
+}
+
+#[gpui::test]
+fn the_headers_tab_keeps_the_sent_headers_without_a_recorded_wire(cx: &mut TestAppContext) {
+    let dir = history_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    assert_eq!(send(cx, &shell, PING).as_deref(), Some("200 OK"));
+    open_top_row(cx);
+    // An entry recorded before the wire was kept has none.
+    shell.update(cx, |shell, _| {
+        if let Some(tab) = shell.orphan.as_mut() {
+            tab.wire.clear();
+        }
+    });
+    click(cx, "history-tab-headers");
+
+    let keys = grid_keys(cx);
+    assert!(!keys.iter().any(|key| key == "user-agent"), "{keys:?}");
+    assert!(
+        keys.iter()
+            .any(|key| key.eq_ignore_ascii_case("authorization")),
+        "{keys:?}"
+    );
+    assert_eq!(
+        label(cx, "history-tabs-note"),
+        "Values as sent; variables already resolved"
+    );
 }
 
 #[gpui::test]

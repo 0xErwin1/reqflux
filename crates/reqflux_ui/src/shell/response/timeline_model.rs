@@ -5,7 +5,7 @@
 
 use std::time::Duration;
 
-use reqflux_engine::{HopTimings, Timings};
+use reqflux_engine::{HopTimings, Timings, WireRequest};
 
 use crate::shell::request::elapsed_text;
 
@@ -67,6 +67,32 @@ pub(crate) struct Row {
     pub(crate) measured: bool,
 }
 
+/// The request a hop sent, as the engine recorded it (masked): the line `METHOD url` and the
+/// headers in wire order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct SentBlock {
+    pub(crate) method: String,
+    pub(crate) url: String,
+    pub(crate) headers: Vec<(String, String)>,
+}
+
+impl SentBlock {
+    /// The block of `wire`, `None` for a hop that recorded nothing (a history entry from before
+    /// the wire was kept).
+    fn of(wire: &WireRequest) -> Option<Self> {
+        (!wire.url.is_empty() || !wire.headers.is_empty()).then(|| Self {
+            method: wire.method.clone(),
+            url: wire.url.clone(),
+            headers: wire.headers.clone(),
+        })
+    }
+
+    /// The request line: `<method> <url>`.
+    pub(crate) fn line(&self) -> String {
+        format!("{} {}", self.method, self.url)
+    }
+}
+
 /// One hop: what it was and its four rows.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Hop {
@@ -74,6 +100,8 @@ pub(crate) struct Hop {
     pub(crate) kind: String,
     pub(crate) total: Duration,
     pub(crate) rows: Vec<Row>,
+    /// The request the hop sent, `None` when none was recorded.
+    pub(crate) request: Option<SentBlock>,
 }
 
 /// The timeline of a send.
@@ -115,6 +143,7 @@ impl Timeline {
                     kind,
                     total: hop_total(hop),
                     rows,
+                    request: SentBlock::of(&hop.wire),
                 }
             })
             .collect();
@@ -316,6 +345,81 @@ mod tests {
             timeline.hops[0].rows[2].bar,
             Some((Duration::ZERO, Duration::ZERO))
         );
+    }
+
+    fn wire(headers: &[(&str, &str)]) -> WireRequest {
+        WireRequest {
+            method: "POST".to_owned(),
+            url: "https://api.test/items".to_owned(),
+            headers: headers
+                .iter()
+                .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn a_hop_shows_its_request_line_and_headers_in_wire_order() {
+        let timings = Timings {
+            hops: vec![HopTimings {
+                wire: wire(&[
+                    ("user-agent", "reqflux"),
+                    ("accept", "*/*"),
+                    ("host", "api.test"),
+                ]),
+                ..Default::default()
+            }],
+        };
+        let Some(block) = Timeline::new(&timings).and_then(|t| t.hops[0].request.clone()) else {
+            panic!("a request block");
+        };
+        assert_eq!(block.line(), "POST https://api.test/items");
+        assert_eq!(
+            block.headers,
+            [
+                ("user-agent".to_owned(), "reqflux".to_owned()),
+                ("accept".to_owned(), "*/*".to_owned()),
+                ("host".to_owned(), "api.test".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn every_hop_keeps_its_own_request() {
+        let mut first = wire(&[("cookie", "a=b")]);
+        first.url = "https://api.test/old".to_owned();
+        let timings = Timings {
+            hops: vec![
+                HopTimings {
+                    wire: first,
+                    ..Default::default()
+                },
+                HopTimings {
+                    wire: wire(&[("host", "api.test")]),
+                    ..Default::default()
+                },
+            ],
+        };
+        let Some(timeline) = Timeline::new(&timings) else {
+            panic!("a timeline");
+        };
+        let urls: Vec<_> = timeline
+            .hops
+            .iter()
+            .filter_map(|hop| hop.request.as_ref().map(|block| block.url.as_str()))
+            .collect();
+        assert_eq!(urls, ["https://api.test/old", "https://api.test/items"]);
+    }
+
+    #[test]
+    fn an_empty_wire_has_no_request_block() {
+        let timings = Timings {
+            hops: vec![HopTimings::default()],
+        };
+        let Some(timeline) = Timeline::new(&timings) else {
+            panic!("a timeline");
+        };
+        assert_eq!(timeline.hops[0].request, None);
     }
 
     #[test]

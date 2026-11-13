@@ -29,6 +29,9 @@ use crate::tokens::{self, method_hue};
 pub(crate) const READ_ONLY: &str = "Recorded request, read only";
 /// The caption at the right of the recorded tabs.
 pub(crate) const AS_SENT: &str = "Values as sent; variables already resolved";
+/// The caption on the Headers tab when the recorded wire headers are shown.
+pub(crate) const ON_THE_WIRE: &str =
+    "Headers as put on the wire (first hop); variables already resolved";
 /// The caption of the banner when the request no longer exists.
 pub(crate) const CANNOT_SEND: &str = "This record can no longer be sent.";
 
@@ -301,9 +304,14 @@ fn params(url: &str) -> Vec<(String, String)> {
 /// bar.
 fn recorded_tabs(tab: &HistoryTab, cx: &mut Context<Shell>) -> Div {
     let line = bolt::colors(cx).line;
+    let note = if tab.tab == RecordedTab::Headers && !tab.wire.is_empty() {
+        ON_THE_WIRE
+    } else {
+        AS_SENT
+    };
     let counts = [
         (RecordedTab::Params, Some(params(&tab.sent.url).len())),
-        (RecordedTab::Headers, Some(tab.sent.headers.len())),
+        (RecordedTab::Headers, Some(tab.headers().len())),
         (RecordedTab::Body, None),
     ];
     div()
@@ -322,9 +330,9 @@ fn recorded_tabs(tab: &HistoryTab, cx: &mut Context<Shell>) -> Div {
         .child(div().flex_1())
         .child(
             ui::role(text_region("history-tabs-note"), TextVariant::Caption, cx)
-                .aria_label(AS_SENT)
+                .aria_label(note)
                 .whitespace_nowrap()
-                .child(AS_SENT),
+                .child(note),
         )
 }
 
@@ -375,7 +383,7 @@ fn recorded_tab(
 fn pane(tab: &HistoryTab, cx: &App) -> AnyElement {
     match tab.tab {
         RecordedTab::Params => grid("param", "params", &params(&tab.sent.url), cx),
-        RecordedTab::Headers => grid("header", "headers", &tab.sent.headers, cx),
+        RecordedTab::Headers => grid("header", "headers", tab.headers(), cx),
         RecordedTab::Body => body(&tab.sent.body, cx),
     }
 }

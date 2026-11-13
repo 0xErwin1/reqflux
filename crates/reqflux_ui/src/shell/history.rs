@@ -75,6 +75,9 @@ pub(crate) struct HistoryTab {
     pub(crate) name: String,
     /// The request as sent, secrets masked.
     pub(crate) sent: SentRequest,
+    /// The headers the first hop put on the wire, masked, in wire order; empty for an entry
+    /// recorded before the wire was kept.
+    pub(crate) wire: Vec<(String, String)>,
     /// The local `HH:MM` the tab shows.
     pub(crate) time: String,
     /// The local day and `HH:MM:SS` the banner shows.
@@ -88,6 +91,16 @@ pub(crate) struct HistoryTab {
 }
 
 impl HistoryTab {
+    /// The headers the Headers tab shows: what reached the wire when it was recorded, else the
+    /// headers as sent.
+    pub(crate) fn headers(&self) -> &[(String, String)] {
+        if self.wire.is_empty() {
+            &self.sent.headers
+        } else {
+            &self.wire
+        }
+    }
+
     /// The key of its send in the shell's sends, apart from every request id.
     pub(crate) fn key(&self) -> String {
         format!("{KEY_PREFIX}{}", self.entry)
@@ -147,6 +160,20 @@ pub(crate) fn find_request<'a>(
         .collections
         .iter()
         .find_map(|collection| walk(&collection.items, id, &collection.slug))
+}
+
+/// The headers the first hop of `outcome` put on the wire; empty for a failure or an entry
+/// recorded before the wire was kept.
+fn first_hop_headers(outcome: &HistoryOutcome) -> Vec<(String, String)> {
+    match outcome {
+        HistoryOutcome::Response(recorded) => recorded
+            .timings
+            .as_ref()
+            .and_then(|timings| timings.hops.first())
+            .map(|hop| hop.wire.headers.clone())
+            .unwrap_or_default(),
+        HistoryOutcome::Failed { .. } => Vec::new(),
+    }
 }
 
 /// The outcome a recorded entry shows in the response pane.
@@ -300,6 +327,7 @@ impl Shell {
             request_id: id,
             name: entry.record.request_name.clone(),
             sent: entry.record.sent.clone(),
+            wire: first_hop_headers(&entry.record.outcome),
             time,
             moment: format!("{day} {}", clock::seconds(entry.record.sent_at, offset)),
             source_exists: exists,

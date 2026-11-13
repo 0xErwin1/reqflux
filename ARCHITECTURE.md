@@ -1486,7 +1486,11 @@ the Response tab with the status chip colored by class and the time and size, Te
 Console tabs beside it when the scripts produced results, the Body / Headers / Cookies views as
 a segmented control plus Timeline (`Received.timings` per hop on one time axis, each measured
 phase a `bolt` `TimelineStrip` bar named by its phase and time, TLS inside connect, a dash for a
-phase the engine did not time), a JSONPath filter beside the body search, both open as `bolt`'s
+phase the engine did not time; under each hop's phases a `Request headers` block
+(`response-timeline-hop-<h>-request`, the request line `...-line`, then `...-header-<n>` rows) lists
+the method, URL and headers that hop put on the wire, masked by the engine, in wire order; a hop
+without a recorded wire, an entry from before it was kept, draws no block, and the pane scrolls
+when the blocks make it taller than the response), a JSONPath filter beside the body search, both open as `bolt`'s
 `SearchField` with its count
 (`reqflux_engine::jsonpath::filter`: the matches replace the shown lines and search, Copy and the
 line count follow; an error shows the engine message in a danger banner over the unfiltered
@@ -1714,7 +1718,10 @@ The rail's History button (`rail-history`) swaps the sidebar tree for the Histor
 newest; `No requests sent yet` when empty), and Collections (`rail-collections`) swaps back.
 Clicking a row opens the read-only history tab (`history-readonly`, design/history/01) with the
 recorded method, URL, Params, Headers, Body and response, without touching the request, its tab
-or its draft. While the request exists its banner offers `Open source request`
+or its draft. Its Headers tab shows the headers of the recorded first hop's wire (what reached the
+wire: User-Agent, Accept, Host, Content-Length, the jar's Cookie, names lowercase) with the caption
+`Headers as put on the wire (first hop); variables already resolved`; an entry without a recorded
+wire shows the headers as sent and the caption `Values as sent; variables already resolved`. While the request exists its banner offers `Open source request`
 (`history-open-source`) and `Resend` (`history-resend`), which sends the recorded document again
 through `execute_draft` and records the result as a new entry; when the request was deleted the
 banner says so and Resend is disabled.
