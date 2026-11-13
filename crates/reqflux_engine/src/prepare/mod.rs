@@ -103,52 +103,25 @@ fn url_password(url: &str) -> Option<&str> {
     (!password.is_empty()).then_some(password)
 }
 
-/// `url` with a user and password typed with an unescaped `#`, `/`, `?` or `@` percent-encoded,
-/// so the URL parses and the transport sends the credential as typed. Applies only when `url`
-/// does not parse as typed: the user info then runs from `://` to the last `@` followed by a
-/// host (letters, digits, `.`, `-`, `_` or a bracketed IPv6) and an optional port.
-fn escape_user_info(url: String) -> String {
-    if ::url::Url::parse(&url).is_ok() {
-        return url;
+/// The password a URL that does not parse may hold in its user info, typed with an unescaped
+/// `#`, `/`, `?` or `@`: from `://` to the last `@` followed by a host (letters, digits, `.`,
+/// `-`, `_` or a bracketed IPv6) and an optional port, after the first `:`. It is only a guess,
+/// so it is masked and never used to rewrite the URL: a wrong guess would send the request,
+/// and its credentials, to another host. The send then fails with the URL's own error.
+fn unparsed_url_password(url: &str) -> Option<&str> {
+    if ::url::Url::parse(url).is_ok() {
+        return None;
     }
-    let Some(start) = url.find("://").map(|at| at + 3) else {
-        return url;
-    };
-    let rest = url.get(start..).unwrap_or_default();
-    let Some(at) = rest
+    let rest = url.get(url.find("://")? + 3..)?;
+    let at = rest
         .char_indices()
         .filter(|(_, c)| *c == '@')
         .map(|(at, _)| at)
         .rev()
-        .find(|&at| is_host_start(rest.get(at + 1..).unwrap_or_default()))
-    else {
-        return url;
-    };
-    let user_info = rest.get(..at).unwrap_or_default();
-    if user_info.is_empty() || user_info.chars().any(char::is_whitespace) {
-        return url;
-    }
-    let escape = |part: &str| {
-        part.replace('%', "%25")
-            .replace('#', "%23")
-            .replace('/', "%2F")
-            .replace('?', "%3F")
-            .replace('@', "%40")
-    };
-    let escaped = match user_info.split_once(':') {
-        Some((user, password)) => format!("{}:{}", escape(user), escape(password)),
-        None => escape(user_info),
-    };
-    let rebuilt = format!(
-        "{}{escaped}{}",
-        url.get(..start).unwrap_or_default(),
-        rest.get(at..).unwrap_or_default()
-    );
-    if ::url::Url::parse(&rebuilt).is_ok() {
-        rebuilt
-    } else {
-        url
-    }
+        .find(|&at| is_host_start(rest.get(at + 1..).unwrap_or_default()))?;
+    let user_info = rest.get(..at)?;
+    let password = user_info.get(user_info.find(':')? + 1..)?;
+    (!password.is_empty()).then_some(password)
 }
 
 /// Whether `text` starts with a host and optional port that end the text or reach a path,
@@ -276,7 +249,7 @@ pub(crate) fn prepare_target(
     crate::scripts::apply_writes(&mut scope_map, script_writes);
     let mut resolver = Resolver::new(scope_map, dynamic);
 
-    let base = escape_user_info(resolver.text(&request.url));
+    let base = resolver.text(&request.url);
     let mut query = resolver.pairs(&request.params);
     let mut headers = resolver.pairs(&request.headers);
     let (owner, auth) = auth::effective(request, target);
@@ -297,6 +270,9 @@ pub(crate) fn prepare_target(
     if let Some(password) = url_password(&base) {
         secrets.add(password);
         secrets.add(percent_decode(password));
+    }
+    if let Some(password) = unparsed_url_password(&base) {
+        secrets.add(password);
     }
 
     Ok(Prepared {

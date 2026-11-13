@@ -423,11 +423,12 @@ runner, history and every front end only see masked hop requests; `RecordedRespo
 masks them again. A password typed in the URL's user info (`user:pass@host`) joins the send's masked values, as
 typed and percent-decoded, so it is masked like any secret value wherever the send's masker runs
 (the recorded URL, hop records, errors, MCP audit and approval lines, and a cross-origin
-redirect drops a header or refuses a body that repeats it). A URL that does not parse because
-its user or password holds an unescaped `#`, `/`, `?` or `@` is sent with them percent-encoded
-(the user info runs to the last `@` followed by a host), so `http://ana:p#ss@host/` sends
-`ana:p#ss`; an `@` before such a delimiter stays ambiguous and is read as the URL standard
-says; the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
+redirect drops a header or refuses a body that repeats it). A URL that does not parse and seems to hold a
+password with an unescaped `#`, `/` or `?` (the user info up to the last `@` followed by a
+host) has that guessed password masked too, so the failed send's URL and error do not show
+it; the URL is never rewritten, since a wrong guess would send the request and its
+credentials to another host, and such a send fails with the URL's own error (`%23`, `%2F`,
+`%3F` send it); the transport sends it as Basic auth, masked whole. `PreparedRequest`'s
 `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back

@@ -400,15 +400,11 @@ fn a_query_holding_a_url_is_recorded_as_typed() {
 }
 
 #[test]
-fn a_url_password_with_an_unescaped_delimiter_is_sent_and_masked() {
+fn a_url_password_with_an_unescaped_delimiter_is_masked_and_never_sent() {
     let runtime = runtime();
     let server = start(
         &runtime,
-        vec![
-            Mock::given(method("GET"))
-                .and(path("/x"))
-                .respond_with(ResponseTemplate::new(200)),
-        ],
+        vec![Mock::given(method("GET")).respond_with(ResponseTemplate::new(200))],
     );
     let port = server.address().port();
     for password in ["p#ss", "p/ss", "p?ss"] {
@@ -417,34 +413,42 @@ fn a_url_password_with_an_unescaped_delimiter_is_sent_and_masked() {
             dir.path(),
             &format!("url = \"http://ana:{password}@127.0.0.1:{port}/x\"\n"),
         );
-        let executed = run(&engine, "unused");
-        assert_eq!(executed.response.status, 200, "{password}");
-        assert_eq!(
-            executed.sent.url,
-            format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK),
-            "{password}"
+        let mut options = ExecuteOptions::default();
+        options.vars.push(("token".to_owned(), "unused".to_owned()));
+        let execution = engine.execute("api/r", &options).unwrap();
+        assert!(
+            !execution.sent.url.contains(password),
+            "{password}: {}",
+            execution.sent.url
         );
-        let wire = format!("{:?}", executed.response.timings);
-        assert!(!wire.contains(password), "{password}: {wire}");
+        let masker = execution.masker();
+        let error = masker.mask(&engine.wait(execution).unwrap_err().to_string());
+        assert!(!error.contains(password), "{password}: {error}");
+        assert!(error.contains("invalid"), "{password}: {error}");
     }
-    let received = runtime.block_on(server.received_requests()).unwrap();
-    let credentials: Vec<String> = received
-        .iter()
-        .map(|request| {
-            request
-                .headers
-                .get("authorization")
-                .and_then(|value| value.to_str().ok())
-                .unwrap_or_default()
-                .to_owned()
-        })
-        .collect();
-    assert_eq!(
-        credentials,
-        vec![
-            "Basic YW5hOnAjc3M=",
-            "Basic YW5hOnAvc3M=",
-            "Basic YW5hOnA/c3M=",
-        ]
+    assert!(
+        runtime
+            .block_on(server.received_requests())
+            .unwrap()
+            .is_empty()
     );
+}
+
+#[test]
+fn an_invalid_url_is_never_rewritten_to_another_host() {
+    for url in [
+        "http://h:99999/a@b",
+        "http://h:99999/users/me@example.com",
+        "http://h:80a/p@q.com",
+        "http://[::1/x?e=a@b.com",
+        "http://h:99999/#frag@other",
+        "http://h:abc?x=@y",
+        "http://ana:pw@api.test:99999/x?email=bob@evil.com",
+        "http://ana:p#ss@127.0.0.1:9/x",
+    ] {
+        let dir = temp_dir();
+        let engine = engine(dir.path(), &format!("url = \"{url}\"\n"));
+        let prepared = engine.prepare("api/r", &ExecuteOptions::default()).unwrap();
+        assert_eq!(prepared.request.url, url, "{url}");
+    }
 }
