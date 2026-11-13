@@ -86,6 +86,31 @@ async fn sends_standard_and_custom_methods() {
     }
 }
 
+// A request without its own User-Agent sends ReqFlux's: some gateways refuse one without it.
+
+#[tokio::test]
+async fn sends_a_default_user_agent() {
+    let server = ok_server().await;
+    send(request("GET", format!("{}/echo", server.uri())))
+        .await
+        .unwrap();
+    let received = only_request(&server).await;
+    assert_eq!(
+        header_values(&received, "user-agent"),
+        vec![format!("ReqFlux/{}", env!("CARGO_PKG_VERSION"))]
+    );
+}
+
+#[tokio::test]
+async fn the_request_user_agent_replaces_the_default() {
+    let server = ok_server().await;
+    let mut prepared = request("GET", format!("{}/echo", server.uri()));
+    prepared.headers = vec![("User-Agent".to_owned(), "custom/1".to_owned())];
+    send(prepared).await.unwrap();
+    let received = only_request(&server).await;
+    assert_eq!(header_values(&received, "user-agent"), vec!["custom/1"]);
+}
+
 // S1: ordered headers with duplicates.
 
 #[tokio::test]
@@ -269,6 +294,52 @@ async fn streams_a_file_body() {
     prepared.body = PreparedBody::File(file);
     send(prepared).await.unwrap();
     assert_eq!(only_request(&server).await.body, data);
+}
+
+// A file body carries its length, not chunked encoding: some gateways refuse a chunked request.
+
+#[tokio::test]
+async fn a_file_body_sends_its_length_not_chunked() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("payload.bin");
+    std::fs::write(&file, vec![7u8; 70_000]).unwrap();
+    let server = ok_server().await;
+    let mut prepared = request("PUT", format!("{}/echo", server.uri()));
+    prepared.body = PreparedBody::File(file);
+    send(prepared).await.unwrap();
+    let received = only_request(&server).await;
+    assert_eq!(header_values(&received, "content-length"), vec!["70000"]);
+    assert!(header_values(&received, "transfer-encoding").is_empty());
+    assert_eq!(received.body.len(), 70_000);
+}
+
+#[tokio::test]
+async fn a_request_content_length_is_not_repeated_for_a_file_body() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("five.bin");
+    std::fs::write(&file, b"12345").unwrap();
+    let server = ok_server().await;
+    let mut prepared = request("PUT", format!("{}/echo", server.uri()));
+    prepared.headers = vec![("Content-Length".to_owned(), "5".to_owned())];
+    prepared.body = PreparedBody::File(file);
+    send(prepared).await.unwrap();
+    let received = only_request(&server).await;
+    assert_eq!(header_values(&received, "content-length"), vec!["5"]);
+    assert_eq!(received.body, b"12345");
+}
+
+#[tokio::test]
+async fn an_empty_file_body_sends_a_zero_length() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("empty.bin");
+    std::fs::write(&file, b"").unwrap();
+    let server = ok_server().await;
+    let mut prepared = request("POST", format!("{}/echo", server.uri()));
+    prepared.body = PreparedBody::File(file);
+    send(prepared).await.unwrap();
+    let received = only_request(&server).await;
+    assert_eq!(header_values(&received, "content-length"), vec!["0"]);
+    assert!(header_values(&received, "transfer-encoding").is_empty());
 }
 
 // S1: response.

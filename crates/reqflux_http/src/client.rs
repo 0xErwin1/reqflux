@@ -5,7 +5,9 @@ use std::error::Error as _;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
-use reqwest::header::{CONTENT_TYPE, COOKIE, HeaderMap, HeaderName, HeaderValue, SET_COOKIE};
+use reqwest::header::{
+    CONTENT_LENGTH, CONTENT_TYPE, COOKIE, HeaderMap, HeaderName, HeaderValue, SET_COOKIE,
+};
 use reqwest::multipart::{Form, Part};
 use reqwest::{Method, RequestBuilder, Version};
 use tokio_util::io::ReaderStream;
@@ -209,6 +211,7 @@ impl HttpClient {
                 None
             };
             let has_content_type = headers.contains_key(CONTENT_TYPE);
+            let has_content_length = headers.contains_key(CONTENT_LENGTH);
             // Each hop picks its own client: a redirect to another host can match another
             // client certificate.
             let client = self.client(options, network, &url)?;
@@ -217,7 +220,7 @@ impl HttpClient {
                 add_jar_cookies(&mut sent, jar, &url);
             }
             let builder = client.request(method.clone(), url.clone()).headers(sent);
-            let builder = with_body(builder, body, has_content_type).await?;
+            let builder = with_body(builder, body, has_content_type, has_content_length).await?;
             let recorder = Arc::new(Recorder::default());
             let hop_started = Instant::now();
             let response = timing::recorded(Arc::clone(&recorder), builder.send())
@@ -292,7 +295,9 @@ impl HttpClient {
             return Ok(client.clone());
         }
         // Redirects are followed by `execute`, which can change headers between hops.
+        // Some gateways refuse a request without a User-Agent; a request's own one replaces it.
         let builder = reqwest::Client::builder()
+            .user_agent(USER_AGENT)
             .redirect(reqwest::redirect::Policy::none())
             .dns_resolver(Arc::new(TimedResolver))
             .connector_layer(TimingLayer)
@@ -306,6 +311,9 @@ impl HttpClient {
         Ok(client)
     }
 }
+
+/// The User-Agent a request without its own sends.
+const USER_AGENT: &str = concat!("ReqFlux/", env!("CARGO_PKG_VERSION"));
 
 /// Adds the cookies `jar` holds for `url` to the `Cookie` header of `headers`, after the
 /// request's own cookies.
@@ -425,6 +433,7 @@ async fn with_body(
     builder: RequestBuilder,
     body: PreparedBody,
     has_content_type: bool,
+    has_content_length: bool,
 ) -> Result<RequestBuilder, HttpError> {
     Ok(match body {
         PreparedBody::None => builder,
@@ -456,7 +465,22 @@ async fn with_body(
         PreparedBody::File(path) => {
             let file = tokio::fs::File::open(&path)
                 .await
-                .map_err(|source| HttpError::File { path, source })?;
+                .map_err(|source| HttpError::File {
+                    path: path.clone(),
+                    source,
+                })?;
+            let length = file
+                .metadata()
+                .await
+                .map_err(|source| HttpError::File { path, source })?
+                .len();
+            // A streamed body has no size hint, so without this the request goes chunked,
+            // which some servers and gateways refuse. A request's own Content-Length stays.
+            let builder = if has_content_length {
+                builder
+            } else {
+                builder.header(CONTENT_LENGTH, length)
+            };
             builder.body(reqwest::Body::wrap_stream(ReaderStream::new(file)))
         }
     })

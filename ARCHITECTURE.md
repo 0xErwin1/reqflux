@@ -713,6 +713,10 @@ measurably demand it, and then by one-way layers.
   at the position of the first one (the order among their values is kept), and the reason
   phrase is the standard one for the status code rather than the server's own text. Both are
   local to `reqflux_http`; dropping to `hyper` fixes them if they ever matter.
+- Transport defaults, each only when the request does not set the header itself: every hop sends
+  `User-Agent: ReqFlux/<version>` (some gateways refuse a request without one), and a binary
+  file body sends its `Content-Length` instead of chunked encoding. Neither is recorded in the
+  sent request or history yet.
 - `reqflux_http` follows redirects itself (at most 10; `reqwest`'s policy is off), because a
   `reqwest` policy can follow or stop but cannot change the next request's headers. 301, 302
   and 303 continue as GET without a body (HEAD stays HEAD); 307 and 308 resend the method and
