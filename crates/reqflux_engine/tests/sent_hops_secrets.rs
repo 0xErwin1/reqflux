@@ -146,3 +146,23 @@ fn a_mixed_case_secret_in_a_header_name_is_masked_on_the_wire() {
     );
     assert_clean(&run(&engine, "MixCase9Q"), &["MixCase9Q", "mixcase9q"]);
 }
+
+#[test]
+fn a_mixed_case_secret_in_the_host_is_masked_on_the_wire() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![Mock::given(method("GET")).respond_with(ResponseTemplate::new(200))],
+    );
+    let dir = temp_dir();
+    let port = server.address().port();
+    let engine = engine(
+        dir.path(),
+        &format!("url = \"http://{{{{token}}}}.localhost:{port}/x\"\n"),
+    );
+    let executed = run(&engine, "HostSecretQ7");
+    // The URL parser lowercases the host, so the secret reaches the wire in another case.
+    let wire = format!("{:?}", executed.response.timings).to_lowercase();
+    assert!(!wire.contains("hostsecretq7"), "{wire}");
+    assert!(wire.contains(".localhost"), "{wire}");
+}

@@ -143,6 +143,13 @@ impl Masker {
         })
     }
 
+    /// `text` with every secret value replaced by [`MASK`], matching letters in any ASCII case.
+    fn mask_ignoring_ascii_case(&self, text: &str) -> String {
+        self.patterns.iter().fold(text.to_owned(), |text, pattern| {
+            replace_ignoring_ascii_case(&text, pattern)
+        })
+    }
+
     /// `text` with every secret value replaced by [`MASK`].
     #[must_use]
     pub fn mask(&self, text: &str) -> String {
@@ -172,16 +179,25 @@ impl Masker {
     }
 
     /// The request a hop sent with its secrets masked (sent-headers S4): every header through
-    /// [`Masker::header`] and the URL through [`Masker::mask`].
+    /// [`Masker::header`] and the URL through [`Masker::mask`]. The URL and the `Host` header
+    /// are also masked ignoring ASCII case, because the URL parser lowercases the host.
     #[must_use]
     pub fn wire(&self, wire: &WireRequest) -> WireRequest {
         WireRequest {
             method: wire.method.clone(),
-            url: self.mask(&wire.url),
+            url: self.mask_ignoring_ascii_case(&self.mask(&wire.url)),
             headers: wire
                 .headers
                 .iter()
-                .map(|(name, value)| self.header(name, value))
+                .map(|(name, value)| {
+                    let (name, value) = self.header(name, value);
+                    if name.eq_ignore_ascii_case("host") {
+                        let value = self.mask_ignoring_ascii_case(&value);
+                        (name, value)
+                    } else {
+                        (name, value)
+                    }
+                })
                 .collect(),
         }
     }
@@ -273,6 +289,26 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
 
 /// The recorded name of a header: [`MASK`] when it carries a secret of two or more
 /// characters, else the name as sent.
+/// `text` with every occurrence of `pattern`, in any ASCII case, replaced by [`MASK`].
+/// ASCII lowercasing keeps byte offsets, so matches found in the lowered copy cut the original.
+fn replace_ignoring_ascii_case(text: &str, pattern: &str) -> String {
+    if pattern.is_empty() {
+        return text.to_owned();
+    }
+    let lowered = text.to_ascii_lowercase();
+    let needle = pattern.to_ascii_lowercase();
+    let mut masked = String::with_capacity(text.len());
+    let mut at = 0;
+    while let Some(found) = lowered.get(at..).and_then(|rest| rest.find(&needle)) {
+        let start = at + found;
+        masked.push_str(text.get(at..start).unwrap_or_default());
+        masked.push_str(MASK);
+        at = start + needle.len();
+    }
+    masked.push_str(text.get(at..).unwrap_or_default());
+    masked
+}
+
 fn header_name(name: &str, masker: &Masker) -> String {
     // Header names are case-insensitive and the wire record lowercases them.
     if masker.contains_long(name) || masker.contains_long_ignoring_case(name) {
