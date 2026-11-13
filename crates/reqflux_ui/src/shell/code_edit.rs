@@ -4,10 +4,14 @@
 //! keystroke lands in the draft as typed, as the plain editor did. The gutter has line
 //! numbers and no fold markers, as the artboard draws it.
 
-use bolt::tokens::EditorMetrics;
-use gpui::{App, AppContext as _, Context, Entity, Styled, Window};
+use bolt::tokens::{EditorMetrics, Spacing};
+use gpui::{
+    App, AppContext as _, Context, Div, Entity, ParentElement, Pixels, Stateful, Styled, Window,
+};
 use gpui_component::input::{Editor, EditorState};
 use reqflux_core::model::RawLanguage;
+
+use super::rows::part;
 
 /// The language name of plain text: no grammar is registered under it.
 pub(crate) const PLAIN: &str = "text";
@@ -58,11 +62,35 @@ pub(crate) fn set_language(input: &Entity<EditorState>, language: &'static str, 
 /// The editor of `input`, `rows` lines tall, in the code face without its own chrome: the
 /// well around it draws that.
 pub(crate) fn element(input: &Entity<EditorState>, rows: usize, cx: &App) -> Editor {
-    Editor::new(input)
+    styled(Editor::new(input), cx).h(EditorMetrics::CODE_LINE_HEIGHT * rows as f32)
+}
+
+/// `editor` in the code face without its own chrome.
+fn styled(editor: Editor, cx: &App) -> Editor {
+    editor
         .appearance(false)
         .bordered(false)
-        .h(EditorMetrics::CODE_LINE_HEIGHT * rows as f32)
         .text_size(EditorMetrics::CODE_FONT)
         .font_family(bolt::fonts::editor_family(cx))
         .text_color(bolt::colors(cx).foreground)
+}
+
+/// The fewest lines a filling editor keeps: a pane too short for more scrolls instead.
+pub(crate) const MIN_ROWS: usize = 4;
+
+/// The height a well around a filling editor keeps at least: [`MIN_ROWS`] lines and the
+/// well's own vertical padding.
+pub(crate) fn well_min_height() -> Pixels {
+    EditorMetrics::CODE_LINE_HEIGHT * MIN_ROWS as f32 + Spacing::SM * 2.
+}
+
+/// The editor of `input` filling the room its well leaves, `id` its element: the well must
+/// be a flex column with a definite height or a flex share of one. The editor scrolls its
+/// own content, so the pane around it does not.
+pub(crate) fn fill(id: String, input: &Entity<EditorState>, cx: &App) -> Stateful<Div> {
+    part(id)
+        .flex_1()
+        .min_h_0()
+        .w_full()
+        .child(styled(Editor::new(input), cx).size_full())
 }

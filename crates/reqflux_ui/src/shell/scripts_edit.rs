@@ -12,9 +12,6 @@ use reqflux_core::model::Scripts;
 use super::Shell;
 use super::code_edit;
 
-/// The rows the script editor shows.
-pub(crate) const EDITOR_ROWS: usize = 12;
-
 /// One of a request's two scripts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScriptSlot {

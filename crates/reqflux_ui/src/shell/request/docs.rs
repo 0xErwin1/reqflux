@@ -33,9 +33,13 @@ pub(super) fn render(
         done_label: "Done",
         cancel: None,
         hint: "Notes about this request, in markdown: what it does and what it expects.",
+        fill: true,
     };
+    // An open editor's block fills the pane, so the column around it fills it too.
+    let editing = state.docs_edit.is_some();
     vec![
         gpui::div()
+            .when(editing, |block| block.flex_1().min_h_0().flex().flex_col())
             .pl(Spacing::MD)
             .pr(Spacing::MD)
             .pt(Spacing::SM)

@@ -5,9 +5,13 @@
 use bolt::controls::SelectTrigger;
 use bolt::primitives::{Chamfer, ChamferRing};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
-use gpui::{App, Div, ElementId, ParentElement, SharedString, Stateful, Styled};
+use gpui::{
+    App, Div, ElementId, IntoElement, ParentElement, SharedString, Stateful,
+    StatefulInteractiveElement as _, Styled,
+};
 use gpui_kit_assets::IconName;
 
+use crate::shell::code_edit;
 use crate::shell::request::ui;
 use crate::shell::rows::part;
 
@@ -61,6 +65,26 @@ pub(in crate::shell::request) fn focus_ring(id: String, cx: &App) -> Stateful<Di
 /// query.
 pub(in crate::shell::request) fn text_well(id: String, cx: &App) -> Stateful<Div> {
     part(id).relative().py(Spacing::SM).child(field_shape(cx))
+}
+
+/// A multi-line field well `id` that takes the height its flex column leaves, at least
+/// [`code_edit::well_min_height`]: the well of an editor that fills its pane, and of the
+/// read-only lines it replaces.
+pub(in crate::shell::request) fn filling_well(id: String, cx: &App) -> Stateful<Div> {
+    text_well(id, cx)
+        .flex()
+        .flex_col()
+        .flex_1()
+        .min_h(code_edit::well_min_height())
+}
+
+/// `content` in a box `id` that fills its flex column and scrolls the content past its end.
+pub(in crate::shell::request) fn scrolling(id: String, content: impl IntoElement) -> Stateful<Div> {
+    part(id)
+        .flex_1()
+        .min_h_0()
+        .overflow_y_scroll()
+        .child(content)
 }
 
 /// The shape of a field: the ground fill with a line on its straight edges.

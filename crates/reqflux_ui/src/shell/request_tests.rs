@@ -418,3 +418,201 @@ fn the_value_column_names_the_environment_it_resolves_in(cx: &mut TestAppContext
     cx.run_until_parked();
     assert!(bounds(cx, "request-headers-value-hint").is_some());
 }
+
+// Editors fill the request pane (editor-fill S1-S3): every code editor takes the height the
+// request/response split leaves and follows it.
+
+const FILL: &str = "01J00000000000000000000017";
+
+/// `POST Fill`, whose raw JSON body and pre-request script fit in a few lines and which
+/// targets a port nothing listens on, so a send fails at once and brings the response in.
+fn fill_workspace() -> TempDir {
+    let dir = demo_workspace();
+    let root = dir.path();
+    write(
+        root,
+        "collections/api/collection.toml",
+        &format!("id = \"{COLLECTION}\"\nname = \"API\"\n"),
+    );
+    write(
+        root,
+        "collections/api/fill.req.toml",
+        &format!(
+            "id = \"{FILL}\"\nname = \"Fill\"\nmethod = \"POST\"\nurl = \"http://127.0.0.1:{}/p\"\n\n\
+             [body]\nmode = \"raw\"\nlanguage = \"json\"\ntext = \"{{}}\"\n",
+            super::send_tests::closed_port()
+        ),
+    );
+    write(root, "collections/api/fill.pre.js", "console.log(1);\n");
+    dir
+}
+
+/// Opens `POST Fill` on the sub-tab `tab`.
+fn open_fill<'a>(
+    cx: &'a mut TestAppContext,
+    tab: &str,
+) -> (Entity<Shell>, &'a mut VisualTestContext) {
+    cx.update(|cx| crate::theme::install(crate::theme::PaletteMode::Dark, cx));
+    cx.update(super::bind_keys);
+    let dir = fill_workspace();
+    let workspace = OpenedWorkspace::open(Some(dir.path().to_path_buf()));
+    drop(dir);
+    let (shell, cx) = cx.add_window_view(|_, cx| Shell::new(workspace, cx));
+    cx.run_until_parked();
+    click(cx, &format!("tree-row-{FILL}"));
+    click(cx, &format!("request-tab-{tab}"));
+    (shell, cx)
+}
+
+/// How far the pane's bottom is under `id`'s: the pane's own bottom padding at most.
+fn gap_to_pane_bottom(cx: &mut VisualTestContext, id: &str) -> gpui::Pixels {
+    present(cx, "request-pane").bottom() - present(cx, id).bottom()
+}
+
+fn assert_reaches_pane_bottom(cx: &mut VisualTestContext, id: &str) {
+    let gap = gap_to_pane_bottom(cx, id);
+    assert!(
+        gap >= gpui::px(0.) && gap <= gpui::px(24.),
+        "{id} ends {gap:?} above the pane's bottom"
+    );
+}
+
+fn height(cx: &mut VisualTestContext, id: &str) -> gpui::Pixels {
+    present(cx, id).size.height
+}
+
+#[gpui::test]
+fn the_raw_body_editor_fills_the_pane_and_the_well_does_not_jump(cx: &mut TestAppContext) {
+    let (_shell, cx) = open_fill(cx, "body");
+    assert_reaches_pane_bottom(cx, "request-body-raw");
+    let reading = present(cx, "request-body-raw");
+
+    click(cx, "request-body-code");
+    assert_reaches_pane_bottom(cx, "request-body-input");
+    assert_reaches_pane_bottom(cx, "request-body-input-editor");
+    let editing = present(cx, "request-body-input");
+    assert_eq!(
+        editing.top(),
+        reading.top(),
+        "editing starts where reading was"
+    );
+    assert_eq!(
+        editing.bottom(),
+        reading.bottom(),
+        "and ends where it ended"
+    );
+    let rows = bolt::tokens::EditorMetrics::CODE_LINE_HEIGHT * 12.;
+    assert!(
+        height(cx, "request-body-input-editor") > rows,
+        "the editor is taller than the 12 rows it used to have"
+    );
+}
+
+#[gpui::test]
+fn a_taller_window_gives_the_raw_body_editor_the_extra_height(cx: &mut TestAppContext) {
+    let (_shell, cx) = open_fill(cx, "body");
+    click(cx, "request-body-code");
+    let before = height(cx, "request-body-input-editor");
+    let window = cx.update(|window, _| window.viewport_size());
+    cx.simulate_resize(gpui::size(window.width, window.height + gpui::px(120.)));
+    cx.run_until_parked();
+    assert_eq!(
+        height(cx, "request-body-input-editor") - before,
+        gpui::px(120.),
+        "the editor took the whole 120px"
+    );
+    assert_reaches_pane_bottom(cx, "request-body-input");
+}
+
+#[gpui::test]
+fn dragging_the_split_resizes_the_editor_down_to_a_few_lines(cx: &mut TestAppContext) {
+    let (shell, cx) = open_fill(cx, "body");
+    // Tall enough that the request pane keeps room above its minimum when the split moves.
+    let width = cx.update(|window, _| window.viewport_size().width);
+    cx.simulate_resize(gpui::size(width, gpui::px(1400.)));
+    click(cx, "request-body-code");
+    click(cx, "request-send");
+    cx.run_until_parked();
+    assert!(
+        bounds(cx, "response-area").is_some(),
+        "the send brought the response in"
+    );
+    // The split opens short; give the request pane room to shrink in.
+    shell.update(cx, |shell, cx| shell.step_split(gpui::px(300.), cx));
+    cx.run_until_parked();
+    assert_reaches_pane_bottom(cx, "request-body-input");
+    let before = height(cx, "request-body-input-editor");
+
+    shell.update(cx, |shell, cx| shell.step_split(gpui::px(-100.), cx));
+    cx.run_until_parked();
+    assert_eq!(
+        before - height(cx, "request-body-input-editor"),
+        gpui::px(100.),
+        "moving the split up shrinks the editor by as much ({before:?} before)"
+    );
+    assert_reaches_pane_bottom(cx, "request-body-input");
+
+    shell.update(cx, |shell, cx| shell.step_split(gpui::px(100.), cx));
+    cx.run_until_parked();
+    assert_eq!(height(cx, "request-body-input-editor"), before, "and back");
+
+    shell.update(cx, |shell, cx| shell.step_split(gpui::px(-5000.), cx));
+    cx.run_until_parked();
+    assert!(
+        height(cx, "request-body-input-editor")
+            >= bolt::tokens::EditorMetrics::CODE_LINE_HEIGHT * super::code_edit::MIN_ROWS as f32,
+        "a split squeezed shut still leaves a usable editor"
+    );
+}
+
+#[gpui::test]
+fn both_graphql_editors_fill_the_pane(cx: &mut TestAppContext) {
+    let (_shell, cx) = open_fill(cx, "body");
+    click(cx, "body-mode-graphql");
+    for (well, editor) in [
+        ("request-body-query", "request-body-query-input"),
+        ("request-body-variables", "request-body-variables-input"),
+    ] {
+        assert_reaches_pane_bottom(cx, well);
+        click(cx, &format!("{well}-code"));
+        assert_reaches_pane_bottom(cx, editor);
+        assert_reaches_pane_bottom(cx, &format!("{editor}-editor"));
+    }
+}
+
+#[gpui::test]
+fn the_script_editor_fills_the_pane(cx: &mut TestAppContext) {
+    let (_shell, cx) = open_fill(cx, "scripts");
+    click(cx, "request-script-pre-code");
+    // The edited box takes what the note and the other box leave: the stack ends at the pane.
+    assert_reaches_pane_bottom(cx, "request-script-test-editor");
+    let editor = present(cx, "request-script-pre-input");
+    let boxed = present(cx, "request-script-pre-editor");
+    assert!(boxed.contains(&editor.origin) && boxed.contains(&editor.bottom_right()));
+    assert!(
+        editor.size.height > bolt::tokens::EditorMetrics::CODE_LINE_HEIGHT * 12.,
+        "taller than the 12 rows it used to have"
+    );
+}
+
+#[gpui::test]
+fn the_docs_editor_fills_the_pane(cx: &mut TestAppContext) {
+    let (_shell, cx) = open_fill(cx, "docs");
+    click(cx, "request-docs-add");
+    assert_reaches_pane_bottom(cx, "request-docs-input");
+    assert_reaches_pane_bottom(cx, "request-docs-input-editor");
+}
+
+#[gpui::test]
+fn tabs_without_an_editor_keep_their_natural_height_and_the_pane_scrolls_them(
+    cx: &mut TestAppContext,
+) {
+    let (_shell, cx) = open_fill(cx, "settings");
+    let pane = present(cx, "request-pane");
+    let content = present(cx, "request-setting-timeout-text");
+    assert!(
+        pane.bottom() - content.bottom() > gpui::px(100.),
+        "a settings row stays its own height instead of stretching to the pane"
+    );
+    assert!(pane.top() < content.top());
+}

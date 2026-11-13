@@ -19,15 +19,13 @@ use reqflux_core::model::Body;
 use reqflux_engine::Inspection;
 
 use super::super::{code, ui};
-use super::controls::{focus_ring, text_well};
+use super::controls::{filling_well, focus_ring, scrolling};
 use crate::shell::code_edit;
 use crate::shell::rows::part;
 use crate::shell::{Shell, region};
 
 /// The icon of the query column.
 const QUERY_ICON: IconName = IconName::Code;
-/// The rows the query and variables editors show.
-const EDITOR_ROWS: usize = 8;
 
 /// Which GraphQL field the editor edits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,7 +109,11 @@ pub(super) fn render(
             request_id, inspection, field, icon, text, error, shell, cx,
         ));
     }
+    // The columns stand side by side and share the pane's width evenly; each is as tall as
+    // the pane leaves, its well and editor taking what the label and banner do not.
     region("request-body-graphql")
+        .flex_1()
+        .min_h(code_edit::well_min_height())
         .flex()
         .gap(Spacing::MD)
         .pl(Spacing::MD)
@@ -189,6 +191,7 @@ fn column(
         Some(editor) => div()
             .flex_1()
             .min_w_0()
+            .min_h_0()
             .flex()
             .flex_col()
             .gap(Spacing::XS)
@@ -206,15 +209,16 @@ fn column(
                 field.language(),
                 cx,
             );
-            let well = text_well(field.well_id().to_owned(), cx)
+            let well = filling_well(field.well_id().to_owned(), cx)
                 .cursor_text()
                 .on_click(cx.listener(move |this, _event, window, cx| {
                     this.start_graphql_edit(&request, field, window, cx);
                 }))
-                .child(block);
+                .child(scrolling(format!("{}-lines", field.well_id()), block));
             div()
                 .flex_1()
                 .min_w_0()
+                .min_h_0()
                 .flex()
                 .flex_col()
                 .gap(Spacing::XS)
@@ -242,7 +246,7 @@ fn editor(
     let request = request_id.to_owned();
     let escape_request = request.clone();
     Some(
-        text_well(format!("{}-input", field.well_id()), cx)
+        filling_well(format!("{}-input", field.well_id()), cx)
             .capture_action(cx.listener(move |this, action: &InputEnter, window, cx| {
                 if action.secondary {
                     cx.stop_propagation();
@@ -254,7 +258,11 @@ fn editor(
             .on_action(cx.listener(move |this, _: &InputEscape, window, cx| {
                 this.close_graphql_edit(&escape_request, window, cx);
             }))
-            .child(code_edit::element(&edit.input, EDITOR_ROWS, cx))
+            .child(code_edit::fill(
+                format!("{}-input-editor", field.well_id()),
+                &edit.input,
+                cx,
+            ))
             .when(edit.focused, |well| {
                 well.child(focus_ring(format!("{}-focus-ring", field.well_id()), cx))
             })

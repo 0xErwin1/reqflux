@@ -18,12 +18,12 @@ use gpui_kit_assets::IconName;
 use reqflux_core::model::{Body, FormPart, KeyValue, RawLanguage};
 use reqflux_engine::Inspection;
 
-use self::controls::{focus_ring, select, text_well};
+use self::controls::{filling_well, focus_ring, scrolling, select};
 use super::pane_model::body_mode;
 use super::segmented::control;
 use super::{body_menu, code, grid, ui};
 use crate::shell::Shell;
-use crate::shell::body_edit::{BODY_MODES, EDITOR_ROWS, body_hint, body_kind};
+use crate::shell::body_edit::{BODY_MODES, body_hint, body_kind};
 use crate::shell::code_edit;
 use crate::shell::rows::part;
 
@@ -149,7 +149,7 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
         .as_ref()
         .filter(|edit| edit.request_id == request_id)?;
     Some(
-        text_well("request-body-input".to_owned(), cx)
+        filling_well("request-body-input".to_owned(), cx)
             .mx(Spacing::MD)
             .mt(Spacing::SM)
             .pl(Spacing::MD)
@@ -163,7 +163,11 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
             .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                 this.close_body_edit(window, cx);
             }))
-            .child(code_edit::element(&edit.input, EDITOR_ROWS, cx))
+            .child(code_edit::fill(
+                "request-body-input-editor".to_owned(),
+                &edit.input,
+                cx,
+            ))
             .when(edit.focused, |well| {
                 well.child(focus_ring("request-body-input-focus-ring".to_owned(), cx))
             })
@@ -203,15 +207,16 @@ pub(super) fn render(
             None => {
                 let request = request_id.to_owned();
                 let block = code_block(text, *language, cx);
+                // Where the editor will be, as tall as it: the lines scroll inside.
                 vec![
-                    text_well("request-body-raw".to_owned(), cx)
+                    filling_well("request-body-raw".to_owned(), cx)
                         .mx(Spacing::MD)
                         .mt(Spacing::SM)
                         .cursor_text()
                         .on_click(cx.listener(move |this, _event, window, cx| {
                             this.start_body_edit(&request, window, cx);
                         }))
-                        .child(block)
+                        .child(scrolling("request-body-raw-lines".to_owned(), block))
                         .into_any_element(),
                 ]
             }

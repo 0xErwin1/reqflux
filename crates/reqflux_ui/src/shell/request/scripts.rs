@@ -18,7 +18,7 @@ use super::{code, ui};
 use crate::shell::Shell;
 use crate::shell::code_edit;
 use crate::shell::rows::part;
-use crate::shell::scripts_edit::{EDITOR_ROWS, ScriptSlot};
+use crate::shell::scripts_edit::ScriptSlot;
 
 /// The heading, the empty-state title and text, and the empty state's button of `slot`.
 fn copy(slot: ScriptSlot) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -72,8 +72,17 @@ pub(super) fn render(
             .map(|_| format!("{}{}", inspection.request.slug, slot.suffix()));
         editor_box(id, inspection, slot, slot.text(&shown), file, shell, cx)
     });
+    let editing = shell
+        .script_edit
+        .as_ref()
+        .is_some_and(|edit| edit.request_id == id);
+    // While a script is edited the stack fills the pane, and the edited box takes what the
+    // note and the other box leave.
     vec![
         div()
+            .when(editing, |stack| {
+                stack.flex_1().min_h(code_edit::well_min_height())
+            })
             .flex()
             .flex_col()
             .gap(Spacing::SM)
@@ -144,6 +153,10 @@ fn editor_box(
         .children(delete);
     let body = match (editing, text) {
         (Some(input), _) => div()
+            .flex_1()
+            .min_h(code_edit::well_min_height())
+            .flex()
+            .flex_col()
             .pl(Spacing::MD)
             .pr(Spacing::MD)
             .py(Spacing::SM)
@@ -156,13 +169,11 @@ fn editor_box(
             .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
                 this.close_script_edit(window, cx);
             }))
-            .child(
-                part(format!("request-script-{slot_id}-input")).child(code_edit::element(
-                    &input,
-                    EDITOR_ROWS,
-                    cx,
-                )),
-            )
+            .child(code_edit::fill(
+                format!("request-script-{slot_id}-input"),
+                &input,
+                cx,
+            ))
             .into_any_element(),
         (None, Some(text)) => {
             let request = id.to_owned();
@@ -185,10 +196,15 @@ fn editor_box(
         (None, None) => empty_state(id, slot, cx),
     };
     let focused = shell.script_edit_focused(id, slot);
+    let open = shell
+        .script_edit
+        .as_ref()
+        .is_some_and(|edit| edit.request_id == id && edit.slot == slot);
     part(format!("request-script-{slot_id}-editor"))
         .relative()
         .flex()
         .flex_col()
+        .when(open, |editor| editor.flex_1())
         .child(
             Chamfer::new(ChamferCut::CONTROL)
                 .fill(colors.background)

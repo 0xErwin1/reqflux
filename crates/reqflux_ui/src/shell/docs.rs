@@ -78,6 +78,9 @@ pub(crate) struct Docs<'a> {
     pub(crate) cancel: Option<Act>,
     /// What the empty state says under its title.
     pub(crate) hint: &'static str,
+    /// Whether the open editor fills the room its flex column leaves (a request's pane)
+    /// instead of showing [`EDITOR_ROWS`] lines (a page that scrolls as a whole).
+    pub(crate) fill: bool,
 }
 
 /// A stateful button `id` running `act`.
@@ -142,7 +145,11 @@ pub(crate) fn render(docs: Docs<'_>, cx: &App) -> AnyElement {
         (None, Some(text)) => view(prefix, text),
         (None, None) => empty(&docs, cx),
     };
+    let filling = docs.fill && docs.edit.is_some();
     region_of(prefix)
+        .when(filling, |block| {
+            block.flex_1().min_h(code_edit::well_min_height())
+        })
         .flex()
         .flex_col()
         .gap(Spacing::SM)
@@ -204,9 +211,20 @@ fn editor(docs: &Docs<'_>, edit: &DocsEdit, cx: &App) -> AnyElement {
     let prefix = docs.prefix;
     let escape = docs.cancel.clone().unwrap_or_else(|| docs.done.clone());
     let tint = bolt::brand::brand(cx).accent_tint;
+    let editor = if docs.fill {
+        code_edit::fill(format!("{prefix}-input-editor"), &edit.input, cx).into_any_element()
+    } else {
+        code_edit::element(&edit.input, EDITOR_ROWS, cx).into_any_element()
+    };
     well(format!("{prefix}-input"), cx)
+        .when(docs.fill, |well| {
+            well.flex()
+                .flex_col()
+                .flex_1()
+                .min_h(code_edit::well_min_height())
+        })
         .on_action(move |_: &InputEscape, window, cx| escape(window, cx))
-        .child(code_edit::element(&edit.input, EDITOR_ROWS, cx))
+        .child(editor)
         .when(edit.focused, |well| {
             well.child(
                 part(format!("{prefix}-focus-ring"))
@@ -474,6 +492,7 @@ pub(in crate::shell) fn collection_block(
             this.close_collection_docs_edit(window, cx);
         })),
         hint: "Notes about this collection, in markdown: what it is for and how to use it.",
+        fill: false,
     };
     let colors = bolt::colors(cx);
     region("collection-docs-block")

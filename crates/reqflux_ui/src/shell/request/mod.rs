@@ -37,7 +37,10 @@ pub(crate) use send::{elapsed_text, size_text};
 pub(crate) use sub_tabs::{shown_rows, sub_tab_badge};
 
 use bolt::tokens::Spacing;
-use gpui::{Context, Div, ParentElement, Stateful, StatefulInteractiveElement, Styled, Window};
+use gpui::{
+    Context, Div, ParentElement, Stateful, StatefulInteractiveElement, Styled, Window, div,
+};
+use reqflux_core::model::Body;
 
 use super::{Shell, region};
 
@@ -97,11 +100,34 @@ fn pane(
         SubTab::Settings => settings::render(id, &request.settings, shell, cx),
     };
     // The pane takes what the split leaves and scrolls: a tall tab (Scripts, a long grid)
-    // must not run under the response.
-    region("request-pane")
+    // must not run under the response. It is a flex column: an open editor is a flex share
+    // of it and fills what is left (down to its few-line minimum, where the pane scrolls),
+    // so the split resizes the editor; any other content keeps its own height in one block.
+    let pane = region("request-pane")
+        .flex()
+        .flex_col()
         .flex_1()
         .min_h_0()
         .overflow_y_scroll()
-        .pb(Spacing::MD)
-        .children(content)
+        .pb(Spacing::MD);
+    if fills(id, state, &request.body, shell) {
+        pane.children(content)
+    } else {
+        pane.child(div().flex_none().children(content))
+    }
+}
+
+/// Whether the pane of the request `id` has an editor that fills it: the raw and GraphQL
+/// body editors (their read-only wells fill as well, so nothing jumps when editing starts),
+/// and an open script or description editor.
+fn fills(id: &str, state: &RequestState, body: &Body, shell: &Shell) -> bool {
+    match state.tab {
+        SubTab::Body => matches!(body, Body::Raw { .. } | Body::Graphql { .. }),
+        SubTab::Scripts => shell
+            .script_edit
+            .as_ref()
+            .is_some_and(|edit| edit.request_id == id),
+        SubTab::Docs => state.docs_edit.is_some(),
+        _ => false,
+    }
 }

@@ -34,9 +34,6 @@ pub(crate) const RAW_LANGUAGES: [(&str, &str, RawLanguage); 3] = [
     ("text", "Text", RawLanguage::Text),
 ];
 
-/// The rows the raw text editor shows.
-pub(crate) const EDITOR_ROWS: usize = 12;
-
 /// The mode id of `body`.
 pub(crate) fn body_kind(body: &Body) -> &'static str {
     match body {

@@ -21,6 +21,10 @@
     - The description is markdown, drawn by `bolt`'s `MarkdownView`: the interface face for
       prose, headings a step of the token scale, fenced code in the mono face, and the text
       selectable, in a well with `Spacing::MD` sides and `Spacing::SM` above and below.
+    - The open editor of a request fills the pane: its well takes all the height under the
+      DOCUMENTATION header (the frame below is a crop), follows the request/response split when
+      it is dragged and scrolls its own text, with at least four lines; the collection block
+      keeps its fixed height because the settings page scrolls as a whole.
     - Escape closes the editor: Done for a request (the text stays in the draft), Cancel for a
       collection (the text is dropped).
     - Text is stored in `description` of the .req.toml / collection.toml / folder.toml, a TOML
@@ -82,7 +86,7 @@ body{margin:0;background:#050507}
   <div class="well c8"><h4>List invoices</h4><p>Returns the invoices of the current tenant, newest first.</p><ul><li>Pass <code>page</code> to page through</li><li>Needs the <code>billing:read</code> scope</li></ul></div>
  </div></div></div>
 
-<div class="frame"><div class="state-head"><h3>B · Request, editing (draft)</h3></div>
+<div class="frame"><div class="state-head"><h3>B · Request, editing (draft; the well fills the pane)</h3></div>
 <div class="island c14">
  <div class="tabs"><span class="tab on"><i></i>Docs<span class="dia"></span></span><span class="tab"><i></i>Params</span><span class="tab"><i></i>Headers 2</span><span class="tab"><i></i>Body</span><span class="tab"><i></i>Auth</span><span class="tab"><i></i>Scripts</span><span class="tab"><i></i>Settings</span></div>
  <div class="pane">
