@@ -565,6 +565,11 @@ exists:
   urlencoded|formdata>`); switching between raw languages keeps the text, any other switch
   starts empty. Raw text opens a code editor (`request-body-input`) that writes the
   draft as it is typed: Enter inserts a newline, Ctrl+Enter sends, Escape leaves it.
+  The raw and GraphQL editors, and an open script or description editor, fill the height
+  the request/response split leaves the request pane and follow it when the split moves.
+  They scroll their own lines, keep at least four, and the read-only wells fill the same area
+  so nothing jumps when editing starts. Other tabs keep their natural height and the pane
+  scrolls them.
   Highlighting (design/syntax/01): the raw text, its read-only well included, takes the
   grammar of its language (JSON, XML, HTML, JavaScript; Text is plain), and the open editor
   follows the language menu. The code editors are gpui-component's `EditorState` through
