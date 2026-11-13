@@ -179,6 +179,13 @@ impl Masker {
         })
     }
 
+    /// Whether `value` is, as a whole, the password of the send's URL user info in one of its
+    /// forms, such as a variable the URL takes its password from.
+    #[must_use]
+    pub fn is_url_password(&self, value: &str) -> bool {
+        !value.is_empty() && self.frames.iter().any(|form| form == value)
+    }
+
     /// `text` with every secret value replaced by [`MASK`].
     #[must_use]
     pub fn mask(&self, text: &str) -> String {

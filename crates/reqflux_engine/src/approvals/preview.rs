@@ -282,12 +282,22 @@ fn used_variable(
                 source
             },
         },
-        Some((variable, source)) => UsedVariable {
-            name,
-            value: masker.mask(&variable.value.unwrap_or_default()),
-            secret: false,
-            source,
-        },
+        Some((variable, source)) => {
+            let value = variable.value.unwrap_or_default();
+            // A plain variable that holds the URL's password is masked whole: the masker
+            // only finds that password in its `:password@` frame.
+            let value = if masker.is_url_password(&value) {
+                MASK.to_owned()
+            } else {
+                masker.mask(&value)
+            };
+            UsedVariable {
+                name,
+                value,
+                secret: false,
+                source,
+            }
+        }
         None if DynamicVariable::parse(&name).is_some() => UsedVariable {
             name,
             value: String::new(),

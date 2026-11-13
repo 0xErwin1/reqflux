@@ -175,3 +175,40 @@ fn a_run_records_the_document_with_the_url_password_masked() {
     );
     assert_eq!(record.sent.url, reopened.url);
 }
+
+#[test]
+fn the_approval_preview_masks_a_url_password_held_by_a_plain_variable() {
+    let dir = temp_dir();
+    write(
+        dir.path(),
+        "reqflux.toml",
+        &format!("id = \"{}\"\nname = \"W\"\nformat = 1\n", id_text(900)),
+    );
+    write(
+        dir.path(),
+        "collections/api/collection.toml",
+        &format!(
+            "id = \"{}\"\nname = \"Api\"\n\n[[variables]]\nkey = \"pw\"\nvalue = \"hunter22\"\n",
+            id_text(1)
+        ),
+    );
+    write(
+        dir.path(),
+        "collections/api/r.req.toml",
+        &format!(
+            "id = \"{}\"\nname = \"R\"\nmethod = \"GET\"\nurl = \"http://admin:{{{{pw}}}}@api.test/x\"\n",
+            id_text(2)
+        ),
+    );
+    let engine = open_engine(dir.path()).unwrap();
+    let shown = reqflux_engine::approvals::preview(&engine, &id_text(2), None).unwrap();
+    assert_eq!(shown.url, format!("http://admin:{MASK}@api.test/x"));
+    assert!(
+        shown
+            .variables
+            .iter()
+            .all(|v| !v.value.contains("hunter22")),
+        "{:?}",
+        shown.variables
+    );
+}
