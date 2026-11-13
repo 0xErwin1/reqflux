@@ -398,3 +398,53 @@ fn a_query_holding_a_url_is_recorded_as_typed() {
     assert_eq!(executed.sent.url, url);
     assert_eq!(executed.response.timings.hops[0].wire.url, url);
 }
+
+#[test]
+fn a_url_password_with_an_unescaped_delimiter_is_sent_and_masked() {
+    let runtime = runtime();
+    let server = start(
+        &runtime,
+        vec![
+            Mock::given(method("GET"))
+                .and(path("/x"))
+                .respond_with(ResponseTemplate::new(200)),
+        ],
+    );
+    let port = server.address().port();
+    for password in ["p#ss", "p/ss", "p?ss"] {
+        let dir = temp_dir();
+        let engine = engine(
+            dir.path(),
+            &format!("url = \"http://ana:{password}@127.0.0.1:{port}/x\"\n"),
+        );
+        let executed = run(&engine, "unused");
+        assert_eq!(executed.response.status, 200, "{password}");
+        assert_eq!(
+            executed.sent.url,
+            format!("http://ana:{}@127.0.0.1:{port}/x", reqflux_engine::MASK),
+            "{password}"
+        );
+        let wire = format!("{:?}", executed.response.timings);
+        assert!(!wire.contains(password), "{password}: {wire}");
+    }
+    let received = runtime.block_on(server.received_requests()).unwrap();
+    let credentials: Vec<String> = received
+        .iter()
+        .map(|request| {
+            request
+                .headers
+                .get("authorization")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(
+        credentials,
+        vec![
+            "Basic YW5hOnAjc3M=",
+            "Basic YW5hOnAvc3M=",
+            "Basic YW5hOnA/c3M=",
+        ]
+    );
+}

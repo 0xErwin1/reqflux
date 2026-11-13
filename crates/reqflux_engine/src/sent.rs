@@ -242,6 +242,10 @@ pub fn is_credential_header(name: &str) -> bool {
 /// as `/` and `:` that [`crate::prepare::percent_encode`] encodes. A transport error echoes
 /// the URL in this form.
 fn url_query_form(value: &str) -> String {
+    // A `#` would end the query, leaving a prefix that masks unrelated text.
+    if value.contains('#') {
+        return value.to_owned();
+    }
     url::Url::parse(&format!("http://h/?{value}"))
         .ok()
         .and_then(|url| url.query().map(str::to_owned))
@@ -250,6 +254,10 @@ fn url_query_form(value: &str) -> String {
 
 /// `value` as the `url` crate serializes it in a path segment.
 fn url_path_form(value: &str) -> String {
+    // A `?` or `#` would end the path, leaving a prefix that masks unrelated text.
+    if value.contains(['?', '#']) {
+        return value.to_owned();
+    }
     url::Url::parse(&format!("http://h/{value}"))
         .ok()
         .and_then(|url| url.path().strip_prefix('/').map(str::to_owned))
