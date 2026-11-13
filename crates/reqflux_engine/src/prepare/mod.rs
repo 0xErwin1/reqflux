@@ -95,12 +95,57 @@ impl Prepared {
 /// query or fragment, after the first `:`. The text is read as typed, not parsed, because the
 /// URL parser re-encodes the password.
 fn url_password(url: &str) -> Option<&str> {
+    url.get(typed_password_span(url)?)
+}
+
+/// The byte range of [`url_password`] in `url`.
+fn typed_password_span(url: &str) -> Option<std::ops::Range<usize>> {
     let start = url.find("://")? + 3;
     let rest = url.get(start..)?;
     let authority = rest.get(..rest.find(['/', '?', '#']).unwrap_or(rest.len()))?;
     let user_info = authority.get(..authority.rfind('@')?)?;
-    let password = user_info.get(user_info.find(':')? + 1..)?;
-    (!password.is_empty()).then_some(password)
+    let from = user_info.find(':')? + 1;
+    (from < user_info.len()).then_some(start + from..start + user_info.len())
+}
+
+/// `url`, a request's URL as written, with a literal password in its user info replaced by
+/// [`MASK`](crate::MASK). A password that is only a `{{variable}}` reference stays, since it
+/// holds no secret and the request must still resolve.
+#[must_use]
+pub(crate) fn mask_url_password(url: &str) -> String {
+    let span = typed_password_span(url).or_else(|| {
+        let password = unparsed_url_password(url)?;
+        let from = url.find("://")? + 3;
+        let at = url.get(from..)?.find(password)? + from;
+        Some(at..at + password.len())
+    });
+    let Some(span) = span else {
+        return url.to_owned();
+    };
+    let password = url.get(span.clone()).unwrap_or_default();
+    let reference = password.starts_with("{{")
+        && password.ends_with("}}")
+        && password.matches("{{").count() == 1;
+    if reference {
+        return url.to_owned();
+    }
+    format!(
+        "{}{}{}",
+        url.get(..span.start).unwrap_or_default(),
+        crate::sent::MASK,
+        url.get(span.end..).unwrap_or_default()
+    )
+}
+
+/// The TOML of `request` as history stores it: the file text with a literal password in its
+/// URL's user info masked, so reopening an entry shows the mask like any secret.
+///
+/// # Errors
+/// Returns the serialization error.
+pub fn history_document(request: &Request) -> Result<String, toml::ser::Error> {
+    let mut request = request.clone();
+    request.url = mask_url_password(&request.url);
+    toml::to_string(&request)
 }
 
 /// The password a URL that does not parse may hold in its user info, typed with an unescaped
@@ -268,13 +313,20 @@ pub(crate) fn prepare_target(
     let body = body::prepare(&request.body, root, &headers, &mut resolver)?;
     resolver.add_secret_values(&names, &mut secrets);
     // A password typed in the URL's user info is a credential the transport sends as Basic
-    // auth, so it is masked like any secret value: as typed and percent-decoded.
+    // auth. It is masked only in its URL frame (`:password@`): as typed, percent-decoded and
+    // as the URL parser serializes it. A short or common one would mask unrelated text.
     if let Some(password) = url_password(&base) {
-        secrets.add(password);
-        secrets.add(percent_decode(password));
+        secrets.add_url_password(password);
+        secrets.add_url_password(percent_decode(password));
+    }
+    if let Some(password) = ::url::Url::parse(&base)
+        .ok()
+        .and_then(|parsed| parsed.password().map(str::to_owned))
+    {
+        secrets.add_url_password(password);
     }
     if let Some(password) = unparsed_url_password(&base) {
-        secrets.add(password);
+        secrets.add_url_password(password);
     }
 
     Ok(Prepared {

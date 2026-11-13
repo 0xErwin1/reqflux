@@ -151,7 +151,7 @@ impl Engine {
         outcome: HistoryOutcome,
     ) {
         let document = match crate::select::find(self.workspace(), &item.id)
-            .map(|target| toml::to_string(&target.request.request))
+            .map(|target| crate::history_document(&target.request.request))
         {
             Ok(Ok(document)) => document,
             Ok(Err(error)) => {

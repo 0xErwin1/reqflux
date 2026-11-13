@@ -167,3 +167,34 @@ fn a_breadcrumb_names_the_path_to_an_item_or_an_environment() {
     assert_eq!(breadcrumb(workspace, PROD).unwrap(), ["prod"]);
     assert_eq!(breadcrumb(workspace, "01J00000000000000000000099"), None);
 }
+
+#[test]
+fn a_preview_masks_a_literal_url_password_in_the_url_template() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let root = dir.path();
+    write(
+        root,
+        "reqflux.toml",
+        &format!("id = \"{WORKSPACE}\"\nname = \"W\"\nformat = 1\n"),
+    );
+    write(
+        root,
+        "collections/api/collection.toml",
+        &format!("id = \"{COLLECTION}\"\nname = \"Api\"\n"),
+    );
+    write(
+        root,
+        "collections/api/r.req.toml",
+        &format!(
+            "id = \"{CREATE}\"\nname = \"R\"\nmethod = \"GET\"\n\
+             url = \"http://admin:1@api.test/1?n=1\"\n"
+        ),
+    );
+    let engine =
+        Engine::open_with_secrets(root.to_path_buf(), Arc::new(MemorySecretStore::new())).unwrap();
+    let shown = preview(&engine, CREATE, None).unwrap();
+    let masked = format!("http://admin:{MASK}@api.test/1?n=1");
+    assert_eq!(shown.inspection.url, masked);
+    assert_eq!(shown.inspection.request.request.url, masked);
+    assert_eq!(shown.url, masked);
+}

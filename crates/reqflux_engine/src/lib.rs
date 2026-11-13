@@ -129,7 +129,8 @@ pub use managed::{
 };
 pub use network::{NetworkSecret, network_settings};
 pub use prepare::{
-    DEFAULT_TIMEOUT_MS, ExecuteOptions, Inspection, Prepared, Span, inspect, prepare, prepare_draft,
+    DEFAULT_TIMEOUT_MS, ExecuteOptions, Inspection, Prepared, Span, history_document, inspect,
+    prepare, prepare_draft,
 };
 /// The JSONPath filter of a response body, re-exported so front ends depend on the engine
 /// only.

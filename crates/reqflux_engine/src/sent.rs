@@ -20,7 +20,10 @@
 //! skipped, since it occurs everywhere and masks nothing. A hop's wire record
 //! ([`Masker::wire`]) and recorded header names are also masked ignoring ASCII case, since the
 //! transport lowercases hosts and header names; there a secret also masks the same letters in
-//! another case. A non-ASCII secret in a host is sent as punycode, which is not masked.
+//! another case. A password typed in the URL's user info is the exception: it is masked only in
+//! its URL frame, `:password@` becoming `:••••••••@` (as typed, percent-decoded and as the
+//! `url` crate serializes it), so a short or common password never masks unrelated text.
+//! A non-ASCII secret in a host is sent as punycode, which is not masked.
 
 use std::fmt;
 use std::sync::Arc;
@@ -58,11 +61,20 @@ pub enum SentBody {
 /// The values a send must never record in clear. Its `Debug` output shows only how many
 /// there are, so it never prints one.
 #[derive(Clone, Default, PartialEq, Eq)]
-pub(crate) struct Secrets(Vec<String>);
+pub(crate) struct Secrets {
+    values: Vec<String>,
+    /// The forms of a password typed in the URL's user info, masked only in the URL frame
+    /// `:password@`, since a short or common password would mask unrelated text anywhere else.
+    url_passwords: Vec<String>,
+}
 
 impl fmt::Debug for Secrets {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "Secrets({} values)", self.0.len())
+        write!(
+            formatter,
+            "Secrets({} values)",
+            self.values.len() + self.url_passwords.len()
+        )
     }
 }
 
@@ -70,15 +82,27 @@ impl Secrets {
     /// Adds `value`, unless it is empty or already known.
     pub(crate) fn add(&mut self, value: impl Into<String>) {
         let value = value.into();
-        if !value.is_empty() && !self.0.contains(&value) {
-            self.0.push(value);
+        if !value.is_empty() && !self.values.contains(&value) {
+            self.values.push(value);
+        }
+    }
+
+    /// Adds a form of the URL password, masked only between `:` and `@`, unless it is empty
+    /// or already known.
+    pub(crate) fn add_url_password(&mut self, form: impl Into<String>) {
+        let form = form.into();
+        if !form.is_empty() && !self.url_passwords.contains(&form) {
+            self.url_passwords.push(form);
         }
     }
 
     /// The [`Masker`] of these values.
     pub(crate) fn masker(&self) -> Masker {
+        let mut frames: Vec<String> = self.url_passwords.clone();
+        frames.sort_by_key(|form| std::cmp::Reverse(form.len()));
         Masker {
             patterns: self.patterns().into(),
+            frames: frames.into(),
         }
     }
 
@@ -87,7 +111,7 @@ impl Secrets {
     /// longest first so a secret that contains another is masked whole.
     fn patterns(&self) -> Vec<String> {
         let mut patterns: Vec<String> = Vec::new();
-        for value in &self.0 {
+        for value in &self.values {
             let forms = [
                 value.clone(),
                 crate::prepare::percent_encode(value),
@@ -116,6 +140,8 @@ impl Secrets {
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Masker {
     patterns: Arc<[String]>,
+    /// The URL passwords, longest first, each replaced only as `:password@`.
+    frames: Arc<[String]>,
 }
 
 impl fmt::Debug for Masker {
@@ -156,9 +182,12 @@ impl Masker {
     /// `text` with every secret value replaced by [`MASK`].
     #[must_use]
     pub fn mask(&self, text: &str) -> String {
-        self.patterns.iter().fold(text.to_owned(), |text, pattern| {
-            text.replace(pattern.as_str(), MASK)
-        })
+        let text = self.frames.iter().fold(text.to_owned(), |text, form| {
+            text.replace(&format!(":{form}@"), &format!(":{MASK}@"))
+        });
+        self.patterns
+            .iter()
+            .fold(text, |text, pattern| text.replace(pattern.as_str(), MASK))
     }
 
     /// The header `name: value` as a recorded request or response shows it: a credential

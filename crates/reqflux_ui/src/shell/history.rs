@@ -214,7 +214,7 @@ impl Shell {
         };
         let (path, saved) = find_request(engine.workspace(), id)?;
         let request = document.unwrap_or(saved);
-        match toml::to_string(request) {
+        match reqflux_engine::history_document(request) {
             Ok(document) => Some(Pending {
                 sent_at: now_millis(),
                 request_id: id.to_owned(),

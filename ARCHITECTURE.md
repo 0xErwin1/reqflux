@@ -420,10 +420,16 @@ masks every hop's `wire` before the response leaves it (`Masker::timings`: each 
 the transport lowercases the host, which reaches `Host` and a redirect's `Referer`; a
 non-ASCII secret in a host goes out as punycode and is not masked), so `Execution.handle`, `Engine::wait`, the
 runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
-masks them again. A password typed in the URL's user info (`user:pass@host`) joins the send's masked values, as
-typed and percent-decoded, so it is masked like any secret value wherever the send's masker runs
-(the recorded URL, hop records, errors, MCP audit and approval lines, and a cross-origin
-redirect drops a header or refuses a body that repeats it). A URL that does not parse and seems to hold a
+masks them again. A password typed in the URL's user info (`user:pass@host`) is masked only in its URL
+frame: `:password@` becomes `:••••••••@` (the password as typed, percent-decoded and as the `url`
+crate serializes it), wherever the send's masker runs (the recorded URL, hop records, errors, MCP
+audit and approval lines), so `http://ana:••••••••@host/x` shows and a short or common password
+(`1`, `admin`) never masks unrelated text nor makes a cross-origin redirect refuse a body or drop
+headers. A history entry's `document` copy of the request file goes through
+`reqflux_engine::history_document`, which masks a literal URL password the same way (a
+`{{variable}}` password stays a reference), so reopening an entry shows the mask and Resend
+needs the password typed again, like any secret; the approval preview masks
+`Inspection::url` the same way. A URL that does not parse and seems to hold a
 password with an unescaped `#`, `/` or `?` (the user info up to the last `@` followed by a
 host) has that guessed password masked too, so the failed send's URL and error do not show
 it; the URL is never rewritten, since a wrong guess would send the request and its

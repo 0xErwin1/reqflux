@@ -171,7 +171,12 @@ pub fn preview(
         ..ExecuteOptions::default()
     };
     let prepared = engine.prepare(request_id, &options)?;
-    let inspection = engine.inspect(request_id, slug.as_deref())?;
+    let mut inspection = engine.inspect(request_id, slug.as_deref())?;
+    // The URL as written may hold a literal password, shown here to a person who has not
+    // approved the call: mask it in its frame.
+    inspection.url = crate::prepare::mask_url_password(&inspection.url);
+    inspection.request.request.url =
+        crate::prepare::mask_url_password(&inspection.request.request.url);
     let masker = prepared.masker();
     let sent = prepared.sent();
     let environment = selected.flatten();
