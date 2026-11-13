@@ -635,9 +635,13 @@ impl Engine {
             browser: Arc::clone(&self.browser),
         };
         let token = cancel.clone();
+        let hop_masker = masker.clone();
         let handle = self.runtime.spawn(async move {
             signed?;
-            crate::auth::send(context, request, auth, token, rules).await
+            let mut response = crate::auth::send(context, request, auth, token, rules).await?;
+            // Every consumer of the response sees the hops' requests masked (sent-headers S4).
+            response.timings = hop_masker.timings(&response.timings);
+            Ok(response)
         });
         Execution {
             method,

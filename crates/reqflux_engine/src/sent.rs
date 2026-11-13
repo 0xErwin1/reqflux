@@ -22,7 +22,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use reqflux_http::{PreparedBody, PreparedRequest, SecretMask};
+use reqflux_http::{PreparedBody, PreparedRequest, SecretMask, Timings, WireRequest};
 
 /// What a secret is replaced with in a recorded request.
 pub const MASK: &str = "••••••••";
@@ -161,6 +161,31 @@ impl Masker {
         } else {
             self.header(name, value)
         }
+    }
+
+    /// The request a hop sent with its secrets masked (sent-headers S4): every header through
+    /// [`Masker::header`] and the URL through [`Masker::mask`].
+    #[must_use]
+    pub fn wire(&self, wire: &WireRequest) -> WireRequest {
+        WireRequest {
+            method: wire.method.clone(),
+            url: self.mask(&wire.url),
+            headers: wire
+                .headers
+                .iter()
+                .map(|(name, value)| self.header(name, value))
+                .collect(),
+        }
+    }
+
+    /// `timings` with the request of every hop masked by [`Masker::wire`].
+    #[must_use]
+    pub fn timings(&self, timings: &Timings) -> Timings {
+        let mut masked = timings.clone();
+        for hop in &mut masked.hops {
+            hop.wire = self.wire(&hop.wire);
+        }
+        masked
     }
 
     /// `value`, a `Set-Cookie` value, with the cookie value replaced by [`MASK`] and the name

@@ -137,7 +137,7 @@ pub use reqflux_core::jsonpath::{self, JsonPathError};
 /// The transport types front ends read, re-exported so they depend on the engine only.
 pub use reqflux_http::{
     CertificateFile, ClientCertificate, HopTimings, HttpError, ManualProxy, NetworkSettings,
-    PreparedBody, PreparedRequest, ProxySetting, Response, Timings,
+    PreparedBody, PreparedRequest, ProxySetting, Response, Timings, WireRequest,
 };
 pub use reqflux_script::{
     ConsoleEntry, ConsoleLevel, NextRequest, ScriptOutcome, TestResult, VariableScope,

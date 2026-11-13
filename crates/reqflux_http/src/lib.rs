@@ -10,6 +10,7 @@ mod redirect;
 mod request;
 mod response;
 mod timing;
+mod wire;
 
 pub use client::{HttpClient, RedirectCheck, RedirectRules, SecretMask};
 pub use error::HttpError;
@@ -19,3 +20,4 @@ pub use network::{
 pub use request::{MultipartPart, MultipartValue, PreparedBody, PreparedRequest, RequestOptions};
 pub use response::Response;
 pub use timing::{HopTimings, Timings};
+pub use wire::WireRequest;

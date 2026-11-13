@@ -19,7 +19,8 @@ use crate::network::{self, CookieJar, NetworkSettings};
 use crate::redirect;
 use crate::request::{MultipartValue, PreparedBody, PreparedRequest, RequestOptions};
 use crate::response::Response;
-use crate::timing::{self, Recorder, TimedResolver, TimingLayer, Timings};
+use crate::timing::{self, HopTimings, Recorder, TimedResolver, TimingLayer, Timings};
+use crate::wire::WireRequest;
 
 /// The maximum number of redirects followed for one request.
 const MAX_REDIRECTS: usize = 10;
@@ -221,14 +222,19 @@ impl HttpClient {
             }
             let builder = client.request(method.clone(), url.clone()).headers(sent);
             let builder = with_body(builder, body, has_content_type, has_content_length).await?;
+            let built = builder
+                .build()
+                .map_err(|error| classify(&error, &url, timeout))?;
+            let wire = WireRequest::of(&built, USER_AGENT);
             let recorder = Arc::new(Recorder::default());
             let hop_started = Instant::now();
-            let response = timing::recorded(Arc::clone(&recorder), builder.send())
+            let response = timing::recorded(Arc::clone(&recorder), client.execute(built))
                 .await
                 .map_err(|error| classify(&error, &url, timeout))?;
-            timings
-                .hops
-                .push(timing::hop(&recorder, hop_started.elapsed()));
+            timings.hops.push(HopTimings {
+                wire,
+                ..timing::hop(&recorder, hop_started.elapsed())
+            });
             if let Some(jar) = jar {
                 store_set_cookies(jar, &response, &url);
             }

@@ -65,6 +65,7 @@ fn timings() -> Timings {
                 tls: None,
                 first_byte: Duration::from_micros(10_000),
                 download: Duration::ZERO,
+                ..Default::default()
             },
             HopTimings {
                 dns: None,
@@ -72,6 +73,7 @@ fn timings() -> Timings {
                 tls: None,
                 first_byte: Duration::from_micros(4_000),
                 download: Duration::from_micros(750),
+                ..Default::default()
             },
         ],
     }

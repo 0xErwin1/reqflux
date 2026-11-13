@@ -203,6 +203,7 @@ mod tests {
                 tls: None,
                 first_byte: ms(129),
                 download: ms(8),
+                ..Default::default()
             }],
         };
         let Some(timeline) = Timeline::new(&timings) else {
@@ -241,6 +242,7 @@ mod tests {
                     tls: None,
                     first_byte: ms(22),
                     download: Duration::ZERO,
+                    ..Default::default()
                 },
                 HopTimings {
                     dns: None,
@@ -248,6 +250,7 @@ mod tests {
                     tls: None,
                     first_byte: ms(110),
                     download: ms(8),
+                    ..Default::default()
                 },
             ],
         };
@@ -283,6 +286,7 @@ mod tests {
                 tls: None,
                 first_byte: ms(9),
                 download: ms(2),
+                ..Default::default()
             }],
         };
         let Some(timeline) = Timeline::new(&timings) else {
@@ -318,7 +322,7 @@ mod tests {
     fn three_hops_count_two_redirects() {
         let hop = HopTimings::default();
         let timings = Timings {
-            hops: vec![hop, hop, hop],
+            hops: vec![hop.clone(), hop.clone(), hop],
         };
         let detail = Timeline::new(&timings).map(|timeline| timeline.detail);
         assert_eq!(detail.as_deref(), Some("2 redirects followed"));

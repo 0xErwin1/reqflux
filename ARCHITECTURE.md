@@ -412,7 +412,13 @@ the reason phrase and a UTF-8 text body. A `Set-Cookie` is stored as received, a
 secret value inside it, as Postman keeps cookies: it is the user's own data in per-user state,
 so a session cookie sits in the state file in clear. A body that is not UTF-8 is stored as received, since the
 masker works on text. Schema v6 adds the send's timings (a JSON array, one object per hop, in
-microseconds); rows recorded before it read as no timings. `PreparedRequest`'s `Debug` prints no URL, header value or body.
+microseconds); rows recorded before it read as no timings. Each hop object also keeps the request that hop
+sent (`method`, `url`, `headers` as `[name, value]` pairs in wire order), masked; the fields are
+optional, so no schema bump: a row without them decodes with an empty wire. The send task
+masks every hop's `wire` before the response leaves it (`Masker::timings`: each header through
+`Masker::header`, the URL through `Masker::mask`), so `Execution.handle`, `Engine::wait`, the
+runner, history and every front end only see masked hop requests; `RecordedResponse::from_response_masked`
+masks them again. `PreparedRequest`'s `Debug` prints no URL, header value or body.
 - **Saving** writes the entity file (atomic, hash-checked) and discards the draft. The
   engine entry points are `Engine::save_request`, which writes the request document back
   and returns the new file hash, and `Engine::request_base_hash`, which reports the hash
@@ -716,8 +722,18 @@ measurably demand it, and then by one-way layers.
 - Transport defaults, each only when the request does not set the header itself: every hop sends
   `User-Agent: ReqFlux/<version>` (some gateways refuse a request without one), and a binary
   body from a regular file sends its `Content-Length` instead of chunked encoding (a pipe or
-  device still goes chunked). Neither is recorded in the
-  sent request or history yet.
+  device still goes chunked).
+- Each hop records the request it put on the wire in `HopTimings.wire` (`WireRequest`: method,
+  URL and the headers sent, in order, names lowercase like `Response.headers`). The transport
+  builds the `reqwest::Request`, then adds what `reqwest` and `hyper` add before the bytes leave,
+  by the same rules and in the same order: the client defaults `Accept: */*` and `User-Agent`,
+  the decompression layer's `Accept-Encoding: zstd,gzip,deflate,br`, `Host` (with the port when
+  it is not the default), and `Content-Length` for a known non-empty body or
+  `Transfer-Encoding: chunked` for a stream, each only when the request lacks it. Raw-TCP
+  capture tests (`tests/sent_hops.rs`) pin that the record equals the HTTP/1.1 request head. Gaps:
+  an HTTP proxy's `Proxy-Authorization` is not recorded, over HTTP/2 `host` stands in for
+  `:authority`, and a request that sets its own `Transfer-Encoding` keeps the `Content-Length`
+  that `hyper` would drop.
 - `reqflux_http` follows redirects itself (at most 10; `reqwest`'s policy is off), because a
   `reqwest` policy can follow or stop but cannot change the next request's headers. 301, 302
   and 303 continue as GET without a body (HEAD stays HEAD); 307 and 308 resend the method and

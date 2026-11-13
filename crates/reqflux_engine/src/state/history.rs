@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use reqflux_http::{HopTimings, Timings};
+use reqflux_http::{HopTimings, Timings, WireRequest};
 use rusqlite::{OptionalExtension, Row, params};
 
 use super::{AppState, StateError, query_error};
@@ -57,6 +57,14 @@ struct StoredHop {
     tls_us: Option<u64>,
     first_byte_us: u64,
     download_us: u64,
+    /// The request the hop sent, masked; absent in a row recorded before they were kept.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    method: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    url: Option<String>,
+    /// `[name, value]` pairs in wire order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    headers: Vec<(String, String)>,
 }
 
 fn micros(duration: Duration) -> u64 {
@@ -73,6 +81,9 @@ fn encode_timings(timings: &Timings) -> Result<String, String> {
             tls_us: hop.tls.map(micros),
             first_byte_us: micros(hop.first_byte),
             download_us: micros(hop.download),
+            method: Some(hop.wire.method.clone()).filter(|method| !method.is_empty()),
+            url: Some(hop.wire.url.clone()).filter(|url| !url.is_empty()),
+            headers: hop.wire.headers.clone(),
         })
         .collect();
     serde_json::to_string(&hops).map_err(|error| error.to_string())
@@ -90,6 +101,11 @@ fn decode_timings(text: &str) -> Result<Timings, String> {
                 tls: hop.tls_us.map(Duration::from_micros),
                 first_byte: Duration::from_micros(hop.first_byte_us),
                 download: Duration::from_micros(hop.download_us),
+                wire: WireRequest {
+                    method: hop.method.unwrap_or_default(),
+                    url: hop.url.unwrap_or_default(),
+                    headers: hop.headers,
+                },
             })
             .collect(),
     })
@@ -209,6 +225,7 @@ impl RecordedResponse {
         if let Ok(text) = std::str::from_utf8(&recorded.body) {
             recorded.body = masker.mask(text).into_bytes();
         }
+        recorded.timings = recorded.timings.map(|timings| masker.timings(&timings));
         recorded
     }
 }

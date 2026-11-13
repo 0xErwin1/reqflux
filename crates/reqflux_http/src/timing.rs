@@ -18,6 +18,8 @@ use std::time::{Duration, Instant};
 
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
+use crate::wire::WireRequest;
+
 /// The timing breakdown of a send, one entry per request sent: the redirects followed in
 /// order, then the final request.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -35,8 +37,10 @@ impl Timings {
 }
 
 /// The phases of one request of a send.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct HopTimings {
+    /// The request this hop put on the wire.
+    pub wire: WireRequest,
     /// The DNS lookup; `None` when there was none: a reused connection or an IP address.
     pub dns: Option<Duration>,
     /// Opening the connection after the lookup: TCP, plus the TLS handshake for HTTPS;
@@ -95,6 +99,7 @@ fn current() -> Option<Arc<Recorder>> {
 pub(crate) fn hop(recorder: &Recorder, headers: Duration) -> HopTimings {
     let (dns, connector) = recorder.measured();
     HopTimings {
+        wire: WireRequest::default(),
         dns,
         connect: connector.map(|connector| connector.saturating_sub(dns.unwrap_or_default())),
         tls: None,
