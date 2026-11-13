@@ -217,14 +217,21 @@ fn add_token(request: &mut PreparedRequest, config: &OAuth2Auth, token: &str) {
     }
 }
 
-/// Masks the token in what comes back: a query token is in the final URL and can be in a
-/// transport error.
+/// Masks the token in what comes back: a query token is in the final URL, in every hop's
+/// wire record, and can be in a transport error.
 fn scrub(result: Result<Response, HttpError>, token: &str) -> Result<Response, HttpError> {
     let encoded: String = url::form_urlencoded::byte_serialize(token.as_bytes()).collect();
     let mask = |text: String| text.replace(token, MASK).replace(&encoded, MASK);
     match result {
         Ok(mut response) => {
             response.final_url = mask(response.final_url);
+            // Every hop's URL holds it, and a redirect's Referer repeats the previous URL.
+            for hop in &mut response.timings.hops {
+                hop.wire.url = mask(std::mem::take(&mut hop.wire.url));
+                for (_, value) in &mut hop.wire.headers {
+                    *value = mask(std::mem::take(value));
+                }
+            }
             Ok(response)
         }
         Err(HttpError::InvalidUrl { url, reason }) => Err(HttpError::InvalidUrl {

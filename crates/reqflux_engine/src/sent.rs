@@ -135,6 +135,14 @@ impl Masker {
             .any(|pattern| pattern.chars().count() >= 2 && text.contains(pattern.as_str()))
     }
 
+    /// Whether `text` contains a secret value form of two or more characters, in any case.
+    fn contains_long_ignoring_case(&self, text: &str) -> bool {
+        let text = text.to_lowercase();
+        self.patterns.iter().any(|pattern| {
+            pattern.chars().count() >= 2 && text.contains(pattern.to_lowercase().as_str())
+        })
+    }
+
     /// `text` with every secret value replaced by [`MASK`].
     #[must_use]
     pub fn mask(&self, text: &str) -> String {
@@ -266,7 +274,8 @@ fn header_value(name: &str, value: &str, masker: &Masker) -> String {
 /// The recorded name of a header: [`MASK`] when it carries a secret of two or more
 /// characters, else the name as sent.
 fn header_name(name: &str, masker: &Masker) -> String {
-    if masker.contains_long(name) {
+    // Header names are case-insensitive and the wire record lowercases them.
+    if masker.contains_long(name) || masker.contains_long_ignoring_case(name) {
         MASK.to_owned()
     } else {
         name.to_owned()
