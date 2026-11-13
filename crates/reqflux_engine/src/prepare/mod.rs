@@ -121,7 +121,9 @@ fn unparsed_url_password(url: &str) -> Option<&str> {
         .find(|&at| is_host_start(rest.get(at + 1..).unwrap_or_default()))?;
     let user_info = rest.get(..at)?;
     let password = user_info.get(user_info.find(':')? + 1..)?;
-    (!password.is_empty()).then_some(password)
+    // A guess holding `@` or `:` spans the typed host (an address in the path or query), and
+    // masking it would hide that host.
+    (!password.is_empty() && !password.contains(['@', ':'])).then_some(password)
 }
 
 /// Whether `text` starts with a host and optional port that end the text or reach a path,

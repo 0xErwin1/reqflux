@@ -452,3 +452,18 @@ fn an_invalid_url_is_never_rewritten_to_another_host() {
         assert_eq!(prepared.request.url, url, "{url}");
     }
 }
+
+#[test]
+fn a_guessed_password_never_hides_the_typed_host() {
+    let url = "http://ana:pw-9@api.test:99999/x?email=bob@evil.com";
+    let dir = temp_dir();
+    let engine = engine(dir.path(), &format!("url = \"{url}\"\n"));
+    let prepared = engine.prepare("api/r", &ExecuteOptions::default()).unwrap();
+    assert_eq!(
+        prepared.sent().url,
+        format!(
+            "http://ana:{}@api.test:99999/x?email=bob@evil.com",
+            reqflux_engine::MASK
+        )
+    );
+}
