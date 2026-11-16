@@ -15,6 +15,7 @@ mod auth_edit;
 mod body_edit;
 mod cell_edit;
 mod code_edit;
+mod code_view;
 mod codegen;
 mod commands;
 mod curl_paste;
@@ -618,6 +619,10 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.watch_cell_blur(window, cx);
+        // The read-only body editors take the text their responses show before it draws.
+        for send in self.sends.values_mut() {
+            response::sync_body(send, window, cx);
+        }
         // A surface `bolt` closed on its own drops its draft here, and the frame after
         // settles what the popover held open.
         self.dismiss_variable_popover(window, cx);

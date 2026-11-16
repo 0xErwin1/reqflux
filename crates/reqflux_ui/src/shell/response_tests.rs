@@ -2,11 +2,14 @@
 //! Retry (S7) and the empty state, against a local HTTP server; and the body search, the
 //! Tests and Console filters, the cookie table and Copy (app-pending S7).
 
-use gpui::{Pixels, TestAppContext, VisualTestContext};
+use gpui::{Entity, Pixels, TestAppContext, VisualTestContext};
+
+use super::Shell;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::thread;
 
+use super::code_view::tests::{PRETTY, body_marks, shown_body};
 use super::draft_tests::{render as render_history, state_file};
 use super::history_tests::{PING as HISTORY_PING, history_workspace, open_top_row};
 use super::preview_tests::serve_reply;
@@ -76,13 +79,6 @@ fn absent(cx: &mut VisualTestContext, selector: &'static str) -> bool {
     cx.debug_bounds(selector).is_none()
 }
 
-/// The tops of the body lines `1..=count`, which must all be present.
-fn line_tops(cx: &mut VisualTestContext, count: usize) -> Vec<Pixels> {
-    (1..=count)
-        .map(|n| present(cx, &format!("response-body-line-{n}")).origin.y)
-        .collect()
-}
-
 #[gpui::test]
 fn a_request_never_sent_shows_no_response(cx: &mut TestAppContext) {
     let (_, cx) = render(cx, serve(Server::Ok));
@@ -109,14 +105,11 @@ fn a_json_response_shows_its_status_meta_and_pretty_body(cx: &mut TestAppContext
     present(cx, "response-view-pretty");
     assert!(absent(cx, "response-empty"));
     let body = present(cx, "response-body");
-    let tops = line_tops(cx, 6);
-    assert!(tops.windows(2).all(|pair| pair[0] < pair[1]), "{tops:?}");
-    assert!(tops.iter().all(|top| *top >= body.origin.y));
-    assert!(absent(cx, "response-body-line-7"));
+    assert!(body.contains(&present(cx, "response-body-text").center()));
+    assert_eq!(shown_body(cx, &shell), PRETTY);
 
     click(cx, "response-view-raw");
-    line_tops(cx, 1);
-    assert!(absent(cx, "response-body-line-2"));
+    assert_eq!(shown_body(cx, &shell), JSON);
 }
 
 #[gpui::test]
@@ -397,15 +390,20 @@ fn type_text(cx: &mut VisualTestContext, text: &str) {
 /// Sends `GET Ping`, whose JSON body pretty-prints as six lines, two holding an `a`
 /// (`"tags"` and `"a"`).
 pub(super) fn sent(cx: &mut TestAppContext) -> &mut VisualTestContext {
+    sent_shell(cx).1
+}
+
+/// [`sent`] with the shell too.
+pub(super) fn sent_shell(cx: &mut TestAppContext) -> (Entity<Shell>, &mut VisualTestContext) {
     let (shell, cx) = render(cx, serve(Server::Ok));
     click(cx, "request-send");
     assert_eq!(settle(cx, &shell, PING).as_deref(), Some("200 OK"));
-    cx
+    (shell, cx)
 }
 
 #[gpui::test]
 fn ctrl_f_in_the_response_searches_the_body(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+    let (shell, cx) = sent_shell(cx);
     // The closed field is `bolt`'s `SearchTrigger`: the shortcut keycap is `<id>-key`.
     present(cx, "response-search-key");
     assert!(absent(cx, "response-search-count"));
@@ -415,12 +413,18 @@ fn ctrl_f_in_the_response_searches_the_body(cx: &mut TestAppContext) {
     assert_eq!(label(cx, "response-search-count"), "0 / 0");
     type_text(cx, "A");
     assert_eq!(label(cx, "response-search-count"), "1 / 2");
-    present(cx, "response-body-hit-1");
-    present(cx, "response-body-hit-2");
-    assert!(absent(cx, "response-body-hit-3"));
+    // The first match is current, in the warning fill; the other one is washed.
+    assert_eq!(
+        body_marks(cx, &shell),
+        [("a".to_owned(), true), ("a".to_owned(), false)]
+    );
 
     press(cx, "enter");
     assert_eq!(label(cx, "response-search-count"), "2 / 2");
+    assert_eq!(
+        body_marks(cx, &shell),
+        [("a".to_owned(), false), ("a".to_owned(), true)]
+    );
     press(cx, "enter");
     assert_eq!(label(cx, "response-search-count"), "1 / 2", "wraps around");
     press(cx, "shift-enter");
@@ -432,22 +436,27 @@ fn ctrl_f_in_the_response_searches_the_body(cx: &mut TestAppContext) {
 
     type_text(cx, "zz");
     assert_eq!(label(cx, "response-search-count"), "0 / 0");
-    assert!(absent(cx, "response-body-hit-1"));
+    assert!(body_marks(cx, &shell).is_empty());
+    assert_eq!(
+        shown_body(cx, &shell),
+        PRETTY,
+        "the search never edits the body"
+    );
 }
 
 #[gpui::test]
 fn escape_closes_the_search_and_its_highlights(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+    let (shell, cx) = sent_shell(cx);
     click(cx, "response-search");
     present(cx, "response-search-count");
     type_text(cx, "tags");
-    present(cx, "response-body-hit-1");
+    assert_eq!(body_marks(cx, &shell), [("tags".to_owned(), true)]);
 
     press(cx, "escape");
     assert!(absent(cx, "response-search-count"));
-    assert!(absent(cx, "response-body-hit-1"));
+    assert!(body_marks(cx, &shell).is_empty());
     present(cx, "response-search-key");
-    present(cx, "response-body-line-1");
+    present(cx, "response-body-text");
 }
 
 #[gpui::test]
@@ -746,14 +755,11 @@ fn filter_body(cx: &mut VisualTestContext, expression: &str) {
 
 #[gpui::test]
 fn a_jsonpath_filter_shows_the_matches_and_their_count(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+    let (shell, cx) = sent_shell(cx);
     assert!(absent(cx, "response-jsonpath-count"));
     filter_body(cx, "$.tags[*]");
     assert_eq!(label(cx, "response-jsonpath-count"), "1 match");
-    assert_eq!(label(cx, "response-body-line-1"), "[");
-    assert_eq!(label(cx, "response-body-line-2"), "  \"a\"");
-    assert_eq!(label(cx, "response-body-line-3"), "]");
-    assert!(absent(cx, "response-body-line-4"));
+    assert_eq!(shown_body(cx, &shell), "[\n  \"a\"\n]");
     assert!(absent(cx, "response-jsonpath-error"));
     assert_eq!(
         label(cx, "response-footer-filtered"),
@@ -772,22 +778,25 @@ fn a_jsonpath_filter_shows_the_matches_and_their_count(cx: &mut TestAppContext) 
     press(cx, "escape");
     assert!(absent(cx, "response-jsonpath-count"));
     assert!(absent(cx, "response-footer-filtered"));
-    present(cx, "response-body-line-6");
+    assert_eq!(
+        shown_body(cx, &shell),
+        PRETTY,
+        "closing the filter shows the whole body"
+    );
 }
 
 #[gpui::test]
 fn a_jsonpath_filter_without_matches_shows_an_empty_array(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+    let (shell, cx) = sent_shell(cx);
     filter_body(cx, "$.missing");
     assert_eq!(label(cx, "response-jsonpath-count"), "0 matches");
-    assert_eq!(label(cx, "response-body-line-1"), "[]");
-    assert!(absent(cx, "response-body-line-2"));
+    assert_eq!(shown_body(cx, &shell), "[]");
     assert!(absent(cx, "response-jsonpath-error"));
 }
 
 #[gpui::test]
 fn an_invalid_jsonpath_shows_the_banner_over_the_unfiltered_body(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+    let (shell, cx) = sent_shell(cx);
     filter_body(cx, "$[");
     assert_eq!(label(cx, "response-jsonpath-count"), "error");
     let banner = label(cx, "response-jsonpath-error");
@@ -798,18 +807,18 @@ fn an_invalid_jsonpath_shows_the_banner_over_the_unfiltered_body(cx: &mut TestAp
     assert!(
         present(cx, "response-jsonpath-error").origin.y < present(cx, "response-body").origin.y
     );
-    present(cx, "response-body-line-6");
+    assert_eq!(shown_body(cx, &shell), PRETTY);
     assert!(absent(cx, "response-footer-filtered"));
 }
 
 #[gpui::test]
 fn body_search_still_counts_the_body_beside_the_jsonpath_field(cx: &mut TestAppContext) {
-    let cx = sent(cx);
+    let (shell, cx) = sent_shell(cx);
     present(cx, "response-jsonpath");
     click(cx, "response-search");
     type_text(cx, "A");
     assert_eq!(label(cx, "response-search-count"), "1 / 2");
-    present(cx, "response-body-hit-2");
+    assert_eq!(body_marks(cx, &shell).len(), 2);
     press(cx, "enter");
     assert_eq!(label(cx, "response-search-count"), "2 / 2");
 }

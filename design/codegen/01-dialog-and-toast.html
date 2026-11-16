@@ -10,11 +10,11 @@
   {{variable}} stays as written, secret or not; nothing is resolved from the environment.
   Undo shows the key of the Undo curl paste command (Ctrl+Alt+Z by default, rebindable in
   Settings > Keymap) as a keycap inside the button (ToastAction::key_hint); the button keeps
-  "Undo" as its name. The code is bolt's ModalCode with its line-number gutter, colored by its
+  "Undo" as its name. The code is a read-only code editor (S5 of feedback-nov16: the text is selectable and Ctrl C copies the selection, nothing typed changes it) in a cut-8 well, with its line-number gutter, colored by its
   language's grammar as design/syntax/01 draws it (curl and HTTPie bash, so the command is the
   function role; Python python; fetch javascript); the {{variable}} references are its
-  highlights, bold tint when they resolve and bold warning (highlights_with_tone, Warning)
-  when they do not. ModalCode's tones color the text only: no wash or underline in the code.
+  text decorations, bold tint when they resolve and bold warning
+  when they do not. They color the text only: no wash or underline in the code.
 -->
 <style>
 body{margin:0;background:#09090B}
@@ -68,6 +68,7 @@ button{font:inherit;white-space:nowrap}
 .ln>.no{width:46px;padding-right:14px;box-sizing:border-box;text-align:right;color:#37333D}
 .ln>.tx{white-space:pre;color:#C6C3CC}
 .k{color:#6EA8FF}.s{color:#7BE0A0}.nu{color:#B79CFF}.b{color:#FFC23D}
+.selx{background:rgba(157,177,255,.28)}
 .fn{color:#FFC23D;font-weight:700}.unres-code{color:#FFC23D;font-weight:700}
 .c12{clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px)}
 .hint{font-size:12px;color:#8E8996}
@@ -434,5 +435,7 @@ button{font:inherit;white-space:nowrap}
     <span class="hint">Pasted a URL: only the URL changes, no toast.</span>
   </div>
 </div></div>
+<div class="state"><div class="state-head"><h3>Code · selection</h3><p>The code is a read-only editor: select with the mouse or the keyboard (Ctrl A selects all) and Ctrl C copies the selection, leaving the dialog open; the Copy button still copies all the code and closes. The selection draws as the editor's text-selection wash.</p></div>
+<div class="frame" style="padding:16px;background:#100F13"><div class="c8 box m" aria-label="Generated curl command, read only" style="padding:8px 0;font-size:12.5px"><div class="ln"><span class="no">1</span><span class="tx"><span class="fn">curl</span> <span class="s">'<span class="var">{{base_url}}</span>/v1/invoices?expand=lines'</span> \</span></div><div class="ln"><span class="no">2</span><span class="tx"><span class="selx">  -H <span class="s">'Content-Type: application/json'</span></span> \</span></div></div></div></div>
 </section>
 </body></html>

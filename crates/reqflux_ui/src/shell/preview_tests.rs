@@ -13,6 +13,7 @@ use std::time::{Duration, Instant};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
 use super::Shell;
+use super::code_view::tests::shown_body;
 use super::request::{Completed, SendState};
 use super::response::{BodyView, Preview, PreviewHost, cookie_count};
 use super::send_tests::{PING, Server, click, render, serve, settle};
@@ -331,12 +332,10 @@ fn a_json_response_offers_no_preview_and_keeps_pretty_and_raw(cx: &mut TestAppCo
     absent(cx, "response-view-preview");
     present(cx, "response-view-pretty");
     present(cx, "response-view-raw");
-    present(cx, "response-body-line-6");
-    absent(cx, "response-body-line-7");
+    assert_eq!(shown_body(cx, &shell).lines().count(), 6);
 
     click(cx, "response-view-raw");
-    present(cx, "response-body-line-1");
-    absent(cx, "response-body-line-2");
+    assert_eq!(shown_body(cx, &shell).lines().count(), 1);
 
     // Preview selected on a body with nothing to preview shows Pretty.
     cx.update(|_, cx| {
@@ -346,5 +345,5 @@ fn a_json_response_offers_no_preview_and_keeps_pretty_and_raw(cx: &mut TestAppCo
     });
     cx.run_until_parked();
     absent(cx, "response-preview");
-    present(cx, "response-body-line-6");
+    assert_eq!(shown_body(cx, &shell).lines().count(), 6);
 }

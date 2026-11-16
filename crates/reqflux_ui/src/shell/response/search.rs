@@ -1,6 +1,6 @@
 //! Search in the response body without GPUI: the matches of a query in the body's lines,
 //! the `n / total` count and stepping between matches; the body view draws them over the
-//! syntax colors (see `syntax`).
+//! syntax colors (see `body`).
 
 /// One match: the line it is on, from 0, and its byte range in that line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

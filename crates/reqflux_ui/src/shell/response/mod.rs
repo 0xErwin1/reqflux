@@ -27,12 +27,12 @@ mod results;
 mod search;
 mod search_field;
 mod sub_tabs;
-mod syntax;
 mod tab_row;
 mod timeline;
 mod timeline_model;
 mod views;
 
+pub(crate) use body::sync as sync_body;
 #[cfg(test)]
 pub(crate) use cookies::cookie_count;
 pub(crate) use model::{BodyText, BodyView, ResponseTab};
@@ -48,6 +48,7 @@ use gpui::{
     AnyElement, App, Context, Div, MouseButton, ParentElement, Role, Stateful, Styled, canvas, div,
     prelude::*,
 };
+use gpui_component::input::Search;
 use gpui_kit_assets::IconName;
 
 use super::request::ui;
@@ -81,6 +82,7 @@ pub(super) fn render(
     let line_2 = bolt::colors(cx).line_2;
     let focus = send.and_then(|send| send.views.focus.clone());
     let request = id.to_owned();
+    let editor_request = id.to_owned();
     let measure = pane_width(id, cx);
     region("response")
         .relative()
@@ -91,6 +93,11 @@ pub(super) fn render(
                 this.open_response_search(&request, window, cx);
             }),
         )
+        // A code editor binds Ctrl F to its own `Search` and hands it up when it is not
+        // searchable, which the body editor is not: the response's search takes it.
+        .on_action(cx.listener(move |this, _: &Search, window, cx| {
+            this.open_response_search(&editor_request, window, cx);
+        }))
         .flex_1()
         .min_h_0()
         .flex()
@@ -152,12 +159,8 @@ pub(in crate::shell) fn completed(
                 ResponseTab::Body => match sub_tabs::effective_view(send.view, received) {
                     BodyView::Preview => preview::render(id, send, cx),
                     _ => {
-                        let found = body::Found {
-                            hits: views::hits(send, cx).into(),
-                            current: send.views.current,
-                        };
-                        let lines = views::shown_lines(send, received, cx);
-                        let body = body::render(received, lines, found, &send.views, cx);
+                        let binary = views::shown_lines(send, received, cx).is_none();
+                        let body = body::render(received, binary, &send.views, cx);
                         div()
                             .flex_1()
                             .min_h_0()
@@ -175,6 +178,11 @@ pub(in crate::shell) fn completed(
                 ResponseTab::Console => results::console(id, received, send.views.console, cx),
             };
             let request = id.to_owned();
+            // The body editor takes the keyboard focus on a click itself, and Ctrl F reaches
+            // the response from it; any other content hands the focus to the response.
+            let editor = sub_tabs::effective_tab(send.tab, received) == ResponseTab::Body
+                && sub_tabs::effective_view(send.view, received) != BodyView::Preview
+                && send.views.code.is_some();
             // A click on the content gives the response the keyboard focus; the views row
             // and the bars keep theirs, so a click in the search field stays there.
             let content = div()
@@ -182,12 +190,14 @@ pub(in crate::shell) fn completed(
                 .min_h_0()
                 .flex()
                 .flex_col()
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _event, window, cx| {
-                        this.focus_response(&request, window, cx);
-                    }),
-                )
+                .when(!editor, |content| {
+                    content.on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, _event, window, cx| {
+                            this.focus_response(&request, window, cx);
+                        }),
+                    )
+                })
                 .child(content);
             column
                 .when(

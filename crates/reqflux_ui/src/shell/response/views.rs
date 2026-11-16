@@ -1,6 +1,6 @@
 //! What the response view keeps per request beyond its tab and body view (app-pending S7):
-//! the body search, the JSONPath filter, the Tests and Console filters, the body's scroll
-//! and the response's keyboard focus; and the shell's handlers for them, Ctrl F and Copy
+//! the body search, the JSONPath filter, the Tests and Console filters, the body's read-only
+//! editor and the response's keyboard focus; and the shell's handlers for them, Ctrl F and Copy
 //! body.
 //!
 //! The response takes the keyboard focus when its content is clicked; Ctrl F then opens
@@ -14,13 +14,14 @@ use std::sync::Arc;
 
 use gpui::{
     App, AppContext, ClipboardItem, Context, Entity, FocusHandle, KeyBinding, Pixels, ScrollHandle,
-    ScrollStrategy, Subscription, UniformListScrollHandle, Window, actions,
+    Subscription, Window, actions,
 };
 
 use bolt::composites::StripReveal;
 use bolt::controls::{InputEvent, InputState};
 use bolt::primitives::SegmentBounds;
 
+use super::body::BodyCode;
 use super::filters::{ConsoleFilter, TestsFilter};
 use super::jsonpath_model::{Filtered, JSONPATH_PLACEHOLDER};
 use super::model::{BodyText, BodyView, ResponseTab};
@@ -64,12 +65,16 @@ pub(crate) struct ViewState {
     pub(crate) jsonpath: Option<SearchField>,
     /// The last filter applied, so a render does not run it again.
     filtered: RefCell<Option<FilterCache>>,
+    /// The last search run, so a render does not run it again.
+    found: RefCell<Option<HitCache>>,
     /// The current match, from 0.
     pub(crate) current: usize,
     pub(crate) tests: TestsFilter,
     pub(crate) console: ConsoleFilter,
-    /// The scroll of the body lines, so stepping brings the current match into view.
-    pub(crate) scroll: UniformListScrollHandle,
+    /// The read-only editor of the body, once the body has been shown.
+    pub(crate) code: Option<BodyCode>,
+    /// Set by a step of the search: the next frame scrolls the body to the current match.
+    pub(crate) reveal: bool,
     /// Made the first time the response's content is clicked.
     pub(crate) focus: Option<FocusHandle>,
     /// The width of the response pane at the last layout, `None` before the first one;
@@ -86,14 +91,19 @@ pub(crate) struct ViewState {
     pub(crate) format_scroll: ScrollHandle,
     pub(crate) format_revealed: bolt::composites::StripReveal,
     pub(crate) format_segments: SegmentBounds,
-    /// The syntax runs of the body lines last shown, so a render does not parse them again.
-    pub(crate) syntax: super::syntax::SyntaxCache,
 }
 
 /// The search field's text and its change subscription.
 pub(crate) struct SearchField {
     pub(crate) input: Entity<InputState>,
     _change: Subscription,
+}
+
+/// The matches last found and what they were found in: the lines, by identity, and the query.
+struct HitCache {
+    lines: Arc<[String]>,
+    query: String,
+    hits: Arc<[Hit]>,
 }
 
 /// A filter result and what it was computed from: the body, by identity, and the
@@ -164,18 +174,33 @@ pub(crate) fn shown_lines(
     received.text.lines(view)
 }
 
-/// The matches of the search of `send` in the body lines it shows.
-pub(crate) fn hits(send: &RequestSend, cx: &App) -> Vec<Hit> {
+/// The matches of the search of `send` in the body lines it shows, found once per lines and
+/// query: the editor, the count and the steps all ask for them every frame.
+pub(crate) fn hits(send: &RequestSend, cx: &App) -> Arc<[Hit]> {
     let query = send.views.query(cx);
     if query.is_empty() {
-        return Vec::new();
+        return Arc::default();
     }
-    match &send.state {
-        SendState::Done(Completed::Response(received)) => shown_lines(send, received, cx)
-            .map(|(lines, _)| search::find(&lines, &query))
-            .unwrap_or_default(),
-        _ => Vec::new(),
+    let SendState::Done(Completed::Response(received)) = &send.state else {
+        return Arc::default();
+    };
+    let Some((lines, _)) = shown_lines(send, received, cx) else {
+        return Arc::default();
+    };
+    let mut cache = send.views.found.borrow_mut();
+    if let Some(cached) = cache.as_ref()
+        && Arc::ptr_eq(&cached.lines, &lines)
+        && cached.query == query
+    {
+        return Arc::clone(&cached.hits);
     }
+    let hits: Arc<[Hit]> = search::find(&lines, &query).into();
+    *cache = Some(HitCache {
+        lines,
+        query,
+        hits: Arc::clone(&hits),
+    });
+    hits
 }
 
 /// A text field with `placeholder` whose every change runs `on_change` for the request
@@ -346,14 +371,10 @@ impl Shell {
         };
         let found = hits(send, cx);
         let current = index.min(found.len().saturating_sub(1));
-        let line = found.get(current).map(|hit| hit.line);
         if let Some(send) = self.sends.get_mut(id) {
             send.views.current = current;
-            if let Some(line) = line {
-                send.views
-                    .scroll
-                    .scroll_to_item(line, ScrollStrategy::Center);
-            }
+            // The next frame seeds the editor with the new lines first, then scrolls.
+            send.views.reveal = !found.is_empty();
         }
         cx.notify();
     }

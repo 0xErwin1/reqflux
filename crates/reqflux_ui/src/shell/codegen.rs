@@ -7,10 +7,11 @@
 //! it has one: every `{{variable}}` stays as written, secret or not, and nothing is read from
 //! the keyring. The language is a segmented control, `codegen-language`, with the segments
 //! `codegen-language-<curl|httpie|python|fetch>`; the code shows read only with line numbers in
-//! `codegen-code` (`bolt`'s `ModalCode`), one `codegen-code-line-<n>` per line, colored by
+//! `codegen-code`, a read-only code editor (`code_view`, S5 of feedback-nov16) in a well:
+//! the text can be selected and copied by the selection, never edited. It is colored by
 //! the language's grammar (design/syntax/01: curl and HTTPie bash, Python python, fetch
 //! javascript) with the references that resolve in bold tint and the others in bold
-//! warning; the note `codegen-secrets` names the secret
+//! warning, and scrolls past [`CODE_MAX_ROWS`] lines; the note `codegen-secrets` names the secret
 //! variables left in it. Copy (`codegen-copy`, Enter) puts the code on the clipboard, closes
 //! the dialog and confirms it in a toast; Close (`codegen-close`), Escape or the backdrop
 //! closes it.
@@ -18,25 +19,30 @@
 use std::ops::Range;
 
 use bolt::controls::Button;
-use bolt::modals::{Modal, ModalCode, ModalFocus};
-use bolt::primitives::{BadgeTone, BannerBlock, BannerVariant, SegmentedItem, TextVariant};
-use bolt::tokens::{ModalMetrics, Spacing};
+use bolt::modals::{Modal, ModalFocus};
+use bolt::primitives::{BannerBlock, BannerVariant, FieldWell, SegmentedItem, TextVariant};
+use bolt::tokens::{ChamferCut, ModalMetrics, Spacing};
 use gpui::{
-    AnyElement, App, ClipboardItem, Context, Div, EventEmitter, FontWeight, IntoElement,
-    ParentElement, Point, Role, SharedString, Stateful, Styled, Window, anchored, deferred, div,
-    prelude::*,
+    AnyElement, App, ClipboardItem, Context, Div, EventEmitter, FontWeight, HighlightStyle,
+    IntoElement, ParentElement, Point, Role, SharedString, Stateful, Styled, Window, anchored,
+    deferred, div, prelude::*,
 };
+use gpui_component::input::TextDecoration;
 use gpui_kit_assets::IconName;
 use reqflux_core::codegen::Language;
 use reqflux_core::model::Item;
 use reqflux_core::model::Request;
 use reqflux_engine::{Engine, ExecuteError, Inspection, Span};
 
+use super::code_view::CodeView;
 use super::request::{segmented, ui};
 use super::sidebar::Sidebar;
 use super::{Shell, region, text_region, toasts, tree_model};
 use crate::tokens::{self, method_hue};
 use crate::workspace::OpenedWorkspace;
+
+/// The most lines the code well shows before it scrolls.
+const CODE_MAX_ROWS: usize = 18;
 
 /// The dialog title and the tree menu entry without its ellipsis.
 pub(crate) const TITLE: &str = "Generate code";
@@ -76,6 +82,10 @@ struct Dialog {
     secrets: Vec<String>,
     /// The request inspected against the active environment, which styles the references.
     inspection: Option<Inspection>,
+    /// The read-only editor of the code, made on the first frame.
+    view: Option<CodeView>,
+    /// The language and code the editor was last seeded with.
+    seeded: Option<(Language, String)>,
 }
 
 /// The name the dialog and the toast give `language`.
@@ -229,6 +239,8 @@ impl Shell {
             code,
             secrets,
             inspection,
+            view: None,
+            seeded: None,
         });
         self.codegen.focus.focus_on_next_render();
         cx.notify();
@@ -286,6 +298,12 @@ impl Shell {
         Some(reference_ranges(dialog.inspection.as_ref()?, &dialog.code))
     }
 
+    /// The editor of the code the open dialog shows, for tests.
+    #[cfg(test)]
+    pub(super) fn codegen_view(&self) -> Option<&CodeView> {
+        self.codegen.open.as_ref()?.view.as_ref()
+    }
+
     /// The code the open dialog shows, for tests.
     #[cfg(test)]
     pub(super) fn codegen_code(&self) -> Option<(Language, String)> {
@@ -303,6 +321,9 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> Option<AnyElement> {
     shell.codegen.focus.apply_pending(window, cx);
+    if let Some(dialog) = shell.codegen.open.as_mut() {
+        sync_view(dialog, window, cx);
+    }
     let dialog = shell.codegen.open.as_ref()?;
     let header = header(dialog, shell.active_environment.as_deref(), cx);
     let body = div()
@@ -310,7 +331,7 @@ pub(super) fn render(
         .flex_col()
         .gap(ModalMetrics::BODY_GAP)
         .child(toolbar(dialog, cx))
-        .child(code_block(dialog))
+        .child(code_block(dialog, cx))
         .child(
             region("codegen-secrets")
                 .role(Role::Label)
@@ -463,9 +484,6 @@ fn toolbar(dialog: &Dialog, cx: &mut Context<Shell>) -> Div {
         )
 }
 
-/// The tone of a reference that does not resolve, as the URL bar marks it.
-pub(super) const UNRESOLVED_TONE: BadgeTone = BadgeTone::Warning;
-
 /// The grammar registered for `language`'s code: the shell commands are bash.
 pub(super) fn code_language(language: Language) -> &'static str {
     match language {
@@ -475,9 +493,24 @@ pub(super) fn code_language(language: Language) -> &'static str {
     }
 }
 
-/// The code, read only, one numbered line each, colored by its language, with its
-/// `{{name}}` references in bold tint, or in bold warning when they do not resolve.
-fn code_block(dialog: &Dialog) -> ModalCode {
+/// Seeds the code editor of `dialog` when the language or the code changed: the grammar of
+/// the language colors it, with its `{{name}}` references in bold tint, or in bold warning
+/// when they do not resolve.
+fn sync_view(dialog: &mut Dialog, window: &mut Window, cx: &mut App) {
+    let view = dialog.view.get_or_insert_with(|| CodeView::new(window, cx));
+    let current = dialog
+        .seeded
+        .as_ref()
+        .is_some_and(|(language, code)| *language == dialog.language && *code == dialog.code);
+    if current {
+        return;
+    }
+    view.show(
+        &dialog.code,
+        Some(code_language(dialog.language)),
+        window,
+        cx,
+    );
     let References {
         resolved,
         unresolved,
@@ -486,15 +519,40 @@ fn code_block(dialog: &Dialog) -> ModalCode {
         .as_ref()
         .map(|inspection| reference_ranges(inspection, &dialog.code))
         .unwrap_or_default();
-    ModalCode::new("codegen-code", dialog.code.clone())
-        .language(code_language(dialog.language))
-        .highlights(resolved)
-        .highlights_with_tone(unresolved, UNRESOLVED_TONE)
-        .line_numbers(true)
-        .aria_label(format!(
-            "Generated {} code",
-            language_label(dialog.language)
-        ))
+    let colors = bolt::colors(cx);
+    let tint = bolt::brand::brand(cx).accent_tint;
+    let bold = |color| HighlightStyle {
+        color: Some(color),
+        font_weight: Some(FontWeight::BOLD),
+        ..Default::default()
+    };
+    let mut marks: Vec<TextDecoration> = resolved
+        .into_iter()
+        .map(|range| TextDecoration::new(range, bold(tint)))
+        .chain(
+            unresolved
+                .into_iter()
+                .map(|range| TextDecoration::new(range, bold(colors.warning))),
+        )
+        .collect();
+    marks.sort_by_key(|mark| mark.range.start);
+    view.mark(marks, cx);
+    dialog.seeded = Some((dialog.language, dialog.code.clone()));
+}
+
+/// The code, read only and selectable, with its line numbers, in a well, `codegen-code`.
+fn code_block(dialog: &Dialog, cx: &App) -> FieldWell {
+    let rows = dialog.code.lines().count().clamp(1, CODE_MAX_ROWS);
+    FieldWell::new()
+        .cut(ChamferCut::INPUT)
+        .w_full()
+        .py(ModalMetrics::CODE_PADDING_Y)
+        .children(
+            dialog
+                .view
+                .as_ref()
+                .map(|view| view.rows("codegen-code".to_owned(), rows, cx)),
+        )
 }
 
 /// The byte ranges of the `{{name}}` references in a code, split by whether they resolve.

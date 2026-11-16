@@ -68,6 +68,11 @@ fn engine_code(
     })
 }
 
+/// The text of the code editor of the open dialog.
+fn editor_text(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<String> {
+    cx.update(|_, cx| shell.read(cx).codegen_view().map(|view| view.text(cx)))
+}
+
 fn shown_code(cx: &mut VisualTestContext, shell: &Entity<Shell>) -> Option<(Language, String)> {
     cx.update(|_, cx| shell.read(cx).codegen_code())
 }
@@ -102,8 +107,9 @@ fn ctrl_shift_c_opens_the_curl_code_of_the_request_with_its_variables_as_written
     assert!(expected.contains("Bearer {{token}}"), "{expected}");
     assert!(bounds(cx, "codegen-dialog").is_some());
     assert_eq!(
-        tree_label(cx, "codegen-code-line-1").as_deref(),
-        expected.lines().next()
+        editor_text(cx, &shell).as_deref(),
+        Some(expected.as_str()),
+        "the editor shows the code"
     );
     assert_eq!(
         tree_label(cx, "codegen-lines"),
@@ -292,5 +298,106 @@ fn unresolved_references_take_the_warning_tone(cx: &mut TestAppContext) {
         "{:?}",
         text(&references.resolved)
     );
-    assert_eq!(super::UNRESOLVED_TONE, bolt::primitives::BadgeTone::Warning);
+    // The editor draws the references over its syntax colors: bold in the tint when they
+    // resolve, in the warning color when they do not.
+    let (marked, warning, tint) = cx.update(|_, cx| {
+        let shell = shell.read(cx);
+        let marks = shell
+            .codegen_view()
+            .map(|view| view.marks().to_vec())
+            .unwrap_or_default();
+        (
+            marks,
+            bolt::colors(cx).warning,
+            bolt::brand::brand(cx).accent_tint,
+        )
+    });
+    let color_of = |reference: &str| {
+        marked
+            .iter()
+            .find(|mark| code.get(mark.range.clone()) == Some(reference))
+            .and_then(|mark| mark.style.color)
+    };
+    assert_eq!(color_of("{{missing}}"), Some(warning));
+    assert_eq!(color_of("{{token}}"), Some(warning));
+    assert_eq!(color_of("{{base}}"), Some(tint));
+}
+
+/// The code the open dialog shows, with the editor focused by a click.
+fn open_code<'a>(
+    cx: &'a mut TestAppContext,
+    language: &str,
+) -> (
+    TempDir,
+    TempDir,
+    Entity<Shell>,
+    &'a mut VisualTestContext,
+    String,
+) {
+    let (dir, state, shell, cx) = open(cx);
+    click(cx, "codegen-open");
+    click(cx, &format!("codegen-language-{language}"));
+    let code = editor_text(cx, &shell).unwrap_or_default();
+    click(cx, "codegen-code");
+    (dir, state, shell, cx, code)
+}
+
+fn clipboard(cx: &mut VisualTestContext) -> Option<String> {
+    cx.update(|_, cx| cx.read_from_clipboard().and_then(|item| item.text()))
+}
+
+#[gpui::test]
+fn the_code_is_a_read_only_editor(cx: &mut TestAppContext) {
+    let (_dir, _state, shell, cx, code) = open_code(cx, "python");
+    assert!(code.contains("requests"), "{code}");
+
+    cx.simulate_input("zz");
+    // Not Enter: the dialog's confirm key copies the code and closes.
+    for keys in ["backspace", "delete", "tab", "ctrl-x", "ctrl-z"] {
+        cx.simulate_keystrokes(keys);
+    }
+    cx.simulate_keystrokes("ctrl-a");
+    cx.simulate_input("replaced");
+    cx.run_until_parked();
+
+    assert_eq!(editor_text(cx, &shell), Some(code.clone()));
+    assert_eq!(
+        shown_code(cx, &shell),
+        Some((Language::Python, code)),
+        "nothing typed reaches the code the dialog copies"
+    );
+}
+
+#[gpui::test]
+fn the_selection_of_the_code_copies_with_ctrl_c(cx: &mut TestAppContext) {
+    let (_dir, _state, shell, cx, code) = open_code(cx, "curl");
+
+    cx.simulate_keystrokes("ctrl-a ctrl-c");
+    cx.run_until_parked();
+    assert_eq!(clipboard(cx), Some(code.clone()), "select all");
+
+    let Some(start) = code.find("invoices") else {
+        panic!("no invoices in {code}");
+    };
+    let state = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .codegen_view()
+            .map(|view| view.state().clone())
+    });
+    let Some(state) = state else {
+        panic!("the dialog has no editor");
+    };
+    cx.update(|_, cx| {
+        state.update(cx, |state, cx| {
+            state.set_selected_range(start..start + 8, cx)
+        });
+    });
+    cx.simulate_keystrokes("ctrl-c");
+    cx.run_until_parked();
+    assert_eq!(clipboard(cx).as_deref(), Some("invoices"));
+    assert!(
+        shown_code(&mut *cx, &shell).is_some(),
+        "copying the selection keeps the dialog open"
+    );
 }

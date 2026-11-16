@@ -1514,12 +1514,19 @@ when the blocks make it taller than the response), a JSONPath filter beside the 
 line count follow; an error shows the engine message in a danger banner over the unfiltered
 body), a bottom bar under the body with the Pretty / Raw / Preview switch and the
 line count (Pretty re-indents JSON keeping key order), the body split into lines once
-off the UI thread and drawn with `uniform_list` so only visible lines render, colored by
-`bolt::syntax::highlight` (design/syntax/01: JSON when the body parsed as JSON, XML or HTML by
-the content type; Raw JSON stays plain) with the search matches laid over the syntax runs by
-`bolt::syntax::overlay`. The runs are computed once per shown lines and palette (the view
-state caches them) and split by line; a body over 1 MiB (`HIGHLIGHT_LIMIT`) is drawn plain,
-an error banner
+off the UI thread and shown in a read-only code editor (`shell/code_view.rs`, gpui-component's
+`Editor::readonly`: the text can be focused, selected with the mouse or the keyboard, selected
+all and copied by its selection with Ctrl+C, and typing changes nothing; the bottom bar's Copy
+still copies the whole body). The editor is rope-based and lays out only the rows in view, so a
+multi-megabyte body costs its parse, not a row per line. It has a line-number gutter and is
+colored by the editor's highlighter with `bolt`'s bundled grammar (design/syntax/01: JSON when
+the body parsed as JSON, XML or HTML by the content type; Raw JSON stays plain); a body over
+1 MiB (`HIGHLIGHT_LIMIT`) takes no grammar and is drawn plain. The search matches and the
+current one are text decorations over the syntax colors (`response-body` holds the editor
+`response-body-text`), and a step of the search scrolls the editor to the current match. The
+editor lives in the request's `ViewState` and `response::sync_body` seeds it before a frame
+draws, only when the shown lines or their language change (the body, its view, the JSONPath
+filter), never every frame, an error banner
 with Retry, and the unresolved variables the send used. Each open request keeps its last
 response in memory, and every send is recorded in history (see "History"). A request's saved
 examples are its children in the tree (a leaf with the status code), opened read-only in the
@@ -1656,10 +1663,12 @@ send's script writes.
 `Generate code…` open it, a segmented control picks curl, HTTPie, Python requests or JavaScript
 fetch, and Copy (Enter) puts the code on the clipboard. Every `{{variable}}` stays as written.
 For a draft it swaps the draft into a copy of the workspace, so the auth it inherits matches what
-a send would use. The code is `bolt`'s `ModalCode` with line numbers (`codegen-code-line-<n>`),
-colored by `ModalCode::language` (curl and HTTPie `bash`, Python requests `python`, JavaScript
-fetch `javascript`), with its `{{variable}}` references in bold tint when they resolve and in
-bold warning (`highlights_with_tone`, `BadgeTone::Warning`) when they do not.
+a send would use. The code is a read-only code editor (`shell/code_view.rs`, `codegen-code`,
+in a `bolt` `FieldWell`; the text can be selected and Ctrl+C copies the selection, nothing typed
+changes it, and it scrolls past 18 lines) with line numbers, colored by the language's grammar
+(curl and HTTPie `bash`, Python requests `python`, JavaScript fetch `javascript`), with its
+`{{variable}}` references drawn as text decorations: bold tint when they resolve and bold
+warning when they do not.
 `shell/export.rs` draws the Export… dialog (design/export/01-one-export-dialog) on
 `Engine::export_postman`, `Engine::bundle` and `Engine::docs`, the calls the CLI makes. A tree
 row's `Export…`, the workspace menu's `Export workspace…`, an environment's `Export…` and the
@@ -1897,7 +1906,7 @@ field takes keys first. `[keymap]` in the user's config.toml rebinds any command
 Every region and tree row has a stable element id (`title-bar`, `sidebar`, `document`,
 `status-bar`, `tree-row-<id>`, `doc-tab-<id>`, `request-tab-<name>`,
 `request-<params|headers>-row-<n>`, `request-send`, `request-cancel`, `response-status`,
-`response-meta`, `response-body-line-<n>`, `response-headers-row-<n>`, `response-error`,
+`response-meta`, `response-body-text`, `response-headers-row-<n>`, `response-error`,
 `response-retry`, `status-last-request`), and text that automation must read carries a label role,
 because the gpui-mcp bridge only reports text for nodes with a text role. Tree rows report
 `selected` and `expanded`; tabs and sub-tabs report `selected`. `bolt`'s `Dropdown` numbers its
