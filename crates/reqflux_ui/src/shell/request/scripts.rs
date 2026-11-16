@@ -157,8 +157,6 @@ fn editor_box(
             .min_h(code_edit::well_min_height())
             .flex()
             .flex_col()
-            .pl(Spacing::MD)
-            .pr(Spacing::MD)
             .py(Spacing::SM)
             .capture_action(cx.listener(|this, action: &InputEnter, window, cx| {
                 if action.secondary {

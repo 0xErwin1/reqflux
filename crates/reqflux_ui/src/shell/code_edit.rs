@@ -6,8 +6,10 @@
 
 use bolt::tokens::{EditorMetrics, Spacing};
 use gpui::{
-    App, AppContext as _, Context, Div, Entity, ParentElement, Pixels, Stateful, Styled, Window,
+    App, AppContext as _, Context, Div, Entity, ParentElement, Pixels, Stateful, Styled, TextRun,
+    Window, WindowTextSystem,
 };
+use gpui_component::Size;
 use gpui_component::input::{Editor, EditorState};
 use reqflux_core::model::RawLanguage;
 
@@ -65,9 +67,47 @@ pub(crate) fn element(input: &Entity<EditorState>, rows: usize, cx: &App) -> Edi
     styled(Editor::new(input), cx).h(EditorMetrics::CODE_LINE_HEIGHT * rows as f32)
 }
 
+/// The space the editor leaves above its first line: its vertical padding.
+pub(crate) fn text_top() -> Pixels {
+    Size::Medium.input_py()
+}
+
+/// The space the editor leaves left of its gutter: its horizontal padding, at most 6 px for
+/// a code editor.
+pub(crate) fn text_left() -> Pixels {
+    Size::Medium.input_px().min(Spacing::XXS)
+}
+
+/// The space the editor leaves between its line numbers and its text.
+pub(crate) const NUMBER_MARGIN: Pixels = Spacing::XXS;
+
+/// The width of the gutter of an editor of `lines` lines: as many code-face digits as the
+/// count has, at least three, and [`NUMBER_MARGIN`]. The read-only lines of the same text
+/// use it so the text starts where the editor's does.
+pub(crate) fn gutter_width(lines: usize, cx: &App) -> Pixels {
+    // gpui-component reserves three digits for a short document, then follows the count up
+    // to seven.
+    let digits = (lines.max(1).ilog10() as usize + 1).clamp(3, 7);
+    let glyphs = "+".repeat(digits);
+    let run = TextRun {
+        len: glyphs.len(),
+        font: gpui::font(bolt::fonts::editor_family(cx)),
+        color: gpui::black(),
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    // Shaped as the editor shapes its reserve, so the widths agree to the pixel.
+    let width = WindowTextSystem::new(cx.text_system().clone())
+        .shape_line(glyphs.into(), EditorMetrics::CODE_FONT, &[run], None)
+        .width;
+    width + NUMBER_MARGIN
+}
+
 /// `editor` in the code face without its own chrome.
 fn styled(editor: Editor, cx: &App) -> Editor {
     editor
+        .line_height(EditorMetrics::CODE_LINE_HEIGHT)
         .appearance(false)
         .bordered(false)
         .text_size(EditorMetrics::CODE_FONT)

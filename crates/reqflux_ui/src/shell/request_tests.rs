@@ -588,7 +588,14 @@ fn the_script_editor_fills_the_pane(cx: &mut TestAppContext) {
     assert_reaches_pane_bottom(cx, "request-script-test-editor");
     let editor = present(cx, "request-script-pre-input");
     let boxed = present(cx, "request-script-pre-editor");
-    assert!(boxed.contains(&editor.origin) && boxed.contains(&editor.bottom_right()));
+    // Inside the box, edges included: the editor's own padding is its inset.
+    assert!(
+        editor.left() >= boxed.left()
+            && editor.top() >= boxed.top()
+            && editor.right() <= boxed.right()
+            && editor.bottom() <= boxed.bottom(),
+        "{editor:?} leaves {boxed:?}"
+    );
     assert!(
         editor.size.height > bolt::tokens::EditorMetrics::CODE_LINE_HEIGHT * 12.,
         "taller than the 12 rows it used to have"

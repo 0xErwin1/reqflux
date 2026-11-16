@@ -97,6 +97,11 @@ body{background:#050507}
 .ed{display:flex;flex-direction:column;min-height:0;background:#09090B;box-shadow:#232128 0 0 0 1px inset}
 .ed-h{display:flex;align-items:center;gap:8px;height:34px;padding:0 6px 0 12px;flex-shrink:0;border-bottom:1px solid #232128}
 .ed-b{flex-grow:1;min-height:0;overflow:hidden;padding-top:6px;font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;font-size:12.5px}
+/* the text of the request editors and of their read-only lines (S3 feedback-nov16): 22 px rows,
+   8 px above the first line, 6 px left of a gutter of three digits and 6 px, so entering edit mode moves nothing */
+.ed-b{padding:8px 0 0 6px}
+.ed-b .ln{height:22px}
+.ed-b .ln>.no{width:29px;padding-right:6px}
 .ed-b .ln>.no,.ln>.no{flex-shrink:0}
 .ed-b .ln.cur{background:rgba(255,255,255,.04)}
 .ed-b .ln.cur>.no{color:#8E8996}

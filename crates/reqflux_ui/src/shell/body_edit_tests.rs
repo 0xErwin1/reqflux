@@ -6,7 +6,7 @@ use reqflux_core::model::{Body, FormPart, RawLanguage};
 use tempfile::TempDir;
 
 use super::Shell;
-use super::draft_tests::{bounds, click, marker, render, state_file};
+use super::draft_tests::{bounds, click, marker, present, render, state_file};
 use super::request::answer_body_file_dialog;
 use super::send_tests::closed_port;
 use crate::workspace_tests::{demo_workspace, write};
@@ -698,4 +698,78 @@ fn the_graphql_query_stays_plain_and_the_variables_are_json(cx: &mut TestAppCont
     assert_eq!(graphql_editor_language(cx, &shell).as_deref(), Some("text"));
     click(cx, "request-body-variables");
     assert_eq!(graphql_editor_language(cx, &shell).as_deref(), Some("json"));
+}
+
+/// The width the editor reserves for line numbers: three code-face glyphs and 6 px, shaped
+/// the way the editor shapes them.
+fn editor_gutter(cx: &mut VisualTestContext) -> gpui::Pixels {
+    cx.update(|window, cx| {
+        let font = gpui::font(bolt::fonts::editor_family(cx));
+        let size = bolt::tokens::EditorMetrics::CODE_FONT;
+        let run = gpui::TextRun {
+            len: 3,
+            font,
+            color: gpui::black(),
+            background_color: None,
+            underline: None,
+            strikethrough: None,
+        };
+        let line = window
+            .text_system()
+            .shape_line("+++".into(), size, &[run], None);
+        line.width + gpui::px(6.)
+    })
+}
+
+/// Entering the raw editor does not move the text (S3 of feedback-nov16): the read-only
+/// lines and the editor draw line 1 at the same top, the same left edge and the same line
+/// height, and the numbers take the same gutter.
+#[gpui::test]
+fn the_raw_editor_draws_its_text_where_the_read_only_lines_do(cx: &mut TestAppContext) {
+    let dir = json_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+    let well = present(cx, "request-body-raw");
+    let row = present(cx, "request-body-line-1");
+    let number = present(cx, "request-body-line-1-number");
+    let text = present(cx, "request-body-line-1-text");
+
+    click(cx, "request-body-code");
+    assert_eq!(
+        present(cx, "request-body-input"),
+        well,
+        "the well changed with the mode"
+    );
+    let Some(input) = cx.update(|_, cx| shell.read(cx).body_edit.as_ref().map(|e| e.input.clone()))
+    else {
+        panic!("the editor is open");
+    };
+    let Some(editor) = cx.update(|_, cx| input.read(cx).text_bounds()) else {
+        panic!("the editor was not painted");
+    };
+    let line_height = cx.update(|_, cx| input.read(cx).line_height());
+    assert_eq!(
+        Some(row.size.height),
+        line_height,
+        "the row height is not the editor's line height"
+    );
+    assert_eq!(
+        row.origin, editor.origin,
+        "line 1 starts elsewhere: {row:?} vs {editor:?}"
+    );
+    let gutter = editor_gutter(cx);
+    // The layout snaps a box to the device pixel; the editor paints its gutter unsnapped.
+    let within = |a: gpui::Pixels, b: gpui::Pixels| f32::from(a - b).abs() <= 0.5;
+    assert!(
+        within(number.size.width, gutter),
+        "the gutter is {:?}, the editor's {gutter:?}",
+        number.size.width
+    );
+    assert!(
+        within(text.origin.x, editor.origin.x + gutter),
+        "the text starts at {:?}, the editor's at {:?}",
+        text.origin.x,
+        editor.origin.x + gutter
+    );
 }

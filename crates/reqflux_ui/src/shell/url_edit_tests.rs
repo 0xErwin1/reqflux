@@ -251,3 +251,34 @@ fn enter_in_the_url_field_commits_and_sends(cx: &mut TestAppContext) {
     let params = draft(cx, &shell).map(|request| request.params);
     assert_eq!(params, Some(vec![KeyValue::new("only", "1"), off()]));
 }
+
+/// The static URL and the open field lay their one line out alike (S3 of feedback-nov16):
+/// the same line height, the same top and the same left edge, so the glyphs do not move
+/// when the field opens.
+#[gpui::test]
+fn the_url_field_draws_its_line_where_the_static_url_does(cx: &mut TestAppContext) {
+    let dir = query_workspace(closed_port());
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{QUERY}"));
+    let reading = present(cx, "request-url-line");
+    let field = present(cx, "request-url");
+
+    click(cx, "request-url");
+    let Some(input) = cx.update(|_, cx| shell.read(cx).url_edit.as_ref().map(|e| e.input.clone()))
+    else {
+        panic!("the field is open");
+    };
+    let Some(editing) = cx.update(|_, cx| input.read(cx).text_bounds()) else {
+        panic!("the field was not painted");
+    };
+    assert_eq!(present(cx, "request-url"), field, "the field box moved");
+    assert_eq!(
+        editing.size.height, reading.size.height,
+        "the line height differs: {reading:?} vs {editing:?}"
+    );
+    assert_eq!(
+        editing.origin, reading.origin,
+        "the line moved: {reading:?} vs {editing:?}"
+    );
+}

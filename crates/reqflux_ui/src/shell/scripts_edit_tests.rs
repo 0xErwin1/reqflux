@@ -9,7 +9,7 @@ use reqflux_engine::state::{AppState, Draft};
 use tempfile::TempDir;
 
 use super::Shell;
-use super::draft_tests::{bounds, click, marker, render, state_file};
+use super::draft_tests::{bounds, click, marker, present, render, state_file};
 use super::drafts::{ScriptDraft, decode_payload, encode_payload};
 use super::request::{SubTab, sub_tab_badge};
 use super::scripts_edit::ScriptSlot;
@@ -476,4 +476,38 @@ fn the_script_editor_highlights_javascript(cx: &mut TestAppContext) {
             .map(|edit| edit.input.read(cx).language_name().to_string())
     });
     assert_eq!(language.as_deref(), Some("javascript"));
+}
+
+/// Entering a script editor does not move the text (S3 of feedback-nov16): line 1 keeps its
+/// top, its left edge and its height.
+#[gpui::test]
+fn a_script_editor_draws_its_text_where_the_read_only_lines_do(cx: &mut TestAppContext) {
+    let dir = scripts_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_scripts(cx);
+    let row = present(cx, "request-script-pre-line-1");
+
+    click(cx, "request-script-pre-code");
+    let Some(input) = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .script_edit
+            .as_ref()
+            .map(|edit| edit.input.clone())
+    }) else {
+        panic!("the editor is open");
+    };
+    let Some(editor) = cx.update(|_, cx| input.read(cx).text_bounds()) else {
+        panic!("the editor was not painted");
+    };
+    assert_eq!(
+        Some(row.size.height),
+        cx.update(|_, cx| input.read(cx).line_height()),
+        "the row height is not the editor's line height"
+    );
+    assert_eq!(
+        row.origin, editor.origin,
+        "line 1 starts elsewhere: {row:?} vs {editor:?}"
+    );
 }

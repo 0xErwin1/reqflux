@@ -3,21 +3,24 @@
 //! the empty state of a pane.
 
 use bolt::composites::EmptyState;
-use bolt::tokens::{EditorMetrics, GridMetrics, Spacing};
+use bolt::tokens::{EditorMetrics, Spacing};
 use std::ops::Range;
 
-use gpui::{AnyElement, App, HighlightStyle, ParentElement, Styled, div, prelude::*};
+use gpui::{AnyElement, App, HighlightStyle, ParentElement, Styled, prelude::*};
 use gpui_kit_assets::IconName;
 use reqflux_engine::{Inspection, Span};
 
 use super::pane_model::numbered_lines;
 use super::spans;
 use super::ui;
+use crate::shell::code_edit;
 use crate::shell::rows::{labeled_row, part};
 use crate::shell::syntax::{LineRuns, highlight_lines, pieces, styled};
 
-/// The lines of `text`, element id `id`, each `<line_prefix>-<n>` with its number, colored
-/// in `language`.
+/// The lines of `text`, element id `id`, each `<line_prefix>-<n>` with its number
+/// `<line_prefix>-<n>-number` and its text `<line_prefix>-<n>-text`, colored in `language`.
+/// They sit where the editor that replaces them draws its own (design/syntax/01): the same
+/// space above and left of the first line, rows as tall as its, and a gutter as wide.
 pub(super) fn block(
     inspection: &Inspection,
     id: String,
@@ -39,7 +42,10 @@ pub(super) fn block(
         })
         .collect();
     let syntax = syntax_runs(&texts, &references, language, cx);
+    let gutter = code_edit::gutter_width(lines.len(), cx);
     part(id)
+        .pt(code_edit::text_top())
+        .pl(code_edit::text_left())
         .flex()
         .flex_col()
         .font_family(bolt::fonts::editor_family(cx))
@@ -50,16 +56,16 @@ pub(super) fn block(
                 .items_center()
                 .h(EditorMetrics::CODE_LINE_HEIGHT)
                 .child(
-                    div()
-                        .w(GridMetrics::ROW_NUMBER_WIDTH)
+                    part(format!("{line_prefix}-{n}-number"))
+                        .w(gutter)
                         .flex_none()
-                        .pr(Spacing::MD)
+                        .pr(code_edit::NUMBER_MARGIN)
                         .text_right()
                         .text_color(colors.line_2)
                         .child(n.to_string()),
                 )
                 .child(
-                    div()
+                    part(format!("{line_prefix}-{n}-text"))
                         .flex()
                         .whitespace_nowrap()
                         .text_color(colors.foreground)

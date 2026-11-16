@@ -152,8 +152,6 @@ fn editor(shell: &Shell, request_id: &str, cx: &mut Context<Shell>) -> Option<An
         filling_well("request-body-input".to_owned(), cx)
             .mx(Spacing::MD)
             .mt(Spacing::SM)
-            .pl(Spacing::MD)
-            .pr(Spacing::MD)
             .capture_action(cx.listener(|this, action: &InputEnter, window, cx| {
                 if action.secondary {
                     cx.stop_propagation();

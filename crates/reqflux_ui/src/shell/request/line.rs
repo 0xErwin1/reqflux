@@ -11,15 +11,23 @@ use bolt::controls::{
 use bolt::primitives::{Chamfer, TextVariant};
 use bolt::tokens::{ChamferCut, Fields, Spacing};
 use gpui::{
-    AnyElement, Context, Div, Entity, FontWeight, ParentElement, Pixels, Role, Stateful, Styled,
-    Window, div, prelude::*,
+    AnyElement, Context, Div, Entity, FontWeight, ParentElement, Pixels, Rems, Role, Stateful,
+    Styled, Window, div, prelude::*, rems,
 };
 use gpui_component::input::Paste;
 use gpui_kit_assets::IconName;
 
 use super::model::RequestState;
 use super::{method_menu, spans, ui, variable_popover_view};
+use crate::shell::rows::part;
 use crate::shell::{Shell, region};
+
+/// The height of the URL's one line, in the static text and in the open field alike: the
+/// field's own line height, so the glyphs sit at the same height in both.
+const URL_LINE_HEIGHT: Rems = rems(1.25);
+
+/// The element id of the line of the static URL.
+const URL_LINE: &str = "request-url-line";
 use crate::tokens::{self, method_hue};
 
 /// The line of the request `id`, element id `request-line`.
@@ -188,14 +196,23 @@ fn url(id: &str, state: &RequestState, shell: &Shell, cx: &mut Context<Shell>) -
                 .flex()
                 .items_center()
                 .overflow_hidden()
-                .children(spans::render_marked(
-                    &state.inspection,
-                    &url,
-                    id,
-                    "request-url",
-                    shell,
-                    cx,
-                )),
+                .child(
+                    // The one line, as tall as the open field's line, so a mark's underline does not
+                    // make it taller and move the text.
+                    part(URL_LINE.to_owned())
+                        .flex()
+                        .items_center()
+                        .h(URL_LINE_HEIGHT)
+                        .line_height(URL_LINE_HEIGHT)
+                        .children(spans::render_marked(
+                            &state.inspection,
+                            &url,
+                            id,
+                            "request-url",
+                            shell,
+                            cx,
+                        )),
+                ),
         )
         .on_click(cx.listener(move |this, _event, window, cx| {
             this.start_url_edit(&request, window, cx);
@@ -258,6 +275,7 @@ fn editing_url(
                 .appearance(false)
                 .padding(Pixels::ZERO, Pixels::ZERO)
                 .text_size(TextVariant::Code.density_size(cx))
+                .line_height(URL_LINE_HEIGHT)
                 .w_full(),
         )
 }
