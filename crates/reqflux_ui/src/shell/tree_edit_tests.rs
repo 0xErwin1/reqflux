@@ -131,6 +131,26 @@ fn new_request_from_the_menu_is_last_selected_and_on_disk(cx: &mut TestAppContex
 }
 
 #[gpui::test]
+fn a_new_request_opens_in_its_tab_while_the_row_renames(cx: &mut TestAppContext) {
+    let dir = sidebar_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+
+    open_menu(cx, API);
+    click(cx, "tree-menu-new-request");
+
+    let created = match node_named(cx, &shell, "New request") {
+        Some(node) => node.id,
+        None => panic!("no New request in the tree"),
+    };
+    present(cx, &format!("doc-tab-{created}"));
+    let active = shell.read_with(cx, |shell, _| shell.documents.active().map(str::to_owned));
+    assert_eq!(active.as_deref(), Some(created.as_str()));
+    present(cx, "tree-rename-input");
+    assert_eq!(rename_text(cx, &shell).as_deref(), Some("New request"));
+}
+
+#[gpui::test]
 fn new_folder_in_a_folder_expands_it(cx: &mut TestAppContext) {
     let dir = sidebar_workspace();
     let (_state_dir, state_path) = state_file();

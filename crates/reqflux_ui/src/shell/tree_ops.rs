@@ -49,10 +49,18 @@ impl Shell {
                         | TreeCommand::NewFolder(_)
                 );
                 let created = created.map(|id| id.to_string());
+                // A new request opens in its tab at once, ready to edit, while its row
+                // still opens into rename (feedback-nov16 S1).
+                let open = created
+                    .clone()
+                    .filter(|_| matches!(command, TreeCommand::NewRequest(_)));
                 self.sidebar.update(cx, |sidebar, cx| {
                     sidebar.tree_changed(roots, created, rename, cx);
                 });
                 self.inspect_open_requests(cx);
+                if let Some(id) = open {
+                    self.open_document(&id, cx);
+                }
             }
             Err(error) => {
                 log::warn!("tree operation {command:?} failed: {error}");
