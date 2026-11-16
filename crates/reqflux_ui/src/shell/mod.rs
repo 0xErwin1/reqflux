@@ -832,6 +832,8 @@ mod tree_edit_tests;
 #[cfg(test)]
 mod tree_reorder_tests;
 #[cfg(test)]
+mod unsaved_send_tests;
+#[cfg(test)]
 mod variable_popover_add_tests;
 #[cfg(test)]
 mod variable_popover_tests;
