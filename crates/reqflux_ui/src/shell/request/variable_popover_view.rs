@@ -258,9 +258,15 @@ fn edit(popover: &VariablePopover, cx: &mut Context<Shell>) -> (Vec<AnyElement>,
         region("variable-popover-overrides")
             .flex()
             .gap(Spacing::XS)
+            .min_w_0()
             .child(caption(format!("Overrides {scope}:"), cx))
             .child(
                 ui::role(div(), TextVariant::Code, cx)
+                    .flex_1()
+                    .min_w_0()
+                    .overflow_hidden()
+                    .whitespace_nowrap()
+                    .text_ellipsis()
                     .text_color(colors.muted)
                     .line_through()
                     .child(shown),
@@ -280,7 +286,13 @@ fn edit(popover: &VariablePopover, cx: &mut Context<Shell>) -> (Vec<AnyElement>,
         caption("Current value · this machine", cx),
         field(popover, false, reset.into_iter().collect(), cx),
         caption("Initial value · workspace file", cx),
+        // One line, truncated: a long token must not widen the popover past its width.
         ui::role(region("variable-popover-initial"), TextVariant::Code, cx)
+            .w_full()
+            .min_w_0()
+            .overflow_hidden()
+            .whitespace_nowrap()
+            .text_ellipsis()
             .text_color(colors.muted)
             .child(winner.initial.clone().unwrap_or_default())
             .into_any_element(),
