@@ -125,11 +125,20 @@ jobs:
             exit 0
           fi
           echo "proceed=false" >> "$GITHUB_OUTPUT"
+          # Tell "still running" apart from "finished without success", so a
+          # red CI on main does not look like a nightly that will catch up.
+          PENDING=$(gh run list --workflow ci.yml --commit "$SHA" --event push \
+            --json status --jq '[.[] | select(.status != "completed")] | length')
           if [ "$EVENT" = "workflow_dispatch" ]; then
             echo "::error::No successful CI run for $SHA; wait for CI to pass, then dispatch again."
             exit 1
           fi
-          echo "::warning::No successful CI run for $SHA yet: skipping; the next run retries."
+          if [ "$PENDING" -gt 0 ]; then
+            echo "::warning::CI is still running for $SHA: skipping; the next scheduled run retries."
+          else
+            echo "::error::CI did not pass for $SHA (failed, cancelled or never ran): the nightly is skipped until a commit with passing CI lands on main."
+            exit 1
+          fi
 
   compute-version:
     name: Compute nightly version
@@ -217,7 +226,7 @@ jobs:
           awk -v v="$VERSION" '/^name = "reqflux(_[a-z]+)?"$/ { print; getline; if ($0 ~ /^version = /) $0 = "version = \"" v "\""; print; next } { print }' \
             Cargo.lock > Cargo.lock.stamped
           mv Cargo.lock.stamped Cargo.lock
-          MEMBERS=$(grep -c '^name = "reqflux\(_[a-z]*\)\?"$' Cargo.lock)
+          MEMBERS=$(grep -cE '^name = "reqflux(_[a-z]+)?"$' Cargo.lock)
           STAMPED=$(grep -c "^version = \"${VERSION}\"$" Cargo.lock)
           if [ "$MEMBERS" -lt 1 ] || [ "$STAMPED" -ne "$MEMBERS" ]; then
             echo "::error::Lockfile version stamp did not apply to all $MEMBERS workspace members."
@@ -343,7 +352,7 @@ jobs:
           awk -v v="$VERSION" '/^name = "reqflux(_[a-z]+)?"$/ { print; getline; if ($0 ~ /^version = /) $0 = "version = \"" v "\""; print; next } { print }' \
             Cargo.lock > Cargo.lock.stamped
           mv Cargo.lock.stamped Cargo.lock
-          MEMBERS=$(grep -c '^name = "reqflux\(_[a-z]*\)\?"$' Cargo.lock)
+          MEMBERS=$(grep -cE '^name = "reqflux(_[a-z]+)?"$' Cargo.lock)
           STAMPED=$(grep -c "^version = \"${VERSION}\"$" Cargo.lock)
           if [ "$MEMBERS" -lt 1 ] || [ "$STAMPED" -ne "$MEMBERS" ]; then
             echo "::error::Lockfile version stamp did not apply to all $MEMBERS workspace members."
@@ -614,10 +623,12 @@ jobs:
           name: ReqFlux Nightly
           body_path: release_body.md
           prerelease: true
-          # Existing assets are replaced in place (the rolling names) and
-          # nothing is deleted first, so a failed upload never leaves the
-          # release without a binary. Per-build assets accumulate and are
-          # pruned in the last step.
+          # Rolling names are replaced one file at a time (the action deletes
+          # that one asset, then uploads its replacement), so a failure mid-step
+          # can leave a single rolling asset missing until the next run; the
+          # per-build assets that Nix pins are new names and are never
+          # replaced. Per-build assets accumulate and are pruned in the last
+          # step.
           overwrite_files: true
           files: |
             artifacts/reqflux-linux-amd64*.tar.gz
