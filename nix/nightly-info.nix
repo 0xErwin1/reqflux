@@ -12,6 +12,11 @@
 # Do NOT pin to main for this package. The `nightly` ref always contains
 # hashes that match the artifacts published in the rolling nightly release.
 #
+# `url` names a per-build immutable asset (reqflux-linux-amd64-<date>-<sha>.tar.gz)
+# that the workflow keeps for the 14 most recent builds, so a pin of an
+# older `nightly` commit keeps working for that long. The rolling
+# reqflux-linux-amd64.tar.gz asset is for humans and is never pinned.
+#
 # From-source nightly (no hash needed):
 #
 #   nix run github:0xErwin1/reqflux/nightly#reqflux-source
@@ -20,7 +25,7 @@
 
   artifacts = {
     "x86_64-linux" = {
-      url = "https://github.com/0xErwin1/reqflux/releases/download/nightly/reqflux-linux-amd64.tar.gz";
+      url = "https://github.com/0xErwin1/reqflux/releases/download/nightly/reqflux-linux-amd64-0000-00-00-0000000.tar.gz";
       hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
     };
   };
