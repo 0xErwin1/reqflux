@@ -7,6 +7,7 @@
 //! Escape always reaches [`Shell::cancel_active`], which closes an open menu first.
 
 use gpui::{Action as _, App, Context, Div, InteractiveElement, KeyBinding, Window, actions};
+use gpui_component::input::Redo as EditorRedo;
 
 use super::Shell;
 use super::send::SHELL_CONTEXT;
@@ -190,17 +191,29 @@ pub(crate) const PALETTE_KEYS: [&str; 2] = ["ctrl-k", "ctrl-p"];
 /// The extra keys that redo a draft edit, beside the redo command's own key.
 pub(crate) const REDO_KEYS: [&str; 1] = ["ctrl-y"];
 
+/// The key context the framework's text inputs and code editors bind their editing keys in.
+/// ReqFlux binds nothing else there: the components own it.
+const INPUT_CONTEXT: &str = "Input";
+
+/// The redo key the code editor is missing, bound beside its own. On Linux and Windows the
+/// framework binds Ctrl+Z to undo in [`INPUT_CONTEXT`] but only Ctrl+Y to redo, while macOS
+/// gets Cmd+Shift+Z: the redo chord every other editor offers is unbound here, and a focused
+/// editor, being the deeper context, also shadows the shell's own redo. Binding it to the
+/// editor's redo makes the pair the same everywhere, beside Ctrl+Y.
+pub(crate) const EDITOR_REDO_KEYS: [&str; 1] = ["ctrl-shift-z"];
+
 /// The extra keys that increase the interface size, beside the command's own `ctrl-=`:
 /// `+` shares the key with `=` on common layouts, and some platforms report the chord with
 /// Shift held, so every form of that key zooms in, as in DBFlux.
 pub(crate) const ZOOM_IN_KEYS: [&str; 3] = ["ctrl-+", "ctrl-shift-=", "ctrl-shift-+"];
 
-/// Binds every command's key, the palette keys and the extra redo and zoom keys. Focused text
-/// editors bind Ctrl+Z themselves in a deeper key context, so the draft keys only reach
-/// the shell while no editor has the focus.
+/// Binds every command's key, the palette keys, the extra redo and zoom keys, and the redo
+/// chord the code editor lacks. A focused text editor handles Ctrl+Z itself in its deeper
+/// key context, so the draft keys only reach the shell while no editor has the focus.
 pub(super) fn bind_keys(cx: &mut App) {
     bind_commands(cx);
     cx.bind_keys(REDO_KEYS.map(|key| KeyBinding::new(key, RedoDraft, Some(SHELL_CONTEXT))));
+    cx.bind_keys(EDITOR_REDO_KEYS.map(|key| KeyBinding::new(key, EditorRedo, Some(INPUT_CONTEXT))));
     cx.bind_keys(
         ZOOM_IN_KEYS.map(|key| KeyBinding::new(key, IncreaseInterfaceSize, Some(SHELL_CONTEXT))),
     );

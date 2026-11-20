@@ -266,6 +266,37 @@ fn typing_in_the_raw_editor_lands_in_the_draft(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_code_editor_redoes_with_ctrl_shift_z(cx: &mut TestAppContext) {
+    let dir = json_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_body(cx);
+    click(cx, "request-body-code");
+    cx.simulate_keystrokes("ctrl-a backspace");
+    type_text(cx, "a");
+    cx.simulate_keystrokes("enter");
+    type_text(cx, "b");
+    assert_eq!(draft_body(cx, &shell), Some(raw(RawLanguage::Json, "a\nb")));
+
+    cx.simulate_keystrokes("ctrl-z");
+    cx.run_until_parked();
+    let undone = draft_body(cx, &shell);
+    assert_ne!(
+        undone,
+        Some(raw(RawLanguage::Json, "a\nb")),
+        "Ctrl+Z undoes the text in the editor"
+    );
+
+    cx.simulate_keystrokes("ctrl-shift-z");
+    cx.run_until_parked();
+    assert_eq!(
+        draft_body(cx, &shell),
+        Some(raw(RawLanguage::Json, "a\nb")),
+        "Ctrl+Shift+Z redoes it in the editor"
+    );
+}
+
+#[gpui::test]
 fn the_raw_editor_shows_its_focus_ring_only_while_it_has_focus(cx: &mut TestAppContext) {
     let dir = json_workspace();
     let (_state_dir, state_path) = state_file();

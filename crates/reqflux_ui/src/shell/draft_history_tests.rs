@@ -4,7 +4,7 @@
 use std::time::{Duration, Instant};
 
 use gpui::{Entity, TestAppContext, VisualTestContext};
-use reqflux_core::model::{Auth, Body, RawLanguage};
+use reqflux_core::model::{Auth, Body, RawLanguage, Scripts};
 
 use super::{BURST, DEPTH, DraftHistories, Slot};
 use crate::shell::Shell;
@@ -13,10 +13,12 @@ use crate::shell::body_edit_tests as body;
 use crate::shell::draft_tests::{
     bounds, click, draft_workspace, edit_url, marker, render, state_file,
 };
-use crate::shell::drafts::RequestDraft;
+use crate::shell::drafts::{RequestDraft, ScriptDraft};
 use crate::shell::send_tests::closed_port;
+use crate::workspace_tests::write;
 
 const PLAIN: &str = crate::shell::draft_tests::PLAIN;
+const SCRIPT_PRE: &str = "collections/api/plain.pre.js";
 
 fn draft_url(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<String> {
     cx.update(|cx| {
@@ -136,6 +138,107 @@ fn history_is_per_request() {
     assert!(!histories.can_undo("a"));
 }
 
+#[test]
+fn a_save_moves_every_step_onto_the_saved_file() {
+    let mut histories = DraftHistories::default();
+    let start = Instant::now();
+    let saved = RequestDraft::test_default().request;
+    let mut edited = RequestDraft::test_default();
+    edited.request.url = "1".to_owned();
+    edited.base_hash = Some("old".to_owned());
+    edited.conflicted = true;
+    edited.scripts = Some(ScriptDraft {
+        scripts: reqflux_core::model::Scripts::default(),
+        pre_request_base: Some("old-script".to_owned()),
+        test_base: None,
+    });
+    // One step back to "no draft" and one to the edited draft, above it.
+    histories.record("a", None, Slot::Structural, start);
+    histories.record("a", Some(edited), Slot::Structural, start);
+
+    histories.settle_after_save(
+        "a",
+        saved.clone(),
+        None,
+        Some("new".to_owned()),
+        Some((Some("new-script".to_owned()), None)),
+    );
+
+    let Some(step) = histories.step("a", true, None) else {
+        panic!("the edited step survived the save");
+    };
+    let Some(step) = step else {
+        panic!("the edited step is a draft");
+    };
+    assert_eq!(step.base_hash.as_deref(), Some("new"), "rebased");
+    assert!(!step.conflicted, "a save resolves the conflict");
+    let scripts = step.scripts.expect("the edited scripts stayed");
+    assert_eq!(scripts.pre_request_base.as_deref(), Some("new-script"));
+    assert_eq!(scripts.test_base, None);
+
+    let Some(step) = histories.step("a", true, None) else {
+        panic!("the step that was no draft survived the save");
+    };
+    let Some(step) = step else {
+        panic!("the file now holds the save, so that step carries the request it had");
+    };
+    assert_eq!(step.request, saved);
+    assert_eq!(step.base_hash.as_deref(), Some("new"));
+    assert!(!step.conflicted);
+    assert!(step.scripts.is_none(), "the scripts were as saved");
+}
+
+#[test]
+fn a_save_without_a_hash_to_rebase_onto_drops_the_history() {
+    let mut histories = DraftHistories::default();
+    histories.record("a", None, Slot::Structural, Instant::now());
+    histories.settle_after_save("a", RequestDraft::test_default().request, None, None, None);
+    assert!(!histories.can_undo("a"));
+}
+
+#[test]
+fn a_save_that_wrote_scripts_carries_the_old_text_in_its_no_draft_step() {
+    let mut histories = DraftHistories::default();
+    let saved = RequestDraft::test_default().request;
+    histories.record("a", None, Slot::Structural, Instant::now());
+    histories.settle_after_save(
+        "a",
+        saved.clone(),
+        Some(Scripts {
+            pre_request: Some("old();".to_owned()),
+            test: None,
+        }),
+        Some("new".to_owned()),
+        Some((Some("new-script".to_owned()), None)),
+    );
+    let step = histories
+        .step("a", true, None)
+        .flatten()
+        .expect("the step that was no draft survived the save");
+    let scripts = step
+        .scripts
+        .expect("the step carries the scripts the sidecars held");
+    assert_eq!(scripts.scripts.pre_request.as_deref(), Some("old();"));
+    assert_eq!(scripts.scripts.test, None);
+    assert_eq!(scripts.pre_request_base.as_deref(), Some("new-script"));
+    assert_eq!(scripts.test_base, None);
+
+    // A save that wrote no scripts keeps the step without them, as before.
+    histories.record("b", None, Slot::Structural, Instant::now());
+    histories.settle_after_save(
+        "b",
+        saved,
+        None,
+        Some("new".to_owned()),
+        Some((Some("new-script".to_owned()), None)),
+    );
+    let step = histories
+        .step("b", true, None)
+        .flatten()
+        .expect("the step that was no draft survived the save");
+    assert!(step.scripts.is_none(), "the scripts were as saved");
+}
+
 #[gpui::test]
 fn the_undo_and_redo_buttons_walk_the_draft(cx: &mut TestAppContext) {
     let port = closed_port();
@@ -227,6 +330,135 @@ fn discarding_the_changes_can_be_undone(cx: &mut TestAppContext) {
         "one undo restores it"
     );
     assert!(marker(cx, PLAIN));
+}
+
+#[gpui::test]
+fn a_save_keeps_the_history_and_undo_restores_the_draft(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let file = dir.path().join("collections/api/plain.req.toml");
+    click(cx, &format!("tree-row-{PLAIN}"));
+    let edited = format!("http://127.0.0.1:{port}/edited");
+    edit_url(cx, &edited);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+    assert!(draft_url(cx, &shell).is_none(), "saving drops the draft");
+    let saved = std::fs::read_to_string(&file).unwrap_or_default();
+    assert!(saved.contains(&edited), "the save wrote the edit: {saved}");
+
+    cx.simulate_keystrokes("ctrl-z");
+    cx.run_until_parked();
+    assert_eq!(
+        draft_url(cx, &shell).as_deref(),
+        Some("{{base}}/ok"),
+        "Ctrl+Z after a save takes the edit the save committed back as a draft"
+    );
+}
+
+#[gpui::test]
+fn a_draft_undone_after_a_save_saves_on_top_of_the_saved_file(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    let file = dir.path().join("collections/api/plain.req.toml");
+    click(cx, &format!("tree-row-{PLAIN}"));
+    let edited = format!("http://127.0.0.1:{port}/edited");
+    edit_url(cx, &edited);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+
+    cx.simulate_keystrokes("ctrl-z");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+    let restored = std::fs::read_to_string(&file).unwrap_or_default();
+    assert!(
+        restored.contains("{{base}}/ok"),
+        "the restored draft saved over the file the save wrote: {restored}"
+    );
+    assert!(
+        !restored.contains("/edited"),
+        "the edit is gone from the file: {restored}"
+    );
+    assert!(
+        draft_url(cx, &shell).is_none(),
+        "the second save dropped it"
+    );
+}
+
+#[gpui::test]
+fn undoing_a_save_that_wrote_scripts_takes_the_old_text_back(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    write(dir.path(), SCRIPT_PRE, "old();\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{PLAIN}"));
+    shell.update(cx, |shell, cx| {
+        shell.edit_draft_scripts(
+            PLAIN,
+            |scripts| scripts.pre_request = Some("edited();\n".to_owned()),
+            cx,
+        );
+    });
+    cx.run_until_parked();
+
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+    let written = std::fs::read_to_string(dir.path().join(SCRIPT_PRE)).unwrap_or_default();
+    assert!(
+        written.contains("edited();"),
+        "the save wrote the edit: {written}"
+    );
+
+    click(cx, "request-action-undo");
+    cx.run_until_parked();
+    let restored = cx.update(|_, cx| {
+        shell
+            .read(cx)
+            .drafts
+            .get(PLAIN)
+            .and_then(|draft| draft.scripts.as_ref())
+            .map(|scripts| scripts.scripts.pre_request.clone())
+    });
+    assert_eq!(
+        restored,
+        Some(Some("old();\n".to_owned())),
+        "one undo takes the script the save replaced back as a draft"
+    );
+}
+
+#[gpui::test]
+fn redoing_an_undone_save_goes_back_to_the_saved_file(cx: &mut TestAppContext) {
+    let port = closed_port();
+    let dir = draft_workspace(port);
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{PLAIN}"));
+    let edited = format!("http://127.0.0.1:{port}/edited");
+    edit_url(cx, &edited);
+    cx.simulate_keystrokes("enter");
+    cx.run_until_parked();
+    cx.simulate_keystrokes("ctrl-s");
+    cx.run_until_parked();
+
+    cx.simulate_keystrokes("ctrl-z");
+    cx.run_until_parked();
+    assert!(draft_url(cx, &shell).is_some(), "the draft came back");
+    cx.simulate_keystrokes("ctrl-shift-z");
+    cx.run_until_parked();
+    assert!(
+        draft_url(cx, &shell).is_none(),
+        "redo drops the draft, so the view shows the file the save wrote"
+    );
 }
 
 #[gpui::test]

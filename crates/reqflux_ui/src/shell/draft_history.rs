@@ -7,16 +7,17 @@
 //! an edit within [`BURST`] of the previous one in the same slot joins it. A structural edit
 //! (a mode switch, a revert) never does. The history keeps the last [`DEPTH`] steps and lives
 //! as long as the app, beside the drafts and not in them, because discarding a draft removes
-//! it and must stay undoable. Saving forgets the request's history: a draft restored across a
-//! save would be made from a file that no longer exists.
+//! it and must stay undoable. Saving keeps the history: the steps move onto the file the save
+//! wrote, so an undo after a save takes the saved edit back as a draft on top of it, as the
+//! buffer of an editor does.
 
 use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, Instant};
 
 use gpui::Global;
-use reqflux_core::model::{Auth, Body};
+use reqflux_core::model::{Auth, Body, Request, Scripts};
 
-use super::RequestDraft;
+use super::{ModeStash, RequestDraft, ScriptDraft};
 
 /// The steps a request keeps.
 pub(crate) const DEPTH: usize = 100;
@@ -159,6 +160,63 @@ impl DraftHistories {
     /// Drops the history of `id`.
     pub(crate) fn forget(&mut self, id: &str) {
         self.0.remove(id);
+    }
+
+    /// Moves the history of `id` onto the file a save just wrote, which held `saved` before
+    /// it, so undo and redo keep working across a save. Every step that was "no draft"
+    /// becomes a draft of `saved`, the request the file had before the save, and of
+    /// `saved_scripts`, the text its sidecars held when the save wrote them: the file now
+    /// holds the save, so that step has to carry its own text. Every step that was a draft
+    /// keeps its text and takes `base_hash` and the sidecar `script_bases` of the saved
+    /// files, which is what its next save is checked against; a conflict the save resolved
+    /// goes with them. `base_hash` is `None` when the saved file cannot be read, which no
+    /// step can be rebased onto: the history is dropped then, never left stale.
+    pub(crate) fn settle_after_save(
+        &mut self,
+        id: &str,
+        saved: Request,
+        saved_scripts: Option<Scripts>,
+        base_hash: Option<String>,
+        script_bases: Option<(Option<String>, Option<String>)>,
+    ) {
+        let Some(history) = self.0.get_mut(id) else {
+            return;
+        };
+        if base_hash.is_none() {
+            self.0.remove(id);
+            return;
+        } // The steps before the save are another burst: the next edit starts one of its own.
+        history.last = None;
+        for snapshot in history.undo.iter_mut().chain(history.redo.iter_mut()) {
+            if snapshot.is_none() {
+                // The save rewrote the sidecars, so the step that means "the scripts as
+                // saved" carries the text they held before it, on the saved files' bases.
+                let scripts = saved_scripts.clone().map(|scripts| ScriptDraft {
+                    scripts,
+                    pre_request_base: script_bases.as_ref().and_then(|(base, _)| base.clone()),
+                    test_base: script_bases.as_ref().and_then(|(_, base)| base.clone()),
+                });
+                *snapshot = Some(RequestDraft {
+                    request: saved.clone(),
+                    base_hash: base_hash.clone(),
+                    conflicted: false,
+                    scripts,
+                    stash: ModeStash::default(),
+                });
+                continue;
+            }
+            let Some(draft) = snapshot.as_mut() else {
+                continue;
+            };
+            draft.base_hash.clone_from(&base_hash);
+            draft.conflicted = false;
+            if let (Some(scripts), Some((pre_request, test))) =
+                (draft.scripts.as_mut(), &script_bases)
+            {
+                scripts.pre_request_base.clone_from(pre_request);
+                scripts.test_base.clone_from(test);
+            }
+        }
     }
 }
 

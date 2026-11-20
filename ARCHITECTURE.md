@@ -447,10 +447,14 @@ credentials to another host, and such a send fails with the URL's own error (`%2
   edits to one slot of the request (typing in the URL, a body, a cell) within 800 ms is one
   step; a mode switch or a discard is a step of its own; the history keeps the last 100
   steps. Discarding is a step too, so one undo restores the discarded draft. A snapshot is
-  the whole draft or "no draft", the history lives in memory only (not across restarts) and
-  saving forgets it. `Ctrl+Z`, `Ctrl+Shift+Z` and `Ctrl+Y` run the `undo-draft` and
-  `redo-draft` commands while no text editor has the focus; a focused editor keeps its own
-  `Ctrl+Z`.
+  the whole draft or "no draft", and the history lives in memory only (not across
+  restarts). Saving keeps it: every step moves onto the file the save wrote, so a "no
+  draft" step carries the request the file held before the save, and the scripts its
+  sidecars held when the save wrote them, and one undo after a save takes the saved edit
+  back as a draft over the saved file, as an editor's buffer does.
+  `Ctrl+Z`, `Ctrl+Shift+Z` and `Ctrl+Y` run the `undo-draft` and `redo-draft` commands while
+  no text editor has the focus; a focused editor keeps its own `Ctrl+Z` and redoes with
+  `Ctrl+Shift+Z` beside `Ctrl+Y`, since the framework binds only `Ctrl+Y` off macOS.
 - **Mode switches keep data.** Switching the body mode or the auth type leaves the data of
   the mode switched away from in the draft's in-memory stash and restores it when the user
   switches back. The stash is never written: the file and the stored draft hold only the

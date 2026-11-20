@@ -542,15 +542,32 @@ impl Shell {
             .get(id)
             .is_some_and(|state| state.inspection.request.request == draft.request);
         let request = (!unchanged).then_some(&draft.request);
+        // The request the file holds before the save: the steps of the history that mean "no
+        // draft" are that request, and the file stops holding it once the save lands. Its
+        // scripts too, but only when the save writes them: the sidecars stop holding the old
+        // text then, so the step that means "the scripts as saved" has to carry it.
+        let saved = self
+            .requests
+            .get(id)
+            .map(|state| state.inspection.request.request.clone());
+        let saved_scripts = self
+            .requests
+            .get(id)
+            .filter(|_| draft.scripts.is_some())
+            .map(|state| state.inspection.request.scripts.clone());
         match engine.save_draft(id, request, current, scripts) {
             Ok(()) => {
                 self.drafts.remove(id);
-                cx.default_global::<DraftHistories>().forget(id);
                 self.save_errors.remove(id);
                 self.delete_stored_draft(id);
-                if !self.reload_workspace(cx) {
+                let reloaded = self.reload_workspace(cx);
+                if !reloaded {
                     toasts::reload_failed("Saved", cx);
                 }
+                // The steps move onto the file only once the workspace holds the save: the
+                // hash each of them is checked against has to be the saved file's. A save the
+                // reload could not see leaves no hash to move them onto, so it keeps none.
+                self.settle_history(id, reloaded.then_some(saved).flatten(), saved_scripts, cx);
             }
             Err(SaveError::Conflict { .. }) => self.mark_conflicted(id, cx),
             Err(error) => {
@@ -558,6 +575,41 @@ impl Shell {
             }
         }
         self.focus.focus(window, cx);
+    }
+
+    /// Moves the undo history of the request `id` onto the file a save just wrote, which held
+    /// `saved` before it, so an undo after a save takes the saved edit back as a draft and the
+    /// history keeps working. A history that cannot be moved onto the saved file, because the
+    /// request is gone or the file cannot be read, is dropped: its steps rest on a base that
+    /// no longer exists. `saved_scripts`, when the save wrote them, is the text the sidecars
+    /// held, carried into the steps the same way.
+    fn settle_history(
+        &mut self,
+        id: &str,
+        saved: Option<Request>,
+        saved_scripts: Option<Scripts>,
+        cx: &mut Context<Self>,
+    ) {
+        let Some(saved) = saved else {
+            cx.default_global::<DraftHistories>().forget(id);
+            return;
+        };
+        let base_hash = match &self.workspace {
+            OpenedWorkspace::Loaded(engine) => engine
+                .request_base_hash(id)
+                .ok()
+                .flatten()
+                .map(|hash| hash.to_string()),
+            _ => None,
+        };
+        let script_bases = self.script_bases(id);
+        cx.default_global::<DraftHistories>().settle_after_save(
+            id,
+            saved,
+            saved_scripts,
+            base_hash,
+            script_bases,
+        );
     }
 
     /// Marks the draft of the request `id` conflicted: the saved file moved underneath it,
