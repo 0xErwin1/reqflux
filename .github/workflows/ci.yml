@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -18,8 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@1.99.1
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable branch, toolchain pinned below
         with:
+          toolchain: 1.99.1
           components: rustfmt, clippy
       - name: Install native dependencies
         run: |
@@ -27,8 +31,8 @@ jobs:
           sudo apt-get install -y mold pkg-config libxkbcommon-dev libxkbcommon-x11-dev \
             libwayland-dev libvulkan-dev libx11-xcb-dev libxcb1-dev libfreetype-dev \
             libfontconfig-dev libssl-dev libzstd-dev libasound2-dev
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
+      - uses: taiki-e/install-action@a7c938ee233ac44ef6f2fba5ac2d30fa12584c6e # v2 line; SHA shared with arbor
         with:
           tool: cargo-nextest
       - name: Lint

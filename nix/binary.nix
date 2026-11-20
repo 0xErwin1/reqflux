@@ -1,7 +1,8 @@
 # Prebuilt-binary derivation for ReqFlux.
 #
 # Pulls the matching tarball from the GitHub Release named by the info file
-# (./release-info.nix by default, ./nightly-info.nix for the rolling nightly)
+# (./release-info.nix by default, ./nightly-info.nix for the rolling nightly;
+# the nightly url is a per-build immutable asset, not the rolling tarball)
 # and installs it into a Nix store path. Avoids compiling from source on the
 # consumer machine.
 #
