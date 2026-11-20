@@ -118,7 +118,16 @@ jobs:
         run: |
           set -euo pipefail
           PASSED=$(gh run list --workflow ci.yml --commit "$SHA" --event push \
-            --status success --json databaseId --jq 'length')
+            --status success --json databaseId --jq 'length') || PASSED="unknown"
+          if [ "$PASSED" = "unknown" ]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            if [ "$EVENT" = "workflow_dispatch" ]; then
+              echo "::error::Could not query CI runs for $SHA; dispatch again once the GitHub API responds."
+              exit 1
+            fi
+            echo "::warning::Could not query CI runs for $SHA: skipping; the next scheduled run retries."
+            exit 0
+          fi
           if [ "$PASSED" -gt 0 ]; then
             echo "CI passed for $SHA."
             echo "proceed=true" >> "$GITHUB_OUTPUT"
