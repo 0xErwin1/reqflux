@@ -526,6 +526,8 @@ fn a_taller_window_gives_the_raw_body_editor_the_extra_height(cx: &mut TestAppCo
 
 #[gpui::test]
 fn dragging_the_split_resizes_the_editor_down_to_a_few_lines(cx: &mut TestAppContext) {
+    // The send below completes on the engine's threads, which wake the awaiting task.
+    cx.executor().allow_parking();
     let (shell, cx) = open_fill(cx, "body");
     // Tall enough that the request pane keeps room above its minimum when the split moves.
     let width = cx.update(|window, _| window.viewport_size().width);
