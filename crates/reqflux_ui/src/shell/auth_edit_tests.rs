@@ -66,6 +66,17 @@ fn field(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<(String, Stri
     })
 }
 
+/// Whether the open field masks its text, if it is open.
+fn field_masked(cx: &mut TestAppContext, shell: &Entity<Shell>) -> Option<bool> {
+    cx.update(|cx| {
+        shell
+            .read(cx)
+            .cell_edit
+            .as_ref()
+            .map(|edit| edit.input.read(cx).presentation().is_masked())
+    })
+}
+
 /// Picks the auth type `kind` from the type menu.
 pub(super) fn pick_type(cx: &mut VisualTestContext, kind: &str) {
     click(cx, "request-auth-type");
@@ -203,6 +214,268 @@ fn a_secret_shows_masked_in_a_field(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+fn the_eye_shows_and_hides_a_secret_without_opening_it(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    assert_eq!(label(cx, "request-auth-field-token-reveal"), "Show value");
+    click(cx, "request-auth-field-token-reveal");
+    assert!(
+        bounds(cx, "request-auth-input").is_none(),
+        "the eye does not open the field"
+    );
+    assert!(
+        bounds(cx, "request-auth-well-token-text").is_some(),
+        "the value is drawn"
+    );
+    assert_eq!(
+        label(cx, "request-auth-field-token"),
+        "Token: ••••••••",
+        "automation still sees the mask"
+    );
+    assert_eq!(label(cx, "request-auth-field-token-reveal"), "Hide value");
+    assert!(draft_auth(cx, &shell).is_none(), "revealing edits nothing");
+
+    click(cx, "request-auth-field-token-reveal");
+    assert_eq!(label(cx, "request-auth-field-token"), "Token: ••••••••");
+}
+
+/// The whole automation snapshot as text.
+fn bridge_dump(cx: &mut VisualTestContext) -> String {
+    let automation = gpui_mcp::Automation::isolated();
+    cx.update(|window, _| {
+        automation.attach(window);
+        window.refresh();
+    });
+    cx.run_until_parked();
+    format!("{:?}", automation.snapshot())
+}
+
+#[gpui::test]
+fn automation_never_sees_a_literal_secret(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    assert!(!bridge_dump(cx).contains("stored-token"), "idle masked");
+    click(cx, "request-auth-field-token");
+    assert!(!bridge_dump(cx).contains("stored-token"), "open masked");
+    click(cx, "request-auth-field-token-reveal");
+    assert!(!bridge_dump(cx).contains("stored-token"), "open revealed");
+    cx.simulate_keystrokes("escape");
+    cx.run_until_parked();
+    assert_eq!(label(cx, "request-auth-field-token-reveal"), "Hide value");
+    assert!(!bridge_dump(cx).contains("stored-token"), "idle revealed");
+}
+
+#[gpui::test]
+fn text_around_a_reference_stays_masked(cx: &mut TestAppContext) {
+    let dir = auth_workspace("type = \"bearer\"\ntoken = \"Bearer {{admin_token}}\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    assert_eq!(label(cx, "request-auth-field-token"), "Token: ••••••••");
+    assert!(bounds(cx, "request-auth-field-token-reveal").is_some());
+    click(cx, "request-auth-field-token");
+    assert_eq!(field_masked(cx, &shell), Some(true));
+    assert_eq!(
+        cx.update(|_, cx| {
+            shell
+                .read(cx)
+                .cell_edit
+                .as_ref()
+                .map(|edit| edit.marks.is_some())
+        }),
+        Some(false),
+        "no marks on a masked field"
+    );
+}
+
+#[gpui::test]
+fn typing_into_a_masked_field_replaces_it(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-token");
+    cx.simulate_keystrokes("N E W enter");
+    cx.run_until_parked();
+    assert_eq!(
+        draft_auth(cx, &shell),
+        Some(Auth::Bearer {
+            token: "NEW".to_owned()
+        })
+    );
+}
+
+#[gpui::test]
+fn switching_the_type_hides_revealed_fields(cx: &mut TestAppContext) {
+    let dir = auth_workspace("type = \"basic\"\nusername = \"me\"\npassword = \"pw\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-password-reveal");
+    assert_eq!(
+        label(cx, "request-auth-field-password-reveal"),
+        "Hide value"
+    );
+    pick_type(cx, "digest");
+    type_field(cx, "password", "digest-pw", "enter");
+    assert_eq!(
+        label(cx, "request-auth-field-password-reveal"),
+        "Show value",
+        "the new type's field starts hidden"
+    );
+}
+
+#[gpui::test]
+fn a_literal_typed_into_an_open_secret_never_reaches_automation(cx: &mut TestAppContext) {
+    let dir = auth_workspace("type = \"bearer\"\ntoken = \"{{admin_token}}\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-token");
+    cx.simulate_keystrokes("ctrl-a backspace");
+    for character in "typed-literal".chars() {
+        cx.simulate_keystrokes(&character.to_string());
+    }
+    cx.run_until_parked();
+    assert!(
+        !bridge_dump(cx).contains("typed-literal"),
+        "an open credential field keeps its text from automation"
+    );
+}
+
+#[gpui::test]
+fn a_reveal_ends_when_the_value_changes(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-token-reveal");
+    assert_eq!(label(cx, "request-auth-field-token-reveal"), "Hide value");
+    type_field(cx, "token", "rotated", "enter");
+    assert_eq!(
+        label(cx, "request-auth-field-token-reveal"),
+        "Show value",
+        "the new value starts hidden"
+    );
+}
+
+#[gpui::test]
+fn a_value_that_comes_back_to_the_revealed_one_shows_masked(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (_shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-token-reveal");
+    type_field(cx, "token", "other", "enter");
+    type_field(cx, "token", "stored-token", "enter");
+    assert_eq!(
+        label(cx, "request-auth-field-token-reveal"),
+        "Show value",
+        "an edit back to the revealed value"
+    );
+
+    click(cx, "request-auth-field-token-reveal");
+    click(cx, "auth-source-inherit");
+    click(cx, "auth-source-request");
+    pick_type(cx, "bearer");
+    assert_eq!(
+        label(cx, "request-auth-field-token-reveal"),
+        "Show value",
+        "a source and type round trip that restores it"
+    );
+}
+
+#[gpui::test]
+fn a_typed_secret_opens_masked_with_its_value_and_an_empty_commit_clears_it(
+    cx: &mut TestAppContext,
+) {
+    let dir = auth_workspace("type = \"digest\"\nusername = \"me\"\npassword = \"pw\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-password");
+    assert_eq!(field_masked(cx, &shell), Some(true));
+    assert_eq!(
+        field(cx, &shell).map(|(text, _)| text).as_deref(),
+        Some("pw")
+    );
+    cx.simulate_keystrokes("x enter");
+    cx.run_until_parked();
+    let password = |auth: Option<Auth>| match auth.as_ref().map(Auth::typed) {
+        Some(Some(Ok(reqflux_core::model::TypedAuth::Digest(digest)))) => Some(digest.password),
+        _ => None,
+    };
+    assert_eq!(
+        password(draft_auth(cx, &shell)).as_deref(),
+        Some("x"),
+        "typing replaced it"
+    );
+
+    type_field(cx, "password", "", "enter");
+    assert_eq!(
+        password(draft_auth(cx, &shell)).as_deref(),
+        Some(""),
+        "an empty commit clears it"
+    );
+}
+
+#[gpui::test]
+fn the_eye_unmasks_the_open_field(cx: &mut TestAppContext) {
+    let dir = bearer_workspace();
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    click(cx, "request-auth-field-token");
+    assert_eq!(field_masked(cx, &shell), Some(true), "it opens masked");
+    click(cx, "request-auth-field-token-reveal");
+    assert_eq!(field_masked(cx, &shell), Some(false), "the eye unmasks it");
+    assert_eq!(
+        field(cx, &shell).map(|(text, _)| text).as_deref(),
+        Some("stored-token"),
+        "the field stays open with its text"
+    );
+    click(cx, "request-auth-field-token-reveal");
+    assert_eq!(field_masked(cx, &shell), Some(true), "and masks it again");
+}
+
+#[gpui::test]
+fn a_secret_that_is_only_a_variable_shows_and_opens_unmasked(cx: &mut TestAppContext) {
+    let dir = auth_workspace("type = \"bearer\"\ntoken = \"{{admin_token}}\"\n");
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    open_auth(cx);
+
+    assert_eq!(
+        label(cx, "request-auth-field-token"),
+        "Token: {{admin_token}}"
+    );
+    assert!(
+        bounds(cx, "request-auth-field-token-reveal").is_none(),
+        "nothing to reveal"
+    );
+    click(cx, "request-auth-field-token");
+    assert_eq!(field_masked(cx, &shell), Some(false));
+    assert_eq!(
+        field(cx, &shell).map(|(text, _)| text).as_deref(),
+        Some("{{admin_token}}")
+    );
+}
+
+#[gpui::test]
 fn username_and_key_edit_the_draft_and_add_to_toggles(cx: &mut TestAppContext) {
     let dir = bearer_workspace();
     let (_state_dir, state_path) = state_file();
@@ -258,7 +531,7 @@ fn username_and_key_edit_the_draft_and_add_to_toggles(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn a_secret_field_opens_empty_and_an_empty_commit_keeps_it(cx: &mut TestAppContext) {
+fn a_secret_field_opens_with_its_value_and_an_empty_commit_clears_it(cx: &mut TestAppContext) {
     let dir = bearer_workspace();
     let (_state_dir, state_path) = state_file();
     let (shell, cx) = render(cx, &dir, &state_path);
@@ -267,12 +540,15 @@ fn a_secret_field_opens_empty_and_an_empty_commit_keeps_it(cx: &mut TestAppConte
     click(cx, "request-auth-field-token");
     assert_eq!(
         field(cx, &shell),
-        Some((String::new(), "Secret value".to_owned())),
-        "never seeded"
+        Some(("stored-token".to_owned(), "Secret value".to_owned())),
+        "seeded with the stored token"
     );
     cx.simulate_keystrokes("enter");
     cx.run_until_parked();
-    assert!(draft_auth(cx, &shell).is_none(), "the stored token is kept");
+    assert!(
+        draft_auth(cx, &shell).is_none(),
+        "committing it unchanged edits nothing"
+    );
 
     type_field(cx, "token", "abc", "escape");
     assert!(bounds(cx, "request-auth-input").is_none());
@@ -293,6 +569,15 @@ fn a_secret_field_opens_empty_and_an_empty_commit_keeps_it(cx: &mut TestAppConte
         file(&dir).contains("token = \"fresh\""),
         "Ctrl+S wrote it: {}",
         file(&dir)
+    );
+
+    type_field(cx, "token", "", "enter");
+    assert_eq!(
+        draft_auth(cx, &shell),
+        Some(Auth::Bearer {
+            token: String::new()
+        }),
+        "an empty commit clears it"
     );
 }
 

@@ -31,6 +31,7 @@ pub(crate) use grid::secret;
 #[cfg(test)]
 pub(crate) use model::count;
 pub(crate) use model::{RequestState, SubTab};
+pub(super) use pane_model::auth_fields;
 pub(crate) use send::{Completed, Failure, Received, SendState, StatusClass};
 pub(crate) use send::{elapsed_text, size_text};
 #[cfg(test)]

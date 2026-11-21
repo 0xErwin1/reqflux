@@ -1,8 +1,10 @@
 //! The Auth pane, as artboard 05 draws it: a label/control row per setting. Source is a
 //! segmented control between the parent's auth and the request's own; Type is a select that
 //! opens the type menu; every field sits in a field well. Masked values show only `••••••••`
-//! with the SECRET badge, on screen and in the automation label. Username, Key and the
-//! secrets open a field; Add to is a segmented control. Digest, AWS SigV4 and OAuth 2.0
+//! with the SECRET badge, on screen and in the automation label, until the eye at the end of
+//! the well reveals them; a value that is only `{{name}}` references is never masked.
+//! Username, Key and the secrets open a field seeded with their text, masked while the row
+//! hides it; Add to is a segmented control. Digest, AWS SigV4 and OAuth 2.0
 //! fields open a field too, Algorithm and Grant type are selects, and OAuth 2.0 adds the
 //! Token row ([`token_view`]). While Get new token runs the form is locked: every row draws
 //! `bolt`'s disabled field row and the menus they had open close. Every edit lands in the
@@ -12,7 +14,9 @@ mod token_model;
 mod token_view;
 
 use bolt::composites::FieldRow;
-use bolt::controls::{GpuiInput, InputEnter, InputEscape, InputState};
+use bolt::controls::{
+    Button, ButtonSize, GpuiInput, InputContentType, InputEnter, InputEscape, InputState,
+};
 use bolt::primitives::{SegmentedItem, TextVariant};
 use bolt::tokens::{Borders, Fields, ModalMetrics, Spacing};
 use gpui::{
@@ -181,8 +185,9 @@ fn type_row(
     .into_any_element()
 }
 
-/// The open field in a well, `request-auth-input`.
-fn input_field(input: &Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<Div> {
+/// The open field in a well, `request-auth-input`. A `secret` one has the password content
+/// type, so its text never reaches automation, even while its eye shows it.
+fn input_field(input: &Entity<InputState>, secret: bool, cx: &mut Context<Shell>) -> Stateful<Div> {
     let colors = bolt::colors(cx);
     part("request-auth-input".to_owned())
         .flex_1()
@@ -202,16 +207,21 @@ fn input_field(input: &Entity<InputState>, cx: &mut Context<Shell>) -> Stateful<
         .on_action(cx.listener(|this, _: &InputEscape, window, cx| {
             this.discard_cell_edit(window, cx);
         }))
-        .child(
-            GpuiInput::new(input)
+        .child({
+            let input = GpuiInput::new(input)
                 .appearance(false)
                 .bordered(false)
                 .p_0()
                 .h_full()
                 .text_size(Fields::TEXT)
                 .font_family(bolt::fonts::editor_family(cx))
-                .text_color(colors.strong),
-        )
+                .text_color(colors.strong);
+            if secret {
+                input.content_type(InputContentType::Password)
+            } else {
+                input
+            }
+        })
 }
 
 /// The Add to segments, `auth-location-header` and `auth-location-query`.
@@ -326,6 +336,33 @@ fn select_row(
     .into_any_element()
 }
 
+/// The eye of the masked field `field_id` of the request `request_id`,
+/// `<field_id>-reveal`: Show while the value is hidden, Hide while it is revealed. A click
+/// toggles it without opening the field; `editing` when the field is the open one.
+fn reveal_button(
+    request_id: &str,
+    field_id: &str,
+    revealed: bool,
+    editing: bool,
+    cx: &mut Context<Shell>,
+) -> AnyElement {
+    let label = if revealed { "Hide value" } else { "Show value" };
+    let request = request_id.to_owned();
+    let field = field_id.to_owned();
+    Button::new(SharedString::from(format!("{field_id}-reveal")), label)
+        .ghost()
+        .size(ButtonSize::Inline)
+        .icon(ui::icon(IconName::Eye))
+        .icon_only()
+        .tooltip(label)
+        .aria_label(label)
+        .on_click(cx.listener(move |this, _event, window, cx| {
+            cx.stop_propagation();
+            this.toggle_auth_reveal(&request, &field, editing, window, cx);
+        }))
+        .into_any_element()
+}
+
 /// Whether the open field is the one `edit` opens for the request `request_id`.
 fn editing(shell: &Shell, request_id: &str, auth: &Auth, edit: FieldEdit) -> bool {
     match (auth, edit) {
@@ -378,10 +415,18 @@ fn field_row(
         }
         FieldEdit::Text(_) | FieldEdit::Secret(_) | FieldEdit::None => {}
     }
+    let revealed = field.masked && shell.auth_pane.is_revealed(request_id, &id, &field.value);
+    let hidden = field.masked && !revealed;
     if editing(shell, request_id, auth, field.edit)
         && let Some(input) = shell.cell_edit.as_ref().map(|edit| edit.input.clone())
     {
-        let text = input_field(&input, cx);
+        // Any credential field keeps its text from automation while open, even one that
+        // opened empty or as a `{{name}}` reference and now takes a typed literal.
+        let credential = field.masked || matches!(field.edit, FieldEdit::Secret(_));
+        let text = input_field(&input, credential, cx);
+        let eye = field
+            .masked
+            .then(|| reveal_button(request_id, &id, revealed, true, cx));
         let control = variable_popover_view::editing_keys(
             well(well_id.clone(), cx).w_full(),
             request_id,
@@ -391,6 +436,7 @@ fn field_row(
             cx,
         )
         .child(text)
+        .children(eye)
         .into_any_element();
         return form_row(
             labeled_row(id, format!("{}: ", field.label)),
@@ -413,7 +459,7 @@ fn field_row(
             .child(ui::role(div(), TextVariant::Caption, cx).child(placeholder))
             .children(field.masked.then(secret));
         (placeholder.to_owned(), value)
-    } else if field.masked {
+    } else if hidden {
         let value = part(format!("{well_id}-text"))
             .flex_1()
             .h_full()
@@ -423,6 +469,20 @@ fn field_row(
             .gap(Spacing::SM)
             .child(MASK)
             .child(secret());
+        (MASK.to_owned(), value)
+    } else if revealed {
+        // Drawn in clear on screen only: the frame is redacted for automation and the
+        // label keeps the mask.
+        let value = part(format!("{well_id}-text"))
+            .flex_1()
+            .min_w_0()
+            .h_full()
+            .flex()
+            .items_center()
+            .overflow_hidden()
+            .text_ellipsis()
+            .frame_redacted(true)
+            .child(field.value.clone());
         (MASK.to_owned(), value)
     } else {
         let value = part(format!("{well_id}-text"))
@@ -442,7 +502,16 @@ fn field_row(
             ));
         (field.value.clone(), value)
     };
-    let control = well(well_id, cx).w_full().child(value).into_any_element();
+    let eye = field
+        .masked
+        .then(|| reveal_button(request_id, &id, revealed, false, cx));
+    let control = well(well_id, cx)
+        .w_full()
+        .gap(Spacing::SM)
+        .child(value)
+        .children(revealed.then(secret))
+        .children(eye)
+        .into_any_element();
     let row = form_row(
         labeled_row(id, format!("{}: {shown}", field.label)),
         &field.label,
@@ -465,9 +534,9 @@ fn field_row(
     row.cursor_text()
         .on_click(cx.listener(move |this, _event, window, cx| {
             if typed {
-                this.start_typed_auth_edit(&request, key, secret, window, cx);
+                this.start_typed_auth_edit(&request, key, secret, hidden, window, cx);
             } else {
-                this.start_auth_edit(&request, secret, window, cx);
+                this.start_auth_edit(&request, secret, hidden, window, cx);
             }
         }))
         .into_any_element()

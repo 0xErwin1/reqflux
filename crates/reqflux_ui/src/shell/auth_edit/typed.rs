@@ -56,14 +56,19 @@ impl Shell {
         })
     }
 
-    /// Opens a focused field over the typed auth field `key` of the request `id`: seeded
-    /// with its text, or empty with a placeholder when it is `secret`. An open field
-    /// elsewhere commits first.
+    /// Opens a focused field over the typed auth field `key` of the request `id`, seeded
+    /// with its text and `masked` when the row hides it; a `secret` one shows a placeholder
+    /// while empty. An open field elsewhere commits first.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "the field's identity and look, plus the GPUI contexts"
+    )]
     pub(in crate::shell) fn start_typed_auth_edit(
         &mut self,
         id: &str,
         key: &str,
         secret: bool,
+        masked: bool,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -77,31 +82,28 @@ impl Shell {
         let Some(text) = typed_text(&mut typed, key) else {
             return;
         };
-        let seed = if secret { String::new() } else { text.clone() };
+        let seed = text.clone();
         self.open_auth_field(
             id,
             &format!("{TYPED_PREFIX}{key}"),
             seed,
             secret,
+            masked,
             window,
             cx,
         );
     }
 
-    /// Puts `value` into the typed auth field `key` of the request `id` in its draft. An
-    /// empty secret keeps the stored one; committing the text the field already has,
-    /// without a draft, creates none.
+    /// Puts `value` into the typed auth field `key` of the request `id` in its draft; an
+    /// empty value clears it. Committing the text the field already has, without a draft,
+    /// creates none.
     pub(in crate::shell) fn set_draft_typed_text(
         &mut self,
         id: &str,
         key: &str,
-        secret: bool,
         value: String,
         cx: &mut Context<Self>,
     ) {
-        if secret && value.is_empty() {
-            return;
-        }
         let Some(mut typed) = self.displayed_typed(id) else {
             return;
         };

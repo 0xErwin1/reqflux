@@ -619,6 +619,7 @@ impl Shell {
 impl Render for Shell {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.watch_cell_blur(window, cx);
+        self.prune_auth_reveals();
         // The read-only body editors take the text their responses show before it draws.
         for send in self.sends.values_mut() {
             response::sync_body(send, window, cx);

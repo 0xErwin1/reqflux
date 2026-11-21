@@ -213,7 +213,7 @@ impl Shell {
             return true;
         }
         if let Some(key) = table.strip_prefix(TYPED_PREFIX) {
-            self.set_draft_typed_text(&request_id, key, secret, value, cx);
+            self.set_draft_typed_text(&request_id, key, value, cx);
             return true;
         }
         self.set_draft_cell(&request_id, &table, n, field, value, secret, cx);

@@ -23,6 +23,7 @@ button{font:inherit;white-space:nowrap}
 .field{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;box-sizing:border-box;background:#09090B;box-shadow:#232128 0 0 0 1px inset;font-size:12.5px}
 .ib{display:flex;align-items:center;justify-content:center;width:32px;height:30px;border:0;background:#1A181E;color:#C6C3CC}
 .ib.g{background:transparent;color:#8E8996}
+.eye{display:flex;align-items:center;justify-content:center;flex-shrink:0;width:22px;height:22px;margin-right:-4px;color:#8E8996}
 .btn{display:flex;align-items:center;gap:8px;height:30px;padding:0 12px;border:0;background:#1A181E;color:#C6C3CC;font-size:12.5px;font-weight:500}
 .rail{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:0;background:transparent;color:#8E8996}
 .sel{display:flex;align-items:center;gap:8px;height:30px;padding:0 10px;background:#1A181E;box-shadow:#232128 0 0 0 1px inset;color:#F7F4F7;font-size:12.5px;white-space:nowrap}
@@ -371,7 +372,6 @@ button{font:inherit;white-space:nowrap}
             <div style="display:flex;flex-direction:column;gap:6px">
               <div style="display:flex;gap:8px">
                 <div class="c6 field m" style="flex-grow:1;color:#F7F4F7"><span style="flex-grow:1;white-space:nowrap;overflow:hidden"><span class="var">{{access_token}}</span></span>
-                  <span class="c4" style="display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span>
                 </div>
               </div>
             </div>
@@ -494,7 +494,7 @@ button{font:inherit;white-space:nowrap}
     <div class="frow">
       <span class="lb">Value</span>
       <div class="c6 field m" style="color:#F7F4F7"><span style="flex-grow:1;color:#8E8996;letter-spacing:.1em">••••••••</span>
-        <span class="c4" style="display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span>
+        <span class="c4" style="display:flex;align-items:center;gap:4px;padding:1px 6px;background:#1A181E;color:#8E8996;font-size:10px;font-family:Archivo,system-ui,sans-serif;font-weight:700;letter-spacing:.08em"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span>
       </div>
     </div>
     <div class="frow">
@@ -521,7 +521,7 @@ button{font:inherit;white-space:nowrap}
     </div>
     <div class="frow">
       <span class="lb">Password</span>
-      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div>
     </div>
     <div class="frow">
       <span class="lb">Algorithm</span>
@@ -546,7 +546,7 @@ button{font:inherit;white-space:nowrap}
     </div>
     <div class="frow">
       <span class="lb">Secret key</span>
-      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div>
     </div>
     <div class="frow">
       <span class="lb">Session token</span>
@@ -601,7 +601,7 @@ button{font:inherit;white-space:nowrap}
     <div class="frow"><span class="lb">Client ID</span>
       <div class="c6 field m" style="width:360px;color:#F7F4F7">billing-service</div></div>
     <div class="frow"><span class="lb">Client secret</span>
-      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div></div>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div></div>
     <div class="frow"><span class="lb">Scopes</span>
       <div style="display:flex;flex-direction:column;gap:6px">
         <div class="c6 field m" style="color:#F7F4F7">invoices:read invoices:write</div>
@@ -689,14 +689,48 @@ button{font:inherit;white-space:nowrap}
     <div class="frow"><span class="lb">Username</span>
       <div class="c6 field m" style="width:360px;color:#F7F4F7">qa@acme.dev</div></div>
     <div class="frow"><span class="lb">Password</span>
-      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div></div>
+      <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div></div>
     <div class="frow" style="border-top:1px solid #232128;margin-top:6px;padding-top:11px"><span class="lb">Grant type</span>
       <div class="c6 sel" style="width:300px;box-sizing:border-box"><span style="flex-grow:1">Refresh token</span><svg class="ico" style="width:12px;height:12px;color:#8E8996"><use href="#i-down"/></svg></div></div>
     <div class="frow"><span class="lb">Refresh token</span>
       <div style="display:flex;flex-direction:column;gap:6px">
-        <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span></div>
+        <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div>
         <span class="hint">Token URL, client ID, client secret and scopes as in client credentials.</span>
       </div></div>
+  </div>
+</div></div>
+
+<div class="state"><div class="state-head"><h3>Secrets · masked, revealed, variable, editing</h3><p>A secret field (Password, Token, API key Value, Secret key, Client secret) is masked only when it holds literal text; the eye at the end of the well shows or hides it.</p></div>
+<div class="frame">
+  <div style="padding:2px 16px 8px">
+    <div class="frow">
+      <span class="lb">Token</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px"><span class="mask">••••••••</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div>
+        <span class="hint">Masked: the value is literal text. The eye (tooltip "Show value") reveals it.</span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Token</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px;color:#F7F4F7"><span style="flex-grow:1">sk-live-4f9a…</span><span class="c4 sk"><svg class="ico" style="width:10px;height:10px"><use href="#i-lock"/></svg>SECRET</span><span class="eye" title="Hide value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div>
+        <span class="hint">Revealed: clear text, the SECRET badge stays, the eye reads "Hide value". The eye never opens the field.</span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Token</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px;color:#F7F4F7"><span style="flex-grow:1"><span class="var">{{admin_token}}</span></span></div>
+        <span class="hint">Variable: a value made only of {{name}} references is never masked. No SECRET badge, no eye.</span>
+      </div>
+    </div>
+    <div class="frow">
+      <span class="lb">Token</span>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="c6 field m" style="width:360px;color:#F7F4F7;box-shadow:#FFB454 0 0 0 1px inset"><span class="mask">••••••••</span><span class="eye" title="Show value"><svg class="ico" style="width:14px;height:14px"><use href="#i-eye"/></svg></span></div>
+        <span class="hint">Editing: clicking the field opens it seeded with the stored value, masked while hidden. The eye masks or unmasks the open input. Committing an empty field clears the value.</span>
+      </div>
+    </div>
   </div>
 </div></div>
 </section>

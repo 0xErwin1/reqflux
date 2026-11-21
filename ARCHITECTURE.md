@@ -619,10 +619,19 @@ exists:
 - **Auth.** The type row (`request-auth-type`) opens a menu
   (`auth-type-<inherit|none|basic|bearer|apikey|digest|awsv4|oauth2>`); a new type starts with
   empty fields. Username, Key and the plain fields of digest, AWS SigV4 and OAuth 2.0 (region,
-  service, client id, URLs, scopes) open seeded; Password, Token, the API key value and the
-  `secret_fields` of those types open empty with a `Secret value` placeholder, a typed commit
-  replaces the stored value and an empty commit keeps it, so a secret is never shown in a
-  field. Typed fields are written back through the `From<…> for Auth` constructors, with
+  service, client id, URLs, scopes) open seeded. Password, Token, the API key value and the
+  `secret_fields` of those types are masked (`••••••••` and the SECRET badge) unless the value
+  is empty or only `{{name}}` references, which name a variable and show no credential. A
+  masked row has an eye (`request-auth-field-<label>-reveal`, Show value / Hide value) that
+  reveals that value for that request without opening the field. The pane keeps only a digest
+  of the revealed value, and every render drops a reveal whose field no longer shows it (an
+  edit or undo, a reload or revert, a type or source switch, a deleted request), so the field
+  shows masked again even if the value later comes back. A revealed value is
+  drawn on screen only: the well is `frame_redacted` and the automation label keeps
+  `••••••••`. An open credential field always has the password content type, even when
+  it opened empty or as a reference, so typed text never reaches automation. Every field opens seeded
+  with its value, masked and selected while the row hides it, so typing replaces it, and the
+  eye unmasks the open field too; an empty commit clears the value. Typed fields are written back through the `From<…> for Auth` constructors, with
   canonical keys. Add to toggles header and query. Algorithm (`request-auth-algorithm`) and
   Grant type (`request-auth-grant`) are selects. An OAuth 2.0 auth adds the Token row: the kept
   token's state from `Engine::oauth_token_state` (never the token), Get new token

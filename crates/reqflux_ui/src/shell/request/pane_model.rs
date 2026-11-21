@@ -5,6 +5,7 @@ use reqflux_core::model::{
     ApiKeyLocation, Auth, AwsV4Auth, Body, DigestAlgorithm, DigestAuth, OAuth2Auth, OAuth2Grant,
     RawLanguage, Settings, TypedAuth, secret_fields,
 };
+use reqflux_core::template::{Segment, segments};
 use reqflux_engine::DEFAULT_TIMEOUT_MS;
 
 pub(crate) use crate::shell::auth_edit::AuthMenu;
@@ -54,8 +55,8 @@ pub(crate) enum FieldEdit {
     /// Opens a field seeded with the text: Username and Key of basic and API key, or the
     /// typed field with this on-disk key.
     Text(&'static str),
-    /// Opens an empty secret field: Password, Token and Value, or the typed field with this
-    /// on-disk key.
+    /// Opens a secret field, seeded with its text and masked while it holds a credential:
+    /// Password, Token and Value, or the typed field with this on-disk key.
     Secret(&'static str),
     /// Opens the menu.
     Select(AuthMenu),
@@ -65,7 +66,7 @@ pub(crate) enum FieldEdit {
     None,
 }
 
-/// An auth field row. A `masked` value is never shown.
+/// An auth field row. A `masked` value shows only `••••••••` until its eye reveals it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AuthField {
     pub(crate) label: String,
@@ -88,14 +89,39 @@ impl AuthField {
     }
 }
 
+/// Whether `value` is only `{{name}}` references, with at most whitespace between them: it
+/// names variables and holds no credential of its own.
+pub(crate) fn only_references(value: &str) -> bool {
+    let mut referenced = false;
+    for segment in segments(value) {
+        match segment {
+            Segment::Reference { .. } => referenced = true,
+            Segment::Literal(text) if text.trim().is_empty() => {}
+            Segment::Literal(_) => return false,
+        }
+    }
+    referenced
+}
+
+/// Whether the auth value `value` is masked: a `credential` field, or one that references a
+/// secret, unless it is empty or only `{{name}}` references, which show no credential.
+pub(crate) fn masks_value(value: &str, credential: bool, references_secret: bool) -> bool {
+    !value.is_empty() && !only_references(value) && (credential || references_secret)
+}
+
 /// The fields of `auth`. Passwords, tokens, API key values, the `secret_fields` of digest,
-/// AWS SigV4 and OAuth 2.0, and every field of other types are always masked; other values
-/// when they reference a secret, as `references_secret` (the engine's) decides.
+/// AWS SigV4 and OAuth 2.0, and every field of other types are masked; other values when
+/// they reference a secret, as `references_secret` (the engine's) decides. An empty value or
+/// one that is only `{{name}}` references is never masked.
 pub(crate) fn auth_fields(auth: &Auth, references_secret: impl Fn(&str) -> bool) -> Vec<AuthField> {
     let field = |label: &str, value: &str, edit: FieldEdit| AuthField {
         label: label.to_owned(),
         value: value.to_owned(),
-        masked: matches!(edit, FieldEdit::Secret(_)) || references_secret(value),
+        masked: masks_value(
+            value,
+            matches!(edit, FieldEdit::Secret(_)),
+            references_secret(value),
+        ),
         edit,
         placeholder: None,
         hint: None,
@@ -145,7 +171,8 @@ pub(crate) fn auth_fields(auth: &Auth, references_secret: impl Fn(&str) -> bool)
                             .as_str()
                             .map_or_else(|| value.to_string(), str::to_owned);
                         let mut shown = field(key, &text, FieldEdit::None);
-                        shown.masked |= secrets.is_empty() || secrets.contains(&key.as_str());
+                        shown.masked |= (secrets.is_empty() || secrets.contains(&key.as_str()))
+                            && masks_value(&text, true, false);
                         shown
                     })
                     .collect()
@@ -397,16 +424,51 @@ mod tests {
     }
 
     #[test]
-    fn an_api_key_value_referencing_a_secret_is_masked() {
+    fn a_value_that_is_only_references_is_never_masked() {
         let auth = Auth::ApiKey {
-            key: "X-Key".to_owned(),
-            value: "{{token}}".to_owned(),
+            key: "{{token}}".to_owned(),
+            value: " {{token}} {{ other }} ".to_owned(),
+            location: ApiKeyLocation::Query,
+        };
+        assert_eq!(
+            masks(&auth_fields(&auth, secret)),
+            [("Key", false), ("Value", false), ("Add to", false)]
+        );
+        let bearer = Auth::Bearer {
+            token: "{{admin_token}}".to_owned(),
+        };
+        assert_eq!(masks(&auth_fields(&bearer, secret)), [("Token", false)]);
+    }
+
+    #[test]
+    fn an_empty_secret_is_not_masked() {
+        let bearer = Auth::Bearer {
+            token: String::new(),
+        };
+        assert_eq!(masks(&auth_fields(&bearer, secret)), [("Token", false)]);
+    }
+
+    #[test]
+    fn only_references_needs_a_reference_and_no_text() {
+        assert!(only_references("{{a}}"));
+        assert!(only_references(" {{a}}{{b}} "));
+        assert!(!only_references(""));
+        assert!(!only_references("   "));
+        assert!(!only_references("Bearer {{a}}"));
+        assert!(!only_references("{{a"));
+    }
+
+    #[test]
+    fn a_value_with_text_around_a_secret_reference_is_masked() {
+        let auth = Auth::ApiKey {
+            key: "X-{{token}}".to_owned(),
+            value: "key-{{token}}".to_owned(),
             location: ApiKeyLocation::Query,
         };
         let fields = auth_fields(&auth, secret);
         assert_eq!(
             masks(&fields),
-            [("Key", false), ("Value", true), ("Add to", false)]
+            [("Key", true), ("Value", true), ("Add to", false)]
         );
         let ids: Vec<_> = fields.iter().map(AuthField::element_id).collect();
         assert_eq!(
@@ -479,7 +541,7 @@ mod tests {
                 row(
                     "Session token",
                     "",
-                    true,
+                    false,
                     FieldEdit::Secret("session_token")
                 ),
                 row("Region", "eu-west-1", false, FieldEdit::Text("region")),
@@ -581,15 +643,16 @@ mod tests {
 
     #[test]
     fn a_typed_field_referencing_a_secret_is_masked() {
-        let auth: Auth = AwsV4Auth {
-            access_key: "{{token}}".to_owned(),
-            ..AwsV4Auth::default()
-        }
-        .into();
-        assert_eq!(
-            auth_fields(&auth, secret).first().map(|field| field.masked),
-            Some(true)
-        );
+        let masked = |access_key: &str| {
+            let auth: Auth = AwsV4Auth {
+                access_key: access_key.to_owned(),
+                ..AwsV4Auth::default()
+            }
+            .into();
+            auth_fields(&auth, secret).first().map(|field| field.masked)
+        };
+        assert_eq!(masked("AK{{token}}"), Some(true));
+        assert_eq!(masked("{{token}}"), Some(false), "only a reference");
     }
 
     #[test]
