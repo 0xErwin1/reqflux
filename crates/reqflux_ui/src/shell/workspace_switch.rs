@@ -106,6 +106,7 @@ impl Shell {
         self.sends.clear();
         self.last_send = None;
         self.documents = Documents::default();
+        self.scratch.clear();
         self.requests.clear();
         self.drafts.clear();
         self.save_errors.clear();

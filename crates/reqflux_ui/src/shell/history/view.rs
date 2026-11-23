@@ -186,6 +186,7 @@ fn banner(tab: &HistoryTab, cx: &mut Context<Shell>) -> Stateful<Div> {
         .child(div().flex_1())
         .children(open_source)
         .children(note)
+        .child(open_copy(tab.source_exists, cx))
         .child(resend(tab.source_exists, cx))
 }
 
@@ -196,6 +197,36 @@ fn open_source(cx: &mut Context<Shell>) -> Button {
         .inline()
         .icon(ui::icon(IconName::ExternalLink))
         .on_click(cx.listener(|this, _event, _window, cx| this.open_history_source(cx)))
+}
+
+/// Open as unsaved copy, `history-open-copy`, a secondary button; disabled, it sits under a
+/// blocker, `history-open-copy-disabled`, that takes the pointer.
+fn open_copy(enabled: bool, cx: &mut Context<Shell>) -> Div {
+    let button = Button::new("history-open-copy", "Open as unsaved copy")
+        .aria_label("Open as unsaved copy")
+        .secondary()
+        .inline()
+        .icon(ui::icon(IconName::Copy))
+        .disabled(!enabled);
+    let button = if enabled {
+        button.on_click(cx.listener(|this, _event, _window, cx| this.open_history_copy(cx)))
+    } else {
+        button
+    };
+    div()
+        .relative()
+        .flex_none()
+        .child(button)
+        .when(!enabled, |element| {
+            element.child(
+                div()
+                    .id(ElementId::Name("history-open-copy-disabled".into()))
+                    .debug_selector(|| "history-open-copy-disabled".to_owned())
+                    .absolute()
+                    .inset_0()
+                    .occlude(),
+            )
+        })
 }
 
 /// Resend, `history-resend`, the primary button with its `Ctrl ↵` keycap; disabled, it sits

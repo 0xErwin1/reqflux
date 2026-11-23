@@ -195,7 +195,7 @@ impl Shell {
         let OpenedWorkspace::Loaded(engine) = &self.workspace else {
             return None;
         };
-        let hashes = engine.script_base_hashes(id).ok()?;
+        let hashes = engine.script_base_hashes(self.scratch.engine_id(id)).ok()?;
         let text = |hash: Option<reqflux_engine::ContentHash>| hash.map(|hash| hash.to_string());
         Some((text(hashes.pre_request), text(hashes.test)))
     }
@@ -427,6 +427,10 @@ impl Shell {
     /// Persists the draft of the request `id` in the app state; a failure is logged and
     /// leaves the draft in memory.
     fn store_draft(&mut self, id: &str) {
+        // A scratch copy exists only in this window: it is never persisted.
+        if self.scratch.is_scratch(id) {
+            return;
+        }
         let Some(workspace_id) = self.workspace_id.clone() else {
             return;
         };
@@ -495,6 +499,10 @@ impl Shell {
     /// file, only when its document changed. The workspace is reloaded from disk, so
     /// the tree, the request view and later sends see the saved files.
     pub(super) fn save(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.scratch.is_scratch(id) {
+            self.save_scratch(id, window, cx);
+            return;
+        }
         self.drop_url_edit_of(id);
         self.drop_body_edit_of(id);
         self.drop_script_edit_of(id);
@@ -633,6 +641,10 @@ impl Shell {
     /// Discards the draft of the request `id`: the view goes back to the saved file, which
     /// the workspace is reloaded for. One undo restores the discarded draft.
     pub(super) fn revert(&mut self, id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        // A copy has no saved file to go back to.
+        if self.scratch.is_scratch(id) {
+            return;
+        }
         self.drop_url_edit_of(id);
         self.drop_cell_edit_of(id);
         self.drop_body_edit_of(id);

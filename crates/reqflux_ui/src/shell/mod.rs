@@ -46,6 +46,7 @@ mod response;
 mod row_edit;
 mod rows;
 mod runner;
+mod scratch;
 mod scripts_edit;
 mod send;
 mod setting_edit;
@@ -271,6 +272,8 @@ pub(crate) struct Shell {
     settings: SettingsPage,
     /// The history tab: the open history entry, read only (see [`history::HistoryTab`]).
     orphan: Option<history::HistoryTab>,
+    /// The scratch tabs opened from history (see [`scratch`]).
+    scratch: scratch::Scratches,
     /// The read-only fields of the history tab, so its values can be selected and copied.
     recorded_text: Option<history::RecordedText>,
     /// The run document, while open (see [`runner::RunTab`]).
@@ -378,6 +381,7 @@ impl Shell {
             audit: audit::AuditView::new(),
             settings: SettingsPage::new(cx),
             orphan: None,
+            scratch: scratch::Scratches::default(),
             recorded_text: None,
             run: None,
             examples: examples::Examples::new(cx),
@@ -431,8 +435,11 @@ impl Shell {
     /// Inspects the request `id` unless it is open already. Fails, with why, when the tree
     /// the tabs are drawn from does not hold it or the engine cannot inspect it.
     fn inspect_unopened(&mut self, id: &str) -> Result<(), String> {
-        if documents::locate(&self.roots, id).is_none() {
-            return Err(format!("The request {id} is not in the workspace tree."));
+        let source = self.scratch.engine_id(id);
+        if documents::locate(&self.roots, source).is_none() {
+            return Err(format!(
+                "The request {source} is not in the workspace tree."
+            ));
         }
         if self.requests.contains_key(id) {
             return Ok(());
@@ -442,7 +449,12 @@ impl Shell {
         };
         let draft = self.drafts.get(id).map(|draft| &draft.request);
         let inspection = engine
-            .inspect_draft_current(id, draft, self.active_environment.as_deref(), &self.current)
+            .inspect_draft_current(
+                source,
+                draft,
+                self.active_environment.as_deref(),
+                &self.current,
+            )
             .map_err(|error| error.to_string())?;
         self.requests
             .insert(id.to_owned(), RequestState::new(inspection));
@@ -465,16 +477,23 @@ impl Shell {
             let environment = self.active_environment.as_deref();
             let current = &self.current;
             let drafts = &self.drafts;
+            let scratch = &self.scratch;
             self.requests.retain(|id, state| {
                 let draft = drafts.get(id).map(|draft| &draft.request);
-                match engine.inspect_draft_current(id, draft, environment, current) {
+                match engine.inspect_draft_current(
+                    scratch.engine_id(id),
+                    draft,
+                    environment,
+                    current,
+                ) {
                     Ok(inspection) => {
                         state.inspection = inspection;
                         true
                     }
                     Err(error) => {
                         log::warn!("cannot inspect request {id}: {error}");
-                        false
+                        // A copy outlives its deleted source: it keeps its last inspection.
+                        scratch.is_scratch(id)
                     }
                 }
             });
@@ -500,7 +519,7 @@ impl Shell {
         };
         let draft = self.drafts.get(id).map(|draft| &draft.request);
         match engine.inspect_draft_current(
-            id,
+            self.scratch.engine_id(id),
             draft,
             self.active_environment.as_deref(),
             &self.current,
@@ -607,6 +626,7 @@ impl Shell {
     /// Closes the document of the request `id`, cancelling its send in flight. Its draft,
     /// if it has one, stays in the app state and marks the tab when it is opened again.
     fn close_document(&mut self, id: &str, cx: &mut Context<Self>) {
+        self.drop_scratch(id, cx);
         self.documents.close(id);
         self.requests.remove(id);
         self.sends.remove(id);
@@ -792,6 +812,8 @@ mod grid_narrow_tests;
 mod grid_resize_tests;
 #[cfg(test)]
 mod history_copy_tests;
+#[cfg(test)]
+mod history_scratch_tests;
 #[cfg(test)]
 mod history_tests;
 #[cfg(test)]

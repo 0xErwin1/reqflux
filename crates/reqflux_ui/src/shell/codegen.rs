@@ -204,7 +204,7 @@ impl Shell {
         };
         let draft = self.drafts.get(id).map(|draft| &draft.request);
         let language = Language::Curl;
-        let code = match generate(engine, id, draft, language) {
+        let code = match generate(engine, self.scratch.engine_id(id), draft, language) {
             Ok(code) => code,
             Err(error) => {
                 toasts::failure("Cannot generate code", error.to_string(), cx);
@@ -258,7 +258,12 @@ impl Shell {
             .drafts
             .get(&dialog.request_id)
             .map(|draft| &draft.request);
-        match generate(engine, &dialog.request_id, draft, language) {
+        match generate(
+            engine,
+            self.scratch.engine_id(&dialog.request_id),
+            draft,
+            language,
+        ) {
             Ok(code) => {
                 if let Some(dialog) = self.codegen.open.as_mut() {
                     dialog.secrets = secret_names(dialog.inspection.as_ref(), &code);

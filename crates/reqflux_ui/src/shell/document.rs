@@ -13,7 +13,6 @@ use bolt::tokens::Borders;
 use gpui::{Context, InteractiveElement as _, IntoElement, ParentElement, Styled, Window};
 use reqflux_engine::config::LayoutMode;
 
-use super::documents::locate;
 use super::{
     Shell, action_strip, commands, empty_state, history, layout, path_bar, region, request, split,
     tabs,
@@ -28,9 +27,7 @@ pub(super) fn render(
     cx: &mut Context<Shell>,
 ) -> impl IntoElement {
     let colors = bolt::colors(cx);
-    let active = shell
-        .active_request()
-        .and_then(|id| locate(&shell.roots, id));
+    let active = shell.active_request().and_then(|id| shell.tab_location(id));
     let history_tab = shell.orphan.as_ref().filter(|tab| tab.active);
     let active_id = shell.documents.active();
     let drafted = active_id.is_some_and(|id| shell.drafts.contains_key(id));

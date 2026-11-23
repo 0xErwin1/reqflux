@@ -19,7 +19,7 @@ use gpui_kit_assets::IconName;
 
 use super::approvals_view::TITLE;
 use super::audit_view::TITLE as AUDIT_TITLE;
-use super::documents::{Location, locate};
+use super::documents::Location;
 use super::drafts::RequestDraft;
 use super::request::ui;
 use super::rows::part;
@@ -32,7 +32,11 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
         .documents
         .open_ids()
         .iter()
-        .filter_map(|id| locate(&shell.roots, id).map(|location| (id.clone(), location)))
+        .filter_map(|id| {
+            shell
+                .tab_location(id)
+                .map(|location| (id.clone(), location))
+        })
         .collect();
     let approvals = shell.approvals_open(cx);
     let audit = shell.audit_open(cx);
@@ -57,7 +61,8 @@ pub(super) fn render(shell: &Shell, cx: &mut Context<Shell>) -> Stateful<Div> {
             let is_active = active.as_deref() == Some(id.as_str());
             let drafted = shell.drafts.get(&id);
             let save_error = shell.save_errors.get(&id).map(String::as_str);
-            tab(id, &location, is_active, drafted, save_error, cx)
+            let scratch = shell.scratch.is_scratch(&id);
+            tab(id, &location, is_active, (drafted, scratch), save_error, cx)
         }))
         .children(run_tab)
         .children(example_tab);
@@ -155,7 +160,7 @@ fn tab(
     id: String,
     location: &Location,
     active: bool,
-    draft: Option<&RequestDraft>,
+    (draft, scratch): (Option<&RequestDraft>, bool),
     save_error: Option<&str>,
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
@@ -169,7 +174,7 @@ fn tab(
     );
 
     let conflicted = draft.is_some_and(|draft| draft.conflicted);
-    let drafted = draft.is_some();
+    let drafted = draft.is_some() && !scratch;
     let dot_color = if conflicted {
         colors.warning
     } else {
@@ -221,6 +226,18 @@ fn tab(
                     .text_size(FontSizes::XS)
                     .text_color(colors.danger)
                     .child("Save failed"),
+            )
+        })
+        .when(scratch, |tab| {
+            tab.child(
+                part(format!("doc-tab-unsaved-{id}"))
+                    .role(Role::Label)
+                    .aria_label("Unsaved")
+                    .flex_none()
+                    .whitespace_nowrap()
+                    .text_size(FontSizes::XS)
+                    .text_color(colors.muted)
+                    .child("Unsaved"),
             )
         })
         .child(close)

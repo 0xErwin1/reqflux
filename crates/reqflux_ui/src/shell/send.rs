@@ -206,7 +206,9 @@ impl Shell {
                 .map(|draft| draft.scripts.clone()),
         };
         let drafted = document.or_else(|| self.drafts.get(id).map(|draft| draft.request.clone()));
-        let pending = self.pending_record(id, drafted.as_ref());
+        // A scratch copy sends, and records, through the place of its source request.
+        let selector = self.scratch.engine_id(id).to_owned();
+        let pending = self.pending_record(&selector, drafted.as_ref());
         // Until the execution reports its own method and URL, the request view labels the
         // status bar and the send in flight.
         let (method, url) = self
@@ -230,7 +232,6 @@ impl Shell {
         send.history = None;
         send.state.start(started);
         let key = id.to_owned();
-        let selector = key.clone();
         // Preparing runs the effective pre-request script, which can take seconds: it runs
         // on GPUI's background executor, never on the UI thread (S14).
         let prepare = cx.background_executor().spawn(async move {
