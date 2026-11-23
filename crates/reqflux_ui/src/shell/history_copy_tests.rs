@@ -90,3 +90,34 @@ fn every_recorded_value_can_be_selected_and_copied(cx: &mut TestAppContext) {
     );
     assert!(cx.update(|_, cx| shell.read(cx).drafts.is_empty()));
 }
+
+#[gpui::test]
+fn typing_into_the_url_or_a_cell_leaves_the_record_unchanged(cx: &mut TestAppContext) {
+    let dir = copy_workspace(serve(Server::Ok));
+    let (_state_dir, state_path) = state_file();
+    let (shell, cx) = render(cx, &dir, &state_path);
+    click(cx, &format!("tree-row-{POST}"));
+    click(cx, "request-send");
+    assert!(settle(cx, &shell, POST).is_some());
+    open_top_row(cx);
+    present(cx, "history-readonly");
+    let url = copy_of(cx, "history-url").unwrap_or_default();
+    click(cx, "history-tab-params");
+    let cell = copy_of(cx, "history-grid-value-1").unwrap_or_default();
+    let sent = cx.update(|_, cx| shell.read(cx).orphan.as_ref().map(|tab| tab.sent.clone()));
+
+    click(cx, "history-url");
+    cx.simulate_keystrokes("ctrl-a backspace x y");
+    click(cx, "history-grid-value-1");
+    cx.simulate_keystrokes("ctrl-a backspace z");
+    cx.run_until_parked();
+
+    assert_eq!(copy_of(cx, "history-url").as_deref(), Some(url.as_str()));
+    assert_eq!(
+        copy_of(cx, "history-grid-value-1").as_deref(),
+        Some(cell.as_str())
+    );
+    let after = cx.update(|_, cx| shell.read(cx).orphan.as_ref().map(|tab| tab.sent.clone()));
+    assert_eq!(after, sent);
+    assert!(cx.update(|_, cx| shell.read(cx).drafts.is_empty()));
+}

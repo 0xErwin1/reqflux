@@ -436,7 +436,9 @@ impl Shell {
     /// the tabs are drawn from does not hold it or the engine cannot inspect it.
     fn inspect_unopened(&mut self, id: &str) -> Result<(), String> {
         let source = self.scratch.engine_id(id);
-        if documents::locate(&self.roots, source).is_none() {
+        // An open copy outlives its deleted source, as `inspect_open_requests` keeps it.
+        let open_copy = self.scratch.is_scratch(id) && self.requests.contains_key(id);
+        if !open_copy && documents::locate(&self.roots, source).is_none() {
             return Err(format!(
                 "The request {source} is not in the workspace tree."
             ));

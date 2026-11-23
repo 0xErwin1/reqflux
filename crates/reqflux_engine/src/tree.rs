@@ -51,6 +51,24 @@ impl Engine {
         })
     }
 
+    /// Creates `request` at the end of the collection or folder `parent`, named `base`, else
+    /// `base 2`, `base 3`, ...: the first name whose slug no sibling holds. Returns its id.
+    ///
+    /// # Errors
+    ///
+    /// The store error (a reserved name), or [`TreeError::Reload`].
+    pub fn create_request_numbered(
+        &mut self,
+        parent: Id,
+        request: Request,
+        base: &str,
+    ) -> Result<Id, TreeError> {
+        self.apply(|root, loaded| {
+            reqflux_store::create_request_numbered(root, loaded, parent, &request, base)
+                .map(|p| p.id)
+        })
+    }
+
     /// Renames the entity `id`, moving its file to the new slug, and returns `id`.
     ///
     /// # Errors

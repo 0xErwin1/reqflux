@@ -164,11 +164,44 @@ pub fn create_request_as(
     container.check(root, loaded)?;
     let (name, slug) = named(&request.name, SlugFor::Request)?;
     ensure_free(&container.dir(root), &slug, SlugFor::Request)?;
+    place_request(root, loaded, &container, request, name, slug)
+}
+
+/// Creates `request` at the end of the collection or folder `parent`, keeping the id the
+/// document carries and naming it `base`, else `base 2`, `base 3`, ...: the first name whose
+/// slug is free there.
+///
+/// # Errors
+///
+/// As [`create_request_as`], except a taken slug moves on to the next number.
+pub fn create_request_numbered(
+    root: &Path,
+    loaded: &Loaded,
+    parent: Id,
+    request: &Request,
+    base: &str,
+) -> Result<Placed, StoreError> {
+    let container = find_container(&loaded.workspace, parent)?;
+    container.validate()?;
+    container.check(root, loaded)?;
+    let (name, slug) = numbered(&container.dir(root), base, SlugFor::Request)?;
+    place_request(root, loaded, &container, request, name, slug)
+}
+
+/// Writes `request` under `name` and `slug` in `container` and appends it to the order.
+fn place_request(
+    root: &Path,
+    loaded: &Loaded,
+    container: &Container<'_>,
+    request: &Request,
+    name: String,
+    slug: String,
+) -> Result<Placed, StoreError> {
     let mut document = request.clone();
     document.name = name;
     let path = request_file(root, &container.inner, &slug);
     save_document(&path, &document, None)?;
-    append(root, loaded, &container, slug)?;
+    append(root, loaded, container, slug)?;
     Ok(Placed {
         id: document.id,
         path,

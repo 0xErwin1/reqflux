@@ -1772,13 +1772,16 @@ rebuilt only when the entry or the selected view changes, so it takes focus, a s
 Ctrl+C while typing changes nothing (`disabled` would drop the selection).
 `Open as unsaved copy` (`history-open-copy`, disabled with the Resend note when the request was
 deleted) opens the recorded document in a scratch request tab (`shell/scratch.rs`), keyed
-`scratch-<n>`, never a request id, and marked `Unsaved` (`doc-tab-unsaved-<key>`). The copy is a
+`scratch-<id>` (a fresh ULID, so keys are unique across windows), never a request id, and marked `Unsaved` (`doc-tab-unsaved-<key>`). The copy is a
 draft held only in memory, never stored in the app state; it edits like any request and every
 engine call (inspection, send) goes through the source request's id, so it resolves in the
 source's collection, folder, environment and auth, and its sends are recorded under the source
-request. Ctrl+S saves it as a new request beside the source (`Engine::create_request_as`, named
-`<name> copy`, numbered when taken) and opens that request in its place; closing the tab drops
-the copy. The source request, its file and its draft never change. Recorded secrets stay masked
+request. Ctrl+S saves it as a new request beside the source (`Engine::create_request_numbered`, named
+`<name> copy`, numbered by the store's slug rule when taken) with the scripts the copy runs (its
+edited ones, else the source's saved sidecars) and opens that request in its place; closing the
+tab drops the copy, and an open copy stays usable after its source is deleted (Save as then
+fails with a toast). Without the recorded send the button shows an error toast instead of
+doing nothing. The source request, its file and its draft never change. Recorded secrets stay masked
 in the copy.
 In the history tab the response tab reads `Recorded response`; switching to the History
 panel (the rail or Ctrl+2) gives it the keyboard focus, so `/` focuses its filter

@@ -1,5 +1,5 @@
 //! The unsaved copy of a history entry (history-copy-and-scratch S2): a scratch tab, key
-//! `scratch-<n>`, that holds the recorded request as a draft that is never stored. It is
+//! `scratch-<id>`, that holds the recorded request as a draft that is never stored. It is
 //! editable and sendable through the place of its source request, so the engine resolves
 //! scopes, auth and scripts as it does for the source, and its sends record in history under
 //! the source. Save as makes it a request beside the source; closing it drops it. The
@@ -8,7 +8,8 @@
 use std::collections::HashMap;
 
 use gpui::{Context, Window};
-use reqflux_core::model::{Id, Item, Request, Workspace};
+use reqflux_core::model::{Id, Item, Request, Scripts, Workspace};
+use reqflux_engine::Engine;
 
 use super::Shell;
 use super::documents::{Location, locate};
@@ -23,14 +24,14 @@ const KEY_PREFIX: &str = "scratch-";
 #[derive(Debug, Default)]
 pub(crate) struct Scratches {
     sources: HashMap<String, String>,
-    issued: u32,
 }
 
 impl Scratches {
-    /// Registers a scratch tab of the request `source` and returns its key.
+    /// Registers a scratch tab of the request `source` and returns its key: `scratch-` and a
+    /// fresh id, so keys never repeat across windows, which share the app-wide edit history
+    /// keyed by them.
     fn open(&mut self, source: &str) -> String {
-        self.issued += 1;
-        let key = format!("{KEY_PREFIX}{}", self.issued);
+        let key = format!("{KEY_PREFIX}{}", Id::new());
         self.sources.insert(key.clone(), source.to_owned());
         key
     }
@@ -54,58 +55,50 @@ impl Scratches {
     }
 }
 
-/// The container of the request `id` and the items beside it.
-fn place_of<'a>(workspace: &'a Workspace, id: &str) -> Option<(Id, &'a [Item])> {
+/// Writes `scripts` as the sidecars of the new request `id`; nothing for no script.
+fn save_scripts(engine: &Engine, id: &Id, scripts: &Scripts) -> Result<(), String> {
+    if scripts.pre_request.is_none() && scripts.test.is_none() {
+        return Ok(());
+    }
+    let selector = id.to_string();
+    let base = engine
+        .script_base_hashes(&selector)
+        .map_err(|error| error.to_string())?;
+    engine
+        .save_scripts(&selector, scripts, base)
+        .map(drop)
+        .map_err(|error| error.to_string())
+}
+
+/// The collection or folder that holds the request `id`.
+fn place_of(workspace: &Workspace, id: &str) -> Option<Id> {
     fn holds(items: &[Item], id: &str) -> bool {
         items
             .iter()
             .any(|item| matches!(item, Item::Request(node) if node.request.id.to_string() == id))
     }
-    fn walk<'a>(items: &'a [Item], id: &str) -> Option<(Id, &'a [Item])> {
+    fn walk(items: &[Item], id: &str) -> Option<Id> {
         items.iter().find_map(|item| match item {
-            Item::Folder(node) if holds(&node.items, id) => Some((node.folder.id, &node.items[..])),
+            Item::Folder(node) if holds(&node.items, id) => Some(node.folder.id),
             Item::Folder(node) => walk(&node.items, id),
             Item::Request(_) => None,
         })
     }
     workspace.collections.iter().find_map(|node| {
         if holds(&node.items, id) {
-            Some((node.collection.id, &node.items[..]))
+            Some(node.collection.id)
         } else {
             walk(&node.items, id)
         }
     })
 }
 
-/// `<name> copy`, else `<name> copy 2`, ... the first that no item of `siblings` has as a
-/// name or a slug.
-fn free_name(name: &str, siblings: &[Item]) -> String {
-    let taken = |candidate: &str| {
-        let lowered = candidate.to_lowercase();
-        let slug = lowered.replace(' ', "-");
-        siblings.iter().any(|item| {
-            let (other, slug_of) = match item {
-                Item::Request(node) => (&node.request.name, &node.slug),
-                Item::Folder(node) => (&node.folder.name, &node.slug),
-            };
-            other.to_lowercase() == lowered || slug_of.to_lowercase() == slug
-        })
-    };
-    let first = format!("{name} copy");
-    if !taken(&first) {
-        return first;
-    }
-    (2_u32..)
-        .map(|n| format!("{name} copy {n}"))
-        .find(|candidate| !taken(candidate))
-        .unwrap_or(first)
-}
-
 impl Shell {
     /// Open as unsaved copy: opens the recorded document of the history tab in a scratch
     /// tab and activates it. The source request, its tab, its draft and its file are
-    /// untouched. Does nothing when the source no longer exists; a recorded document that
-    /// does not parse shows a fixed error toast, since the parse error would quote it.
+    /// untouched. Does nothing when the source no longer exists (the button is disabled
+    /// then); a missing recorded send, or a recorded document that does not parse, shows a
+    /// fixed error toast, since the parse error would quote it.
     pub(super) fn open_history_copy(&mut self, cx: &mut Context<Self>) {
         let Some(tab) = self.orphan.as_ref().filter(|tab| tab.source_exists) else {
             return;
@@ -117,6 +110,11 @@ impl Shell {
             .and_then(|send| send.history.clone())
             .filter(|reopened| reopened.resendable)
         else {
+            super::toasts::failure(
+                "Cannot open this entry",
+                "The recorded request is no longer available.",
+                cx,
+            );
             return;
         };
         let request = match toml::from_str::<Request>(&reopened.document) {
@@ -194,7 +192,7 @@ impl Shell {
     }
 
     /// Save as (Ctrl+S in a scratch tab): creates a request from the copy beside its source
-    /// under a free name, `<name> copy`, reloads the workspace, closes the scratch tab and
+    /// under a free name, `<name> copy`, with the scripts it runs, reloads the workspace, closes the scratch tab and
     /// opens the new request. The source is never written. A failure keeps the scratch tab
     /// and says why in an error toast.
     pub(super) fn save_scratch(&mut self, key: &str, window: &mut Window, cx: &mut Context<Self>) {
@@ -207,6 +205,13 @@ impl Shell {
             return;
         };
         let source = self.scratch.engine_id(key).to_owned();
+        // The scripts the copy runs: its edited ones, else the source's saved ones.
+        let saved = self
+            .requests
+            .get(key)
+            .map(|state| state.inspection.request.scripts.clone())
+            .unwrap_or_default();
+        let scripts = self.displayed_scripts(key, &saved).clone();
         let created = match &mut self.workspace {
             OpenedWorkspace::Loaded(engine) => {
                 let Some(engine) = std::sync::Arc::get_mut(engine) else {
@@ -217,7 +222,7 @@ impl Shell {
                     );
                     return;
                 };
-                let Some((parent, siblings)) = place_of(engine.workspace(), &source) else {
+                let Some(parent) = place_of(engine.workspace(), &source) else {
                     super::toasts::failure(
                         "Cannot save the copy",
                         "its source request no longer exists, so there is no place to save it",
@@ -225,16 +230,23 @@ impl Shell {
                     );
                     return;
                 };
-                request.name = free_name(&request.name, siblings);
+                let base = format!("{} copy", request.name);
                 request.id = Id::new();
                 engine
-                    .create_request_as(parent, request)
+                    .create_request_numbered(parent, request, &base)
                     .map_err(|error| error.to_string())
+                    .map(|id| {
+                        let failed = save_scripts(engine, &id, &scripts).err();
+                        (id, failed)
+                    })
             }
             OpenedWorkspace::None | OpenedWorkspace::Failed { .. } => return,
         };
         match created {
-            Ok(id) => {
+            Ok((id, scripts_error)) => {
+                if let Some(error) = scripts_error {
+                    super::toasts::failure("The copy was saved without its scripts", error, cx);
+                }
                 self.close_document(key, cx);
                 if !self.reload_workspace(cx) {
                     super::toasts::reload_failed("Saved", cx);
@@ -245,5 +257,26 @@ impl Shell {
         }
         self.focus.focus(window, cx);
         cx.notify();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn keys_are_globally_unique_scratch_ids() {
+        let (mut first, mut second) = (Scratches::default(), Scratches::default());
+        let keys = [
+            first.open("a"),
+            first.open("a"),
+            second.open("a"),
+            second.open("a"),
+        ];
+        for (n, key) in keys.iter().enumerate() {
+            let id = key.strip_prefix(KEY_PREFIX).unwrap_or_default();
+            assert!(id.parse::<Id>().is_ok(), "{key:?} is not scratch-<id>");
+            assert!(!keys[..n].contains(key), "{key:?} was issued twice");
+        }
     }
 }
