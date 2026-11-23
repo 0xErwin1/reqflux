@@ -1765,6 +1765,21 @@ wire shows the headers as sent and the caption `Values as sent; variables alread
 (`history-open-source`) and `Resend` (`history-resend`), which sends the recorded document again
 through `execute_draft` and records the result as a new entry; when the request was deleted the
 banner says so and Resend is disabled.
+Every recorded value (the URL, each key and value of Params and Headers, and the Body) is a
+read-only text field (`shell/history/selectable.rs`): gpui-component's input with `readonly(true)`
+for a single line and the read-only code viewer for the Body, built before the frame draws and
+rebuilt only when the entry or the selected view changes, so it takes focus, a selection and
+Ctrl+C while typing changes nothing (`disabled` would drop the selection).
+`Open as unsaved copy` (`history-open-copy`, disabled with the Resend note when the request was
+deleted) opens the recorded document in a scratch request tab (`shell/scratch.rs`), keyed
+`scratch-<n>`, never a request id, and marked `Unsaved` (`doc-tab-unsaved-<key>`). The copy is a
+draft held only in memory, never stored in the app state; it edits like any request and every
+engine call (inspection, send) goes through the source request's id, so it resolves in the
+source's collection, folder, environment and auth, and its sends are recorded under the source
+request. Ctrl+S saves it as a new request beside the source (`Engine::create_request_as`, named
+`<name> copy`, numbered when taken) and opens that request in its place; closing the tab drops
+the copy. The source request, its file and its draft never change. Recorded secrets stay masked
+in the copy.
 In the history tab the response tab reads `Recorded response`; switching to the History
 panel (the rail or Ctrl+2) gives it the keyboard focus, so `/` focuses its filter
 (`history-filter`) at once; activating the history tab leaves the approvals or audit view; Next and Previous tab cycle through the history tab,
