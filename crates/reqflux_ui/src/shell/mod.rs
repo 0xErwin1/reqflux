@@ -271,6 +271,8 @@ pub(crate) struct Shell {
     settings: SettingsPage,
     /// The history tab: the open history entry, read only (see [`history::HistoryTab`]).
     orphan: Option<history::HistoryTab>,
+    /// The read-only fields of the history tab, so its values can be selected and copied.
+    recorded_text: Option<history::RecordedText>,
     /// The run document, while open (see [`runner::RunTab`]).
     run: Option<runner::RunTab>,
     /// The open example tab and the Save as example dialog (see [`examples`]).
@@ -376,6 +378,7 @@ impl Shell {
             audit: audit::AuditView::new(),
             settings: SettingsPage::new(cx),
             orphan: None,
+            recorded_text: None,
             run: None,
             examples: examples::Examples::new(cx),
             preview_host: PreviewHost::default(),
@@ -624,6 +627,8 @@ impl Render for Shell {
         for send in self.sends.values_mut() {
             response::sync_body(send, window, cx);
         }
+        // The history tab's read-only fields need the window before they draw.
+        self.sync_recorded_text(window, cx);
         // A surface `bolt` closed on its own drops its draft here, and the frame after
         // settles what the popover held open.
         self.dismiss_variable_popover(window, cx);
@@ -785,6 +790,8 @@ mod grid_edit_tests;
 mod grid_narrow_tests;
 #[cfg(test)]
 mod grid_resize_tests;
+#[cfg(test)]
+mod history_copy_tests;
 #[cfg(test)]
 mod history_tests;
 #[cfg(test)]

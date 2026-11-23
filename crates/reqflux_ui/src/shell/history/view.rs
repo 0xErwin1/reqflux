@@ -18,6 +18,7 @@ use gpui::{
 use gpui_kit_assets::IconName;
 use reqflux_engine::SentBody;
 
+use super::selectable::{self, RecordedText};
 use super::{HistoryTab, RESEND_NOTE, RecordedTab};
 use crate::shell::request::ui;
 use crate::shell::rows::{labeled_row, part};
@@ -96,15 +97,19 @@ pub(in crate::shell) fn render(
     cx: &mut Context<Shell>,
 ) -> Stateful<Div> {
     let key = tab.key();
+    let text = shell
+        .recorded_text
+        .as_ref()
+        .filter(|text| text.shows(tab.entry));
     region("history-readonly")
         .flex_1()
         .min_w_0()
         .flex()
         .flex_col()
         .child(banner(tab, cx))
-        .child(request_line(tab, cx))
+        .child(request_line(tab, text, cx))
         .child(recorded_tabs(tab, cx))
-        .child(pane(tab, cx))
+        .child(pane(tab, text, cx))
         .child(response::render(&key, shell.sends.get(&key), cx))
 }
 
@@ -227,7 +232,7 @@ fn resend(enabled: bool, cx: &mut Context<Shell>) -> Div {
 
 /// The recorded method `history-method` with a lock, and the URL `history-url` as sent,
 /// both read only, in the request line's fields.
-fn request_line(tab: &HistoryTab, cx: &mut Context<Shell>) -> Div {
+fn request_line(tab: &HistoryTab, text: Option<&RecordedText>, cx: &mut Context<Shell>) -> Div {
     let colors = bolt::colors(cx);
     let method = tab.sent.method.clone();
     let url = tab.sent.url.clone();
@@ -279,12 +284,19 @@ fn request_line(tab: &HistoryTab, cx: &mut Context<Shell>) -> Div {
                         .fill(colors.background)
                         .border(colors.line),
                 )
-                .child(url),
+                .child(match text {
+                    Some(text) => selectable::input(text.url())
+                        .text_size(Fields::TEXT)
+                        .font_family(bolt::fonts::editor_family(cx))
+                        .text_color(colors.foreground)
+                        .into_any_element(),
+                    None => url.into_any_element(),
+                }),
         )
 }
 
 /// The query pairs of `url` as sent, undecoded: `(key, value)`, the value empty without `=`.
-fn params(url: &str) -> Vec<(String, String)> {
+pub(super) fn params(url: &str) -> Vec<(String, String)> {
     let Some((_, query)) = url.split_once('?') else {
         return Vec::new();
     };
@@ -380,11 +392,11 @@ fn recorded_tab(
 
 /// The selected view: the params or headers grid, `history-grid`, or the body,
 /// `history-body`.
-fn pane(tab: &HistoryTab, cx: &App) -> AnyElement {
+fn pane(tab: &HistoryTab, text: Option<&RecordedText>, cx: &App) -> AnyElement {
     match tab.tab {
-        RecordedTab::Params => grid("param", "params", &params(&tab.sent.url), cx),
-        RecordedTab::Headers => grid("header", "headers", tab.headers(), cx),
-        RecordedTab::Body => body(&tab.sent.body, cx),
+        RecordedTab::Params => grid("param", "params", &params(&tab.sent.url), text, cx),
+        RecordedTab::Headers => grid("header", "headers", tab.headers(), text, cx),
+        RecordedTab::Body => body(&tab.sent.body, text, cx),
     }
 }
 
@@ -394,7 +406,13 @@ const TABLE: &str = "history-grid";
 const KEY: usize = 0;
 
 /// The grid of `rows`: `bolt`'s grid header and rows with the request grid's key column.
-fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElement {
+fn grid(
+    kind: &str,
+    table: &str,
+    rows: &[(String, String)],
+    text: Option<&RecordedText>,
+    cx: &App,
+) -> AnyElement {
     let colors = bolt::colors(cx);
     if rows.is_empty() {
         let text = format!("No {table}");
@@ -446,6 +464,17 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
     let min_width = GridMetrics::ROW_NUMBER_WIDTH + key_width + tokens::GRID_VALUE_MIN_COLUMN;
     let rows = rows.iter().enumerate().map(|(index, (key, value))| {
         let n = index + 1;
+        // A cell draws its read-only field, so its text can be selected and copied.
+        let cell = |column: usize, plain: &String, color| match text
+            .and_then(|text| text.cell(index, column))
+        {
+            Some(state) => selectable::input(state)
+                .text_size(GridMetrics::FONT)
+                .font_family(mono.clone())
+                .text_color(color)
+                .into_any_element(),
+            None => plain.clone().into_any_element(),
+        };
         div()
             .flex()
             .items_center()
@@ -472,9 +501,12 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                     .w(key_width)
                     .pl(GridMetrics::CELL_PADDING_X)
                     .pr(GridMetrics::CELL_PADDING_X)
+                    .h_full()
+                    .flex()
+                    .items_center()
                     .overflow_hidden()
                     .text_color(colors.strong)
-                    .child(key.clone()),
+                    .child(cell(0, key, colors.strong)),
             )
             .child(
                 part(format!("history-grid-value-{n}"))
@@ -484,9 +516,12 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
                     .min_w_0()
                     .pl(GridMetrics::CELL_PADDING_X)
                     .pr(GridMetrics::CELL_PADDING_X)
+                    .h_full()
+                    .flex()
+                    .items_center()
                     .overflow_hidden()
                     .text_color(colors.foreground)
-                    .child(value.clone()),
+                    .child(cell(1, value, colors.foreground)),
             )
     });
     // The history page scrolls as a whole, so the viewport takes the height of the header
@@ -510,8 +545,22 @@ fn grid(kind: &str, table: &str, rows: &[(String, String)], cx: &App) -> AnyElem
     .into_any_element()
 }
 
-fn body(body: &SentBody, cx: &App) -> AnyElement {
+/// The most lines the body viewer is tall; a longer body scrolls inside it.
+const BODY_ROWS: usize = 24;
+
+fn body(body: &SentBody, text: Option<&RecordedText>, cx: &App) -> AnyElement {
     let colors = bolt::colors(cx);
+    if let (SentBody::Text(shown), Some(text)) = (body, text) {
+        let rows = shown.lines().count().clamp(1, BODY_ROWS);
+        return text
+            .body()
+            .rows("history-body".to_owned(), rows, cx)
+            .role(Role::Label)
+            .aria_label(shown.clone())
+            .flex_none()
+            .py(Spacing::SM)
+            .into_any_element();
+    }
     let (text, color) = match body {
         SentBody::None => ("No body".to_owned(), colors.muted),
         SentBody::Text(text) => (text.clone(), colors.foreground),

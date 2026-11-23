@@ -10,6 +10,7 @@
 //! stored request.
 
 mod clock;
+mod selectable;
 mod view;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -25,6 +26,7 @@ use super::request::{Completed, Failure, Received};
 use super::send::RequestSend;
 use super::sidebar_history::{HistoryRow, Panel};
 
+pub(super) use selectable::RecordedText;
 pub(super) use view::{render as render_tab, tab_chip};
 
 /// How many entries the History panel lists.
