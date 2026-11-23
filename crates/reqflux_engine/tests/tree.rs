@@ -158,6 +158,38 @@ fn create_request_as_writes_the_document_under_its_name() {
 }
 
 #[test]
+fn create_request_numbered_takes_the_first_name_whose_slug_is_free() {
+    let dir = temp_dir();
+    workspace(dir.path());
+    let mut engine = open(dir.path());
+    let first = Request::new(id(7), "Ping copy", Method::GET, "https://x.test/a");
+    ok(engine.create_request_as(id(4), first));
+    // "Ping! copy" slugs to `ping-copy`, which the first request holds.
+    let copy = Request::new(id(8), "Ping!", Method::GET, "https://x.test/b");
+    let second = ok(engine.create_request_numbered(id(4), copy, "Ping! copy"));
+    let copy = Request::new(id(9), "Ping!", Method::GET, "https://x.test/c");
+    let third = ok(engine.create_request_numbered(id(4), copy, "Ping! copy"));
+    let names: Vec<String> = [second, third]
+        .into_iter()
+        .filter_map(|created| request(&engine, created).map(|saved| saved.name))
+        .collect();
+    assert_eq!(
+        names,
+        vec!["Ping! copy 2".to_owned(), "Ping! copy 3".to_owned()]
+    );
+    assert!(
+        dir.path()
+            .join("collections/c/f/ping-copy-2.req.toml")
+            .exists()
+    );
+    assert!(
+        dir.path()
+            .join("collections/c/f/ping-copy-3.req.toml")
+            .exists()
+    );
+}
+
+#[test]
 fn create_folder_is_visible_after_reload() {
     let dir = temp_dir();
     workspace(dir.path());
