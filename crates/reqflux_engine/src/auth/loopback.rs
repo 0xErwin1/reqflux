@@ -2,6 +2,7 @@
 //! loopback redirect on `127.0.0.1` with a random port (RFC 8252).
 
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -47,11 +48,16 @@ impl Browser for SystemBrowser {
 /// startup made removed from each launcher's environment. `open::that_detached` builds its own
 /// commands, so it cannot drop the selection, and the browser would keep the boot GPU's driver.
 fn open_without_driver_selection(url: &str) -> std::io::Result<()> {
+    open_with(browser_launchers(url), LAUNCHER_FAILURE_WINDOW)
+}
+
+/// The commands that may open `url`, in the order to try them, each without the driver selection.
+fn browser_launchers(url: &str) -> Vec<std::process::Command> {
     let mut commands = open::commands(url);
     for command in &mut commands {
         crate::child_environment::restore_child_environment(command);
     }
-    open_with(commands, LAUNCHER_FAILURE_WINDOW)
+    commands
 }
 
 /// How long a launcher has to fail before it counts as started, as `open::that_detached` waits.
@@ -128,7 +134,7 @@ pub(super) fn random_text(bytes: usize) -> String {
 /// redirect whose `state` matches. A request to another path is answered 404 and the wait
 /// goes on; a wrong `state` or an `error` ends it.
 pub(super) async fn authorize(
-    browser: &dyn Browser,
+    browser: &Arc<dyn Browser>,
     config: &OAuth2Auth,
 ) -> Result<Authorization, HttpError> {
     let failed = |reason: String| HttpError::Auth(reason);
@@ -159,7 +165,13 @@ pub(super) async fn authorize(
             query.append_pair("scope", &config.scope);
         }
     }
-    browser.open(url.as_str()).map_err(failed)?;
+    // Opening may wait for a launcher to fail, so it runs on the blocking pool, not on a worker.
+    let opener = Arc::clone(browser);
+    let target = url.to_string();
+    tokio::task::spawn_blocking(move || opener.open(&target))
+        .await
+        .map_err(|error| failed(format!("the browser did not open: {error}")))?
+        .map_err(failed)?;
 
     loop {
         let (stream, _) = listener
@@ -285,5 +297,53 @@ mod tests {
     #[test]
     fn no_launcher_at_all_is_an_error() {
         assert!(open_with(Vec::new(), WINDOW).is_err());
+    }
+
+    /// The probe of `launchers_drop_the_driver_selection`: it reads the marker from the process
+    /// environment, which a test cannot set, so the test runs it in a child with the marker.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn probe_launchers_drop_the_selection() {
+        if std::env::var_os("REQFLUX_LAUNCHERS_PROBE").is_none() {
+            return;
+        }
+        let launchers = super::browser_launchers("https://example.com/");
+        assert!(!launchers.is_empty(), "no launcher is available");
+        for launcher in launchers {
+            let mut removed: Vec<String> = launcher
+                .get_envs()
+                .filter(|(_, value)| value.is_none())
+                .map(|(name, _)| name.to_string_lossy().into_owned())
+                .collect();
+            removed.sort();
+            assert_eq!(
+                removed,
+                ["GPUI_VULKAN_DRIVER_SELECT", "VK_LOADER_DRIVERS_SELECT"],
+                "{:?}",
+                launcher.get_program()
+            );
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn launchers_drop_the_driver_selection() {
+        let exe = std::env::current_exe().expect("the test binary has a path");
+        let mut child = Command::new(exe);
+        child.args([
+            "--exact",
+            "auth::loopback::tests::probe_launchers_drop_the_selection",
+            "--nocapture",
+        ]);
+        child.env("REQFLUX_LAUNCHERS_PROBE", "1");
+        child.env("GPUI_VULKAN_DRIVER_SELECT", "*intel_icd*");
+        let output = child.output().expect("the probe starts");
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(output.status.success(), "{stdout}\n{stderr}");
+        assert!(
+            stdout.contains("1 passed"),
+            "the probe did not run\n{stdout}\n{stderr}"
+        );
     }
 }

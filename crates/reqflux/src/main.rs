@@ -7,6 +7,8 @@
 //! `reqflux export`, `reqflux bundle` and `reqflux docs` to take a workspace out as
 //! Postman JSON, a native bundle or API docs.
 
+#[cfg(all(test, target_os = "linux"))]
+mod child_environment_parity;
 mod cli;
 mod code;
 mod gui;

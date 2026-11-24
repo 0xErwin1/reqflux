@@ -130,7 +130,7 @@ pub(super) async fn acquire(
         OAuth2Grant::AuthorizationCode => {
             let authorization = tokio::time::timeout(
                 AUTHORIZE_TIMEOUT,
-                loopback::authorize(context.browser.as_ref(), config),
+                loopback::authorize(&context.browser, config),
             )
             .await
             .map_err(|_| {

@@ -31,8 +31,8 @@ serde_json.workspace = true
 sha2.workspace = true
 thiserror.workspace = true
 time.workspace = true
-# The OAuth 2.0 loopback redirect listens on 127.0.0.1.
-tokio = { workspace = true, features = ["net", "io-util"] }
+# The OAuth 2.0 loopback redirect listens on 127.0.0.1; opening the browser waits on the blocking pool.
+tokio = { workspace = true, features = ["net", "io-util", "rt"] }
 tokio-util.workspace = true
 toml.workspace = true
 toml_edit.workspace = true

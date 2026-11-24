@@ -271,10 +271,22 @@ impl Shell {
         else {
             return;
         };
-        if let Err(error) = browser.reopen() {
-            self.auth_pane.tokens.failures.insert(id.to_owned(), error);
-            cx.notify();
-        }
+        // Opening waits for a launcher to fail, so it runs off the UI thread.
+        let reopened = cx
+            .background_executor()
+            .spawn(async move { browser.reopen() });
+        let key = id.to_owned();
+        cx.spawn(async move |this, cx| {
+            let Err(error) = reopened.await else { return };
+            let shown = this.update(cx, |shell, cx| {
+                shell.auth_pane.tokens.failures.insert(key, error);
+                cx.notify();
+            });
+            if let Err(error) = shown {
+                log::debug!("the browser failure ended after its shell: {error}");
+            }
+        })
+        .detach();
     }
 
     /// Clear: deletes the token kept for the request `id`.
