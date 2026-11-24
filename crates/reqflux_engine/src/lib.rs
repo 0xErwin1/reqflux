@@ -77,6 +77,7 @@ pub mod approvals;
 pub mod audit;
 mod auth;
 mod bundle;
+pub mod child_environment;
 mod code;
 pub mod config;
 mod cookies;

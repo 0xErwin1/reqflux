@@ -101,7 +101,10 @@ impl ExportHost for OsExportHost {
     }
 
     fn open(&self, path: &Path, cx: &App) {
-        cx.open_with_system(path);
+        // Not `cx.open_with_system`: GPUI's launcher keeps the Vulkan driver pin in the child.
+        if let Err(error) = crate::open_file::open(path, cx) {
+            log::warn!("the exported file did not open: {error}");
+        }
     }
 }
 

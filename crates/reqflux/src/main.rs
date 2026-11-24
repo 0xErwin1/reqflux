@@ -27,7 +27,13 @@ use cli::{Cli, Command};
 fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
-        None => gui::open(cli.workspace),
+        None => {
+            // Before any thread exists: it may re-execute the process with the boot GPU's
+            // Vulkan driver selected. Only the window needs a GPU, so the CLI skips it.
+            #[cfg(target_os = "linux")]
+            gpui_linux::select_vulkan_driver();
+            gui::open(cli.workspace)
+        }
         Some(Command::Run(args)) => run::run(args),
         Some(Command::Code(args)) => code::code(args),
         Some(Command::Mcp(args)) => mcp::mcp(args),

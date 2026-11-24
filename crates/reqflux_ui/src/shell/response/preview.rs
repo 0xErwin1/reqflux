@@ -109,7 +109,13 @@ impl Default for PreviewHost {
     fn default() -> Self {
         Self {
             dir: None,
-            open: Rc::new(|path, cx| cx.open_with_system(path)),
+            // Not `cx.open_with_system`: GPUI's launcher keeps the Vulkan driver pin in the
+            // child, and the browser would inherit it.
+            open: Rc::new(|path, cx| {
+                if let Err(error) = crate::open_file::open(path, cx) {
+                    log::warn!("the preview page did not open: {error}");
+                }
+            }),
         }
     }
 }

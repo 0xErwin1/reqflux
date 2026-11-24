@@ -962,8 +962,8 @@ dependencies = [
 
 [[package]]
 name = "bolt"
-version = "0.10.0-dev.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+version = "0.12.0-dev.0"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "bolt_keys",
  "chrono",
@@ -985,8 +985,8 @@ dependencies = [
 
 [[package]]
 name = "bolt_keys"
-version = "0.10.0-dev.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+version = "0.12.0-dev.0"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "log",
 ]
@@ -2973,7 +2973,7 @@ dependencies = [
 [[package]]
 name = "gpui-base"
 version = "0.7.3"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "aho-corasick",
  "anyhow",
@@ -3013,7 +3013,7 @@ dependencies = [
 [[package]]
 name = "gpui-component"
 version = "0.7.3"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3089,7 +3089,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp"
 version = "0.1.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "async-channel",
  "gpui-mcp-protocol",
@@ -3110,7 +3110,7 @@ dependencies = [
 [[package]]
 name = "gpui-mcp-protocol"
 version = "0.1.0"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "directories",
  "schemars",
@@ -3122,7 +3122,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre"
 version = "0.3.9"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "accesskit",
  "anyhow",
@@ -3273,7 +3273,7 @@ dependencies = [
 [[package]]
 name = "gpui-pre-linux"
 version = "0.3.9"
-source = "git+https://github.com/0xErwin1/dbflux?rev=bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce#bf3cbd00d09227e6d5dc44893a4d2ded92d7c8ce"
+source = "git+https://github.com/0xErwin1/dbflux?rev=b3ee84a28ad46f32f2794f34fd657789ddf98f94#b3ee84a28ad46f32f2794f34fd657789ddf98f94"
 dependencies = [
  "accesskit",
  "accesskit_unix",
@@ -3284,6 +3284,7 @@ dependencies = [
  "calloop",
  "calloop-wayland-source",
  "filedescriptor",
+ "fontdb",
  "futures",
  "gpui-pre",
  "gpui-pre-collections",
@@ -3292,6 +3293,7 @@ dependencies = [
  "gpui-pre-wgpu",
  "libc",
  "log",
+ "memmap2",
  "notify-rust",
  "oo7",
  "open",
@@ -6702,6 +6704,7 @@ dependencies = [
  "clap",
  "env_logger",
  "gpui-pre",
+ "gpui-pre-linux",
  "gpui-pre-platform",
  "log",
  "pretty_assertions",
@@ -7585,7 +7588,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8050abb251097357e24aff63ba2c52a6309ecb7d23a5474023df960a02694d8"
 dependencies = [
  "annotate-snippets",
- "base64 0.21.7",
+ "base64 0.23.1",
  "encoding_rs_io",
  "granit-parser",
  "nohash-hasher",

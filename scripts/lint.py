@@ -22,7 +22,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 MAX_LINES = 1000
 # `bolt` is DBFlux's design system, taken by git rev; it draws with GPUI.
-GPUI_PACKAGES = {"gpui-pre", "gpui-component", "gpui-pre-platform", "gpui-mcp", "bolt"}
+GPUI_PACKAGES = {"gpui-pre", "gpui-component", "gpui-pre-platform", "gpui-pre-linux", "gpui-mcp", "bolt"}
 GPUI_CRATES = {"reqflux", "reqflux_ui"}
 
 # Each crate may depend only on the internal crates listed here.

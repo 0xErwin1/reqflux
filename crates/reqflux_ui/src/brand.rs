@@ -12,6 +12,10 @@ pub(crate) fn reqflux() -> Brand {
         accent_pressed: hex(0x1F3389),
         accent_tint: hex(0x9DB1FF),
         on_accent: hex(0xFFFFFF),
+        // The roles bolt split off the accent keep the accent's tones, as before the split.
+        accent_text_light: hex(0x2B45B8),
+        keyword_dark: hex(0x9DB1FF),
+        keyword_light: hex(0x2B45B8),
     }
 }
 
@@ -29,5 +33,8 @@ mod tests {
         assert_eq!(rgb_of(brand.accent_pressed), 0x1F3389);
         assert_eq!(rgb_of(brand.accent_tint), 0x9DB1FF);
         assert_eq!(rgb_of(brand.on_accent), 0xFFFFFF);
+        assert_eq!(rgb_of(brand.accent_text_light), 0x2B45B8);
+        assert_eq!(rgb_of(brand.keyword_dark), 0x9DB1FF);
+        assert_eq!(rgb_of(brand.keyword_light), 0x2B45B8);
     }
 }

@@ -829,6 +829,8 @@ mod layout_tests;
 #[cfg(test)]
 mod method_edit_tests;
 #[cfg(test)]
+mod open_seam_tests;
+#[cfg(test)]
 mod palette_tests;
 #[cfg(test)]
 mod preview_tests;

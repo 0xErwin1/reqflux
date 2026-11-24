@@ -62,6 +62,7 @@ pub(crate) fn command(path: &Path) -> Command {
     } else {
         let mut command = Command::new("xdg-open");
         command.arg(path);
+        reqflux_engine::child_environment::restore_child_environment(&mut command);
         command
     }
 }

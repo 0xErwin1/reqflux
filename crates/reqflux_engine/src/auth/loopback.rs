@@ -34,7 +34,80 @@ pub struct SystemBrowser;
 
 impl Browser for SystemBrowser {
     fn open(&self, url: &str) -> Result<(), String> {
-        open::that_detached(url).map_err(|error| format!("the browser did not open: {error}"))
+        let opened = if crate::child_environment::inherits_driver_selection() {
+            open_without_driver_selection(url)
+        } else {
+            open::that_detached(url)
+        };
+        opened.map_err(|error| format!("the browser did not open: {error}"))
+    }
+}
+
+/// Opens `url` the way `open::that_detached` does, with the Vulkan driver selection GPUI's
+/// startup made removed from each launcher's environment. `open::that_detached` builds its own
+/// commands, so it cannot drop the selection, and the browser would keep the boot GPU's driver.
+fn open_without_driver_selection(url: &str) -> std::io::Result<()> {
+    let mut commands = open::commands(url);
+    for command in &mut commands {
+        crate::child_environment::restore_child_environment(command);
+    }
+    open_with(commands, LAUNCHER_FAILURE_WINDOW)
+}
+
+/// How long a launcher has to fail before it counts as started, as `open::that_detached` waits.
+const LAUNCHER_FAILURE_WINDOW: std::time::Duration = std::time::Duration::from_millis(250);
+
+/// Runs each launcher in turn, detached, until one starts: a launcher that cannot spawn or that
+/// exits with a failure within `window` gives way to the next one. One still running after
+/// `window`, or one that exits successfully, counts as started and is reaped off this thread.
+/// Without any that starts, the first failure is reported.
+fn open_with(
+    commands: Vec<std::process::Command>,
+    window: std::time::Duration,
+) -> std::io::Result<()> {
+    let mut first_error = None;
+    for mut command in commands {
+        command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
+        #[cfg(unix)]
+        std::os::unix::process::CommandExt::process_group(&mut command, 0);
+        let failure = match command.spawn() {
+            Ok(child) => match settle(child, window) {
+                Ok(()) => return Ok(()),
+                Err(error) => error,
+            },
+            Err(error) => error,
+        };
+        first_error.get_or_insert(failure);
+    }
+    Err(first_error.unwrap_or_else(|| std::io::Error::other("no launcher is available")))
+}
+
+/// Waits up to `window` for a launcher to fail; one that has not exited by then is left to run.
+fn settle(mut child: std::process::Child, window: std::time::Duration) -> std::io::Result<()> {
+    let deadline = std::time::Instant::now() + window;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return if status.success() {
+                Ok(())
+            } else {
+                Err(std::io::Error::other(format!(
+                    "the launcher exited with {status}"
+                )))
+            };
+        }
+        if std::time::Instant::now() >= deadline {
+            // The launcher may outlive the request; reap it off this thread.
+            std::thread::spawn(move || {
+                if let Err(error) = child.wait() {
+                    log::warn!("the browser launcher did not finish: {error}");
+                }
+            });
+            return Ok(());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(10));
     }
 }
 
@@ -172,5 +245,45 @@ async fn respond(stream: &mut TcpStream, status: &str, text: &str) {
     );
     if let Err(error) = stream.write_all(response.as_bytes()).await {
         log::debug!("the loopback redirect answer was not written: {error}");
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use std::process::Command;
+    use std::time::Duration;
+
+    use super::open_with;
+
+    const WINDOW: Duration = Duration::from_secs(2);
+
+    #[test]
+    fn launchers_that_all_exit_with_failure_report_it() {
+        let error = open_with(vec![Command::new("false"), Command::new("false")], WINDOW)
+            .expect_err("no launcher started");
+        assert!(error.to_string().contains("exited with"), "{error}");
+    }
+
+    #[test]
+    fn a_later_launcher_opens_after_an_earlier_one_fails() {
+        assert!(open_with(vec![Command::new("false"), Command::new("true")], WINDOW).is_ok());
+    }
+
+    #[test]
+    fn a_launcher_that_cannot_spawn_gives_way_to_the_next() {
+        let missing = Command::new("reqflux-no-such-launcher");
+        assert!(open_with(vec![missing, Command::new("true")], WINDOW).is_ok());
+    }
+
+    #[test]
+    fn a_launcher_still_running_after_the_window_counts_as_started() {
+        let mut slow = Command::new("sleep");
+        slow.arg("5");
+        assert!(open_with(vec![slow], Duration::from_millis(50)).is_ok());
+    }
+
+    #[test]
+    fn no_launcher_at_all_is_an_error() {
+        assert!(open_with(Vec::new(), WINDOW).is_err());
     }
 }
