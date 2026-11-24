@@ -109,12 +109,12 @@ gpui-linux = { package = "gpui-pre-linux", version = "=0.3.9" }
 # through `reqflux mcp`; `reqflux_mcp` speaks `gpui-mcp-protocol` to it. Both are
 # DBFlux's vendored copies of upstream gpui-mcp, built against the same patched
 # gpui-pre, from DBFlux's main at the rev that merged Bolt (#1233).
-gpui-mcp = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94", default-features = false, features = ["gpui-pre"] }
-gpui-mcp-protocol = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94" }
+gpui-mcp = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0", default-features = false, features = ["gpui-pre"] }
+gpui-mcp-protocol = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0" }
 
 # Bolt, the design system shared with DBFlux, from the same DBFlux rev as the GPUI stack.
 # ReqFlux installs it with its own brand.
-bolt = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94" }
+bolt = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0" }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
@@ -140,10 +140,10 @@ let_underscore_must_use = "warn"
 # gpui-component and the bridge on one GPUI build without copying them here.
 # The rev is DBFlux's main where Bolt was merged (#1233); move it with DBFlux.
 [patch.crates-io]
-gpui-pre = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94" }
-gpui-base = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94" }
-gpui-component = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94" }
-gpui-pre-linux = { git = "https://github.com/0xErwin1/dbflux", rev = "b3ee84a28ad46f32f2794f34fd657789ddf98f94" }
+gpui-pre = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0" }
+gpui-base = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0" }
+gpui-component = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0" }
+gpui-pre-linux = { git = "https://github.com/0xErwin1/dbflux", rev = "d36c3600ad16689177085aa4eccaf3bcae3393c0" }
 
 # Line tables keep backtraces usable at a fraction of the link time and
 # memory that full debug info costs with GPUI in the graph.
