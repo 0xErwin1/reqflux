@@ -21,6 +21,9 @@ use reqflux_engine::state::AppState;
 use crate::shell::Shell;
 use crate::workspace::OpenedWorkspace;
 
+/// The app's identifier: the window's app id and the system notifications' identity.
+pub(crate) const APP_ID: &str = "reqflux";
+
 /// The asset source the main window needs: the Lucide icons gpui-component bundles, which
 /// ReqFlux and gpui-component's own widgets draw. Pass it to `Application::with_assets`
 /// before [`open_main_window`]; without it, icons paint nothing.
@@ -52,6 +55,9 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
     };
     let startup_theme = theme::startup(config_path.as_deref(), state.as_ref());
     theme::install(startup_theme.mode, cx);
+    // The name system notifications carry (an approval waiting while the window is in the
+    // background); the identifier matches the window's app id.
+    cx.set_app_identity(APP_ID, &bolt::brand::brand(cx).name);
     theme::set_font_size(startup_theme.font_size, cx);
     shell::bind_keys(cx);
     // The [keymap] table rebinds the commands over these defaults (v1-features S7); its
@@ -60,7 +66,7 @@ pub fn open_main_window(workspace: Option<PathBuf>, cx: &mut App) -> anyhow::Res
 
     let bounds = Bounds::centered(None, tokens::MAIN_WINDOW_SIZE, cx);
     let options = WindowOptions {
-        app_id: Some("reqflux".into()),
+        app_id: Some(APP_ID.into()),
         titlebar: Some(TitlebarOptions {
             title: Some(bolt::brand::brand(cx).name),
             ..Default::default()

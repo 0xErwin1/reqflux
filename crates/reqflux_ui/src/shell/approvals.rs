@@ -1,7 +1,8 @@
 //! In-app approvals of MCP calls (mcp-approvals S3, S4): the window listens for approval
 //! requests from `reqflux mcp`, queues them, counts them in the status bar, the bell and
 //! the rail, and lists them in the MCP approvals view ([`super::approvals_view`]), where the
-//! user answers them. A new request never opens anything nor takes the focus.
+//! user answers them. A new request never opens anything nor takes the focus; while the
+//! window is in the background it posts a system notification ([`super::approvals_notice`]).
 //!
 //! The engine's listener hands each request to [`Forward`] on a connection thread, which
 //! only passes it down a channel; the shell drains the channel on a timer, so the listener
@@ -250,6 +251,7 @@ impl Shell {
             let key = self.approvals.next_key;
             self.approvals.next_key = key.wrapping_add(1);
             let detail = Detail::read(&request, &self.workspace);
+            self.notify_approval(key, &request, window, cx);
             self.approvals.queue.push_back(Pending {
                 key,
                 request,
@@ -326,6 +328,23 @@ impl Shell {
         self.approvals.select_index(index);
         self.approvals.focus.focus(window, cx);
         cx.notify();
+    }
+
+    /// Selects the pending request queued under `key`, when it is still pending.
+    pub(super) fn select_approval_key(
+        &mut self,
+        key: u64,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let found = self
+            .approvals
+            .queue
+            .iter()
+            .position(|pending| pending.key == key);
+        if let Some(index) = found {
+            self.select_approval(index, window, cx);
+        }
     }
 
     /// Moves the selection one request down, or up, staying in the list.

@@ -62,7 +62,9 @@ and the GPUI native dependencies (Wayland, X11, xkbcommon, Vulkan, fontconfig, f
 Your settings live in `~/.config/reqflux/config.toml`, not in any workspace. Agents connected to
 `reqflux mcp` can read; anything else waits in the running window's MCP approvals view
 (`Ctrl+Shift+M`, or the bell, the rail or the status bar count): Allow once, Allow for this
-session, or Deny with an optional reason the agent receives. With no window open it is refused. Allow more there:
+session, or Deny with an optional reason the agent receives. When the window is in the
+background, a desktop notification says an agent is waiting; clicking it opens the request.
+With no window open it is refused. Allow more there:
 
 ```toml
 theme = "system"

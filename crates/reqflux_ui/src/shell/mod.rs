@@ -6,6 +6,7 @@ mod active_environment;
 mod approvals;
 mod approvals_detail;
 mod approvals_model;
+mod approvals_notice;
 mod approvals_view;
 mod audit;
 mod audit_model;
@@ -788,6 +789,8 @@ fn text_region(id: &'static str) -> Stateful<Div> {
 mod active_environment_tests;
 #[cfg(test)]
 mod approvals_detail_tests;
+#[cfg(test)]
+mod approvals_notice_tests;
 #[cfg(test)]
 mod approvals_tests;
 #[cfg(test)]

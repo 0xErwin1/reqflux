@@ -1245,7 +1245,15 @@ request with the named environment without running scripts or sending anything a
 URL, headers and body with that preparation's masker; a secret variable's value is never
 read into it. The detail is read when the call arrives and again on Refresh. There is no modal: a request opens nothing, takes no focus and does not raise the
 window. The count shows as a badge on the title bar bell (`approvals-badge`) and on the rail's
-`rail-approvals` (`rail-approvals-count`), only when N > 0; the status bar does not show it. The MCP
+`rail-approvals` (`rail-approvals-count`), only when N > 0; the status bar does not show it. A
+request that arrives while the window is in the background also posts one system notification
+(`shell/approvals_notice.rs`): title "MCP approval needed", body "<client> wants to run <tool>
+on <targets> in <workspace>" (the client "An agent" when it gave no name; only names, never
+values), through gpui-component's notification list with system-only delivery, and asks the
+window manager for attention (the X11 urgency hint; Wayland has no equivalent in gpui).
+Clicking it brings the window forward and opens the MCP approvals view on that request. While
+the window has the focus nothing is posted. The app sets its identity (`reqflux`, the brand
+name) at startup, which names the notification. The MCP
 approvals view (`approvals-view`, `shell/approvals_view.rs` and `shell/approvals_detail.rs`,
 artboard `design/bolt-v2/12-agent-approval.html`) opens from the rail button, the bell, the
 palette ("Open MCP approvals") and Ctrl+Shift+M; while `Panel::Approvals` is the
